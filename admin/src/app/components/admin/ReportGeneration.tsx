@@ -1,293 +1,358 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
-import { 
-  FileText, 
-  Download, 
-  Printer,
-  Eye,
-  Calendar
-} from 'lucide-react';
+import { FileText, Download, Printer, Eye, Calendar } from 'lucide-react';
 
-const reportTypes = [
-  { id: 'uaqtea', name: 'UAQTEA Enrollment Report - AY 2018-2026', description: 'CHED format compliance report with enrollment trends' },
-  { id: 'tdp', name: 'TDP Beneficiary Report - 2019-2025', description: 'With decline analysis and trend projections' },
-  { id: 'fhe-grad', name: 'FHE Graduates Master List - Batch 2020-2025', description: '1,517 graduates complete records' },
-  { id: 'fhe-summer', name: 'FHE Summer Enrollment - 2018-2025', description: 'With pandemic impact notes and recovery analysis' },
-  { id: 'private', name: 'Private Assistance Report - AY 2025-2026', description: '126 beneficiaries by program and benefactor' },
-  { id: 'comparison', name: 'TES vs TDP Comparison', description: 'Trend analysis 2019-2025 with projections' },
+// ─── Palette ─────────────────────────────────────────────────
+const C = {
+  brown: '#5c2d0e',
+  brownMid: '#7c4a2e',
+  brownLight: '#92500f',
+  amber: '#d97706',
+  amberSoft: '#FFF7ED',
+  yellowSoft: '#fef3c7',
+  sand: '#fdf6ec',
+  border: '#e8d5b7',
+  muted: '#a0785a',
+  text: '#3b1f0a',
+  bg: '#faf7f2',
+  white: '#FFFFFF',
+} as const;
+
+const BD = '1px solid ' + C.border;
+
+const CARD: React.CSSProperties = {
+  background: C.white,
+  border: BD,
+  borderRadius: 16,
+  boxShadow: '0 1px 3px rgba(107,58,31,0.07)',
+};
+
+// ─── Static data ─────────────────────────────────────────────
+const REPORT_TYPES = [
+  { id: 'uaqtea', name: 'UAQTEA Enrollment Report', sub: 'AY 2018–2026 · CHED format compliance' },
+  { id: 'tdp', name: 'TDP Beneficiary Report', sub: '2019–2025 · With decline analysis' },
+  { id: 'fhe-grad', name: 'FHE Graduates Master List', sub: 'Batch 2020–2025 · 1,517 graduates' },
+  { id: 'fhe-summer', name: 'FHE Summer Enrollment', sub: '2018–2025 · Pandemic impact & recovery' },
+  { id: 'private', name: 'Private Assistance Report', sub: 'AY 2025–2026 · 126 beneficiaries' },
+  { id: 'comparison', name: 'TES vs TDP Comparison', sub: '2019–2025 · Trend analysis with projections' },
 ];
 
-const recentReports = [
+const RECENT_REPORTS = [
   { name: 'UAQTEA_Enrollment_2018-2026.pdf', date: 'Feb 14, 2026', size: '3.2 MB', type: 'PDF' },
   { name: 'FHE_Graduates_Master_List_2020-2025.xlsx', date: 'Feb 12, 2026', size: '2.1 MB', type: 'Excel' },
   { name: 'TDP_Decline_Analysis_2019-2025.pdf', date: 'Feb 10, 2026', size: '1.8 MB', type: 'PDF' },
   { name: 'Private_Beneficiaries_AY2025-2026.csv', date: 'Feb 08, 2026', size: '156 KB', type: 'CSV' },
 ];
 
-const sampleColumns = [
-  'Student ID', 'Full Name', 'Program', 'Scholarship Type', 'Award Amount', 
-  'Academic Year', 'Semester', 'GWA', 'Status', 'Date Approved'
-];
+const SAMPLE_COLS = ['Student ID', 'Full Name', 'Program', 'Scholarship', 'Award', 'AY', 'Sem', 'GWA', 'Status'];
 
+const FILE_TYPE_COLOR: Record<string, { bg: string; color: string }> = {
+  PDF: { bg: '#FEF2F2', color: '#dc2626' },
+  Excel: { bg: C.sand, color: C.brownLight },
+  CSV: { bg: C.yellowSoft, color: C.amber },
+};
+
+// ─── Pill toggle helper ───────────────────────────────────────
+function PillGroup<T extends string>({
+  options, value, onChange,
+}: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all"
+          style={{
+            background: value === o.value ? C.brown : C.white,
+            color: value === o.value ? C.white : C.muted,
+            borderColor: value === o.value ? C.brown : C.border,
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Component ───────────────────────────────────────────────
 export default function ReportGeneration() {
-  const [selectedReport, setSelectedReport] = useState('tes');
-  const [academicYear, setAcademicYear] = useState('2025-2026');
+  const [selected, setSelected] = useState('uaqtea');
+  const [ay, setAy] = useState('2025-2026');
   const [semester, setSemester] = useState('1st');
-  const [programFilter, setProgramFilter] = useState('all');
+  const [program, setProgram] = useState('all');
   const [format, setFormat] = useState('pdf');
 
+  const selectedReport = REPORT_TYPES.find(r => r.id === selected)!;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 py-1" style={{ fontFamily: 'system-ui, sans-serif', color: C.text }}>
+
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Generate Reports</h1>
-        <p className="text-gray-600 mt-1">CHED/UniFAST Compliance & Custom Reports</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: C.text }}>Reports</h1>
+          <p className="text-sm mt-0.5" style={{ color: C.muted }}>CHED / UniFAST compliance & custom exports</p>
+        </div>
       </div>
 
-      {/* Main Content - Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Panel - Report Types */}
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Report Types</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {reportTypes.map((report) => (
+      {/* Two-column: report picker + config */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+        {/* Report type list */}
+        <div style={CARD} className="lg:col-span-2 p-5">
+          <h2 className="text-sm font-bold mb-4" style={{ color: C.text }}>Report Types</h2>
+          <div className="space-y-2">
+            {REPORT_TYPES.map((r) => {
+              const isActive = selected === r.id;
+              return (
                 <button
-                  key={report.id}
-                  onClick={() => setSelectedReport(report.id)}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                    selectedReport === report.id
-                      ? 'border-[#1E3A8A] bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  key={r.id}
+                  onClick={() => setSelected(r.id)}
+                  className="w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-all"
+                  style={{
+                    borderColor: isActive ? C.brown : C.border,
+                    background: isActive ? C.yellowSoft : C.white,
+                  }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = C.sand; }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = C.white; }}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      selectedReport === report.id ? 'bg-[#1E3A8A]' : 'bg-gray-100'
-                    }`}>
-                      <FileText className={`w-5 h-5 ${
-                        selectedReport === report.id ? 'text-white' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 mb-1">{report.name}</h3>
-                      <p className="text-sm text-gray-600">{report.description}</p>
-                    </div>
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                    style={{ background: isActive ? C.brown : C.sand }}
+                  >
+                    <FileText className="w-4 h-4" style={{ color: isActive ? C.white : C.muted }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold leading-tight truncate" style={{ color: isActive ? C.brown : C.text }}>
+                      {r.name}
+                    </p>
+                    <p className="text-[11px] mt-0.5" style={{ color: C.muted }}>{r.sub}</p>
                   </div>
                 </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              );
+            })}
+          </div>
+        </div>
 
-        {/* Right Panel - Report Configuration */}
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Report Configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Academic Year */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Academic Year
-              </label>
-              <Select value={academicYear} onValueChange={setAcademicYear}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2025-2026">2025-2026</SelectItem>
-                  <SelectItem value="2024-2025">2024-2025</SelectItem>
-                  <SelectItem value="2023-2024">2023-2024</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Config panel */}
+        <div style={CARD} className="lg:col-span-3 p-5 space-y-5">
+          <div>
+            <h2 className="text-sm font-bold" style={{ color: C.text }}>Configuration</h2>
+            <p className="text-xs mt-0.5" style={{ color: C.muted }}>{selectedReport.name}</p>
+          </div>
 
-            {/* Semester */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Semester
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {['1st', '2nd', 'Summer'].map((sem) => (
-                  <button
-                    key={sem}
-                    onClick={() => setSemester(sem)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      semester === sem
-                        ? 'bg-[#1E3A8A] text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {sem}
-                  </button>
+          {/* Academic Year */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1.5" style={{ color: C.muted }}>
+              Academic Year
+            </label>
+            <Select value={ay} onValueChange={setAy}>
+              <SelectTrigger className="h-9 text-sm rounded-xl border-gray-200 bg-gray-50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['2025-2026', '2024-2025', '2023-2024'].map(y => (
+                  <SelectItem key={y} value={y}>{y}</SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Semester */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1.5" style={{ color: C.muted }}>
+              Semester
+            </label>
+            <PillGroup
+              options={[{ value: '1st', label: '1st Sem' }, { value: '2nd', label: '2nd Sem' }, { value: 'Summer', label: 'Summer' }]}
+              value={semester}
+              onChange={setSemester}
+            />
+          </div>
+
+          {/* Program Filter */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1.5" style={{ color: C.muted }}>
+              Program Filter
+            </label>
+            <Select value={program} onValueChange={setProgram}>
+              <SelectTrigger className="h-9 text-sm rounded-xl border-gray-200 bg-gray-50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Programs</SelectItem>
+                <SelectItem value="tes">TES Only</SelectItem>
+                <SelectItem value="tdp">TDP Only</SelectItem>
+                <SelectItem value="private">Private Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date Range */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1.5" style={{ color: C.muted }}>
+              Date Range
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Input type="date" defaultValue="2025-08-01" className="h-9 text-sm rounded-xl border-gray-200 bg-gray-50" />
+                <p className="text-[10px] mt-1" style={{ color: C.muted }}>From</p>
+              </div>
+              <div>
+                <Input type="date" defaultValue="2026-02-14" className="h-9 text-sm rounded-xl border-gray-200 bg-gray-50" />
+                <p className="text-[10px] mt-1" style={{ color: C.muted }}>To</p>
               </div>
             </div>
+          </div>
 
-            {/* Program Filter */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Program Filter
-              </label>
-              <Select value={programFilter} onValueChange={setProgramFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Programs</SelectItem>
-                  <SelectItem value="tes">TES Only</SelectItem>
-                  <SelectItem value="tdp">TDP Only</SelectItem>
-                  <SelectItem value="private">Private Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Format */}
+          <div>
+            <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1.5" style={{ color: C.muted }}>
+              Export Format
+            </label>
+            <PillGroup
+              options={[{ value: 'pdf', label: 'PDF' }, { value: 'excel', label: 'Excel' }, { value: 'csv', label: 'CSV' }]}
+              value={format}
+              onChange={setFormat}
+            />
+          </div>
 
-            {/* Date Range */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Date Range
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Input type="date" defaultValue="2025-08-01" />
-                  <p className="text-xs text-gray-500 mt-1">From</p>
-                </div>
-                <div>
-                  <Input type="date" defaultValue="2026-02-14" />
-                  <p className="text-xs text-gray-500 mt-1">To</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Format */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
-                Export Format
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: 'pdf', label: 'PDF' },
-                  { value: 'excel', label: 'Excel' },
-                  { value: 'csv', label: 'CSV' }
-                ].map((fmt) => (
-                  <button
-                    key={fmt.value}
-                    onClick={() => setFormat(fmt.value)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      format === fmt.value
-                        ? 'bg-[#1E3A8A] text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {fmt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Action buttons */}
+          <div className="flex gap-2 pt-1">
+            <button
+              className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl text-sm font-bold text-white transition-opacity"
+              style={{ background: C.brown }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.9')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+            >
+              <FileText className="w-4 h-4" />
+              Generate
+            </button>
+            <button
+              className="flex items-center justify-center gap-1.5 px-4 h-10 rounded-xl text-xs font-semibold border transition-colors"
+              style={{ borderColor: C.border, color: C.muted, background: C.white }}
+              onMouseEnter={e => (e.currentTarget.style.background = C.sand)}
+              onMouseLeave={e => (e.currentTarget.style.background = C.white)}
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </button>
+            <button
+              className="flex items-center justify-center gap-1.5 px-4 h-10 rounded-xl text-xs font-semibold border transition-colors"
+              style={{ borderColor: C.border, color: C.muted, background: C.white }}
+              onMouseEnter={e => (e.currentTarget.style.background = C.sand)}
+              onMouseLeave={e => (e.currentTarget.style.background = C.white)}
+            >
+              <Printer className="w-4 h-4" />
+              Print
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Preview Section */}
-      <Card className="shadow-md">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Report Preview</CardTitle>
-          <Badge className="bg-blue-100 text-blue-800">
-            <Calendar className="w-3 h-3 mr-1" />
+      {/* Preview */}
+      <div style={CARD} className="overflow-hidden">
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: BD }}>
+          <div>
+            <h2 className="text-sm font-bold" style={{ color: C.text }}>Preview</h2>
+            <p className="text-xs mt-0.5" style={{ color: C.muted }}>{selectedReport.name}</p>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold"
+            style={{ background: C.yellowSoft, color: C.brownLight }}>
+            <Calendar className="w-3 h-3" />
             1,280 records
-          </Badge>
-        </CardHeader>
-        <CardContent>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 bg-gray-50">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-white border-b-2 border-gray-200">
-                  <tr>
-                    {sampleColumns.map((col) => (
-                      <th key={col} className="px-4 py-3 text-left text-sm font-bold text-gray-900 whitespace-nowrap">
-                        {col}
-                      </th>
+          </div>
+        </div>
+        <div className="overflow-x-auto p-5" style={{ background: C.bg }}>
+          <div style={{ ...CARD, overflow: 'hidden' }}>
+            <table className="w-full">
+              <thead>
+                <tr style={{ background: C.yellowSoft, borderBottom: BD }}>
+                  {SAMPLE_COLS.map((col) => (
+                    <th key={col} className="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
+                      style={{ color: C.muted }}>
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3].map((row, i) => (
+                  <tr key={row} style={{ borderBottom: BD, background: i % 2 === 0 ? C.white : C.sand }}>
+                    {SAMPLE_COLS.map((_, idx) => (
+                      <td key={idx} className="px-4 py-2.5 text-xs whitespace-nowrap" style={{ color: C.muted }}>
+                        — — —
+                      </td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {[1, 2, 3].map((row) => (
-                    <tr key={row} className="border-b border-gray-100">
-                      {sampleColumns.map((col, idx) => (
-                        <td key={idx} className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                          Sample Data
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-center text-gray-500 text-sm mt-4">
-              Preview showing first 3 rows of {sampleColumns.length} columns
-            </p>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Action Buttons */}
-      <div className="flex gap-4">
-        <Button className="flex-1 bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white h-14 text-lg font-bold">
-          <FileText className="w-5 h-5 mr-2" />
-          GENERATE REPORT
-        </Button>
-        <Button variant="outline" className="h-14 px-8">
-          <Download className="w-5 h-5 mr-2" />
-          EXPORT
-        </Button>
-        <Button variant="outline" className="h-14 px-8">
-          <Printer className="w-5 h-5 mr-2" />
-          PRINT
-        </Button>
+          <p className="text-center text-[11px] mt-3" style={{ color: C.muted }}>
+            Showing first 3 rows · {SAMPLE_COLS.length} columns
+          </p>
+        </div>
       </div>
 
       {/* Recent Reports */}
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle>Recent Reports</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {recentReports.map((report, index) => (
-              <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-[#1E3A8A]" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">{report.name}</h4>
-                    <p className="text-sm text-gray-500">
-                      {report.date} • {report.size} • {report.type}
-                    </p>
-                  </div>
+      <div style={CARD} className="overflow-hidden">
+        <div className="px-5 py-4" style={{ borderBottom: BD }}>
+          <h2 className="text-sm font-bold" style={{ color: C.text }}>Recent Reports</h2>
+          <p className="text-xs mt-0.5" style={{ color: C.muted }}>Previously generated files</p>
+        </div>
+        <div className="divide-y" style={{ borderColor: C.border }}>
+          {RECENT_REPORTS.map((r, i) => {
+            const tc = FILE_TYPE_COLOR[r.type] ?? { bg: C.sand, color: C.muted };
+            return (
+              <div
+                key={i}
+                className="flex items-center gap-4 px-5 py-3.5 transition-colors"
+                style={{ background: C.white }}
+                onMouseEnter={e => (e.currentTarget.style.background = C.sand)}
+                onMouseLeave={e => (e.currentTarget.style.background = C.white)}
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: tc.bg }}>
+                  <FileText className="w-4 h-4" style={{ color: tc.color }} />
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline">
-                    <Eye className="w-4 h-4 mr-1" />
-                    View
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    <Download className="w-4 h-4 mr-1" />
-                    Download
-                  </Button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{r.name}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: C.muted }}>
+                    {r.date} · {r.size} ·{' '}
+                    <span className="font-semibold px-1.5 py-0.5 rounded-md"
+                      style={{ background: tc.bg, color: tc.color }}>
+                      {r.type}
+                    </span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors"
+                    style={{ borderColor: C.border, color: C.muted, background: C.white }}
+                    onMouseEnter={e => (e.currentTarget.style.background = C.sand)}
+                    onMouseLeave={e => (e.currentTarget.style.background = C.white)}
+                  >
+                    <Eye className="w-3.5 h-3.5" /> View
+                  </button>
+                  <button
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors"
+                    style={{ borderColor: C.border, color: C.brownLight, background: C.white }}
+                    onMouseEnter={e => (e.currentTarget.style.background = C.amberSoft)}
+                    onMouseLeave={e => (e.currentTarget.style.background = C.white)}
+                  >
+                    <Download className="w-3.5 h-3.5" /> Download
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

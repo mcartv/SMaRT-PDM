@@ -8,6 +8,8 @@ import ReportGeneration from './components/admin/ReportGeneration';
 import ScholarMonitoring from './components/admin/ScholarMonitoring';
 import ROAdmin from './components/admin/ROAdmin';
 import AnnouncementsManagement from './components/admin/AnnouncementsManagement';
+import AdminProfile from './components/admin/AdminProfile';
+import Maintenance from './components/admin/Maintenance';
 
 export default function App() {
   return (
@@ -24,6 +26,8 @@ export default function App() {
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="reports" element={<ReportGeneration />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
+          <Route path="adminprofile" element={<AdminProfile />} />
+          <Route path="maintenance" element={<Maintenance />} />
         </Route>
       </Routes>
     </BrowserRouter>

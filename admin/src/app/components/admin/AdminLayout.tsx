@@ -27,8 +27,8 @@ const navItems = [
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
-  { path: '/admin/users', icon: User, label: 'Users' },
-  { path: '/admin/settings', icon: Settings, label: 'Settings' },
+  { path: '/admin/adminprofile', icon: User, label: 'Admin Profile' },
+  { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
 ];
 
 const INITIAL_NOTIFS = [

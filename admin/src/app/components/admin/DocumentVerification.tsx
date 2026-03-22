@@ -1,250 +1,320 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Badge } from '../ui/badge';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  ArrowLeft,
-  FileText,
-  Flag
+import {
+  CheckCircle, XCircle, Clock, ArrowLeft,
+  FileText, Flag, ChevronRight,
 } from 'lucide-react';
 
-const documents = [
-  { id: 'cor', name: 'Certificate of Registration', status: 'verified', uploadedDate: 'Oct 20, 2025' },
-  { id: 'grades', name: 'Grade Form', status: 'pending', uploadedDate: 'Oct 20, 2025' },
-  { id: 'indigency', name: 'Certificate of Indigency', status: 'verified', uploadedDate: 'Oct 19, 2025' },
-  { id: 'id', name: 'Valid ID', status: 'verified', uploadedDate: 'Oct 20, 2025' },
+// ─── Palette ─────────────────────────────────────────────────
+const C = {
+  blue: '#1E3A8A',
+  blueMid: '#2563EB',
+  blueSoft: '#EFF6FF',
+  green: '#16a34a',
+  greenSoft: '#F0FDF4',
+  orange: '#d97706',
+  orangeSft: '#FFF7ED',
+  red: '#dc2626',
+  redSoft: '#FEF2F2',
+  border: '#E5E7EB',
+  muted: '#6B7280',
+  text: '#111827',
+  bg: '#F9FAFB',
+  white: '#FFFFFF',
+} as const;
+
+const CARD = {
+  background: C.white,
+  border: `1px solid ${C.border}`,
+  borderRadius: 16,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+} as const;
+
+// ─── Data ────────────────────────────────────────────────────
+type DocStatus = 'verified' | 'pending' | 'rejected';
+
+const DOCS: { id: string; name: string; status: DocStatus; uploaded: string }[] = [
+  { id: 'cor', name: 'Certificate of Registration', status: 'verified', uploaded: 'Oct 20, 2025' },
+  { id: 'grades', name: 'Grade Form', status: 'pending', uploaded: 'Oct 20, 2025' },
+  { id: 'indigency', name: 'Certificate of Indigency', status: 'verified', uploaded: 'Oct 19, 2025' },
+  { id: 'id', name: 'Valid ID', status: 'verified', uploaded: 'Oct 20, 2025' },
 ];
 
-const studentInfo = {
-  id: '2025-001',
-  name: 'Juan Dela Cruz',
-  program: 'TES',
-  email: 'juan.delacruz@student.edu.ph',
-  phone: '+63 912 345 6789',
-  yearLevel: '2nd Year',
-  course: 'BS Computer Science',
-  department: 'Engineering',
-  gwa: '1.75'
+const STUDENT = {
+  id: '2025-001', name: 'Juan Dela Cruz', initials: 'JD',
+  program: 'TES', email: 'juan.delacruz@student.edu.ph',
+  phone: '+63 912 345 6789', year: '2nd Year',
+  course: 'BS Computer Science', dept: 'Engineering', gwa: '1.75',
 };
 
+// ─── Status config ────────────────────────────────────────────
+const DOC_STATUS: Record<DocStatus, { icon: React.ReactNode; color: string; bg: string; label: string }> = {
+  verified: { icon: <CheckCircle className="w-4 h-4" />, color: C.green, bg: C.greenSoft, label: 'Verified' },
+  pending: { icon: <Clock className="w-4 h-4" />, color: C.orange, bg: C.orangeSft, label: 'Pending' },
+  rejected: { icon: <XCircle className="w-4 h-4" />, color: C.red, bg: C.redSoft, label: 'Rejected' },
+};
+
+// ─── Helpers ─────────────────────────────────────────────────
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: C.muted }}>{label}</p>
+      <p className={`text-sm text-gray-800 ${mono ? 'font-mono' : 'font-medium'}`}>{value}</p>
+    </div>
+  );
+}
+
+// ─── Component ───────────────────────────────────────────────
 export default function DocumentVerification() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [selectedDoc, setSelectedDoc] = useState('cor');
+  const [doc, setDoc] = useState('cor');
   const [comment, setComment] = useState('');
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'verified':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'pending':
-        return <Clock className="w-5 h-5 text-orange-600" />;
-      case 'rejected':
-        return <XCircle className="w-5 h-5 text-red-600" />;
-      default:
-        return <Clock className="w-5 h-5 text-gray-400" />;
-    }
-  };
+  const verified = DOCS.filter(d => d.status === 'verified').length;
+  const progress = Math.round((verified / DOCS.length) * 100);
+  const activeDoc = DOCS.find(d => d.id === doc)!;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={() => navigate('/admin/applications')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Queue
-        </Button>
+    <div className="space-y-5 py-1" style={{ fontFamily: 'system-ui, sans-serif', color: C.text }}>
+
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate('/admin/applications')}
+          className="w-8 h-8 flex items-center justify-center rounded-xl border transition-colors shrink-0"
+          style={{ borderColor: C.border, background: C.white }}
+          onMouseEnter={e => (e.currentTarget.style.background = C.bg)}
+          onMouseLeave={e => (e.currentTarget.style.background = C.white)}
+        >
+          <ArrowLeft className="w-4 h-4" style={{ color: C.muted }} />
+        </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Document Verification</h1>
-          <p className="text-gray-600 mt-1">Application ID: {id}</p>
+          <div className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
+            <span
+              className="cursor-pointer hover:underline"
+              onClick={() => navigate('/admin/applications')}
+            >
+              Applications
+            </span>
+            <ChevronRight className="w-3 h-3" />
+            <span style={{ color: C.text }}>{id}</span>
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 leading-tight">Document Verification</h1>
         </div>
       </div>
 
-      {/* Split View */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left Panel - Application Summary (40%) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Student Info Card */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Student Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Avatar and Basic Info */}
-              <div className="flex items-start gap-4">
-                <Avatar className="w-16 h-16">
-                  <AvatarFallback className="bg-[#1E3A8A] text-white text-xl">JD</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg text-gray-900">{studentInfo.name}</h3>
-                  <p className="text-sm text-gray-600">{studentInfo.id}</p>
-                  <Badge className="mt-2 bg-blue-100 text-blue-800">{studentInfo.program}</Badge>
-                </div>
-              </div>
+      {/* ── Split layout ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-              {/* Details */}
-              <div className="space-y-3 pt-4 border-t border-gray-200">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Email</p>
-                  <p className="text-sm text-gray-900">{studentInfo.email}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Phone</p>
-                  <p className="text-sm text-gray-900">{studentInfo.phone}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase">Year Level</p>
-                    <p className="text-sm text-gray-900">{studentInfo.yearLevel}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase">GWA</p>
-                    <p className="text-sm text-gray-900 font-bold">{studentInfo.gwa}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Course</p>
-                  <p className="text-sm text-gray-900">{studentInfo.course}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Department</p>
-                  <p className="text-sm text-gray-900">{studentInfo.department}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* ── Left: Student info + checklist ── */}
+        <div className="lg:col-span-2 space-y-4">
 
-          {/* Document Checklist */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Required Documents</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {documents.map((doc) => (
+          {/* Student card */}
+          <div style={CARD} className="p-5">
+            <div className="flex items-center gap-3 mb-5">
+              <Avatar className="w-12 h-12 shrink-0">
+                <AvatarFallback
+                  className="text-sm font-bold text-white"
+                  style={{ background: C.blue }}
+                >
+                  {STUDENT.initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="font-bold text-gray-900 truncate">{STUDENT.name}</p>
+                <p className="text-xs font-mono text-gray-400">{STUDENT.id}</p>
+                <span
+                  className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md mt-1"
+                  style={{ background: C.blueSoft, color: C.blue }}
+                >
+                  {STUDENT.program}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
+              <InfoRow label="Email" value={STUDENT.email} />
+              <InfoRow label="Phone" value={STUDENT.phone} />
+              <div className="grid grid-cols-2 gap-3">
+                <InfoRow label="Year Level" value={STUDENT.year} />
+                <InfoRow label="GWA" value={STUDENT.gwa} mono />
+              </div>
+              <InfoRow label="Course" value={STUDENT.course} />
+              <InfoRow label="Department" value={STUDENT.dept} />
+            </div>
+          </div>
+
+          {/* Document checklist */}
+          <div style={CARD} className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-gray-900">Required Documents</h2>
+              <span className="text-xs font-semibold" style={{ color: C.muted }}>
+                {verified}/{DOCS.length} verified
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {DOCS.map((d) => {
+                const s = DOC_STATUS[d.status];
+                const isActive = doc === d.id;
+                return (
                   <button
-                    key={doc.id}
-                    onClick={() => setSelectedDoc(doc.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all ${
-                      selectedDoc === doc.id 
-                        ? 'border-[#1E3A8A] bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    key={d.id}
+                    onClick={() => setDoc(d.id)}
+                    className="w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left"
+                    style={{
+                      borderColor: isActive ? C.blue : C.border,
+                      background: isActive ? C.blueSoft : C.white,
+                    }}
+                    onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = C.bg; }}
+                    onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = C.white; }}
                   >
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(doc.status)}
-                      <div className="text-left">
-                        <p className="font-medium text-sm text-gray-900">{doc.name}</p>
-                        <p className="text-xs text-gray-500">Uploaded: {doc.uploadedDate}</p>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span style={{ color: s.color, flexShrink: 0 }}>{s.icon}</span>
+                      <div className="min-w-0">
+                        <p className={`text-xs truncate ${isActive ? 'font-semibold text-blue-900' : 'font-medium text-gray-800'}`}>
+                          {d.name}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Uploaded {d.uploaded}</p>
                       </div>
                     </div>
-                    <FileText className="w-5 h-5 text-gray-400" />
+                    <span
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ml-2"
+                      style={{ background: s.bg, color: s.color }}
+                    >
+                      {s.label}
+                    </span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
+            </div>
 
-              {/* Progress */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-gray-600">Verification Progress</span>
-                  <span className="font-bold text-gray-900">75%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-[#10B981] h-2 rounded-full" style={{ width: '75%' }}></div>
-                </div>
+            {/* Progress bar */}
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-gray-500">Verification progress</span>
+                <span className="text-xs font-bold text-gray-900">{progress}%</span>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Panel - Document Viewer (60%) */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Document Tabs */}
-          <Card className="shadow-md">
-            <CardHeader className="border-b border-gray-200">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                {documents.map((doc) => (
-                  <button
-                    key={doc.id}
-                    onClick={() => setSelectedDoc(doc.id)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                      selectedDoc === doc.id
-                        ? 'bg-[#1E3A8A] text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {doc.name}
-                  </button>
-                ))}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {/* PDF Viewer Simulation */}
-              <div className="bg-gray-100 p-8 min-h-[500px] flex items-center justify-center">
-                <div className="bg-white shadow-lg w-full max-w-2xl p-12 rounded-lg">
-                  <div className="text-center space-y-4">
-                    <FileText className="w-16 h-16 text-gray-400 mx-auto" />
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {documents.find(d => d.id === selectedDoc)?.name}
-                    </h3>
-                    <p className="text-gray-600">Document Preview</p>
-                    <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-                      <p className="text-gray-400">PDF Document Content</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Verification Actions */}
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle>Verification Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Comment Box */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Add note to student (optional)
-                </label>
-                <Textarea
-                  placeholder="Enter any comments or instructions for the student..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  rows={4}
-                  className="resize-none"
+              <div className="w-full h-1.5 rounded-full" style={{ background: C.border }}>
+                <div
+                  className="h-1.5 rounded-full transition-all"
+                  style={{ width: `${progress}%`, background: C.green }}
                 />
               </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Button className="bg-[#10B981] hover:bg-[#10B981]/90 text-white">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Mark as Verified
-                </Button>
-                <Button variant="outline" className="border-orange-500 text-orange-600 hover:bg-orange-50">
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Request Re-upload
-                </Button>
-                <Button variant="outline" className="border-red-500 text-red-600 hover:bg-red-50">
-                  <Flag className="w-4 h-4 mr-2" />
-                  Flag for Review
-                </Button>
+        {/* ── Right: Document viewer + actions ── */}
+        <div className="lg:col-span-3 space-y-4">
+
+          {/* Document viewer */}
+          <div style={CARD} className="overflow-hidden">
+            {/* Tab strip */}
+            <div className="flex items-center gap-1 px-4 pt-4 pb-0 overflow-x-auto">
+              {DOCS.map((d) => {
+                const s = DOC_STATUS[d.status];
+                const isActive = doc === d.id;
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => setDoc(d.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold whitespace-nowrap rounded-t-lg border-b-2 transition-all"
+                    style={{
+                      borderBottomColor: isActive ? C.blue : 'transparent',
+                      color: isActive ? C.blue : C.muted,
+                      background: isActive ? C.blueSoft : 'transparent',
+                    }}
+                  >
+                    <span style={{ color: s.color }}>{s.icon}</span>
+                    {d.name}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ borderTop: `1px solid ${C.border}` }} />
+
+            {/* Preview area */}
+            <div className="p-6 min-h-[420px] flex items-center justify-center" style={{ background: C.bg }}>
+              <div className="w-full max-w-lg bg-white rounded-xl p-10 text-center"
+                style={{ border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                  style={{ background: C.blueSoft }}>
+                  <FileText className="w-7 h-7" style={{ color: C.blue }} />
+                </div>
+                <p className="text-sm font-semibold text-gray-900 mb-1">{activeDoc.name}</p>
+                <p className="text-xs text-gray-400 mb-5">Uploaded {activeDoc.uploaded}</p>
+                <div className="h-48 rounded-xl flex items-center justify-center"
+                  style={{ background: C.bg, border: `2px dashed ${C.border}` }}>
+                  <p className="text-xs text-gray-400">Document preview renders here</p>
+                </div>
               </div>
+            </div>
+          </div>
 
-              {/* Save & Next */}
-              <Button className="w-full bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white h-12 text-lg font-bold">
-                SAVE & NEXT
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Verification actions */}
+          <div style={CARD} className="p-5">
+            <h2 className="text-sm font-bold text-gray-900 mb-4">Verification Actions</h2>
+
+            {/* Comment box */}
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">
+                Note to student <span className="normal-case font-normal text-gray-400">(optional)</span>
+              </label>
+              <Textarea
+                placeholder="Add comments or instructions for the student…"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={3}
+                className="resize-none text-sm rounded-xl border-gray-200 bg-gray-50 focus:bg-white"
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <button
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all"
+                style={{ background: C.greenSoft, borderColor: '#bbf7d0', color: C.green }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#dcfce7')}
+                onMouseLeave={e => (e.currentTarget.style.background = C.greenSoft)}
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Mark Verified
+              </button>
+              <button
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all"
+                style={{ background: C.orangeSft, borderColor: '#fed7aa', color: C.orange }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#ffedd5')}
+                onMouseLeave={e => (e.currentTarget.style.background = C.orangeSft)}
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Request Re-upload
+              </button>
+              <button
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold border transition-all"
+                style={{ background: C.redSoft, borderColor: '#fecaca', color: C.red }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#fee2e2')}
+                onMouseLeave={e => (e.currentTarget.style.background = C.redSoft)}
+              >
+                <Flag className="w-3.5 h-3.5" />
+                Flag for Review
+              </button>
+            </div>
+
+            {/* Save & Next */}
+            <button
+              className="w-full h-11 rounded-xl text-sm font-bold text-white transition-opacity"
+              style={{ background: C.blue }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.9')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+            >
+              Save & Next →
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -12,15 +12,13 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IntelliJ/IDE files
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# VS Code folder, include only if you want it tracked
 #.vscode/
 
 # Flutter/Dart/Pub related
@@ -28,18 +26,41 @@ migrate_working_dir/
 **/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
-/build/
-/coverage/
+build/
+**/build/
+coverage/
 
-# Symbolication related
+# Android generated files
+**/android/.gradle/
+**/android/app/build/
+**/android/local.properties
+**/android/app/*.keystore
+
+# iOS/macOS generated files
+**/ios/Pods/
+**/ios/Podfile.lock
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/App.framework
+**/ios/Flutter/engine/Flutter.framework
+**/ios/.symlinks/
+**/macos/Flutter/Flutter.framework
+**/macos/Flutter/Flutter.podspec
+
+# Linux/Windows/other build outputs
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/web/analysis_options.yaml
+
+# Misc Flutter artifact patterns
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Optional: ignore generated artifacts from Android Studio
 /android/app/debug
 /android/app/profile
 /android/app/release

@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/smart_pdm_page_scaffold.dart';
 
 class StatusTrackingScreen extends StatelessWidget {
   const StatusTrackingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Application Status - TES-2025-0123'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+    return SmartPdmPageScaffold(
+      selectedIndex: 2,
+      child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              'Application Status - TES-2025-0123',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
             Card(
               color: Colors.orange[50],
               child: const Padding(
@@ -24,7 +30,7 @@ class StatusTrackingScreen extends StatelessWidget {
                     Icon(Icons.access_time, color: Colors.orange),
                     SizedBox(width: 12),
                     Text(
-                      'Current: Under Review',
+                      'Under Review',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.orange,
@@ -61,14 +67,14 @@ class StatusTrackingScreen extends StatelessWidget {
               step: 3,
               title: 'Admin Review',
               date: '',
-              status: 'pending',
+              status: 'in_progress',
               details: 'Est Nov 5',
             ),
             const TimelineItem(
               step: 4,
               title: 'Approval',
               date: '',
-              status: 'pending',
+              status: 'in_progress',
               details: '',
             ),
             const SizedBox(height: 20),
@@ -84,7 +90,7 @@ class StatusTrackingScreen extends StatelessWidget {
                         Icon(Icons.warning, color: Colors.red),
                         SizedBox(width: 12),
                         Text(
-                          'Action Required',
+                          'Action Required: Grade Form unclear. Re-upload',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.red,
@@ -92,9 +98,7 @@ class StatusTrackingScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text('Grade Form unclear. Please re-upload a clearer copy.'),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -147,8 +151,8 @@ class TimelineItem extends StatelessWidget {
         color = Colors.orange;
         break;
       default:
-        icon = Icons.radio_button_unchecked;
-        color = Colors.grey;
+        icon = Icons.hourglass_empty;
+        color = Colors.orange.withOpacity(0.65);
     }
 
     return Row(
@@ -178,7 +182,7 @@ class TimelineItem extends StatelessWidget {
               ),
               if (date.isNotEmpty) Text(date),
               if (details.isNotEmpty) Text(details),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
             ],
           ),
         ),

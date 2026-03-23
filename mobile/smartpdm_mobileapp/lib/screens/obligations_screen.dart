@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/smart_pdm_page_scaffold.dart';
 
 class ObligationsScreen extends StatefulWidget {
   const ObligationsScreen({super.key});
@@ -25,22 +26,50 @@ class _ObligationsScreenState extends State<ObligationsScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Obligations'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Active'),
-            Tab(text: 'Completed'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
+    return SmartPdmPageScaffold(
+      selectedIndex: 3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildActiveTab(),
-          _buildCompletedTab(),
+          const Text(
+            'My Obligations',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(4.0),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: primaryColor,
+                borderRadius: BorderRadius.circular(borderRadius),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              tabs: const [
+                Tab(text: 'Active'),
+                Tab(text: 'Completed'),
+              ],
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildActiveTab(),
+                _buildCompletedTab(),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -48,11 +77,10 @@ class _ObligationsScreenState extends State<ObligationsScreen> with SingleTicker
 
   Widget _buildActiveTab() {
     return ListView(
-      padding: const EdgeInsets.all(16.0),
       children: const [
         ObligationCard(
           title: 'Community Service - Library',
-          hours: '10 hours',
+          hours: '10 hrs',
           deadline: 'Dec 15',
           status: 'IN PROGRESS',
           progress: 0.4,
@@ -82,17 +110,41 @@ class _ObligationsScreenState extends State<ObligationsScreen> with SingleTicker
   }
 
   Widget _buildCompletedTab() {
-    return const Padding(
-      padding: EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          ListTile(
-            title: Text('Community Service - Completed Dec 1'),
-            subtitle: Text('Verified by Dept Head'),
-            trailing: Icon(Icons.check_circle, color: Colors.green),
+    return ListView(
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Community Service - Completed Dec 1',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Verified by Dept Head',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -122,7 +174,7 @@ class ObligationCard extends StatelessWidget {
     Color statusColor;
     switch (status) {
       case 'IN PROGRESS':
-        statusColor = Colors.blue;
+        statusColor = accentColor;
         break;
       case 'PENDING':
         statusColor = Colors.orange;
@@ -156,7 +208,7 @@ class ObligationCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 status,

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../constants.dart';
+import '../widgets/smart_pdm_page_scaffold.dart';
 
 class ApplicationFormScreen extends StatefulWidget {
   const ApplicationFormScreen({super.key});
@@ -12,8 +12,6 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _studentIdController = TextEditingController();
-  final _courseController = TextEditingController();
-  final _yearLevelController = TextEditingController();
   final _birthdateController = TextEditingController();
   final _contactController = TextEditingController();
   final _emailController = TextEditingController();
@@ -23,17 +21,31 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Apply for TES Scholarship'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+    return SmartPdmPageScaffold(
+      selectedIndex: 2,
+      child: SingleChildScrollView(
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Text(
+                'Apply for TES Scholarship',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Step 1 of 4',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 18),
               const Text(
                 'Personal Information',
                 style: TextStyle(
@@ -42,7 +54,6 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text('Step 1 of 4'),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _fullNameController,
@@ -76,9 +87,18 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                   labelText: 'Course',
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'BSIT', child: Text('BS Information Technology')),
-                  DropdownMenuItem(value: 'BSCS', child: Text('BS Computer Science')),
-                  DropdownMenuItem(value: 'BSCE', child: Text('BS Civil Engineering')),
+                  DropdownMenuItem(
+                    value: 'BSIT',
+                    child: Text('BS Information Technology'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'BSCS',
+                    child: Text('BS Computer Science'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'BSCE',
+                    child: Text('BS Civil Engineering'),
+                  ),
                 ],
                 onChanged: (value) {
                   setState(() {
@@ -132,7 +152,8 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                     lastDate: DateTime.now(),
                   );
                   if (pickedDate != null) {
-                    _birthdateController.text = pickedDate.toString().split(' ')[0];
+                    _birthdateController.text =
+                        pickedDate.toString().split(' ')[0];
                   }
                 },
                 validator: (value) {

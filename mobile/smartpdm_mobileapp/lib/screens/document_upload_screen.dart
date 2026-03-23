@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/smart_pdm_page_scaffold.dart';
 
 class DocumentUploadScreen extends StatefulWidget {
   const DocumentUploadScreen({super.key});
@@ -77,74 +78,126 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Upload Documents - TES'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                itemCount: _documents.length,
-                itemBuilder: (context, index) {
-                  final doc = _documents[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 16.0),
+    return SmartPdmPageScaffold(
+      selectedIndex: 2,
+      child: Column(
+        children: [
+          const Text(
+            'Upload Documents - TES',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _documents.length,
+              itemBuilder: (context, index) {
+                final doc = _documents[index];
+                final bool uploaded = doc.status == 'UPLOADED';
+                final bool required = doc.status == 'REQUIRED';
+                final bool optional = doc.status == 'OPTIONAL';
+
+                final String statusLabel = uploaded
+                    ? (doc.name == 'COR' ? 'UPLOADED ✓' : 'UPLOADED')
+                    : required
+                        ? 'REQUIRED'
+                        : optional
+                            ? 'OPTIONAL'
+                            : doc.status;
+
+                final Color statusColor = uploaded
+                    ? Colors.green
+                    : required
+                        ? Colors.orange
+                        : Colors.grey;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Item ${index + 1}: ${doc.name}',
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                doc.name,
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              const Spacer(),
-                              if (doc.status == 'UPLOADED')
-                                const Icon(Icons.check_circle, color: Colors.green)
-                              else if (doc.status == 'REQUIRED')
-                                const Icon(Icons.warning, color: Colors.orange)
-                              else
-                                const Icon(Icons.info, color: Colors.grey),
-                            ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        if (uploaded) ...[
+                          Text(
+                            doc.fileName ?? '',
+                            style: TextStyle(
+                              color: Colors.grey.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           const SizedBox(height: 8),
-                          if (doc.status == 'UPLOADED')
-                            Text(doc.fileName ?? ''),
-                          if (doc.status == 'UPLOADED')
-                            TextButton(
-                              onPressed: () {},
-                              child: const Text('REPLACE'),
-                            )
-                          else
-                            ElevatedButton(
-                              onPressed: _showUploadOptions,
-                              child: const Text('+ UPLOAD'),
+                          TextButton(
+                            onPressed: () {},
+                            child: Text(
+                              '[REPLACE]',
+                              style: TextStyle(
+                                color: primaryColor,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
+                          ),
+                        ] else ...[
+                          ElevatedButton(
+                            onPressed: _showUploadOptions,
+                            child: const Text('+ UPLOAD'),
+                          ),
+                        ],
                         ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _allRequiredUploaded ? () {
-                  Navigator.pushNamed(context, '/status');
-                } : null,
-                child: const Text('SUBMIT DOCUMENTS'),
-              ),
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _allRequiredUploaded
+                  ? () {
+                      Navigator.pushNamed(context, '/status');
+                    }
+                  : null,
+              child: const Text('SUBMIT DOCUMENTS'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

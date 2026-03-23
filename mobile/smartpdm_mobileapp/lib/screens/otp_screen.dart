@@ -53,7 +53,7 @@ class _OtpScreenState extends State<OtpScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Enter the 6-digit code sent to your email'),
+              const Text('Enter the 6-digit code'),
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -67,7 +67,10 @@ class _OtpScreenState extends State<OtpScreen> {
                       maxLength: 1,
                       decoration: const InputDecoration(
                         counterText: '',
-                        border: OutlineInputBorder(),
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.black12),
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                        ),
                       ),
                       onChanged: (value) {
                         if (value.isNotEmpty && index < 5) {

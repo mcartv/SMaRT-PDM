@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../constants.dart';
 import '../widgets/smart_pdm_page_scaffold.dart';
 
 class StatusTrackingScreen extends StatelessWidget {

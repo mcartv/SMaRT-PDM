@@ -1,0 +1,66 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ/IDE files
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code folder, include only if you want it tracked
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+**/build/
+coverage/
+
+# Android generated files
+**/android/.gradle/
+**/android/app/build/
+**/android/local.properties
+**/android/app/*.keystore
+
+# iOS/macOS generated files
+**/ios/Pods/
+**/ios/Podfile.lock
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/App.framework
+**/ios/Flutter/engine/Flutter.framework
+**/ios/.symlinks/
+**/macos/Flutter/Flutter.framework
+**/macos/Flutter/Flutter.podspec
+
+# Linux/Windows/other build outputs
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/web/analysis_options.yaml
+
+# Misc Flutter artifact patterns
+app.*.symbols
+app.*.map.json
+
+# Optional: ignore generated artifacts from Android Studio
+/android/app/debug
+/android/app/profile
+/android/app/release

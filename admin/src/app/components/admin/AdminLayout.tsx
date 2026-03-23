@@ -16,6 +16,7 @@ import {
   GraduationCap,
   AlertCircle,
   CheckCircle2,
+  Wallet,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import pdmLogo from '../../../assets/pdm-logo.png';
@@ -25,6 +26,7 @@ const navItems = [
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
+  { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/adminprofile', icon: User, label: 'Admin Profile' },
@@ -129,7 +131,7 @@ export default function AdminLayout() {
         style={{
           width: collapsed ? 68 : 232,
           background: SB_BASE,
-          borderRight: `1px solid rgba(0,0,0,0.08)`,
+          borderRight: '1px solid rgba(0,0,0,0.08)',
         }}
       >
         {/* Brand */}
@@ -261,21 +263,20 @@ export default function AdminLayout() {
               {notifOpen && (
                 <div className="absolute right-0 mt-3 z-50" style={{ width: 360 }}>
                   {/* Arrow */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: -7,
-                      right: 11,
-                      width: 14,
-                      height: 14,
-                      background: '#fff',
-                      border: '1px solid #e8d5b7',
-                      borderBottom: 'none',
-                      borderRight: 'none',
-                      transform: 'rotate(45deg)',
-                      zIndex: 51,
-                    }}
-                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: -7,
+                    right: 11,
+                    width: 14,
+                    height: 14,
+                    background: '#fff',
+                    border: '1px solid #e8d5b7',
+                    borderBottom: 'none',
+                    borderRight: 'none',
+                    transform: 'rotate(45deg)',
+                    zIndex: 51,
+                  }} />
+
                   {/* Panel */}
                   <div
                     className="rounded-2xl overflow-hidden"
@@ -324,7 +325,8 @@ export default function AdminLayout() {
                           onMouseEnter={e => (e.currentTarget.style.background = '#fef9f0')}
                           onMouseLeave={e => (e.currentTarget.style.background = n.read ? '#fff' : '#fdf6ec')}
                         >
-                          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: n.iconBg }}>
+                          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                            style={{ background: n.iconBg }}>
                             <n.icon style={{ width: 16, height: 16, color: n.iconColor }} />
                           </div>
                           <div className="flex-1 min-w-0">

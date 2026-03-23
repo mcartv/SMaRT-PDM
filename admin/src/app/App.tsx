@@ -7,6 +7,7 @@ import DocumentVerification from './components/admin/DocumentVerification';
 import ReportGeneration from './components/admin/ReportGeneration';
 import ScholarMonitoring from './components/admin/ScholarMonitoring';
 import ROAdmin from './components/admin/ROAdmin';
+import PayoutManagement from './components/admin/PayoutManagement';
 import AnnouncementsManagement from './components/admin/AnnouncementsManagement';
 import AdminProfile from './components/admin/AdminProfile';
 import Maintenance from './components/admin/Maintenance';
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="applications/:id" element={<DocumentVerification />} />
           <Route path="scholars" element={<ScholarMonitoring />} />
           <Route path="obligations" element={<ROAdmin />} />
+          <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
           <Route path="adminprofile" element={<AdminProfile />} />

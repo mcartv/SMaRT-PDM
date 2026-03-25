@@ -1,33 +1,43 @@
 import 'package:flutter/material.dart';
-import '../constants.dart';
+import '../constants.dart'; // Assuming you have your colors here based on main.dart
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _isLoading = false;
+  bool _obscureConfirmPassword = true;
 
-  Future<void> _handleLogin() async {
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _handleRegister() {
     if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      // Simulate network authentication delay
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // Save token to persist login state locally
-      // await AuthStorageService.saveToken('mock_jwt_token_here');
-      
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
-      }
+      // TODO: Connect to authentication backend later
+      // For now, let's navigate to the OTP screen to simulate the flow 
+      // mentioned in Use Case 1.8 (Verify Account / Send OTP)
+      Navigator.pushNamed(context, '/otp');
     }
+  }
+
+  void _handleGoogleSignUp() {
+    // TODO: Implement Google Sign-In logic later
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google Sign-In coming soon!')),
+    );
   }
 
   @override
@@ -45,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   // Header text
                   const Text(
-                    'Welcome Back!',
+                    'Create an Account',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -54,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Log in to access your SMaRT-PDM account.',
+                    'Sign up to apply for and manage your SMaRT-PDM scholarships.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade600,
@@ -103,39 +113,50 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return 'Please enter a password';
+                      }
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
                       }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
-                  // Forgot Password
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {},
-                      child: const Text('Forgot Password?'),
+                  // Confirm Password Field
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
                     ),
+                    validator: (value) {
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 24),
 
-                  // Login Button
+                  // Sign Up Button
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
+                    onPressed: _handleRegister,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text('LOGIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: const Text('SIGN UP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 24),
 
@@ -155,11 +176,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Google Login Button
+                  // Google Sign Up Button
                   OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.g_mobiledata, size: 32, color: Colors.red),
-                    label: const Text('Continue with Google', style: TextStyle(fontSize: 16)),
+                    onPressed: _handleGoogleSignUp,
+                    icon: const Icon(Icons.g_mobiledata, size: 32),
+                    label: const Text('Sign up with Google', style: TextStyle(fontSize: 16)),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       foregroundColor: Colors.black87,
@@ -168,21 +189,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Navigate to Register
+                  // Navigate to Login
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "Don't have an account? ",
+                        'Already have an account? ',
                         style: TextStyle(color: Colors.grey.shade700),
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/register');
+                          // Navigate back to login screen
+                          Navigator.pop(context);
                         },
                         child: const Text(
-                          'REGISTER',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: accentColor),
+                          'Login',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],

@@ -12,6 +12,7 @@ import 'screens/document_upload_screen.dart';
 import 'screens/status_tracking_screen.dart';
 import 'screens/obligations_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/register_screen.dart';
 
 void main() {
   runApp(DevicePreview(
@@ -70,6 +71,7 @@ class MyApp extends StatelessWidget {
         '/status': (context) => const StatusTrackingScreen(),
         '/obligations': (context) => const ObligationsScreen(),
         '/profile': (context) => const ProfileScreen(),
+        '/register': (context) => const RegisterScreen(),
       },
     );
   }

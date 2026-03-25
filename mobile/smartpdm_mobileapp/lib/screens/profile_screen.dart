@@ -1,10 +1,52 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import '../widgets/smart_pdm_page_scaffold.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _userName = 'SCHOLAR';
+  String? _imagePath;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final firstName = prefs.getString('user_first_name') ?? '';
+    final lastName = prefs.getString('user_last_name') ?? '';
+    final imagePath = prefs.getString('user_profile_image');
+    
+    if (mounted) {
+      setState(() => _imagePath = imagePath);
+      if (firstName.isNotEmpty && lastName.isNotEmpty) {
+        setState(() {
+          _userName = '${firstName.toUpperCase()} ${lastName.toUpperCase()}';
+        });
+      } else {
+        // Fallback for older accounts registered without a name
+        final email = prefs.getString('user_email') ?? '';
+        if (email.isNotEmpty) {
+          String name = email.split('@').first.replaceAll('.', ' ');
+          name = name.split(' ').map((word) => word.toUpperCase()).join(' ');
+          setState(() {
+            _userName = name;
+          });
+        }
+      }
+    }
+  }
 
   Future<void> _handleLogout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
@@ -13,10 +55,24 @@ class ProfileScreen extends StatelessWidget {
     await prefs.remove('user_email');
     await prefs.remove('user_first_name');
     await prefs.remove('user_last_name');
+    await prefs.remove('user_profile_image');
 
     if (context.mounted) {
       // Use pushNamedAndRemoveUntil to prevent the user from using the back button to return to the profile
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (pickedFile != null) {
+      setState(() {
+        _imagePath = pickedFile.path;
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_profile_image', pickedFile.path);
     }
   }
 
@@ -61,34 +117,46 @@ class ProfileScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    Container(
-                      width: 92,
-                      height: 92,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: accentColor,
-                          width: 4,
-                        ),
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: Container(
-                          color: primaryColor.withOpacity(0.1),
-                          child: const Center(
-                            child: Icon(
-                              Icons.person,
-                              size: 44,
-                              color: primaryColor,
+                    Stack(
+                      children: [
+                        Container(
+                          width: 92,
+                          height: 92,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: accentColor,
+                              width: 4,
+                            ),
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: Container(
+                              color: primaryColor.withOpacity(0.1),
+                              child: _imagePath != null
+                                  ? Image.file(File(_imagePath!), fit: BoxFit.cover)
+                                  : const Center(child: Icon(Icons.person, size: 44, color: primaryColor)),
                             ),
                           ),
                         ),
-                      ),
+                        Positioned(
+                          bottom: -10,
+                          right: -10,
+                          child: IconButton(
+                            onPressed: _pickImage,
+                            icon: const CircleAvatar(
+                              radius: 14,
+                              backgroundColor: primaryColor,
+                              child: Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'MARIA SANTOS',
-                      style: TextStyle(
+                    Text(
+                      _userName,
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.4,

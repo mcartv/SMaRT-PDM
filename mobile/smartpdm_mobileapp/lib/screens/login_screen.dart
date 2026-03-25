@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,14 +22,56 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      // Simulate network authentication delay
-      await Future.delayed(const Duration(seconds: 1));
       
-      // Save token to persist login state locally
-      // await AuthStorageService.saveToken('mock_jwt_token_here');
-      
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
+      try {
+        final url = Uri.parse('http://192.168.22.2:3000/api/auth/login');
+        
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': _emailController.text,
+            'password': _passwordController.text,
+          }),
+        ).timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200) {
+          final responseData = jsonDecode(response.body);
+          final token = responseData['token'];
+          
+          if (token != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('jwt_token', token);
+          }
+
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/dashboard');
+          }
+        } else {
+          final responseData = jsonDecode(response.body);
+          final errorMessage = responseData['error'] ?? 'Login failed. Please try again.';
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(errorMessage)),
+            );
+          }
+        }
+      } on TimeoutException {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Request timed out. Server might be down.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Network error. Please try again.')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }

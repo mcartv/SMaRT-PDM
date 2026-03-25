@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../constants.dart'; // Assuming you have your colors here based on main.dart
 
 class RegisterScreen extends StatefulWidget {
@@ -15,6 +18,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -24,12 +28,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _handleRegister() {
+  Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
-      // TODO: Connect to authentication backend later
-      // For now, let's navigate to the OTP screen to simulate the flow 
-      // mentioned in Use Case 1.8 (Verify Account / Send OTP)
-      Navigator.pushNamed(context, '/otp');
+      setState(() => _isLoading = true);
+
+      try {
+        // Note: 10.0.2.2 points to localhost on the Android Emulator.
+        // Use your PC's local IP address if testing on a physical device.
+        final url = Uri.parse('http://192.168.22.2:3000/api/auth/register');
+        
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': _emailController.text,
+            'password': _passwordController.text,
+          }),
+        ).timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          if (mounted) {
+            // Pass the email as an argument to the OTP screen
+            Navigator.pushNamed(context, '/otp', arguments: _emailController.text);
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Registration failed: ${response.body}')),
+            );
+          }
+        }
+      } on TimeoutException {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Request timed out. Please check your connection or try again.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Network error. Please ensure your backend is running.')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     }
   }
 
@@ -156,7 +201,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    child: const Text('SIGN UP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: _isLoading 
+                        ? const SizedBox(
+                            height: 20, 
+                            width: 20, 
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                          )
+                        : const Text('SIGN UP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 24),
 

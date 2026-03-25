@@ -13,6 +13,8 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -22,6 +24,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -41,6 +45,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           url,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
+            'first_name': _firstNameController.text.trim(),
+            'last_name': _lastNameController.text.trim(),
             'email': _emailController.text,
             'password': _passwordController.text,
           }),
@@ -117,6 +123,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
+
+                  // First Name Field
+                  TextFormField(
+                    controller: _firstNameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'First Name',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your first name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Last Name Field
+                  TextFormField(
+                    controller: _lastNameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Last Name',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your last name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
                   // Email Field
                   TextFormField(

@@ -42,6 +42,19 @@ class _LoginScreenState extends State<LoginScreen> {
           if (token != null) {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString('jwt_token', token);
+            
+            final user = responseData['user'];
+            if (user != null) {
+              if (user['email'] != null) {
+                await prefs.setString('user_email', user['email']);
+              }
+              if (user['first_name'] != null) {
+                await prefs.setString('user_first_name', user['first_name']);
+              }
+              if (user['last_name'] != null) {
+                await prefs.setString('user_last_name', user['last_name']);
+              }
+            }
           }
 
           if (mounted) {

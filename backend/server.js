@@ -53,10 +53,10 @@ async function sendOTPEmail(userEmail, otpCode) {
 
 // 1. Register Route
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, first_name, last_name } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  if (!email || !password || !first_name || !last_name) {
+    return res.status(400).json({ error: 'All fields are required' });
   }
 
   // Hash the password securely
@@ -65,7 +65,7 @@ app.post('/api/auth/register', async (req, res) => {
   // Save the user credentials to Supabase
   const { data, error } = await supabase
     .from('users')
-    .insert([{ email, password: hashedPassword, is_verified: false }]);
+    .insert([{ email, password: hashedPassword, first_name, last_name, is_verified: false }]);
 
   if (error) {
     console.error('Supabase Insert Error:', error);
@@ -152,7 +152,11 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   // Generate a real JWT token here in production
-  res.status(200).json({ message: 'Login successful', token: 'mock_jwt_token', user: { id: data.id, email: data.email } });
+  res.status(200).json({ 
+    message: 'Login successful', 
+    token: 'mock_jwt_token', 
+    user: { id: data.id, email: data.email, first_name: data.first_name, last_name: data.last_name } 
+  });
 });
 
 const PORT = 3000;

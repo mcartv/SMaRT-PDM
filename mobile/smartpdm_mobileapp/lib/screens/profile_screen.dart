@@ -1,9 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import '../widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    // Clear all saved user session data
+    await prefs.remove('jwt_token');
+    await prefs.remove('user_email');
+    await prefs.remove('user_first_name');
+    await prefs.remove('user_last_name');
+
+    if (context.mounted) {
+      // Use pushNamedAndRemoveUntil to prevent the user from using the back button to return to the profile
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    }
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirm Logout'),
+          content: const Text('Are you sure you want to terminate your session?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(borderRadius),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('CANCEL'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(); // Close the dialog
+                _handleLogout(context); // Proceed with the actual logout
+              },
+              child: const Text('LOG OUT', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +154,7 @@ class ProfileScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(borderRadius),
               ),
               child: InkWell(
-                onTap: () {},
+                onTap: () => _confirmLogout(context),
                 borderRadius: BorderRadius.circular(borderRadius),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -203,4 +246,3 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 }
-

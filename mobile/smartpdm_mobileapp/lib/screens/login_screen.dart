@@ -54,6 +54,9 @@ class _LoginScreenState extends State<LoginScreen> {
               if (user['last_name'] != null) {
                 await prefs.setString('user_last_name', user['last_name']);
               }
+              if (user['avatar_url'] != null) {
+                await prefs.setString('user_profile_image', user['avatar_url']);
+              }
             }
           }
 

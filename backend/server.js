@@ -4,10 +4,14 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
+const multer = require('multer');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Configure multer to hold the uploaded file in memory temporarily
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -122,7 +126,39 @@ app.post('/api/auth/resend-otp', (req, res) => {
   res.status(200).json({ message: 'OTP resent successfully' });
 });
 
-// 4. Login Route
+// 4. Upload Avatar Route
+app.post('/api/auth/upload-avatar', upload.single('image'), async (req, res) => {
+  const { email } = req.body;
+  const file = req.file;
+
+  if (!email || !file) {
+    return res.status(400).json({ error: 'Email and image file are required' });
+  }
+
+  try {
+    // 1. Upload file to Supabase Storage
+    const fileName = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
+    const { data: storageData, error: storageError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file.buffer, { contentType: file.mimetype, upsert: true });
+
+    if (storageError) throw storageError;
+
+    // 2. Get the public URL of the uploaded image
+    const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+    const avatarUrl = publicUrlData.publicUrl;
+
+    // 3. Save URL to users table
+    await supabase.from('users').update({ avatar_url: avatarUrl }).eq('email', email);
+
+    res.status(200).json({ message: 'Upload successful', avatarUrl });
+  } catch (error) {
+    console.error('Upload Error:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// 5. Login Route
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -155,7 +191,13 @@ app.post('/api/auth/login', async (req, res) => {
   res.status(200).json({ 
     message: 'Login successful', 
     token: 'mock_jwt_token', 
-    user: { id: data.id, email: data.email, first_name: data.first_name, last_name: data.last_name } 
+    user: { 
+      id: data.id, 
+      email: data.email, 
+      first_name: data.first_name, 
+      last_name: data.last_name,
+      avatar_url: data.avatar_url
+    } 
   });
 });
 

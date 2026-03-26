@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
@@ -15,6 +17,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = 'SCHOLAR';
   String? _imagePath;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -68,11 +71,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     
     if (pickedFile != null) {
-      setState(() {
-        _imagePath = pickedFile.path;
-      });
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_profile_image', pickedFile.path);
+      setState(() => _isUploading = true);
+      
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final email = prefs.getString('user_email') ?? '';
+
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('http://192.168.22.2:3000/api/auth/upload-avatar'),
+        );
+        request.fields['email'] = email;
+        request.files.add(await http.MultipartFile.fromPath('image', pickedFile.path));
+
+        var streamedResponse = await request.send();
+        var response = await http.Response.fromStream(streamedResponse);
+
+        if (response.statusCode == 200) {
+          final responseData = jsonDecode(response.body);
+          final newImageUrl = responseData['avatarUrl'];
+
+          await prefs.setString('user_profile_image', newImageUrl);
+          if (mounted) setState(() => _imagePath = newImageUrl);
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile photo updated!')));
+          }
+        } else {
+          throw Exception('Upload failed');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to upload image to server.')));
+        }
+      } finally {
+        if (mounted) setState(() => _isUploading = false);
+      }
     }
   }
 
@@ -134,11 +168,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Container(
                               color: primaryColor.withOpacity(0.1),
                               child: _imagePath != null
-                                  ? Image.file(File(_imagePath!), fit: BoxFit.cover)
+                                  ? (_imagePath!.startsWith('http')
+                                      ? Image.network(_imagePath!, fit: BoxFit.cover)
+                                      : Image.file(File(_imagePath!), fit: BoxFit.cover)) // Fallback for old local images
                                   : const Center(child: Icon(Icons.person, size: 44, color: primaryColor)),
                             ),
                           ),
                         ),
+                        if (_isUploading)
+                          Container(
+                            width: 92,
+                            height: 92,
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(color: Colors.white),
+                            ),
+                          ),
                         Positioned(
                           bottom: -10,
                           right: -10,

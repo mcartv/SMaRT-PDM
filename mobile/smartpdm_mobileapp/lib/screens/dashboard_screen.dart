@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
@@ -24,6 +25,8 @@ class DashboardContent extends StatefulWidget {
 
 class _DashboardContentState extends State<DashboardContent> {
   String _userName = 'Scholar';
+  String? _imagePath;
+  bool _isApproved = false; // Mocking approval status based on backend verification
 
   @override
   void initState() {
@@ -35,8 +38,14 @@ class _DashboardContentState extends State<DashboardContent> {
     final prefs = await SharedPreferences.getInstance();
     final firstName = prefs.getString('user_first_name') ?? '';
     final lastName = prefs.getString('user_last_name') ?? '';
+    final imagePath = prefs.getString('user_profile_image');
+    final isApproved = prefs.getBool('user_is_approved') ?? false; 
     
     if (mounted) {
+      setState(() {
+        _imagePath = imagePath;
+        _isApproved = isApproved;
+      });
       if (firstName.isNotEmpty && lastName.isNotEmpty) {
         setState(() {
           _userName = '$firstName $lastName';
@@ -65,10 +74,17 @@ class _DashboardContentState extends State<DashboardContent> {
           children: [
             Row(
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 20,
                   backgroundColor: primaryColor,
-                  child: Icon(Icons.person, color: Colors.white),
+                  backgroundImage: _imagePath != null
+                      ? (_imagePath!.startsWith('http')
+                          ? NetworkImage(_imagePath!) as ImageProvider
+                          : FileImage(File(_imagePath!)))
+                      : null,
+                  child: _imagePath == null 
+                      ? const Icon(Icons.person, color: Colors.white) 
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -252,6 +268,46 @@ class _DashboardContentState extends State<DashboardContent> {
                 ),
               ],
             ),
+            const SizedBox(height: 20),
+            if (!_isApproved) ...[
+              // --- NOT VERIFIED YET SECTION ---
+              const Text('Welcome to SMaRT-PDM', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: primaryColor),
+                title: const Text('About PDM/OSFA'),
+                subtitle: const Text('History, Vision, Mission, Contacts'),
+                onTap: () {}, // Navigate to About screen
+              ),
+              ListTile(
+                leading: const Icon(Icons.question_answer, color: primaryColor),
+                title: const Text('FAQs'),
+                subtitle: const Text('Frequently asked questions'),
+                onTap: () {}, // Navigate to FAQs
+              ),
+            ] else ...[
+              // --- APPROVED SCHOLAR SECTION ---
+              const Text('Scholar Portal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.message, color: primaryColor),
+                title: const Text('Messaging'),
+                subtitle: const Text('Chat with OSFA & Agencies'),
+                onTap: () {}, // Navigate to Messaging
+              ),
+              ListTile(
+                leading: const Icon(Icons.payment, color: primaryColor),
+                title: const Text('Specific Payout Schedule'),
+                subtitle: const Text('View your personalized schedule'),
+                onTap: () {}, // Navigate to Payouts
+              ),
+              ListTile(
+                leading: const Icon(Icons.support_agent, color: primaryColor),
+                title: const Text('Submit Ticket'),
+                subtitle: const Text('Get help regarding your scholarship'),
+                onTap: () {}, // Navigate to Ticketing system
+              ),
+            ],
             const SizedBox(height: 20),
             const Text(
               'Announcements',

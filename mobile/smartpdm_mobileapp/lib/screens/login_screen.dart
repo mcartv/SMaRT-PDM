@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import '../constants.dart';
+import '../constants.dart'; // Assuming you have your colors here based on main.dart
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,74 +13,66 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _studentIdController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _studentIdController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
-      
+
       try {
-        final url = Uri.parse('http://192.168.22.2:3000/api/auth/login');
-        
+        // Note: 10.0.2.2 points to localhost on the Android Emulator.
+        // Use your PC's local IP address if testing on a physical device.
+        final url = Uri.parse('$BASE_URL/api/auth/login');
+
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
-            'email': _emailController.text,
+            'student_id': _studentIdController.text.trim(),
             'password': _passwordController.text,
           }),
         ).timeout(const Duration(seconds: 15));
 
         if (response.statusCode == 200) {
-          final responseData = jsonDecode(response.body);
-          final token = responseData['token'];
-          
-          if (token != null) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('jwt_token', token);
-            
-            final user = responseData['user'];
-            if (user != null) {
-              if (user['email'] != null) {
-                await prefs.setString('user_email', user['email']);
-              }
-              if (user['first_name'] != null) {
-                await prefs.setString('user_first_name', user['first_name']);
-              }
-              if (user['last_name'] != null) {
-                await prefs.setString('user_last_name', user['last_name']);
-              }
-              if (user['avatar_url'] != null) {
-                await prefs.setString('user_profile_image', user['avatar_url']);
-              }
-            }
-          }
-
           if (mounted) {
-            Navigator.pushReplacementNamed(context, '/dashboard');
+            // Assuming successful login navigates to a home screen or dashboard
+            Navigator.pushReplacementNamed(context, '/home'); // Replace with your actual home route
           }
         } else {
-          final responseData = jsonDecode(response.body);
-          final errorMessage = responseData['error'] ?? 'Login failed. Please try again.';
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(errorMessage)),
+              SnackBar(content: Text('Login failed: ${response.body}')),
             );
           }
         }
       } on TimeoutException {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Request timed out. Server might be down.')),
+            const SnackBar(content: Text('Request timed out. Please check your connection or try again.')),
+          );
+        }
+      } on http.ClientException catch (e) { // Catch specific HTTP client errors (e.g., connection refused)
+        if (mounted) {
+          print('Login HTTP Client Error: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Connection error. Please ensure your backend is running and accessible.')),
           );
         }
       } catch (e) {
         if (mounted) {
+          print('Login Unexpected Error: $e'); // Catch all other unexpected errors (like routing errors)
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Network error. Please try again.')),
+            SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
           );
         }
       } finally {
@@ -90,6 +81,13 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     }
+  }
+
+  void _handleGoogleSignIn() {
+    // TODO: Implement Google Sign-In logic later
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google Sign-In coming soon!')),
+    );
   }
 
   @override
@@ -116,7 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Log in to access your SMaRT-PDM account.',
+                    'Login to your SMaRT-PDM account.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade600,
@@ -125,20 +123,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Email Field
+                  // Student ID Field
                   TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    controller: _studentIdController,
+                    keyboardType: TextInputType.text, // Student ID can be alphanumeric
                     decoration: const InputDecoration(
-                      labelText: 'Email Address',
-                      prefixIcon: Icon(Icons.email_outlined),
+                      labelText: 'Student ID',
+                      prefixIcon: Icon(Icons.school_outlined),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your Student ID';
                       }
-                      if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                      final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$');
+                      if (!studentIdRegex.hasMatch(value.trim())) {
+                        return 'Invalid Student ID format (e.g., PDM-YYYY-NNNNNN)';
                       }
                       return null;
                     },
@@ -170,13 +169,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
                   // Forgot Password
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        // TODO: Navigate to Forgot Password screen
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Forgot Password coming soon!')),
+                        );
+                      },
                       child: const Text('Forgot Password?'),
                     ),
                   ),
@@ -184,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Login Button
                   ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
+                    onPressed: _handleLogin,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
@@ -192,11 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? const SizedBox(
                             height: 20,
                             width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                         : const Text('LOGIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 24),
@@ -217,11 +217,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Google Login Button
+                  // Google Sign In Button
                   OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.g_mobiledata, size: 32, color: Colors.red),
-                    label: const Text('Continue with Google', style: TextStyle(fontSize: 16)),
+                    onPressed: _handleGoogleSignIn,
+                    icon: const Icon(Icons.g_mobiledata, size: 32),
+                    label: const Text('Sign in with Google', style: TextStyle(fontSize: 16)),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       foregroundColor: Colors.black87,
@@ -240,11 +240,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.pushNamed(context, '/register');
+                          Navigator.pushNamed(context, '/register'); // Replace with your actual register route
                         },
                         child: const Text(
-                          'REGISTER',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: accentColor),
+                          'Register',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],

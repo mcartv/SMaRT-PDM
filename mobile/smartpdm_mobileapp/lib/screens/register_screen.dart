@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../constants.dart'; // Assuming you have your colors here based on main.dart
 
+
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -13,19 +15,21 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
+  // Combined controller for Student ID or Username
+  final _identifierController = TextEditingController(); // This controller will hold the combined input
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _termsAccepted = false;
+  bool _privacyAccepted = false;
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
+    _identifierController.dispose(); // Dispose the combined controller
+
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -39,17 +43,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
       try {
         // Note: 10.0.2.2 points to localhost on the Android Emulator.
         // Use your PC's local IP address if testing on a physical device.
-        final url = Uri.parse('http://192.168.22.2:3000/api/auth/register');
+        final url = Uri.parse('$BASE_URL/api/auth/register');
         
+        Map<String, dynamic> authBody = {
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text,
+        };
+
+        // Define regex for automatic identification
+        final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$'); // Example: PDM-2023-000001 (Student ID format)
+        final identifier = _identifierController.text.trim();
+
+        // Debug prints to understand identifier processing
+        print('DEBUG (Flutter): Identifier input: "$identifier"');
+        print('DEBUG (Flutter): Matches studentIdRegex: ${studentIdRegex.hasMatch(identifier)}');
+
+        // Always treat the input as a Student ID
+        authBody['student_id'] = identifier;
+        authBody['username'] = null; // Explicitly send null for username
+        print('DEBUG (Flutter): Identifier treated as Student ID.');
+
+        print('DEBUG (Flutter): Auth Body being sent: ${jsonEncode(authBody)}');
+
         final response = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'first_name': _firstNameController.text.trim(),
-            'last_name': _lastNameController.text.trim(),
-            'email': _emailController.text,
-            'password': _passwordController.text,
-          }),
+          url, headers: {
+            'Content-Type': 'application/json'
+          }, body: jsonEncode(authBody),
         ).timeout(const Duration(seconds: 15));
 
         if (response.statusCode == 200 || response.statusCode == 201) {
@@ -72,6 +91,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } catch (e) {
         if (mounted) {
+          print('Registration Network Error: $e'); // Added debug print
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Network error. Please ensure your backend is running.')),
           );
@@ -124,34 +144,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // First Name Field
+                  // Dynamic Identifier Field
                   TextFormField(
-                    controller: _firstNameController,
-                    textCapitalization: TextCapitalization.words,
+                    controller: _identifierController, // Use the combined controller
                     decoration: const InputDecoration(
-                      labelText: 'First Name',
-                      prefixIcon: Icon(Icons.person_outline),
+                      labelText: 'Student ID', // Specific label
+                      prefixIcon: Icon(Icons.school_outlined), // Specific icon
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your first name';
+                        return 'Please enter your Student ID';
                       }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Last Name Field
-                  TextFormField(
-                    controller: _lastNameController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Last Name',
-                      prefixIcon: Icon(Icons.person_outline),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your last name';
+                      final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$');
+                      final identifier = value.trim();
+                      if (!studentIdRegex.hasMatch(identifier)) {
+                        return 'Invalid format. Student ID must be in the format PDM-YYYY-NNNNNN (e.g., PDM-2023-000001).';
                       }
                       return null;
                     },
@@ -229,7 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     validator: (value) {
                       if (value != _passwordController.text) {
                         return 'Passwords do not match';
-                      }
+                        }
                       return null;
                     },
                   ),
@@ -237,17 +244,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   // Sign Up Button
                   ElevatedButton(
-                    onPressed: _handleRegister,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _isLoading 
-                        ? const SizedBox(
-                            height: 20, 
-                            width: 20, 
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                          )
-                        : const Text('SIGN UP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      onPressed: _handleRegister,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Text('SIGN UP',
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold))),
+                  const SizedBox(height: 16),
+
+                  // Terms and Privacy Agreement Checkboxes
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _termsAccepted,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            _termsAccepted = value!;
+                          });
+                        },
+                      ),
+                      const Text('I agree to the Terms of Service'),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _privacyAccepted,
+                        onChanged: (bool? value) {
+                          setState(() {
+                            _privacyAccepted = value!;
+                          });
+                        },
+                      ),
+                      const Text('I agree to the Privacy Policy'),
+                    ],
                   ),
                   const SizedBox(height: 24),
 

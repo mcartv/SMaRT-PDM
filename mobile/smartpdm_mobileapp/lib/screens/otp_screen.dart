@@ -61,7 +61,7 @@ class _OtpScreenState extends State<OtpScreen> {
       final email = ModalRoute.of(context)?.settings.arguments as String?;
 
       try {
-        final url = Uri.parse('http://192.168.22.2:3000/api/auth/verify-otp');
+        final url = Uri.parse('$BASE_URL/api/auth/verify-otp');
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
@@ -93,6 +93,7 @@ class _OtpScreenState extends State<OtpScreen> {
         }
       } catch (e) {
         if (mounted) {
+          print('OTP Screen Network Error: $e'); // Added debug print
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Network error. Please try again.')),
           );
@@ -112,7 +113,7 @@ class _OtpScreenState extends State<OtpScreen> {
     if (email == null) return;
 
     try {
-      final url = Uri.parse('http://192.168.22.2:3000/api/auth/resend-otp');
+      final url = Uri.parse('$BASE_URL/api/auth/resend-otp');
       await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -132,6 +133,7 @@ class _OtpScreenState extends State<OtpScreen> {
         );
       }
     } catch (e) {
+      print('OTP Resend Network Error: $e'); // Added debug print
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to resend OTP.')),

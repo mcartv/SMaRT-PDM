@@ -1,24 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:device_preview/device_preview.dart';
-import 'constants.dart';
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/otp_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/scholarship_list_screen.dart';
-import 'screens/application_form_screen.dart';
-import 'screens/document_upload_screen.dart';
-import 'screens/status_tracking_screen.dart';
-import 'screens/obligations_screen.dart';
-import 'screens/profile_screen.dart';
-import 'screens/register_screen.dart';
+import 'package:smartpdm_mobileapp/screens/login_screen.dart';
+import 'package:smartpdm_mobileapp/screens/register_screen.dart';
+import 'package:smartpdm_mobileapp/screens/otp_screen.dart';
+import 'package:smartpdm_mobileapp/constants.dart'; // Import constants for colors
+import 'package:smartpdm_mobileapp/screens/dashboard_screen.dart';
 
 void main() {
-  runApp(DevicePreview(
-    enabled: !const bool.fromEnvironment('dart.vm.product'),
-    builder: (context) => const MyApp(),
-  ));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -27,53 +15,33 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SMART-PDM Scholarship System',
+      title: 'SMaRT-PDM',
       theme: ThemeData(
-        primaryColor: primaryColor,
+        // Define a custom color scheme using your constants
         colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
+          seedColor: primaryColor, // Use your primary color as the seed
+          primary: primaryColor,
           secondary: accentColor,
+          // You can define other colors here as well, e.g., background, surface, etc.
         ),
-        scaffoldBackgroundColor: backgroundColor,
-        fontFamily: GoogleFonts.inter().fontFamily,
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-        ),
+        // The primarySwatch is a MaterialColor (a map of 10 shades).
+        // If you want to use your single primaryColor as the primarySwatch,
+        // you need to create a MaterialColor from it.
+        // This ensures older widgets or those relying on primarySwatch still get your color.
+        primarySwatch: MaterialColor(primaryColor.value, <int, Color>{
+          50: primaryColor.withOpacity(0.1), 100: primaryColor.withOpacity(0.2), 200: primaryColor.withOpacity(0.3), 300: primaryColor.withOpacity(0.4), 400: primaryColor.withOpacity(0.5), 500: primaryColor.withOpacity(0.6), 600: primaryColor.withOpacity(0.7), 700: primaryColor.withOpacity(0.8), 800: primaryColor.withOpacity(0.9), 900: primaryColor.withOpacity(1.0),
+        }),
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      initialRoute: '/',
+      initialRoute: '/login', // Set your initial route
       routes: {
-        '/': (context) => const SplashScreen(),
-        '/splash': (context) => const SplashScreen(),        
         '/login': (context) => const LoginScreen(),
-        '/otp': (context) => const OtpScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/scholarships': (context) => const ScholarshipListScreen(),
-        '/application': (context) => const ApplicationFormScreen(),
-        '/documents': (context) => const DocumentUploadScreen(),
-        '/status': (context) => const StatusTrackingScreen(),
-        '/obligations': (context) => const ObligationsScreen(),
-        '/profile': (context) => const ProfileScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/otp': (context) => const OtpScreen(),
+        '/home': (context) => const DashboardScreen(), // This is the missing route
+        // Add other routes here as needed
       },
+      debugShowCheckedModeBanner: false, // Set to true for debugging
     );
   }
 }

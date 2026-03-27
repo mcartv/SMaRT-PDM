@@ -57,10 +57,50 @@ async function sendOTPEmail(userEmail, otpCode) {
 
 // 1. Register Route
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, first_name, last_name } = req.body;
+  const { email, password, student_id } = req.body; // username is no longer expected as a primary input
 
-  if (!email || !password || !first_name || !last_name) {
-    return res.status(400).json({ error: 'All fields are required' });
+  console.log('DEBUG (Backend): Received registration request body:', req.body);
+
+  // 1. Initial required fields check
+  // Validate required fields: email, password, and student_id
+  if (!email || !password || !student_id) {
+    return res.status(400).json({ error: 'Email, password, and Student ID are required' });
+  }
+
+  // 2. Server-side validation for student_id format (e.g., PDM-YYYY-NNNNNN)
+  const studentIdRegex = /^PDM-\d{4}-\d{6}$/;
+  if (!studentIdRegex.test(student_id)) {
+    return res.status(400).json({ error: 'Student ID must be in the format PDM-YYYY-NNNNNN (e.g., PDM-2023-000001)' });
+  }
+
+  // 3. Check student_id uniqueness
+  const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
+    .from('users')
+    .select('student_id')
+    .eq('student_id', student_id)
+    .single();
+
+  if (studentIdCheckError && studentIdCheckError.code !== 'PGRST116') { // PGRST116 means "no rows found"
+    console.error('Supabase Student ID Check Error:', studentIdCheckError);
+    return res.status(500).json({ error: 'Database error during student ID check' });
+  }
+  if (existingUserByStudentId) {
+    return res.status(409).json({ error: 'Student ID already registered' });
+  }
+
+  // 4. Check email uniqueness (if not already handled by DB constraint)
+  const { data: existingUserByEmail, error: emailCheckError } = await supabase
+    .from('users')
+    .select('email')
+    .eq('email', email)
+    .single();
+
+  if (emailCheckError && emailCheckError.code !== 'PGRST116') {
+    console.error('Supabase Email Check Error:', emailCheckError);
+    return res.status(500).json({ error: 'Database error during email check' });
+  }
+  if (existingUserByEmail) {
+    return res.status(409).json({ error: 'Email already registered' });
   }
 
   // Hash the password securely
@@ -68,12 +108,15 @@ app.post('/api/auth/register', async (req, res) => {
 
   // Save the user credentials to Supabase
   const { data, error } = await supabase
-    .from('users')
-    .insert([{ email, password: hashedPassword, first_name, last_name, is_verified: false }]);
+    .from('users') // Assuming 'student_id' and 'username' columns exist in your 'users' table
+    .insert([{ email, password: hashedPassword, student_id: student_id, username: null, is_verified: false }]);
 
   if (error) {
     console.error('Supabase Insert Error:', error);
-    return res.status(400).json({ error: 'Email already exists or database error' });
+    // This block catches other potential DB errors like check constraint violations
+    // For unique constraints, we've already handled email and student_id above.
+    // If there's a unique constraint on username and it's not null, this would catch it.
+    return res.status(500).json({ error: 'Database error during registration' });
   }
 
   const otp = generateOTP();
@@ -160,27 +203,27 @@ app.post('/api/auth/upload-avatar', upload.single('image'), async (req, res) => 
 
 // 5. Login Route
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { student_id, password } = req.body; // Expect student_id for login
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  if (!student_id || !password) {
+    return res.status(400).json({ error: 'Student ID and password are required' });
   }
 
-  // Fetch the user from Supabase
+  // Fetch the user from Supabase using student_id
   const { data, error } = await supabase
     .from('users')
     .select('*')
-    .eq('email', email)
+    .eq('student_id', student_id)
     .single();
 
   if (error || !data) {
-    return res.status(401).json({ error: 'Invalid email or password' });
+    return res.status(401).json({ error: 'Invalid Student ID or password' });
   }
 
   // Compare the provided password with the hashed password in the database
   const isMatch = await bcrypt.compare(password, data.password);
   if (!isMatch) {
-    return res.status(401).json({ error: 'Invalid email or password' });
+    return res.status(401).json({ error: 'Invalid Student ID or password' });
   }
 
   if (!data.is_verified) {
@@ -192,10 +235,9 @@ app.post('/api/auth/login', async (req, res) => {
     message: 'Login successful', 
     token: 'mock_jwt_token', 
     user: { 
-      id: data.id, 
-      email: data.email, 
-      first_name: data.first_name, 
-      last_name: data.last_name,
+      id: data.id,
+      email: data.email, // Still return email in user object if needed elsewhere
+      student_id: data.student_id,
       avatar_url: data.avatar_url
     } 
   });

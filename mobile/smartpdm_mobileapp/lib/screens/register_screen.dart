@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:io'; // Import for SocketException
 import 'package:http/http.dart' as http;
 import '../constants.dart'; // Assuming you have your colors here based on main.dart
 
@@ -74,7 +75,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (response.statusCode == 200 || response.statusCode == 201) {
           if (mounted) {
             // Pass the email as an argument to the OTP screen
-            Navigator.pushNamed(context, '/otp', arguments: _emailController.text);
+            Navigator.pushNamed(context, '/otp', arguments: {
+              'email': _emailController.text,
+              'nextRoute': '/new_applicant', // Direct to new applicant flow after OTP
+            });
           }
         } else {
           if (mounted) {
@@ -89,11 +93,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SnackBar(content: Text('Request timed out. Please check your connection or try again.')),
           );
         }
+      } on SocketException catch (e) {
+        if (mounted) {
+          print('Registration Socket Error: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Network connection error. Please check your internet connection.')),
+          );
+        }
+      } on http.ClientException catch (e) {
+        if (mounted) {
+          print('Registration HTTP Client Error: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Connection error. Please ensure your backend is running and accessible.')),
+          );
+        }
       } catch (e) {
         if (mounted) {
-          print('Registration Network Error: $e'); // Added debug print
+          print('Registration Unexpected Error: $e');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Network error. Please ensure your backend is running.')),
+            SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
           );
         }
       } finally {

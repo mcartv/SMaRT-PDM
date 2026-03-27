@@ -31,36 +31,21 @@ class _DashboardContentState extends State<DashboardContent> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _loadAndDisplayUserData();
   }
 
-  Future<void> _loadUserData() async {
+  Future<void> _loadAndDisplayUserData() async {
     final prefs = await SharedPreferences.getInstance();
-    final firstName = prefs.getString('user_first_name') ?? '';
-    final lastName = prefs.getString('user_last_name') ?? '';
-    final imagePath = prefs.getString('user_profile_image');
-    final isApproved = prefs.getBool('user_is_approved') ?? false; 
+    final studentId = prefs.getString('user_student_id') ?? 'Scholar';
+    final imagePath = prefs.getString('user_avatar_url');
+    final isVerified = prefs.getBool('user_is_verified') ?? false;
     
     if (mounted) {
       setState(() {
+        _userName = studentId;
         _imagePath = imagePath;
-        _isApproved = isApproved;
-      });
-      if (firstName.isNotEmpty && lastName.isNotEmpty) {
-        setState(() {
-          _userName = '$firstName $lastName';
-        });
-      } else {
-        // Fallback for older accounts registered without a name
-        final email = prefs.getString('user_email') ?? '';
-        if (email.isNotEmpty) {
-          String name = email.split('@').first.replaceAll('.', ' ');
-          name = name.split(' ').map((word) => word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1)}' : '').join(' ');
-          setState(() {
-            _userName = name;
-          });
-        }
-      }
+        _isApproved = isVerified;
+      }); // Fix: Added missing closing parenthesis and semicolon
     }
   }
 
@@ -271,19 +256,38 @@ class _DashboardContentState extends State<DashboardContent> {
             const SizedBox(height: 20),
             if (!_isApproved) ...[
               // --- NOT VERIFIED YET SECTION ---
-              const Text('Welcome to SMaRT-PDM', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Scholarship Application', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.person_add, color: primaryColor),
+                title: const Text('Apply for New Scholarship'),
+                subtitle: const Text('Start your application as a new scholar'),
+                onTap: () {
+                  Navigator.pushNamed(context, '/new_applicant');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_note, color: primaryColor),
+                title: const Text('Update Personal Data (Existing Scholar)'),
+                subtitle: const Text('Update your profile if you are an existing scholar'),
+                onTap: () {
+                  Navigator.pushNamed(context, '/existing_scholar_update');
+                },
+              ),
+              const SizedBox(height: 20),
+              const Text('General Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
               ListTile(
                 leading: const Icon(Icons.info_outline, color: primaryColor),
                 title: const Text('About PDM/OSFA'),
                 subtitle: const Text('History, Vision, Mission, Contacts'),
-                onTap: () {}, // Navigate to About screen
+                onTap: () => Navigator.pushNamed(context, '/about'),
               ),
               ListTile(
                 leading: const Icon(Icons.question_answer, color: primaryColor),
                 title: const Text('FAQs'),
                 subtitle: const Text('Frequently asked questions'),
-                onTap: () {}, // Navigate to FAQs
+                onTap: () => Navigator.pushNamed(context, '/faqs'),
               ),
             ] else ...[
               // --- APPROVED SCHOLAR SECTION ---
@@ -293,19 +297,19 @@ class _DashboardContentState extends State<DashboardContent> {
                 leading: const Icon(Icons.message, color: primaryColor),
                 title: const Text('Messaging'),
                 subtitle: const Text('Chat with OSFA & Agencies'),
-                onTap: () {}, // Navigate to Messaging
+                onTap: () => Navigator.pushNamed(context, '/messaging'),
               ),
               ListTile(
                 leading: const Icon(Icons.payment, color: primaryColor),
                 title: const Text('Specific Payout Schedule'),
                 subtitle: const Text('View your personalized schedule'),
-                onTap: () {}, // Navigate to Payouts
+                onTap: () => Navigator.pushNamed(context, '/payouts'),
               ),
               ListTile(
                 leading: const Icon(Icons.support_agent, color: primaryColor),
                 title: const Text('Submit Ticket'),
                 subtitle: const Text('Get help regarding your scholarship'),
-                onTap: () {}, // Navigate to Ticketing system
+                onTap: () => Navigator.pushNamed(context, '/tickets'),
               ),
             ],
             const SizedBox(height: 20),

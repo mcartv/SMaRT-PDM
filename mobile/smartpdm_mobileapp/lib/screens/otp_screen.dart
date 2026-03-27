@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:io'; // Import for SocketException
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../constants.dart';
@@ -58,7 +59,10 @@ class _OtpScreenState extends State<OtpScreen> {
       setState(() => _isLoading = true);
       
       // Retrieve the email passed from the registration screen
-      final email = ModalRoute.of(context)?.settings.arguments as String?;
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+      final email = args?['email'];
+      final nextRoute = args?['nextRoute'] ?? '/home'; // Default to /home if nextRoute is not provided
+
 
       try {
         final url = Uri.parse('$BASE_URL/api/auth/verify-otp');
@@ -76,7 +80,7 @@ class _OtpScreenState extends State<OtpScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Email Verified Successfully!')),
             );
-            Navigator.pushReplacementNamed(context, '/login');
+            Navigator.pushReplacementNamed(context, nextRoute); // Navigate to the specified nextRoute
           }
         } else {
           if (mounted) {
@@ -91,11 +95,18 @@ class _OtpScreenState extends State<OtpScreen> {
             const SnackBar(content: Text('Request timed out. Server might be down.')),
           );
         }
+      } on SocketException catch (e) {
+        if (mounted) {
+          print('OTP Verify Socket Error: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Network connection error. Please try again.')),
+          );
+        }
       } catch (e) {
         if (mounted) {
-          print('OTP Screen Network Error: $e'); // Added debug print
+          print('OTP Verify HTTP Client Error: $e');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Network error. Please try again.')),
+            const SnackBar(content: Text('Connection error. Please try again.')),
           );
         }
       } finally {
@@ -109,7 +120,9 @@ class _OtpScreenState extends State<OtpScreen> {
   Future<void> _resendOtp() async {
     if (_resendCooldown > 0) return;
 
-    final email = ModalRoute.of(context)?.settings.arguments as String?;
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+    final email = args?['email'];
+
     if (email == null) return;
 
     try {

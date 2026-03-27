@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:io'; // Import for SocketException
 import 'package:http/http.dart' as http;
 import '../constants.dart'; // Assuming you have your colors here based on main.dart
 
@@ -59,6 +60,13 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Request timed out. Please check your connection or try again.')),
+          );
+        }
+      } on SocketException catch (e) {
+        if (mounted) {
+          print('Login Socket Error: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Network connection error. Please check your internet connection.')),
           );
         }
       } on http.ClientException catch (e) { // Catch specific HTTP client errors (e.g., connection refused)

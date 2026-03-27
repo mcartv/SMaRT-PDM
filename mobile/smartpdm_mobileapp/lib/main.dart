@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/screens/login_screen.dart';
 import 'package:smartpdm_mobileapp/screens/register_screen.dart';
 import 'package:smartpdm_mobileapp/screens/otp_screen.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/screens/new_applicant_screen.dart';
+import 'package:smartpdm_mobileapp/screens/existing_scholar_screen.dart';
+import 'package:smartpdm_mobileapp/screens/success_screen.dart';
 import 'package:smartpdm_mobileapp/constants.dart'; // Import constants for colors
 import 'package:smartpdm_mobileapp/screens/dashboard_screen.dart';
 
@@ -38,10 +42,40 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/otp': (context) => const OtpScreen(),
-        '/home': (context) => const DashboardScreen(), // This is the missing route
+        '/home': (context) => const DashboardScreen(),
+        // Placeholder routes for Dashboard actions
+        '/application': (context) => const PlaceholderScreen(title: 'Application'),
+        '/documents': (context) => const PlaceholderScreen(title: 'Documents'),
+        '/status': (context) => const PlaceholderScreen(title: 'Status'),
+        '/about': (context) => const PlaceholderScreen(title: 'About PDM/OSFA'),
+        '/faqs': (context) => const PlaceholderScreen(title: 'FAQs'),
+        '/messaging': (context) => const PlaceholderScreen(title: 'Messaging'), // Added for approved scholar
+        '/payouts': (context) => const PlaceholderScreen(title: 'Payout Schedule'),
+        '/tickets': (context) => const PlaceholderScreen(title: 'Submit Ticket'),
+
+        // New routes for the application flow
+        '/new_applicant': (context) => const NewApplicantScreen(),
+        '/existing_scholar_update': (context) => const ExistingScholarScreen(),
+        '/success': (context) => const SuccessScreen(),
         // Add other routes here as needed
       },
       debugShowCheckedModeBanner: false, // Set to true for debugging
+    );
+  }
+}
+
+// A simple placeholder screen for undefined routes
+class PlaceholderScreen extends StatelessWidget {
+  final String title;
+  const PlaceholderScreen({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Text('This is the $title screen. Content coming soon!'),
+      ),
     );
   }
 }

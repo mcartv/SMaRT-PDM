@@ -56,6 +56,48 @@ class ApplicationData {
 
   String parentNativeStatus = 'Father only';
 
+  // Academic Data
+  String collegeSchool = '';
+  String collegeAddress = '';
+  String collegeHonors = '';
+  String collegeClub = '';
+  String collegeYearGraduated = '';
+
+  String highSchoolSchool = '';
+  String highSchoolAddress = '';
+  String highSchoolHonors = '';
+  String highSchoolClub = '';
+  String highSchoolYearGraduated = '';
+
+  String seniorHighSchool = '';
+  String seniorHighAddress = '';
+  String seniorHighHonors = '';
+  String seniorHighClub = '';
+  String seniorHighYearGraduated = '';
+
+  String elementarySchool = '';
+  String elementaryAddress = '';
+  String elementaryHonors = '';
+  String elementaryClub = '';
+  String elementaryYearGraduated = '';
+
+  String currentCourse = '';
+  String currentYearLevel = '';
+  String currentSection = '';
+  String studentNumber = '';
+  String lrn = '';
+
+  String financialSupport = 'Parents';
+  bool scholarshipHistory = false;
+  bool scholarshipElementary = false;
+  bool scholarshipHighSchool = false;
+  bool scholarshipCollege = false;
+  bool scholarshipOthers = false;
+  String scholarshipDetails = '';
+
+  bool disciplinaryAction = false;
+  String disciplinaryExplanation = '';
+
   // Step 5: Submission & Certification
   bool agree = false;
 }

@@ -27,6 +27,35 @@ class ApplicationData {
   String mobileNumber = '';
   String email = '';
 
+  // Family Data
+  String parentGuardianAddress = '';
+
+  String fatherLastName = '';
+  String fatherFirstName = '';
+  String fatherMiddleName = '';
+  String fatherMobile = '';
+
+  String motherLastName = '';
+  String motherFirstName = '';
+  String motherMiddleName = '';
+  String motherMobile = '';
+
+  String siblingLastName = '';
+  String siblingFirstName = '';
+  String siblingMiddleName = '';
+  String siblingMobile = '';
+
+  String guardianLastName = '';
+  String guardianFirstName = '';
+  String guardianMiddleName = '';
+  String guardianMobile = '';
+
+  String educationalAttainment = '';
+  String occupation = '';
+  String companyNameAndAddress = '';
+
+  String parentNativeStatus = 'Father only';
+
   // Step 5: Submission & Certification
   bool agree = false;
 }

@@ -1,19 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/models/app_data.dart';
 
-class StepEssaySubmit extends StatelessWidget {
-  const StepEssaySubmit({super.key});
+class StepEssay extends StatelessWidget {
+  final ApplicationData data;
+  final VoidCallback onChanged;
+
+  const StepEssay({super.key, required this.data, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Personal Statement Form (Self-description essay + aims and ambitions after graduation)'),
-          // TODO: Implement actual form fields here
-        ],
-      ),
+    return const Center(child: Text('Essay Form'));
+  }
+}
+
+class StepSubmit extends StatelessWidget {
+  final ApplicationData data;
+  final VoidCallback onChanged;
+
+  const StepSubmit({super.key, required this.data, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Text('Review your application before submitting.'),
+        Row(
+          children: [
+            Checkbox(
+              value: data.agree,
+              onChanged: (val) { data.agree = val ?? false; onChanged(); },
+            ),
+            const Expanded(child: Text('I certify that the information provided is true and correct.')),
+          ],
+        ),
+      ],
     );
   }
 }

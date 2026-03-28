@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/models/app_data.dart';
 
 class StepFamily extends StatelessWidget {
-  const StepFamily({super.key});
+  final ApplicationData data;
+  final VoidCallback onChanged;
+
+  const StepFamily({super.key, required this.data, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Family Data Form (Father, mother, sibling, guardian info blocks; educational attainment, occupation, company address, Marilao native status)'),
-          // TODO: Implement actual form fields here
-        ],
-      ),
-    );
+    return const Center(child: Text('Family Data Form'));
   }
 }

@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (response.statusCode == 200) {
           if (mounted) {
             // Assuming successful login navigates to a home screen or dashboard
-            Navigator.pushReplacementNamed(context, '/home'); // Replace with your actual home route
+            Navigator.pushReplacementNamed(context, '/new_applicant'); // Replace with your actual home route
           }
         } else {
           if (mounted) {

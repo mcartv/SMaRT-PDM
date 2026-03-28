@@ -61,7 +61,7 @@ class _OtpScreenState extends State<OtpScreen> {
       // Retrieve the email passed from the registration screen
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
       final email = args?['email'];
-      final nextRoute = args?['nextRoute'] ?? '/home'; // Default to /home if nextRoute is not provided
+      final nextRoute = args?['nextRoute'] ?? '/new_applicant'; // Default to /new_applicant if nextRoute is not provided
 
 
       try {

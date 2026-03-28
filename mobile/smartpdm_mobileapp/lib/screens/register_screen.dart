@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:io'; // Import for SocketException
 import 'package:http/http.dart' as http;
 import '../constants.dart'; // Assuming you have your colors here based on main.dart
@@ -56,15 +57,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         final identifier = _identifierController.text.trim();
 
         // Debug prints to understand identifier processing
-        print('DEBUG (Flutter): Identifier input: "$identifier"');
-        print('DEBUG (Flutter): Matches studentIdRegex: ${studentIdRegex.hasMatch(identifier)}');
+        debugPrint('DEBUG (Flutter): Identifier input: "$identifier"');
+        debugPrint('DEBUG (Flutter): Matches studentIdRegex: ${studentIdRegex.hasMatch(identifier)}');
 
         // Always treat the input as a Student ID
         authBody['student_id'] = identifier;
         authBody['username'] = null; // Explicitly send null for username
-        print('DEBUG (Flutter): Identifier treated as Student ID.');
+        debugPrint('DEBUG (Flutter): Identifier treated as Student ID.');
 
-        print('DEBUG (Flutter): Auth Body being sent: ${jsonEncode(authBody)}');
+        debugPrint('DEBUG (Flutter): Auth Body being sent: ${jsonEncode(authBody)}');
 
         final response = await http.post(
           url, headers: {
@@ -95,21 +96,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } on SocketException catch (e) {
         if (mounted) {
-          print('Registration Socket Error: $e');
+          debugPrint('Registration Socket Error: $e');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Network connection error. Please check your internet connection.')),
           );
         }
       } on http.ClientException catch (e) {
         if (mounted) {
-          print('Registration HTTP Client Error: $e');
+          debugPrint('Registration HTTP Client Error: $e');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Connection error. Please ensure your backend is running and accessible.')),
           );
         }
       } catch (e) {
         if (mounted) {
-          print('Registration Unexpected Error: $e');
+          debugPrint('Registration Unexpected Error: $e');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
           );
@@ -123,7 +124,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _handleGoogleSignUp() {
-    // TODO: Implement Google Sign-In logic later
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Google Sign-In coming soon!')),
     );

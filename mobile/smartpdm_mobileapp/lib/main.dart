@@ -8,9 +8,18 @@ import 'package:smartpdm_mobileapp/screens/existing_scholar_screen.dart';
 import 'package:smartpdm_mobileapp/screens/success_screen.dart';
 import 'package:smartpdm_mobileapp/constants.dart'; // Import constants for colors
 import 'package:smartpdm_mobileapp/screens/dashboard_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:smartpdm_mobileapp/screens/new_scholar_provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => NewScholarProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

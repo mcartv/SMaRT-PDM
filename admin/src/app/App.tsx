@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import AdminLogin from './components/admin/AdminLogin';
+// import ForgotPassword from './components/admin/ForgotPassword';
 import AdminLayout from './components/admin/AdminLayout';
 import AdminDashboard from './components/admin/AdminDashboard';
 import ApplicationReview from './components/admin/ApplicationReview';
@@ -18,6 +19,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
         <Route path="/admin/login" element={<AdminLogin />} />
+        {/* <Route path="/admin/forgotpassword" element={<ForgotPassword />} /> */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />

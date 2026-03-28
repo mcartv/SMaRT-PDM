@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Eye, EyeOff, ShieldCheck, GraduationCap, BookOpen, Award } from 'lucide-react';
 import pdmLogo from '../../../assets/pdm-logo.png';
+import { supabase } from '../../../lib/supabase';
 
 // Same tokens as the sidebar
 const SB_BASE = '#7c4a2e';
@@ -19,19 +20,136 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('Session check error:', error);
+          return;
+        }
+
+        if (session) {
+          // Verify if the logged-in user is an admin
+          const { data: adminData, error: adminError } = await supabase
+            .from('users')
+            .select('admin_profiles')
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (!adminError && adminData?.admin_profiles) {
+            navigate('/admin/dashboard');
+          }
+        }
+      } catch (err) {
+        console.error('Session check failed:', err);
+      }
+    };
+
+    checkSession();
+  }, [navigate]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
     setIsLoading(true);
-    setTimeout(() => {
+
+    // Basic validation
+    if (!email.trim()) {
+      setErrorMessage('Email address is required');
       setIsLoading(false);
-      navigate('/admin/dashboard');
-    }, 1200);
+      return;
+    }
+
+    if (!password) {
+      setErrorMessage('Password is required');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Ensure supabase client is initialized
+      if (!supabase) {
+        throw new Error('Supabase client is not initialized. Please check your configuration.');
+      }
+
+      // Attempt sign in
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        // Handle specific error cases
+        if (error.message === 'Invalid login credentials') {
+          throw new Error('Invalid email or password. Please try again.');
+        } else if (error.message.includes('Email not confirmed')) {
+          throw new Error('Please confirm your email address before logging in.');
+        } else {
+          throw error;
+        }
+      }
+
+      if (!data.user) {
+        throw new Error('Login failed. No user data returned.');
+      }
+
+      const userId = data.user.id;
+
+      // Check admin profile
+      const { data: adminData, error: adminError } = await supabase
+        .from('users')
+        .select(`
+    user_id,
+    admin_profiles (
+      admin_id,
+      user_id,
+      first_name,
+      last_name,
+      department,
+      position
+    )
+  `) // Ensure there are no extra dots or dashes here
+        .eq('user_id', userId)
+        .single();
+
+      console.log("Database Row Found:", adminData);
+
+      if (adminError) {
+        console.error('Admin check error:', adminError);
+        throw new Error('Unable to verify admin permissions. Please contact support.');
+      }
+
+      if (!adminData?.admin_profiles) {
+        // If the join returns null, it means no row exists in admin_profiless for this user
+        await supabase.auth.signOut();
+        throw new Error('Access denied. This account does not have admin privileges.');
+      }
+
+      // If remember me is checked, set session persistence
+      if (rememberMe) {
+        // Supabase handles this automatically with the session
+        // You can set a longer session duration in your Supabase auth settings
+        console.log('Remember me enabled - session will persist');
+      }
+
+      // Redirect to dashboard
+      navigate('/admin/dashboard', { replace: true });
+
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setErrorMessage(err.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex" style={{ fontFamily: "'Inter', sans-serif" }}>
-
       {/* ── Left Panel ── */}
       <div
         className="hidden lg:flex lg:w-[52%] flex-col justify-between relative overflow-hidden"
@@ -106,7 +224,6 @@ export default function AdminLogin() {
 
       {/* ── Right Panel ── */}
       <div className="flex-1 flex flex-col items-center justify-center bg-white px-6 py-12">
-
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: SB_BASE }}>
@@ -118,7 +235,6 @@ export default function AdminLogin() {
         </div>
 
         <div className="w-full max-w-[400px]">
-
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-3">
@@ -139,6 +255,12 @@ export default function AdminLogin() {
           {/* Form card */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-8">
             <form onSubmit={handleLogin} className="space-y-5">
+              {/* Error message display */}
+              {errorMessage && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-sm text-red-600">{errorMessage}</p>
+                </div>
+              )}
 
               {/* Email */}
               <div className="space-y-1.5">
@@ -152,7 +274,8 @@ export default function AdminLogin() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white transition-all text-sm placeholder:text-gray-400 text-black"
+                  disabled={isLoading}
+                  className="h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white transition-all text-sm placeholder:text-gray-400 text-black disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -162,9 +285,15 @@ export default function AdminLogin() {
                   <Label htmlFor="password" className="text-sm font-medium text-black">
                     Password
                   </Label>
-                  <a href="#" className="text-xs font-medium hover:underline" style={{ color: ACCENT }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/forgot-password')}
+                    className="text-xs font-medium hover:underline focus:outline-none"
+                    style={{ color: ACCENT }}
+                    disabled={isLoading}
+                  >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
                 <div className="relative">
                   <Input
@@ -174,12 +303,14 @@ export default function AdminLogin() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white pr-11 transition-all text-sm placeholder:text-gray-400 text-black"
+                    disabled={isLoading}
+                    className="h-11 rounded-xl border-gray-200 bg-gray-50 focus:bg-white pr-11 transition-all text-sm placeholder:text-gray-400 text-black disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none disabled:opacity-50"
+                    disabled={isLoading}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -192,7 +323,8 @@ export default function AdminLogin() {
                 <button
                   type="button"
                   onClick={() => setRememberMe(!rememberMe)}
-                  className="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0"
+                  disabled={isLoading}
+                  className="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 disabled:opacity-50"
                   style={{
                     background: rememberMe ? ACCENT : '#fff',
                     borderColor: rememberMe ? ACCENT : '#d1d5db',
@@ -206,8 +338,8 @@ export default function AdminLogin() {
                   )}
                 </button>
                 <span
-                  className="text-sm text-gray-600 select-none cursor-pointer"
-                  onClick={() => setRememberMe(!rememberMe)}
+                  className="text-sm text-gray-600 select-none cursor-pointer disabled:opacity-50"
+                  onClick={() => !isLoading && setRememberMe(!rememberMe)}
                 >
                   Remember me for 30 days
                 </span>
@@ -217,7 +349,7 @@ export default function AdminLogin() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 rounded-xl text-sm font-semibold tracking-wide transition-all text-white border-none"
+                className="w-full h-11 rounded-xl text-sm font-semibold tracking-wide transition-all text-white border-none disabled:opacity-70 disabled:cursor-not-allowed"
                 style={{
                   background: isLoading ? '#b07a5a' : SB_BASE,
                   boxShadow: isLoading ? 'none' : '0 3px 10px rgba(124,74,46,0.3)',
@@ -235,7 +367,6 @@ export default function AdminLogin() {
                   'Sign In'
                 )}
               </Button>
-
             </form>
           </div>
 
@@ -248,7 +379,6 @@ export default function AdminLogin() {
           </p>
         </div>
       </div>
-
     </div>
   );
 }

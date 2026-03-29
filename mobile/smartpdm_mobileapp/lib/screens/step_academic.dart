@@ -51,37 +51,53 @@ class _StepAcademicState extends State<StepAcademic> {
   bool scholarshipOthers = false;
 
   late final TextEditingController scholarshipDetailsController;
+  late final TextEditingController scholarshipOthersSpecifyController;
   bool disciplinaryAction = false;
   late final TextEditingController disciplinaryExplanationController;
 
   InputDecoration _dec(String placeholder) => InputDecoration(
         hintText: placeholder,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       );
 
   Widget _field(String label, Widget child) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           child,
         ],
       );
 
-  Widget _row(List<Widget> children) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: children
-            .asMap()
-            .entries
-            .map((entry) => Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(right: entry.key < children.length - 1 ? 10 : 0),
-                    child: entry.value,
-                  ),
-                ))
-            .toList(),
-      );
+  Widget _row(List<Widget> children) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children.asMap().entries.map((entry) => Padding(
+              padding: EdgeInsets.only(bottom: entry.key < children.length - 1 ? 16.0 : 0),
+              child: entry.value,
+            )).toList(),
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children
+              .asMap()
+              .entries
+              .map((entry) => Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: entry.key < children.length - 1 ? 16.0 : 0),
+                      child: entry.value,
+                    ),
+                  ))
+              .toList(),
+        );
+      },
+    );
+  }
 
   void _bind(TextEditingController c, void Function(String) setter) {
     c.addListener(() {
@@ -132,6 +148,7 @@ class _StepAcademicState extends State<StepAcademic> {
     scholarshipOthers = widget.data.scholarshipOthers;
 
     scholarshipDetailsController = TextEditingController(text: widget.data.scholarshipDetails);
+    scholarshipOthersSpecifyController = TextEditingController(text: widget.data.scholarshipOthersSpecify);
     disciplinaryAction = widget.data.disciplinaryAction;
     disciplinaryExplanationController = TextEditingController(text: widget.data.disciplinaryExplanation);
 
@@ -166,6 +183,7 @@ class _StepAcademicState extends State<StepAcademic> {
     _bind(lrnController, (v) => widget.data.lrn = v);
 
     _bind(scholarshipDetailsController, (v) => widget.data.scholarshipDetails = v);
+    _bind(scholarshipOthersSpecifyController, (v) => widget.data.scholarshipOthersSpecify = v);
     _bind(disciplinaryExplanationController, (v) => widget.data.disciplinaryExplanation = v);
   }
 
@@ -202,6 +220,7 @@ class _StepAcademicState extends State<StepAcademic> {
     lrnController.dispose();
 
     scholarshipDetailsController.dispose();
+    scholarshipOthersSpecifyController.dispose();
     disciplinaryExplanationController.dispose();
 
     super.dispose();
@@ -210,30 +229,33 @@ class _StepAcademicState extends State<StepAcademic> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text('III. ACADEMIC INFORMATION', style: sectionTitle),
+          const Divider(color: Colors.orange, thickness: 2),
+          const SizedBox(height: 24),
           _section('COLLEGE', collegeSchoolController, collegeAddressController, collegeHonorsController, collegeClubController, collegeYearController),
           _section('HIGH SCHOOL', highSchoolSchoolController, highSchoolAddressController, highSchoolHonorsController, highSchoolClubController, highSchoolYearController),
           _section('SENIOR HIGH SCHOOL', seniorHighSchoolController, seniorHighAddressController, seniorHighHonorsController, seniorHighClubController, seniorHighYearController),
           _section('ELEMENTARY', elementarySchoolController, elementaryAddressController, elementaryHonorsController, elementaryClubController, elementaryYearController),
-          const SizedBox(height: 16),
-          const Text('CURRENT ENROLLMENT', style: sectionTitle),
           const SizedBox(height: 8),
+          const Text('CURRENT ENROLLMENT', style: sectionTitle),
+          const SizedBox(height: 16),
           _row([
             _field('Course', TextFormField(controller: currentCourseController, decoration: _dec('Course'))),
             _field('Year Level', TextFormField(controller: currentYearLevelController, decoration: _dec('Year Level'))),
             _field('Section', TextFormField(controller: currentSectionController, decoration: _dec('Section'))),
           ]),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           _row([
             _field('Student Number', TextFormField(controller: studentNumberController, decoration: _dec('Student Number'))),
             _field('LRN', TextFormField(controller: lrnController, decoration: _dec('LRN'))),
           ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           const Text('FINANCIAL SUPPORT', style: sectionTitle),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           Wrap(
             spacing: 10,
             children: supportOptions
@@ -252,39 +274,70 @@ class _StepAcademicState extends State<StepAcademic> {
                     ))
                 .toList(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           const Text('SCHOLARSHIP HISTORY', style: sectionTitle),
           buildBooleanRow('Have you ever been a scholar?', scholarshipHistory, (val) {
             setState(() {
               scholarshipHistory = val;
               widget.data.scholarshipHistory = val;
+          if (!val) {
+            scholarshipElementary = false;
+            widget.data.scholarshipElementary = false;
+            scholarshipHighSchool = false;
+            widget.data.scholarshipHighSchool = false;
+            scholarshipCollege = false;
+            widget.data.scholarshipCollege = false;
+            scholarshipOthers = false;
+            widget.data.scholarshipOthers = false;
+            scholarshipOthersSpecifyController.clear();
+            widget.data.scholarshipOthersSpecify = '';
+            scholarshipDetailsController.clear();
+            widget.data.scholarshipDetails = '';
+          }
             });
             widget.onChanged();
           }),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            children: [
-              _buildCheck('Elementary', scholarshipElementary, (v) => setState(() { scholarshipElementary = v; widget.data.scholarshipElementary = v; widget.onChanged(); })),
-              _buildCheck('High School', scholarshipHighSchool, (v) => setState(() { scholarshipHighSchool = v; widget.data.scholarshipHighSchool = v; widget.onChanged(); })),
-              _buildCheck('College', scholarshipCollege, (v) => setState(() { scholarshipCollege = v; widget.data.scholarshipCollege = v; widget.onChanged(); })),
-              _buildCheck('Others', scholarshipOthers, (v) => setState(() { scholarshipOthers = v; widget.data.scholarshipOthers = v; widget.onChanged(); })),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextFormField(controller: scholarshipDetailsController, maxLines: 4, decoration: _dec('Details (School, Course, SY, Amount)')),
+      if (scholarshipHistory) ...[
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          children: [
+            _buildCheck('Elementary', scholarshipElementary, (v) => setState(() { scholarshipElementary = v; widget.data.scholarshipElementary = v; widget.onChanged(); })),
+            _buildCheck('High School', scholarshipHighSchool, (v) => setState(() { scholarshipHighSchool = v; widget.data.scholarshipHighSchool = v; widget.onChanged(); })),
+            _buildCheck('College', scholarshipCollege, (v) => setState(() { scholarshipCollege = v; widget.data.scholarshipCollege = v; widget.onChanged(); })),
+            _buildCheck('Others', scholarshipOthers, (v) => setState(() { 
+              scholarshipOthers = v; 
+              widget.data.scholarshipOthers = v; 
+              if (!v) { scholarshipOthersSpecifyController.clear(); widget.data.scholarshipOthersSpecify = ''; }
+              widget.onChanged(); 
+            })),
+          ],
+        ),
+        if (scholarshipOthers) ...[
           const SizedBox(height: 16),
+          _field('If Other, specify:', TextFormField(controller: scholarshipOthersSpecifyController, decoration: _dec('Specify...'))),
+        ],
+        const SizedBox(height: 16),
+        TextFormField(controller: scholarshipDetailsController, maxLines: 4, decoration: _dec('Details (School, Course, SY, Amount)')),
+      ],
+          const SizedBox(height: 24),
           const Text('DISCIPLINARY ACTION', style: sectionTitle),
-          const SizedBox(height: 8),
-          buildBooleanRow('Have you ever been subject to disciplinary action?', disciplinaryAction, (val) {
+          const SizedBox(height: 16),
+          buildBooleanRow('Have you ever been subject to disciplinary action from any school or institution attended?', disciplinaryAction, (val) {
             setState(() {
               disciplinaryAction = val;
               widget.data.disciplinaryAction = val;
+              if (!val) {
+                disciplinaryExplanationController.clear();
+                widget.data.disciplinaryExplanation = '';
+              }
             });
             widget.onChanged();
           }),
-          const SizedBox(height: 8),
-          TextFormField(controller: disciplinaryExplanationController, maxLines: 4, decoration: _dec('Please explain briefly')),
+          if (disciplinaryAction) ...[
+            const SizedBox(height: 16),
+            TextFormField(controller: disciplinaryExplanationController, maxLines: 4, decoration: _dec('Please explain briefly')),
+          ],
         ],
       ),
     );
@@ -325,18 +378,18 @@ class _StepAcademicState extends State<StepAcademic> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: sectionTitle),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
         _row([
           _field('School', TextFormField(controller: school, decoration: _dec('School'))),
           _field('Address', TextFormField(controller: address, decoration: _dec('Address'))),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
         _row([
           _field('Honors / Awards', TextFormField(controller: honors, decoration: _dec('Honors / Awards'))),
           _field('Club / Org', TextFormField(controller: club, decoration: _dec('Club / Org'))),
           _field('Year Graduated', TextFormField(controller: year, keyboardType: TextInputType.number, decoration: _dec('YYYY'))),
         ]),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
       ],
     );
   }

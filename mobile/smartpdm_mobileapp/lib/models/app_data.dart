@@ -19,6 +19,7 @@ class ApplicationData {
   String street = '';
   String subdivision = '';
   String barangay = '';
+  String province = 'Bulacan';
   String city = 'Marilao';
   String zipCode = '3019';
 
@@ -34,11 +35,17 @@ class ApplicationData {
   String fatherFirstName = '';
   String fatherMiddleName = '';
   String fatherMobile = '';
+  String fatherEducationalAttainment = '';
+  String fatherOccupation = '';
+  String fatherCompanyNameAndAddress = '';
 
   String motherLastName = '';
   String motherFirstName = '';
   String motherMiddleName = '';
   String motherMobile = '';
+  String motherEducationalAttainment = '';
+  String motherOccupation = '';
+  String motherCompanyNameAndAddress = '';
 
   String siblingLastName = '';
   String siblingFirstName = '';
@@ -49,12 +56,13 @@ class ApplicationData {
   String guardianFirstName = '';
   String guardianMiddleName = '';
   String guardianMobile = '';
+  String guardianEducationalAttainment = '';
+  String guardianOccupation = '';
+  String guardianCompanyNameAndAddress = '';
 
-  String educationalAttainment = '';
-  String occupation = '';
-  String companyNameAndAddress = '';
-
-  String parentNativeStatus = 'Father only';
+  String parentNativeStatus = 'Yes, father only';
+  String parentMarilaoResidencyDuration = '';
+  String parentPreviousTownProvince = '';
 
   // Academic Data
   String collegeSchool = '';
@@ -93,15 +101,15 @@ class ApplicationData {
   bool scholarshipHighSchool = false;
   bool scholarshipCollege = false;
   bool scholarshipOthers = false;
+  String scholarshipOthersSpecify = '';
   String scholarshipDetails = '';
 
   bool disciplinaryAction = false;
   String disciplinaryExplanation = '';
 
   // Essay Data
-  String scholarshipEssay = '';
-  String achievementsEssay = '';
-  String financialNeedEssay = '';
+  String describeYourselfEssay = '';
+  String aimsAndAmbitionEssay = '';
 
   // Submission & Certification
   bool certificationRead = false;

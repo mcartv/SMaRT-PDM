@@ -98,6 +98,13 @@ class ApplicationData {
   bool disciplinaryAction = false;
   String disciplinaryExplanation = '';
 
-  // Step 5: Submission & Certification
+  // Essay Data
+  String scholarshipEssay = '';
+  String achievementsEssay = '';
+  String financialNeedEssay = '';
+
+  // Submission & Certification
+  bool certificationRead = false;
   bool agree = false;
+
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { Button } from "../components/ui/button"
 import { CheckCircle, XCircle, Clock, FileText, Building2, Calendar, User, Bell } from 'lucide-react';
 
 const C = {

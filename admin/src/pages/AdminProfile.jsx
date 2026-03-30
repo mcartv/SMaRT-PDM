@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import {
     User, Mail, Phone, MapPin, Lock, Eye, EyeOff,
     Save, Check, Camera, Shield, Clock, Activity,

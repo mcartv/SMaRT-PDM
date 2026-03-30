@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Button } from '../components/ui/button';
-// Ensure you have these components converted to .jsx in your ui folder
+import { Button } from "../components/ui/button"
 import { Textarea } from '../components/ui/textarea';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import {

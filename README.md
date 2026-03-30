@@ -1,10 +1,17 @@
-# SMaRT-PDM Mobile App
+# SMaRT-PDM System
 
-A Flutter-based mobile application for the Scholarship Management and Recipient Tracking - Program Document Management (SMaRT-PDM) system. This app allows new applicants to apply for scholarships and existing scholars to manage their profiles and documents.
+The Scholarship Management and Recipient Tracking - Program Document Management (SMaRT-PDM) system. This repository contains both the web application (for administrators) and the mobile application (for scholars and applicants).
 
 ## 🚀 Features
 
-- **User Authentication**: Secure login and registration for scholars.
+### Web Application (Admin Portal)
+- **Dashboard**: Overview of scholarship programs and metrics.
+- **Application Management**: Review, approve, or reject new scholarship applications.
+- **Scholar Tracking**: Monitor academic progress and document submissions.
+- **Payout Management**: Manage and track financial disbursements.
+
+### Mobile Application (Scholar Portal)
+- **User Authentication**: Secure login and registration for applicants and scholars.
 - **New Applicant Registration**: A guided, multi-step process for new scholarship applications.
 - **Existing Scholar Portal**: A dashboard for current scholars to:
   - Update personal information.
@@ -21,11 +28,9 @@ To get a local copy up and running, follow these simple steps.
 
 ### Prerequisites
 
-Make sure you have the Flutter SDK installed on your machine. For more information, see the [Flutter documentation](https://flutter.dev/docs/get-started/install).
-
-- Flutter SDK (check your version with `flutter --version`)
+- **Mobile**: Flutter SDK (check your version with `flutter --version`), an Android emulator or a physical device.
+- **Web**: Node.js and npm (or yarn).
 - A code editor like VS Code or Android Studio.
-- An Android emulator or a physical device.
 
 ### Installation
 
@@ -33,39 +38,32 @@ Make sure you have the Flutter SDK installed on your machine. For more informati
     ```sh
     git clone https://github.com/your_username/SMaRT-PDM.git
     ```
-2.  **Navigate to the project directory**
+
+#### Mobile Application
+
+2.  **Navigate to the mobile project directory**
     ```sh
     cd SMaRT-PDM/mobile/smartpdm_mobileapp
     ```
-3.  **Install dependencies**
+3.  **Install dependencies and run**
     ```sh
     flutter pub get
-    ```
-4.  **Run the app**
-    ```sh
     flutter run
     ```
 
-### Configuration
+#### Web Application
 
-Before building for release, make sure to update the Android application ID and set up signing keys.
-
-1.  **Application ID**:
-    Open `android/app/build.gradle.kts` and change `applicationId` from `com.example.smartpdm_mobileapp` to your unique ID.
-    ```kotlin
-    // android/app/build.gradle.kts
-    defaultConfig {
-        applicationId = "your.unique.application.id"
-        // ...
-    }
+2.  **Navigate to the web project directory**
+    ```sh
+    cd SMaRT-PDM/web
+    ```
+3.  **Install dependencies and run**
+    ```sh
+    npm install
+    npm start
     ```
 
-2.  **Release Signing**:
-    Follow the Flutter documentation to create a keystore and configure release signing in `android/app/build.gradle.kts`.
-
 ## 📂 Project Structure
-
-The project follows a standard Flutter application structure, with key files located in the `lib/` directory.
 
 ```
 smartpdm_mobileapp/

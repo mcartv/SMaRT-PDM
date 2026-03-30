@@ -67,9 +67,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               constraints: const BoxConstraints(maxWidth: 560),
               child: Card(
                 margin: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: AppColors.gold, width: 2),
+                ),
                 elevation: 24,
-                shadowColor: Colors.black54,
+                shadowColor: Colors.black87,
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [

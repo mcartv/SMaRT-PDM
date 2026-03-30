@@ -32,6 +32,7 @@ migrate_working_dir/
 build/
 **/build/
 coverage/
+.env
 
 # Android generated files
 **/android/.gradle/

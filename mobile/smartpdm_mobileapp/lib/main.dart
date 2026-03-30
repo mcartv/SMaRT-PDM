@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:device_preview/device_preview.dart';
-import 'constants.dart';
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
-import 'screens/otp_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/scholarship_list_screen.dart';
-import 'screens/application_form_screen.dart';
-import 'screens/document_upload_screen.dart';
-import 'screens/status_tracking_screen.dart';
-import 'screens/obligations_screen.dart';
-import 'screens/profile_screen.dart';
+import 'package:smartpdm_mobileapp/screens/login_screen.dart';
+import 'package:smartpdm_mobileapp/screens/register_screen.dart';
+import 'package:smartpdm_mobileapp/screens/otp_screen.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/screens/new_applicant_screen.dart';
+import 'package:smartpdm_mobileapp/screens/existing_scholar_screen.dart';
+import 'package:smartpdm_mobileapp/screens/success_screen.dart';
+import 'package:smartpdm_mobileapp/constants.dart'; // Import constants for colors
+import 'package:smartpdm_mobileapp/screens/dashboard_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:smartpdm_mobileapp/screens/new_scholar_provider.dart';
 
 void main() {
-  runApp(DevicePreview(
-    enabled: !const bool.fromEnvironment('dart.vm.product'),
-    builder: (context) => const MyApp(),
-  ));
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => NewScholarProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -26,51 +28,63 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SMART-PDM Scholarship System',
+      title: 'SMaRT-PDM',
       theme: ThemeData(
-        primaryColor: primaryColor,
+        // Define a custom color scheme using your constants
         colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
+          seedColor: primaryColor, // Use your primary color as the seed
+          primary: primaryColor,
           secondary: accentColor,
+          // You can define other colors here as well, e.g., background, surface, etc.
         ),
-        scaffoldBackgroundColor: backgroundColor,
-        fontFamily: GoogleFonts.inter().fontFamily,
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-        ),
+        // The primarySwatch is a MaterialColor (a map of 10 shades).
+        // If you want to use your single primaryColor as the primarySwatch,
+        // you need to create a MaterialColor from it.
+        // This ensures older widgets or those relying on primarySwatch still get your color.
+        primarySwatch: MaterialColor(primaryColor.value, <int, Color>{
+          50: primaryColor.withOpacity(0.1), 100: primaryColor.withOpacity(0.2), 200: primaryColor.withOpacity(0.3), 300: primaryColor.withOpacity(0.4), 400: primaryColor.withOpacity(0.5), 500: primaryColor.withOpacity(0.6), 600: primaryColor.withOpacity(0.7), 700: primaryColor.withOpacity(0.8), 800: primaryColor.withOpacity(0.9), 900: primaryColor.withOpacity(1.0),
+        }),
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      initialRoute: '/',
+      initialRoute: '/login', // Set your initial route
       routes: {
-        '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
         '/otp': (context) => const OtpScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
-        '/scholarships': (context) => const ScholarshipListScreen(),
-        '/application': (context) => const ApplicationFormScreen(),
-        '/documents': (context) => const DocumentUploadScreen(),
-        '/status': (context) => const StatusTrackingScreen(),
-        '/obligations': (context) => const ObligationsScreen(),
-        '/profile': (context) => const ProfileScreen(),
+        '/home': (context) => const DashboardScreen(),
+        // Placeholder routes for Dashboard actions
+        '/application': (context) => const PlaceholderScreen(title: 'Application'),
+        '/documents': (context) => const PlaceholderScreen(title: 'Documents'),
+        '/status': (context) => const PlaceholderScreen(title: 'Status'),
+        '/about': (context) => const PlaceholderScreen(title: 'About PDM/OSFA'),
+        '/faqs': (context) => const PlaceholderScreen(title: 'FAQs'),
+        '/messaging': (context) => const PlaceholderScreen(title: 'Messaging'), // Added for approved scholar
+        '/payouts': (context) => const PlaceholderScreen(title: 'Payout Schedule'),
+        '/tickets': (context) => const PlaceholderScreen(title: 'Submit Ticket'),
+
+        // New routes for the application flow
+        '/new_applicant': (context) => const NewApplicantScreen(),
+        '/existing_scholar_update': (context) => const ExistingScholarScreen(),
+        '/success': (context) => const SuccessScreen(),
+        // Add other routes here as needed
       },
+      debugShowCheckedModeBanner: false, // Set to true for debugging
+    );
+  }
+}
+
+// A simple placeholder screen for undefined routes
+class PlaceholderScreen extends StatelessWidget {
+  final String title;
+  const PlaceholderScreen({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Text('This is the $title screen. Content coming soon!'),
+      ),
     );
   }
 }

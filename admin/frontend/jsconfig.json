@@ -4,6 +4,12 @@
         "moduleResolution": "Bundler",
         "target": "ESNext",
         "jsx": "react-jsx",
+        "baseUrl": ".",
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ]
+        },
         "types": [
             "vite/client"
         ]

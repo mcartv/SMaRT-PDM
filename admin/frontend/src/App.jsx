@@ -1,10 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
-
-// Layouts
+// --- LAYOUTS ---
 import AdminLayout from './components/layout/AdminLayout';
-// Pages
+// --- PAGES ---
 import AdminLogin from './pages/AdminLogin';
-// import ForgotPassword from './pages/ForgotPassword'; // Uncomment when file is ready
+import ForgotPassword from './pages/ForgotPassword'; // <--- Added this
 import AdminDashboard from './pages/AdminDashboard';
 import ApplicationReview from './pages/ApplicationReview';
 import DocumentVerification from './pages/DocumentVerification';
@@ -16,21 +15,38 @@ import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/Maintenance';
 
+/**
+ * PROTECTED ROUTE WRAPPER
+ * This prevents users from accessing the dashboard if they aren't logged in.
+ */
+const ProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('adminToken');
+  if (!token) return <Navigate to="/admin/login" replace />;
+  return children;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Root Redirect to Login */}
+        {/* Redirect Root to Login */}
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
 
-        {/* Auth Route */}
+        {/* Public Auth Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
-        {/* <Route path="/admin/forgotpassword" element={<ForgotPassword />} /> */}
+        <Route path="/admin/forgot-password" element={<ForgotPassword />} /> {/* <--- Added this */}
 
-        {/* Protected Admin Shell */}
-        <Route path="/admin" element={<AdminLayout />}>
-          {/* Automatically send /admin to /admin/dashboard */}
-          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+        {/* --- PROTECTED ADMIN PANEL --- */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        >
+          {/* Send /admin directly to dashboard */}
+          <Route index element={<Navigate to="dashboard" replace />} />
 
           {/* Admin Sub-pages */}
           <Route path="dashboard" element={<AdminDashboard />} />
@@ -45,7 +61,7 @@ export default function App() {
           <Route path="maintenance" element={<Maintenance />} />
         </Route>
 
-        {/* Fallback for 404 - Redirects back to login or dashboard */}
+        {/* Fallback 404 */}
         <Route path="*" element={<Navigate to="/admin/login" replace />} />
       </Routes>
     </BrowserRouter>

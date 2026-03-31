@@ -81,7 +81,11 @@ export default function AdminLogin() {
         {/* Top Header Logo */}
         <div className="relative z-10 p-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-            <img src={pdmLogo} alt="Logo" className="w-6 h-6 object-contain" />
+            <img
+              src={pdmLogo}
+              alt="Logo"
+              className="w-16 h-16 object-contain block mx-auto"
+            />
           </div>
           <div>
             <p className="text-white text-xs font-bold tracking-wide uppercase">PDM · OSFA</p>
@@ -162,7 +166,14 @@ export default function AdminLogin() {
             <div className="space-y-1.5">
               <div className="flex justify-between items-center px-1">
                 <label className="text-xs font-semibold text-stone-700">Password</label>
-                <button type="button" className="text-[10px] font-bold text-orange-800 hover:underline">Forgot?</button>
+                {/* --- FIX APPLIED HERE --- */}
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/admin/forgot-password')} 
+                  className="text-[10px] font-bold text-orange-800 hover:underline"
+                >
+                  Forgot?
+                </button>
               </div>
               <div className="relative">
                 <input

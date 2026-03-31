@@ -1,30 +1,60 @@
-import * as React from "react";
+"use client";
+
+import React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { XIcon } from "lucide-react";
+import { cn } from "./utils";
 
-export const Dialog = DialogPrimitive.Root;
-export const DialogTrigger = DialogPrimitive.Trigger;
-export const DialogPortal = DialogPrimitive.Portal;
+function Dialog(props) {
+  return <DialogPrimitive.Root {...props} />;
+}
 
-export const DialogOverlay = ({ className, ...props }) => (
-    <DialogPrimitive.Overlay
-        className={cn("fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out", className)}
+function DialogTrigger(props) {
+  return <DialogPrimitive.Trigger {...props} />;
+}
+
+function DialogContent({ className, children, ...props }) {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50" />
+      <DialogPrimitive.Content
+        className={cn(
+          "fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow",
+          className
+        )}
         {...props}
-    />
-);
+      >
+        {children}
+        <DialogPrimitive.Close className="absolute top-4 right-4">
+          <XIcon />
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+  );
+}
 
-export const DialogContent = ({ className, children, ...props }) => (
-    <DialogPortal>
-        <DialogOverlay />
-        <DialogPrimitive.Content
-            className={cn("fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-white p-6 shadow-lg duration-200 rounded-2xl", className)}
-            {...props}
-        >
-            {children}
-            <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 outline-none">
-                <X className="h-4 w-4" />
-            </DialogPrimitive.Close>
-        </DialogPrimitive.Content>
-    </DialogPortal>
-);
+function DialogHeader({ className, ...props }) {
+  return <div className={cn("flex flex-col gap-2", className)} {...props} />;
+}
+
+function DialogFooter({ className, ...props }) {
+  return <div className={cn("flex justify-end gap-2", className)} {...props} />;
+}
+
+function DialogTitle(props) {
+  return <DialogPrimitive.Title className="text-lg font-semibold" {...props} />;
+}
+
+function DialogDescription(props) {
+  return <DialogPrimitive.Description className="text-sm text-muted-foreground" {...props} />;
+}
+
+export {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+};

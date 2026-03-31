@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:io'; // Import for SocketException
 import 'package:http/http.dart' as http;
 import '../constants.dart'; // Assuming you have your colors here based on main.dart

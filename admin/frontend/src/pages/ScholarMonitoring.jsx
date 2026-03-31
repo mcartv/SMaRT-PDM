@@ -44,7 +44,9 @@ export default function ScholarMonitoring() {
 
   const [search, setSearch] = useState('');
   const [program, setProgram] = useState('All Programs');
+  const [batchYear, setBatchYear] = useState('All Years');
   const [status, setStatus] = useState('All Statuses');
+  const [gwaFilter, setGwaFilter] = useState('All');
   const [page, setPage] = useState(1);
 
   // ─── DATABASE COMMUNICATION ───
@@ -76,17 +78,35 @@ export default function ScholarMonitoring() {
   }, []);
 
   // ─── FILTER LOGIC ───
+  // ─── ADVANCED FILTER LOGIC ───
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
+
     return scholars.filter(s => {
+      // 1. Search (Name or ID)
       const matchSearch = !q ||
         s.student_name?.toLowerCase().includes(q) ||
-        s.student_number?.toLowerCase().includes(q); // Searching by student number instead of UUID
+        s.student_number?.toLowerCase().includes(q);
+
+      // 2. Program/Course
       const matchProgram = program === 'All Programs' || s.program_name === program;
+
+      // 3. Batch Year
+      const matchBatch = batchYear === 'All Years' || s.batch_year === batchYear;
+
+      // 4. Status
       const matchStatus = status === 'All Statuses' || s.status === status;
-      return matchSearch && matchProgram && matchStatus;
+
+      // 5. GWA Range Logic
+      let matchGwa = true;
+      const val = Number(s.gwa);
+      if (gwaFilter === 'Excellence (<1.5)') matchGwa = val < 1.5;
+      else if (gwaFilter === 'Good (1.5-2.0)') matchGwa = val >= 1.5 && val <= 2.0;
+      else if (gwaFilter === 'At Risk (>2.0)') matchGwa = val > 2.0;
+
+      return matchSearch && matchProgram && matchBatch && matchStatus && matchGwa;
     });
-  }, [scholars, search, program, status]);
+  }, [scholars, search, program, batchYear, status, gwaFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -145,30 +165,88 @@ export default function ScholarMonitoring() {
         ))}
       </div>
 
-      {/* Filter Bar */}
-      <Card className="border-stone-200 shadow-sm overflow-visible">
-        <CardContent className="p-4 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[280px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-300" />
-            <Input
-              placeholder="Search by name or Student Number..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-10 h-11 bg-stone-50/50 rounded-xl border-stone-200 font-medium"
-            />
+      {/* Compact Unified Control Center */}
+      <Card className="border-stone-200 shadow-sm bg-white mb-6">
+        <CardContent className="p-3 flex flex-wrap items-end gap-3">
+
+          {/* Search - Flexible width */}
+          <div className="flex-1 min-w-[240px]">
+            <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-1 block ml-1">Search Scholar</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
+              <Input
+                placeholder="Name or ID..."
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
+                className="pl-9 h-9 text-xs bg-stone-50/50 rounded-lg border-stone-200 focus:ring-amber-200"
+              />
+            </div>
           </div>
-          {/* Program Select can now be populated from your programs table if you wish */}
-          <Select value={program} onValueChange={setProgram}>
-            <SelectTrigger className="w-[180px] h-11 rounded-xl bg-stone-50/50 font-bold text-xs uppercase tracking-wider">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All Programs" className="text-xs font-bold">All Programs</SelectItem>
-              {/* Add dynamic programs here later */}
-              <SelectItem value="BSIT" className="text-xs font-bold">BSIT</SelectItem>
-              <SelectItem value="BSCS" className="text-xs font-bold">BSCS</SelectItem>
-            </SelectContent>
-          </Select>
+
+          {/* Program - Compact dropdown */}
+          <div className="w-[140px]">
+            <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-1 block ml-1">Program</label>
+            <Select value={program} onValueChange={(v) => { setProgram(v); setPage(1); }}>
+              <SelectTrigger className="h-9 rounded-lg bg-stone-50/50 text-[11px] border-stone-200 font-medium">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All Programs" className="text-xs">All Programs</SelectItem>
+                {[...new Set(scholars.map(s => s.program_name))].filter(Boolean).map(p => (
+                  <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Batch - Compact dropdown */}
+          <div className="w-[110px]">
+            <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-1 block ml-1">Batch</label>
+            <Select value={batchYear} onValueChange={(v) => { setBatchYear(v); setPage(1); }}>
+              <SelectTrigger className="h-9 rounded-lg bg-stone-50/50 text-[11px] border-stone-200 font-medium">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All Years" className="text-xs">All Years</SelectItem>
+                {[...new Set(scholars.map(s => s.batch_year))].filter(Boolean).map(b => (
+                  <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* GWA - Compact dropdown */}
+          <div className="w-[140px]">
+            <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-1 block ml-1">Academic</label>
+            <Select value={gwaFilter} onValueChange={(v) => { setGwaFilter(v); setPage(1); }}>
+              <SelectTrigger className="h-9 rounded-lg bg-stone-50/50 text-[11px] border-stone-200 font-medium">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All" className="text-xs">All Tiers</SelectItem>
+                <SelectItem value="Excellence (<1.5)" className="text-xs text-green-600 font-bold">Excellence</SelectItem>
+                <SelectItem value="Good (1.5-2.0)" className="text-xs text-amber-600 font-bold">Good</SelectItem>
+                <SelectItem value="At Risk (>2.0)" className="text-xs text-red-600 font-bold">At Risk</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Reset - Icon only or small button */}
+          {(search || program !== 'All Programs' || batchYear !== 'All Years' || gwaFilter !== 'All') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearch(''); setProgram('All Programs');
+                setBatchYear('All Years'); setGwaFilter('All'); setPage(1);
+              }}
+              className="h-9 px-2 text-stone-400 hover:text-red-500 hover:bg-red-50 transition-all group"
+              title="Reset Filters"
+            >
+              <span className="text-[10px] font-bold mr-1">RESET</span>
+              <Clock className="w-3.5 h-3.5 rotate-180 group-hover:rotate-0 transition-transform" />
+            </Button>
+          )}
         </CardContent>
       </Card>
 

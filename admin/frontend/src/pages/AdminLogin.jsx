@@ -34,7 +34,6 @@ export default function AdminLogin() {
     setError('');
 
     try {
-      // 1. Authenticate with custom Node.js backend
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -47,15 +46,12 @@ export default function AdminLogin() {
         throw new Error(data.message || 'Login failed');
       }
 
-      // 2. Persist Auth Token to Local Storage
       localStorage.setItem('adminToken', data.token);
 
-      // 3. Persist User Profile Data
       if (data.user) {
         localStorage.setItem('adminProfile', JSON.stringify(data.user));
       }
 
-      // 4. Route to Dashboard upon success
       navigate('/admin/dashboard');
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');

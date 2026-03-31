@@ -35,36 +35,34 @@ export default function AdminLayout() {
   const [notifs, setNotifs] = useState([]);
 
   useEffect(() => {
-    const initializeLayout = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          navigate('/admin/login');
-          return;
-        }
-
-        const { data: userRow } = await supabase
-          .from('users')
-          .select(`username, admin_profiles(first_name, last_name, position, department)`)
-          .eq('user_id', session.user.id)
-          .single();
-
-        setAdminData(userRow);
-
-        const { data: notifData } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .limit(5);
-
-        if (notifData) setNotifs(notifData);
-      } catch (err) {
-        console.error("Layout load error:", err);
+    const initializeLayout = () => {
+      // 1. Check for your custom Node.js token instead of Supabase auth
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        navigate('/admin/login');
+        return;
       }
+
+      // 2. Load the profile data you already saved during login!
+      const savedProfile = localStorage.getItem('adminProfile');
+      if (savedProfile) {
+        setAdminData(JSON.parse(savedProfile));
+      }
+
+      // 3. (Optional) Fetch notifications from your Node backend later.
+      // For now, we will set it to empty so it doesn't crash.
+      setNotifs([]);
     };
+
     initializeLayout();
   }, [navigate]);
 
+  const handleLogout = () => {
+    // Clear your custom local storage items instead of using supabase.auth
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminProfile');
+    navigate('/admin/login');
+  };
   // Handle clicking outside the notification dropdown
   useEffect(() => {
     function handleClick(e) {
@@ -76,15 +74,11 @@ export default function AdminLayout() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [notifOpen]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/admin/login');
-  };
-
   const getInitials = () => {
-    const profile = adminData?.admin_profiles?.[0];
-    if (!profile?.first_name) return "AD";
-    return `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase();
+    if (!adminData?.name) return "AD";
+    const names = adminData.name.split(' ');
+    if (names.length === 1) return names[0][0].toUpperCase();
+    return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
   };
 
   return (
@@ -188,16 +182,15 @@ export default function AdminLayout() {
 
             {/* Profile Chip */}
             <div className="flex items-center gap-3 pl-1 pr-3 py-1 rounded-full border border-amber-100 bg-amber-50/30">
-              {/* Hardcoded Avatar (No Radix) */}
               <div className="w-8 h-8 rounded-full bg-stone-800 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
                 {getInitials()}
               </div>
               <div className="hidden sm:block leading-tight truncate max-w-[120px]">
                 <p className="text-[11px] font-bold text-stone-800 truncate">
-                  {adminData?.admin_profiles?.[0]?.first_name || 'Admin'}
+                  {adminData?.name || 'Admin'}
                 </p>
                 <p className="text-[9px] text-amber-700 font-semibold uppercase tracking-wider">
-                  {adminData?.admin_profiles?.[0]?.position || 'Staff'}
+                  {adminData?.position || 'Staff'}
                 </p>
               </div>
             </div>

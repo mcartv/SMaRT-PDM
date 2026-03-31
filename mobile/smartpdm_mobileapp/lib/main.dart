@@ -6,7 +6,7 @@ import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/screens/new_applicant_screen.dart';
 import 'package:smartpdm_mobileapp/screens/existing_scholar_screen.dart';
 import 'package:smartpdm_mobileapp/screens/success_screen.dart';
-import 'package:smartpdm_mobileapp/constants.dart'; // Import constants for colors
+// Import constants for colors
 import 'package:smartpdm_mobileapp/screens/dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/screens/new_scholar_provider.dart';

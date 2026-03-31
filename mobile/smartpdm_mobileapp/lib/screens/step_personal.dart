@@ -194,7 +194,7 @@ class _StepPersonalState extends State<StepPersonal> {
   InputDecoration _dec(String hint) => InputDecoration(
         hintText: hint,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       );
 
   Widget _row(List<Widget> items) {
@@ -204,7 +204,7 @@ class _StepPersonalState extends State<StepPersonal> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: items.asMap().entries.map((entry) => Padding(
-              padding: EdgeInsets.only(bottom: entry.key < items.length - 1 ? 20.0 : 0),
+              padding: EdgeInsets.only(bottom: entry.key < items.length - 1 ? 16.0 : 0),
               child: entry.value,
             )).toList(),
           );
@@ -228,11 +228,13 @@ class _StepPersonalState extends State<StepPersonal> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('I. PERSONAL DATA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown)),
-        const Divider(color: Colors.orange, thickness: 2),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('I. PERSONAL DATA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown)),
+          const Divider(color: Colors.orange, thickness: 2),
         const SizedBox(height: 20),
         _row([
           _field(label: 'Last Name', child: TextFormField(controller: lastNameController, decoration: _dec('Last Name'))),
@@ -419,6 +421,7 @@ class _StepPersonalState extends State<StepPersonal> {
           _field(label: 'Email Address', child: TextFormField(controller: emailController, keyboardType: TextInputType.emailAddress, decoration: _dec('Email Address'))),
         ]),
       ],
+      ),
     );
   }
 }

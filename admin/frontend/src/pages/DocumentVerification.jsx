@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Button } from "../components/ui/button"
-import { Textarea } from '../components/ui/textarea';
-import { Avatar, AvatarFallback } from '../components/ui/avatar';
+// --- SHADCN UI COMPONENTS ---
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+// --- ICONS ---
 import {
   CheckCircle, XCircle, Clock, ArrowLeft,
   FileText, Flag, ChevronRight,
@@ -21,16 +25,10 @@ const C = {
   redSoft: '#FEF2F2',
   border: '#E5E7EB',
   muted: '#6B7280',
-  text: '#111827',
-  bg: '#F9FAFB',
+  text: '#3b1f0a',
+  bg: '#faf7f2',
   white: '#FFFFFF',
-};
-
-const CARD = {
-  background: C.white,
-  border: `1px solid ${C.border}`,
-  borderRadius: 16,
-  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  brownMid: '#7c4a2e',
 };
 
 // ─── Data ────────────────────────────────────────────────────
@@ -48,24 +46,25 @@ const STUDENT = {
   course: 'BS Computer Science', dept: 'Engineering', gwa: '1.75',
 };
 
-// ─── Status config ────────────────────────────────────────────
 const DOC_STATUS = {
   verified: { icon: <CheckCircle className="w-4 h-4" />, color: C.green, bg: C.greenSoft, label: 'Verified' },
   pending: { icon: <Clock className="w-4 h-4" />, color: C.orange, bg: C.orangeSft, label: 'Pending' },
   rejected: { icon: <XCircle className="w-4 h-4" />, color: C.red, bg: C.redSoft, label: 'Rejected' },
 };
 
-// ─── Helpers ─────────────────────────────────────────────────
+// ─── Sub-Components ───────────────────────────────────────────
+
 function InfoRow({ label, value, mono }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: C.muted }}>{label}</p>
-      <p className={`text-sm text-gray-800 ${mono ? 'font-mono' : 'font-medium'}`}>{value}</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-0.5">{label}</p>
+      <p className={`text-sm ${mono ? 'font-mono font-bold text-stone-600' : 'font-semibold text-stone-800'}`}>{value}</p>
     </div>
   );
 }
 
-// ─── Component ───────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────
+
 export default function DocumentVerification() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -74,76 +73,61 @@ export default function DocumentVerification() {
 
   const verified = DOCS.filter(d => d.status === 'verified').length;
   const progress = Math.round((verified / DOCS.length) * 100);
-  const activeDoc = DOCS.find(d => d.id === doc);
+  const activeDoc = DOCS.find(d => d.id === doc) || DOCS[0];
 
   return (
-    <div className="space-y-5 py-1" style={{ fontFamily: 'system-ui, sans-serif', color: C.text }}>
+    <div className="space-y-6 py-2 animate-in fade-in duration-500">
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate('/admin/applications')}
-          className="w-8 h-8 flex items-center justify-center rounded-xl border transition-colors shrink-0"
-          style={{ borderColor: C.border, background: C.white }}
-        >
-          <ArrowLeft className="w-4 h-4" style={{ color: C.muted }} />
-        </button>
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="sm" onClick={() => navigate('/admin/applications')} className="h-10 w-10 p-0 rounded-xl border-stone-200 bg-white">
+          <ArrowLeft size={18} className="text-stone-600" />
+        </Button>
         <div>
-          <div className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
-            <span
-              className="cursor-pointer hover:underline"
-              onClick={() => navigate('/admin/applications')}
-            >
-              Applications
-            </span>
-            <ChevronRight className="w-3 h-3" />
-            <span style={{ color: C.text }}>{id}</span>
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-stone-400">
+            <span className="hover:text-stone-600 cursor-pointer transition-colors" onClick={() => navigate('/admin/applications')}>Registry</span>
+            <ChevronRight size={12} />
+            <span className="text-stone-600">{id}</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">Document Verification</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900">Document Verification</h1>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        {/* Left Panel */}
-        <div className="lg:col-span-2 space-y-4">
-          <div style={CARD} className="p-5">
-            <div className="flex items-center gap-3 mb-5">
-              <Avatar className="w-12 h-12 shrink-0">
-                <AvatarFallback
-                  className="text-sm font-bold text-white"
-                  style={{ background: C.blue }}
-                >
-                  {STUDENT.initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="font-bold text-gray-900 truncate">{STUDENT.name}</p>
-                <p className="text-xs font-mono text-gray-400">{STUDENT.id}</p>
-                <span
-                  className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md mt-1"
-                  style={{ background: C.blueSoft, color: C.blue }}
-                >
-                  {STUDENT.program}
-                </span>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+        {/* Left Column: Student Context */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-6">
+                <Avatar className="w-14 h-14 border-2 border-stone-100 shadow-sm">
+                  <AvatarFallback className="bg-blue-900 text-white font-bold">{STUDENT.initials}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <h2 className="text-lg font-bold text-stone-900">{STUDENT.name}</h2>
+                  <p className="text-xs font-mono font-bold text-stone-400">{STUDENT.id}</p>
+                  <Badge className="mt-2 bg-blue-50 text-blue-700 border-blue-100 font-bold uppercase text-[9px]">{STUDENT.program}</Badge>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-6 border-t border-stone-100">
+                <InfoRow label="Email Address" value={STUDENT.email} />
+                <InfoRow label="Phone Number" value={STUDENT.phone} />
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoRow label="Academic Year" value={STUDENT.year} />
+                  <InfoRow label="GWA Score" value={STUDENT.gwa} mono />
+                </div>
+                <InfoRow label="Course / Program" value={STUDENT.course} />
               </div>
             </div>
+          </Card>
 
-            <div className="space-y-3 pt-4 border-t border-gray-200">
-              <InfoRow label="Email" value={STUDENT.email} />
-              <div className="grid grid-cols-2 gap-3">
-                <InfoRow label="Year Level" value={STUDENT.year} />
-                <InfoRow label="GWA" value={STUDENT.gwa} mono />
-              </div>
-              <InfoRow label="Course" value={STUDENT.course} />
+          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
+            <div className="p-5 border-b border-stone-100 bg-stone-50/50 flex justify-between items-center">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-stone-800">Checklist</h3>
+              <span className="text-[10px] font-bold text-stone-400">{verified}/{DOCS.length} Done</span>
             </div>
-          </div>
-
-          <div style={CARD} className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-gray-900">Checklist</h2>
-              <span className="text-xs font-semibold text-gray-500">{verified}/{DOCS.length} verified</span>
-            </div>
-            <div className="space-y-2">
+            <CardContent className="p-4 space-y-2">
               {DOCS.map((d) => {
                 const s = DOC_STATUS[d.status];
                 const isActive = doc === d.id;
@@ -151,48 +135,97 @@ export default function DocumentVerification() {
                   <button
                     key={d.id}
                     onClick={() => setDoc(d.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left ${isActive ? 'bg-blue-50 border-blue-900' : 'bg-white border-gray-200'}`}
+                    className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left ${isActive ? 'border-blue-900 bg-blue-50 shadow-sm' : 'border-stone-100 bg-white hover:border-stone-300'}`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
                       <span style={{ color: s.color }}>{s.icon}</span>
-                      <p className={`text-xs truncate ${isActive ? 'font-semibold text-blue-900' : 'text-gray-800'}`}>{d.name}</p>
+                      <div className="min-w-0">
+                        <p className={`text-xs truncate ${isActive ? 'font-bold text-blue-900' : 'font-semibold text-stone-700'}`}>{d.name}</p>
+                        <p className="text-[10px] text-stone-400 font-medium uppercase mt-0.5">Uploaded {d.uploaded}</p>
+                      </div>
                     </div>
+                    <Badge variant="outline" className="border-none text-[8px] font-bold uppercase py-0.5" style={{ background: s.bg, color: s.color }}>{s.label}</Badge>
                   </button>
                 );
               })}
-            </div>
-          </div>
+
+              <div className="mt-4 pt-4 border-t border-stone-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Verification Status</span>
+                  <span className="text-[10px] font-bold text-stone-900">{progress}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                  <div className="h-full bg-green-600 transition-all duration-500" style={{ width: `${progress}%` }} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Right Panel */}
-        <div className="lg:col-span-3 space-y-4">
-          <div style={CARD} className="overflow-hidden min-h-100">
-            <div className="bg-gray-50 p-6 h-full flex flex-col items-center justify-center">
-              <FileText className="w-12 h-12 text-blue-200 mb-2" />
-              <p className="text-sm font-semibold text-gray-900">{activeDoc.name}</p>
-              <div className="mt-4 w-full max-w-sm h-64 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center text-xs text-gray-400">
-                Preview renders here
+        {/* Right Column: Viewer & Actions */}
+        <div className="lg:col-span-3 space-y-6">
+          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
+            <div className="flex border-b border-stone-100 bg-stone-50/50 overflow-x-auto">
+              {DOCS.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setDoc(d.id)}
+                  className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all shrink-0 ${doc === d.id ? 'border-blue-900 text-blue-900 bg-white' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-8 min-h-[450px] bg-stone-50/30 flex items-center justify-center">
+              <div className="w-full max-w-md bg-white rounded-2xl p-12 text-center border border-stone-200 shadow-lg">
+                <div className="w-16 h-16 rounded-3xl bg-blue-50 flex items-center justify-center mx-auto mb-6">
+                  <FileText className="w-8 h-8 text-blue-600" />
+                </div>
+                <h4 className="text-sm font-bold text-stone-900">{activeDoc.name}</h4>
+                <p className="text-xs text-stone-400 font-medium mt-1">Version ID: {activeDoc.id.toUpperCase()}-2025-SEC</p>
+                <div className="mt-8 aspect-video rounded-xl bg-stone-50 border-2 border-dashed border-stone-200 flex items-center justify-center">
+                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest italic">Document Rendering...</p>
+                </div>
               </div>
             </div>
-          </div>
+          </Card>
 
-          <div style={CARD} className="p-5">
-            <h2 className="text-sm font-bold text-gray-900 mb-4">Verification Actions</h2>
-            <Textarea
-              placeholder="Add comments for the student..."
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="mb-4 bg-gray-50 border-gray-200 rounded-xl"
-            />
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <button className="py-2 rounded-lg bg-green-50 text-green-600 text-xs font-bold border border-green-200">Verify</button>
-              <button className="py-2 rounded-lg bg-orange-50 text-orange-600 text-xs font-bold border border-orange-200">Re-upload</button>
-              <button className="py-2 rounded-lg bg-red-50 text-red-600 text-xs font-bold border border-red-200">Flag</button>
+          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">Administrative Feedback</label>
+                <Textarea
+                  placeholder="Enter specific instructions or reasons for document rejection..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  className="rounded-xl bg-stone-50/50 border-stone-200 resize-none h-24 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Button variant="outline" className="rounded-xl font-bold text-[10px] uppercase h-11 border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200">
+                  <CheckCircle size={16} className="mr-2" /> Verify
+                </Button>
+                <Button variant="outline" className="rounded-xl font-bold text-[10px] uppercase h-11 border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200">
+                  <XCircle size={16} className="mr-2" /> Re-upload
+                </Button>
+                <Button variant="outline" className="rounded-xl font-bold text-[10px] uppercase h-11 border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200">
+                  <Flag size={16} className="mr-2" /> Flag
+                </Button>
+              </div>
+
+              <Button className="w-full h-12 rounded-xl font-bold text-sm text-white border-none shadow-xl" style={{ background: C.blue }}>
+                Complete Verification & Next
+              </Button>
             </div>
-            <Button className="w-full bg-blue-900 text-white font-bold h-11 rounded-xl">Save & Next</Button>
-          </div>
+          </Card>
         </div>
       </div>
+
+      <footer className="pt-8 pb-4 text-center border-t border-stone-100">
+        <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest italic">SMaRT PDM Secure Audit · Document Verification Layer</p>
+      </footer>
     </div>
   );
 }

@@ -82,7 +82,7 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedCourse,
+                initialValue: _selectedCourse,
                 decoration: const InputDecoration(
                   labelText: 'Course',
                 ),
@@ -114,7 +114,7 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedYearLevel,
+                initialValue: _selectedYearLevel,
                 decoration: const InputDecoration(
                   labelText: 'Year Level',
                 ),

@@ -1,18 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import '../widgets/smart_pdm_page_scaffold.dart';
 import '../widgets/app_theme.dart';
+import 'messaging_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const SmartPdmPageScaffold(
-      selectedIndex: 0,
-      applyPadding: false,
-      child: DashboardContent(),
+    return Scaffold(
+      body: const SmartPdmPageScaffold(
+        selectedIndex: 0,
+        applyPadding: false,
+        child: DashboardContent(),
+      ),
+      floatingActionButton: Consumer<MessagingProvider>(
+        builder: (context, messagingProvider, child) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 70.0), // Moves the FAB up above the bottom nav bar
+            child: Badge(
+              isLabelVisible: messagingProvider.unreadCount > 0, // Automatically hide badge if 0
+              label: Text('${messagingProvider.unreadCount}'),
+              backgroundColor: Colors.red,
+              child: FloatingActionButton(
+                onPressed: () {
+                  messagingProvider.clearUnread(); // Reset count when opening chat
+                  Navigator.pushNamed(context, '/messaging');
+                },
+                backgroundColor: primaryColor,
+                tooltip: 'Open Messaging',
+                child: const Icon(Icons.chat, color: Colors.white),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

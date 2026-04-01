@@ -10,26 +10,47 @@ function getOrdinalSuffix(n) {
 }
 
 exports.fetchApplications = async () => {
-    const { data, error } = await supabase
+    const { data: applications, error: appError } = await supabase
         .from('applications')
         .select(`
             application_id,
+            student_id,
             application_status,
             submission_date,
             document_status,
             is_disqualified,
             disqualification_reason,
-            students ( first_name, last_name, pdm_id, gwa ),
+            students ( first_name, last_name, pdm_id, gwa, sdo_status ),
             scholarship_programs ( program_name )
         `);
 
-    if (error) {
-        console.error('Supabase Fetch Error:', error);
-        throw new Error(error.message);
+    if (appError) {
+        console.error('Supabase Fetch Error:', appError);
+        throw new Error(appError.message);
     }
 
-    const processed = _.map(data, (app) => ({
+    const { data: scholars, error: scholarError } = await supabase
+        .from('scholars')
+        .select('student_id');
+
+    if (scholarError) {
+        console.error('Supabase Scholar Fetch Error:', scholarError);
+        throw new Error(scholarError.message);
+    }
+
+    const scholarStudentIds = new Set(
+        (scholars || [])
+            .map((s) => s.student_id)
+            .filter(Boolean)
+    );
+
+    const filteredApplications = (applications || []).filter(
+        (app) => !scholarStudentIds.has(app.student_id)
+    );
+
+    const processed = _.map(filteredApplications, (app) => ({
         id: app.application_id,
+        student_id: app.student_id,
         name: `${_.get(app, 'students.last_name', 'Unknown')}, ${_.get(app, 'students.first_name', 'Student')}`,
         student_number: _.get(app, 'students.pdm_id', 'N/A'),
         program: _.get(app, 'scholarship_programs.program_name', 'General'),
@@ -37,7 +58,7 @@ exports.fetchApplications = async () => {
         status: _.toLower(app.application_status || ''),
         document_status: _.toLower(app.document_status || 'missing docs'),
         disqualified: !!app.is_disqualified,
-        disqReason: app.disqualification_reason,
+        disqReason: app.disqualification_reason || null,
         gwa: _.get(app, 'students.gwa', 0),
     }));
 
@@ -49,6 +70,7 @@ exports.fetchApplicationDocumentsById = async (id) => {
         .from('applications')
         .select(`
             application_id,
+            student_id,
             application_status,
             document_status,
             submission_date,
@@ -78,6 +100,24 @@ exports.fetchApplicationDocumentsById = async (id) => {
     if (error) {
         console.error('Supabase Document Fetch Error:', error);
         throw new Error(error.message);
+    }
+
+    // Block applications that already became scholars
+    if (data?.student_id) {
+        const { data: existingScholar, error: scholarCheckError } = await supabase
+            .from('scholars')
+            .select('scholar_id')
+            .eq('student_id', data.student_id)
+            .maybeSingle();
+
+        if (scholarCheckError) {
+            console.error('Supabase Scholar Check Error:', scholarCheckError);
+            throw new Error(scholarCheckError.message);
+        }
+
+        if (existingScholar) {
+            throw new Error('This application has already been converted into an active scholar record.');
+        }
     }
 
     const student = data.students || {};

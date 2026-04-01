@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle, XCircle, Clock, ArrowLeft,
   FileText, Flag, ChevronRight, Loader2,
+  AlertTriangle, ShieldCheck, ScanText, ExternalLink,
+  Columns2,
 } from 'lucide-react';
 
 const C = {
@@ -27,9 +29,30 @@ const C = {
 };
 
 const DOC_STATUS = {
-  verified: { icon: <CheckCircle className="w-3.5 h-3.5" />, color: C.green, bg: C.greenSoft, label: 'Uploaded' },
-  pending: { icon: <Clock className="w-3.5 h-3.5" />, color: C.orange, bg: C.orangeSoft, label: 'Missing' },
-  rejected: { icon: <XCircle className="w-3.5 h-3.5" />, color: C.red, bg: C.redSoft, label: 'Rejected' },
+  verified: {
+    icon: <CheckCircle className="w-3.5 h-3.5" />,
+    color: C.green,
+    bg: C.greenSoft,
+    label: 'Verified',
+  },
+  pending: {
+    icon: <Clock className="w-3.5 h-3.5" />,
+    color: C.orange,
+    bg: C.orangeSoft,
+    label: 'Pending',
+  },
+  rejected: {
+    icon: <XCircle className="w-3.5 h-3.5" />,
+    color: C.red,
+    bg: C.redSoft,
+    label: 'Re-upload',
+  },
+  flagged: {
+    icon: <Flag className="w-3.5 h-3.5" />,
+    color: C.red,
+    bg: '#fef2f2',
+    label: 'Flagged',
+  },
 };
 
 function InfoRow({ label, value, mono }) {
@@ -43,6 +66,194 @@ function InfoRow({ label, value, mono }) {
   );
 }
 
+function getMockExtractedData(activeDoc, application) {
+  const student = application?.student || {};
+
+  const base = [
+    { label: 'Student Name', value: student.name || 'Not detected', verified: true },
+    { label: 'PDM ID', value: student.pdm_id || 'Not detected', verified: true },
+    { label: 'Program', value: student.program || 'Not detected', verified: true },
+    { label: 'Course', value: student.course || 'Not detected', verified: true },
+  ];
+
+  if (!activeDoc) return base;
+
+  switch (activeDoc.id) {
+    case 'loi':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'Letter of Intent', verified: true },
+        { label: 'Intent Statement', value: 'Applicant expresses intent to apply for scholarship assistance.', verified: true },
+        { label: 'Signature Presence', value: activeDoc.url ? 'Detected' : 'Not detected', verified: !!activeDoc.url },
+      ];
+
+    case 'cor':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'Certificate of Registration', verified: true },
+        { label: 'Academic Year', value: student.year || 'Not detected', verified: true },
+        { label: 'Enrollment Status', value: activeDoc.url ? 'Enrolled' : 'Unknown', verified: !!activeDoc.url },
+      ];
+
+    case 'grades':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'Grade Form', verified: true },
+        { label: 'Detected GWA', value: student.gwa ?? 'Not detected', verified: student.gwa !== undefined && student.gwa !== null },
+        { label: 'Academic Standing', value: Number(student.gwa) > 2.0 ? 'At Risk' : 'Good Standing', verified: true },
+      ];
+
+    case 'indigency':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'Certificate of Indigency', verified: true },
+        { label: 'Issuing Office', value: activeDoc.url ? 'Barangay / LGU Certificate' : 'Not detected', verified: !!activeDoc.url },
+        { label: 'Applicant Eligibility Marker', value: activeDoc.url ? 'Present' : 'Missing', verified: !!activeDoc.url },
+      ];
+
+    case 'valid_id':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'Valid ID', verified: true },
+        { label: 'ID Presence', value: activeDoc.url ? 'Detected' : 'Not detected', verified: !!activeDoc.url },
+        { label: 'Readable Identity Fields', value: activeDoc.url ? 'Partially readable' : 'Unavailable', verified: !!activeDoc.url },
+      ];
+
+    default:
+      return base;
+  }
+}
+
+function DocumentPreviewPanel({ activeDoc }) {
+  return (
+    <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4 text-stone-500" />
+          <div>
+            <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
+            <p className="text-[11px] text-stone-400">Scanned / Uploaded Document</p>
+          </div>
+        </div>
+
+        {activeDoc.url && (
+          <a
+            href={activeDoc.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
+          >
+            Open file
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+      </div>
+
+      <div className="p-4 min-h-[520px] flex items-center justify-center bg-stone-50/20">
+        {activeDoc.url ? (
+          <iframe
+            src={activeDoc.url}
+            title={activeDoc.name}
+            className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
+          />
+        ) : (
+          <div className="w-full max-w-sm bg-white rounded-xl p-8 text-center border border-stone-100 shadow-sm">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-6 h-6 text-blue-500" />
+            </div>
+            <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
+            <p className="text-xs text-stone-400 mt-1">No file uploaded yet.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OCRPanel({ activeDoc, application, extractedData }) {
+  return (
+    <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50">
+        <div className="flex items-center gap-2">
+          <ScanText className="w-4 h-4 text-stone-500" />
+          <div>
+            <h4 className="text-sm font-semibold text-stone-800">OCR Validation Hub</h4>
+            <p className="text-[11px] text-stone-400">Extracted text / validation markers</p>
+          </div>
+        </div>
+
+        <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-medium">
+          Extracted Preview
+        </Badge>
+      </div>
+
+      <div className="p-4 min-h-[520px] space-y-4">
+        <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-4 h-4 text-green-600" />
+            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">
+              Parsed Metadata
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {extractedData.map((item, index) => (
+              <div
+                key={`${item.label}-${index}`}
+                className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
+              >
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-stone-400">{item.label}</p>
+                  <p className="text-sm font-medium text-stone-800 mt-0.5">{item.value}</p>
+                </div>
+
+                <span
+                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.verified
+                      ? 'bg-green-50 text-green-700'
+                      : 'bg-orange-50 text-orange-700'
+                    }`}
+                >
+                  {item.verified ? 'Detected' : 'Review'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-orange-600" />
+            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">
+              Admin OCR Notes
+            </p>
+          </div>
+          <p className="text-xs text-stone-500 leading-relaxed">
+            Use this panel to compare scanned documents against extracted text. If OCR values look incomplete,
+            blurred, or mismatched with the student record, mark the document for re-upload or flag it for review.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-stone-200 bg-white p-3">
+          <p className="text-[11px] uppercase tracking-wide text-stone-400 mb-1">Raw OCR Snapshot</p>
+          <div className="text-xs text-stone-600 leading-relaxed whitespace-pre-wrap font-mono bg-stone-50 rounded-lg p-3 border border-stone-100">
+            {`DOCUMENT: ${activeDoc.name}
+STUDENT: ${application?.student?.name || 'Unknown'}
+PDM ID: ${application?.student?.pdm_id || 'N/A'}
+PROGRAM: ${application?.student?.program || 'N/A'}
+COURSE: ${application?.student?.course || 'N/A'}
+GWA: ${application?.student?.gwa ?? 'N/A'}
+
+STATUS:
+- File ${activeDoc.url ? 'detected and readable' : 'not uploaded'}
+- Parsed fields available for manual validation
+- Admin review required before final approval`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DocumentVerification() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -50,8 +261,13 @@ export default function DocumentVerification() {
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [doc, setDoc] = useState('loi');
   const [comment, setComment] = useState('');
+  const [docStatuses, setDocStatuses] = useState({});
+  const [docComments, setDocComments] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [viewMode, setViewMode] = useState('preview');
 
   useEffect(() => {
     const fetchApplicationDocuments = async () => {
@@ -74,10 +290,20 @@ export default function DocumentVerification() {
         const data = await res.json();
         setApplication(data);
 
-        if (data?.documents?.length) {
-          const firstAvailable = data.documents.find((d) => d.url)?.id || data.documents[0].id;
-          setDoc(firstAvailable);
-        }
+        const initialDocs = data?.documents || [];
+        const firstAvailable = initialDocs.find((d) => d.url)?.id || initialDocs[0]?.id || 'loi';
+        setDoc(firstAvailable);
+
+        const initialStatuses = {};
+        const initialComments = {};
+
+        initialDocs.forEach((d) => {
+          initialStatuses[d.id] = d.status || 'pending';
+          initialComments[d.id] = '';
+        });
+
+        setDocStatuses(initialStatuses);
+        setDocComments(initialComments);
       } catch (err) {
         console.error('Document fetch error:', err);
         setError(err.message || 'Failed to load document data');
@@ -89,10 +315,100 @@ export default function DocumentVerification() {
     fetchApplicationDocuments();
   }, [id]);
 
-  const docs = useMemo(() => application?.documents || [], [application]);
+  const docs = useMemo(() => {
+    const rawDocs = application?.documents || [];
+    return rawDocs.map((d) => ({
+      ...d,
+      status: docStatuses[d.id] || d.status || 'pending',
+      admin_comment: docComments[d.id] || '',
+    }));
+  }, [application, docStatuses, docComments]);
+
   const uploaded = docs.filter((d) => !!d.url).length;
-  const progress = docs.length ? Math.round((uploaded / docs.length) * 100) : 0;
+  const verifiedCount = docs.filter((d) => d.status === 'verified').length;
+  const flaggedCount = docs.filter((d) => d.status === 'flagged').length;
+  const reuploadCount = docs.filter((d) => d.status === 'rejected').length;
+
+  const progress = docs.length ? Math.round((verifiedCount / docs.length) * 100) : 0;
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
+  const extractedData = useMemo(
+    () => getMockExtractedData(activeDoc, application),
+    [activeDoc, application]
+  );
+
+  useEffect(() => {
+    if (activeDoc) {
+      setComment(docComments[activeDoc.id] || '');
+    }
+  }, [activeDoc, docComments]);
+
+  const handleCommentChange = (value) => {
+    setComment(value);
+    if (!activeDoc) return;
+
+    setDocComments((prev) => ({
+      ...prev,
+      [activeDoc.id]: value,
+    }));
+  };
+
+  const updateActiveDocStatus = (nextStatus) => {
+    if (!activeDoc) return;
+
+    setDocStatuses((prev) => ({
+      ...prev,
+      [activeDoc.id]: nextStatus,
+    }));
+
+    setDocComments((prev) => ({
+      ...prev,
+      [activeDoc.id]: comment,
+    }));
+  };
+
+  const handleVerify = () => {
+    updateActiveDocStatus('verified');
+  };
+
+  const handleReupload = () => {
+    updateActiveDocStatus('rejected');
+  };
+
+  const handleFlag = () => {
+    updateActiveDocStatus('flagged');
+  };
+
+  const handleCompleteVerification = async () => {
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        application_id: id,
+        document_reviews: docs.map((d) => ({
+          id: d.id,
+          name: d.name,
+          status: d.status,
+          comment: d.admin_comment || '',
+          url: d.url || null,
+        })),
+        summary: {
+          verified: verifiedCount,
+          uploaded,
+          flagged: flaggedCount,
+          reupload: reuploadCount,
+          progress,
+        },
+      };
+
+      console.log('VERIFICATION PAYLOAD:', payload);
+      alert('Verification state saved locally in UI. Wire the backend endpoint next if needed.');
+    } catch (err) {
+      console.error('COMPLETE VERIFICATION ERROR:', err);
+      alert(err.message || 'Failed to complete verification');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -182,7 +498,7 @@ export default function DocumentVerification() {
           <Card className="border-stone-200 shadow-none bg-white">
             <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
               <h3 className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Checklist</h3>
-              <span className="text-xs text-stone-400">{uploaded}/{docs.length} done</span>
+              <span className="text-xs text-stone-400">{uploaded}/{docs.length} uploaded</span>
             </div>
 
             <CardContent className="p-3 space-y-1.5">
@@ -220,18 +536,35 @@ export default function DocumentVerification() {
                 );
               })}
 
-              <div className="mt-3 pt-3 border-t border-stone-100">
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
-                    Verification Progress
-                  </span>
-                  <span className="text-[10px] font-semibold text-stone-700">{progress}%</span>
+              <div className="mt-3 pt-3 border-t border-stone-100 space-y-3">
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                      Verification Progress
+                    </span>
+                    <span className="text-[10px] font-semibold text-stone-700">{progress}%</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 transition-all duration-500 rounded-full"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
-                  <div
-                    className="h-full bg-green-500 transition-all duration-500 rounded-full"
-                    style={{ width: `${progress}%` }}
-                  />
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-stone-400">Verified</p>
+                    <p className="text-sm font-semibold text-green-700">{verifiedCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-stone-400">Flagged</p>
+                    <p className="text-sm font-semibold text-red-700">{flaggedCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-stone-400">Re-upload</p>
+                    <p className="text-sm font-semibold text-orange-700">{reuploadCount}</p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -255,39 +588,62 @@ export default function DocumentVerification() {
               ))}
             </div>
 
-            <div className="p-6 min-h-[420px] bg-stone-50/30 flex items-center justify-center">
+            <div className="px-5 py-3 border-b border-stone-100 bg-white">
+              <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
+                <button
+                  onClick={() => setViewMode('preview')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
+                    }`}
+                >
+                  Document Preview
+                </button>
+
+                <button
+                  onClick={() => setViewMode('ocr')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
+                    }`}
+                >
+                  OCR Validation Hub
+                </button>
+
+                <button
+                  onClick={() => setViewMode('split')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
+                    }`}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Columns2 className="w-3.5 h-3.5" />
+                    Split View
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 bg-stone-50/30">
               {!activeDoc ? (
                 <p className="text-sm text-stone-400">No document selected.</p>
-              ) : activeDoc.url ? (
-                <div className="w-full">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
-                      <p className="text-xs text-stone-400">Application Document Preview</p>
-                    </div>
-                    <a
-                      href={activeDoc.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs font-medium text-blue-700 hover:underline"
-                    >
-                      Open file
-                    </a>
-                  </div>
-
-                  <iframe
-                    src={activeDoc.url}
-                    title={activeDoc.name}
-                    className="w-full h-[480px] rounded-lg border border-stone-200 bg-white"
-                  />
-                </div>
+              ) : viewMode === 'preview' ? (
+                <DocumentPreviewPanel activeDoc={activeDoc} />
+              ) : viewMode === 'ocr' ? (
+                <OCRPanel
+                  activeDoc={activeDoc}
+                  application={application}
+                  extractedData={extractedData}
+                />
               ) : (
-                <div className="w-full max-w-sm bg-white rounded-xl p-8 text-center border border-stone-100 shadow-sm">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-                    <FileText className="w-6 h-6 text-blue-500" />
-                  </div>
-                  <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
-                  <p className="text-xs text-stone-400 mt-1">No file uploaded yet.</p>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  <DocumentPreviewPanel activeDoc={activeDoc} />
+                  <OCRPanel
+                    activeDoc={activeDoc}
+                    application={application}
+                    extractedData={extractedData}
+                  />
                 </div>
               )}
             </div>
@@ -302,7 +658,7 @@ export default function DocumentVerification() {
                 <Textarea
                   placeholder="Enter specific instructions or reasons for document rejection..."
                   value={comment}
-                  onChange={(e) => setComment(e.target.value)}
+                  onChange={(e) => handleCommentChange(e.target.value)}
                   className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
                 />
               </div>
@@ -311,20 +667,25 @@ export default function DocumentVerification() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleVerify}
                   className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors"
                 >
                   <CheckCircle size={13} className="mr-1.5" /> Verify
                 </Button>
+
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleReupload}
                   className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors"
                 >
                   <XCircle size={13} className="mr-1.5" /> Re-upload
                 </Button>
+
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleFlag}
                   className="h-9 rounded-lg text-xs border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors"
                 >
                   <Flag size={13} className="mr-1.5" /> Flag
@@ -332,10 +693,19 @@ export default function DocumentVerification() {
               </div>
 
               <Button
+                onClick={handleCompleteVerification}
+                disabled={submitting}
                 className="w-full h-10 rounded-lg font-medium text-sm text-white border-none"
                 style={{ background: C.blue }}
               >
-                Complete Verification & Next
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving Verification...
+                  </>
+                ) : (
+                  'Complete Verification & Next'
+                )}
               </Button>
             </div>
           </Card>

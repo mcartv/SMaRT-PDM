@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../constants.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
 
 class ExistingScholarScreen extends StatelessWidget {
   const ExistingScholarScreen({super.key});
@@ -11,10 +11,10 @@ class ExistingScholarScreen extends StatelessWidget {
         title: const Text('Update Personal Data'),
         backgroundColor: primaryColor,
       ),
-      body: const Center(
+      body: Center(
         child: Padding(
-          padding: EdgeInsets.all(padding),
-          child: Text('This is the form for existing scholars to update their personal data. Content coming soon!'),
+          padding: const EdgeInsets.all(padding),
+          child: const Text('This is the form for existing scholars to update their personal data. Content coming soon!'),
         ),
       ),
     );

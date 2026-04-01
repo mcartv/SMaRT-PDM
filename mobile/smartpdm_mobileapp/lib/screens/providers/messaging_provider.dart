@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../constants.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
 
 // A simple model to represent a message
 class ChatMessage {

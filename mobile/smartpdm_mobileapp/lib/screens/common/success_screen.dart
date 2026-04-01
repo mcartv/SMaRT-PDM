@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../constants.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
 
 class SuccessScreen extends StatelessWidget {
   const SuccessScreen({super.key});

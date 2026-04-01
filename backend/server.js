@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
@@ -7,6 +9,14 @@ const bcrypt = require('bcrypt');
 const multer = require('multer');
 
 const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "*", // In production, restrict this to your app's domain/origins
+    methods: ["GET", "POST"]
+  }
+});
 app.use(cors());
 app.use(express.json());
 
@@ -243,7 +253,57 @@ app.post('/api/auth/login', async (req, res) => {
   });
 });
 
+// 6. Get Chat History Route
+app.get('/api/messages/:room', async (req, res) => {
+  const { room } = req.params;
+  
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('room', room)
+    .order('created_at', { ascending: false }) // Fetches newest first to match Flutter's reverse ListView
+    .limit(50);
+
+  if (error) {
+    console.error('Error fetching messages from Supabase:', error);
+    return res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+  
+  res.status(200).json(data);
+});
+
+// --- SOCKET.IO REAL-TIME CHAT LOGIC ---
+io.on('connection', (socket) => {
+  console.log(`User connected via Socket.io: ${socket.id}`);
+
+  // Allow a user to join a specific room (e.g., their student_id to chat with admin)
+  socket.on('join_room', (room) => {
+    socket.join(room);
+    console.log(`Socket ${socket.id} joined room: ${room}`);
+  });
+
+  // Listen for messages from the client
+  socket.on('send_message', async (data) => {
+    console.log('Message received on backend:', data);
+    
+    // Broadcast the message to everyone else in that specific room
+    socket.to(data.room).emit('receive_message', data);
+    
+    // Save the message into Supabase
+    const { error } = await supabase.from('messages').insert([{
+      room: data.room,
+      sender_id: data.sender_id, // Needs to be sent by the client (e.g., student ID)
+      text: data.text
+    }]);
+    if (error) console.error('Error saving message to Supabase:', error);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
 const PORT = 3000;
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running and listening on port ${PORT}`);
 });

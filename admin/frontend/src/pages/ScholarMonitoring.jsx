@@ -14,7 +14,8 @@ import {
 // --- ICONS ---
 import {
   Search, Download, Eye, ChevronLeft, ChevronRight,
-  AlertTriangle, Users, CheckCircle2, Clock, Loader2
+  AlertTriangle, Users, CheckCircle2, Clock, Loader2,
+  X, Mail, Phone, CalendarDays, ShieldAlert, FileText
 } from 'lucide-react';
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -48,6 +49,282 @@ const RO_COLOR = {
 
 const PAGE_SIZE = 10;
 
+function ScholarProfileModal({ scholar, onClose }) {
+  if (!scholar) return null;
+
+  const gwaValue = Number(scholar.gwa);
+  const sduStyle = SDU_STYLE[scholar.sdu_level || 'none'] || SDU_STYLE.none;
+  const pct = Number(scholar.ro_progress || 0);
+  const s = scholar || {};
+
+  const roStatus =
+    pct === 100 ? 'complete' :
+      pct >= 50 ? 'progress' : 'behind';
+
+  // temporary local placeholder logs
+  const activityLogs = scholar.activity_logs || [
+    {
+      id: 1,
+      date: '2026-03-10',
+      title: 'GWA record updated',
+      description: 'Latest semester GWA was encoded in the system.',
+    },
+    {
+      id: 2,
+      date: '2026-02-18',
+      title: 'RO progress reviewed',
+      description: 'RO compliance progress checked by scholarship admin.',
+    },
+    {
+      id: 3,
+      date: '2026-01-27',
+      title: 'Scholar profile verified',
+      description: 'Student academic and scholarship information was validated.',
+    },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-4xl max-h-[90vh] overflow-hidden border-stone-200 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50">
+          <div>
+            <h3 className="text-base font-semibold text-stone-800">Scholar Profile</h3>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Administrative profile, activity logs, and monitoring details
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto max-h-[calc(90vh-73px)] p-5 space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Left profile summary */}
+            <Card className="border-stone-200 shadow-none lg:col-span-1">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold"
+                    style={{ background: C.amberSoft, color: C.brown }}
+                  >
+                    {(scholar.student_name || 'NA')
+                      .split(' ')
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()}
+                  </div>
+
+                  <div>
+                    <h4 className="text-base font-semibold text-stone-800">
+                      {scholar.student_name || 'Unknown Scholar'}
+                    </h4>
+                    <p className="text-xs font-mono text-stone-400 mt-0.5">
+                      {scholar.student_number || 'N/A'}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] border-stone-200 text-stone-600 bg-white"
+                      >
+                        {scholar.program_name || 'No Program'}
+                      </Badge>
+
+                      <span
+                        className="text-[10px] font-medium px-2 py-1 rounded-full"
+                        style={{
+                          background: scholar.status === 'Active' ? C.greenSoft : C.redSoft,
+                          color: scholar.status === 'Active' ? C.green : C.red,
+                        }}
+                      >
+                        {scholar.status || 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 text-xs">
+                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                    <span className="text-stone-500">Batch Year</span>
+                    <span className="font-medium text-stone-800">{scholar.batch_year || 'N/A'}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                    <span className="text-stone-500">Date Awarded</span>
+                    <span className="font-medium text-stone-800">{scholar.date_awarded || 'N/A'}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                    <span className="text-stone-500">GWA</span>
+                    <span
+                      className="font-semibold"
+                      style={{ color: gwaValue >= 2.0 ? C.red : C.green }}
+                    >
+                      {Number.isNaN(gwaValue) ? '—' : gwaValue.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                    <span className="text-stone-500">SDU Status</span>
+                    <span
+                      className="text-[10px] font-medium px-2 py-1 rounded-full"
+                      style={{ background: sduStyle.bg, color: sduStyle.color }}
+                    >
+                      {sduStyle.label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-stone-200 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-stone-700">RO Progress</p>
+                    <span
+                      className="text-[11px] font-semibold"
+                      style={{ color: RO_COLOR[roStatus] }}
+                    >
+                      {pct}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
+                    <div
+                      className="h-2 rounded-full"
+                      style={{
+                        width: `${pct}%`,
+                        background: RO_COLOR[roStatus],
+                      }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Right admin details */}
+            <div className="lg:col-span-2 space-y-5">
+              <Card className="border-stone-200 shadow-none">
+                <CardHeader className="pb-2">
+                  <h4 className="text-sm font-semibold text-stone-800">Admin Information</h4>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-lg border border-stone-200 px-3 py-3">
+                    <div className="flex items-center gap-2 text-stone-500 mb-1">
+                      <Mail size={13} />
+                      <span>Email</span>
+                    </div>
+                    <p className="font-medium text-stone-800">{scholar.email || 'Not available'}</p>
+                  </div>
+
+                  <div className="rounded-lg border border-stone-200 px-3 py-3">
+                    <div className="flex items-center gap-2 text-stone-500 mb-1">
+                      <Phone size={13} />
+                      <span>Phone</span>
+                    </div>
+                    <p className="font-medium text-stone-800">{scholar.phone_number || 'Not available'}</p>
+                  </div>
+
+                  <div className="rounded-lg border border-stone-200 px-3 py-3">
+                    <div className="flex items-center gap-2 text-stone-500 mb-1">
+                      <CalendarDays size={13} />
+                      <span>Scholar ID</span>
+                    </div>
+                    <p className="font-medium text-stone-800">{scholar.scholar_id || 'N/A'}</p>
+                  </div>
+
+                  <div className="rounded-lg border border-stone-200 px-3 py-3">
+                    <div className="flex items-center gap-2 text-stone-500 mb-1">
+                      <ShieldAlert size={13} />
+                      <span>Monitoring Flag</span>
+                    </div>
+                    <p className="font-medium text-stone-800">
+                      {gwaValue > 2.0 ? 'At Risk' : 'In Good Standing'}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-stone-200 shadow-none">
+                <CardHeader className="pb-2">
+                  <h4 className="text-sm font-semibold text-stone-800">Activity Logs</h4>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {Array.isArray(s.activity_logs) && s.activity_logs.length > 0 ? (
+                    s.activity_logs.map((log, index) => {
+                      const title =
+                        log.action ||
+                        log.title ||
+                        'Untitled activity';
+
+                      const description =
+                        log.details ||
+                        log.description ||
+                        'No details provided.';
+
+                      const dateValue =
+                        log.created_at ||
+                        log.date ||
+                        null;
+
+                      return (
+                        <div
+                          key={log.log_id || log.id || index}
+                          className="rounded-xl border border-stone-200 p-3 bg-white"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-stone-800">{title}</p>
+                              <p className="text-xs text-stone-500 mt-1">{description}</p>
+                            </div>
+                            <span className="text-[11px] text-stone-400 whitespace-nowrap">
+                              {dateValue ? new Date(dateValue).toLocaleDateString() : 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
+                      <p className="text-xs text-stone-500">No activity logs available.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-stone-200 shadow-none">
+                <CardHeader className="pb-2">
+                  <h4 className="text-sm font-semibold text-stone-800">Admin Notes</h4>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
+                    <div className="flex items-center gap-2 mb-2 text-stone-500">
+                      <FileText size={14} />
+                      <span className="text-xs font-medium">Internal remarks</span>
+                    </div>
+                    <p className="text-xs text-stone-600 leading-relaxed">
+                      Use this section for important scholarship monitoring details such as
+                      compliance follow-ups, academic intervention notes, SDU observations,
+                      renewal concerns, and beneficiary communication history.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export default function ScholarMonitoring() {
   const navigate = useNavigate();
 
@@ -68,6 +345,9 @@ export default function ScholarMonitoring() {
   const [status, setStatus] = useState('All Statuses');
   const [gwaFilter, setGwaFilter] = useState('All');
   const [page, setPage] = useState(1);
+  const [selectedScholarId, setSelectedScholarId] = useState(null);
+  const [selectedScholar, setSelectedScholar] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // ─── FETCH ───────────────────────────────────────────────────
   useEffect(() => {
@@ -113,6 +393,37 @@ export default function ScholarMonitoring() {
 
     fetchScholars();
   }, []);
+
+  const handleViewScholar = async (scholarId) => {
+    try {
+      setSelectedScholarId(scholarId);
+      setProfileLoading(true);
+      setSelectedScholar(null);
+
+      const res = await fetch(`http://localhost:5000/api/scholars/${scholarId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const rawText = await res.text();
+
+      if (!res.ok) {
+        console.error('Scholar profile response error:', res.status, rawText);
+        throw new Error(`Failed to fetch scholar profile: ${res.status} ${rawText}`);
+      }
+
+      const data = rawText ? JSON.parse(rawText) : null;
+      setSelectedScholar(data);
+    } catch (err) {
+      console.error('SCHOLAR PROFILE FETCH ERROR:', err);
+      alert(err.message || 'Failed to fetch scholar profile');
+      setSelectedScholarId(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   // ─── FILTERS ─────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -233,6 +544,16 @@ export default function ScholarMonitoring() {
 
   return (
     <div className="space-y-5 py-2" style={{ background: C.bg }}>
+      {selectedScholarId && (
+        <ScholarProfileModal
+          scholar={selectedScholar}
+          loading={profileLoading}
+          onClose={() => {
+            setSelectedScholarId(null);
+            setSelectedScholar(null);
+          }}
+        />
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
@@ -486,7 +807,7 @@ export default function ScholarMonitoring() {
                           size="sm"
                           variant="outline"
                           className="h-7 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                          onClick={() => navigate(`/admin/scholars/${s.scholar_id}`)}
+                          onClick={() => handleViewScholar(s.scholar_id)}
                         >
                           <Eye className="w-3 h-3 mr-1" />
                           View

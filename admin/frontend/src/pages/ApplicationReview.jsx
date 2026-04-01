@@ -171,19 +171,29 @@ export default function ApplicationReview() {
   }, [apps]);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
+    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
     return apps.filter((a) => {
-      const id = a.id || '';
       const fullName = (a.name || '').toLowerCase();
+      const studentNumber = String(a.student_number || '').toLowerCase();
+      const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
+      const appId = String(a.id || '').toLowerCase();
       const appProgram = a.program || '';
       const docStatus = (a.document_status || '').toLowerCase();
 
+      const nameParts = fullName
+        .replace(',', ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+
       const matchSearch =
         !q ||
-        fullName.includes(q) ||
-        String(id).toLowerCase().includes(q) ||
-        String(a.student_number || '').toLowerCase().includes(q);
+        fullName.startsWith(q) ||
+        nameParts.some((part) => part.startsWith(q)) ||
+        studentNumber.startsWith(q) ||
+        normalizedStudentNumber.startsWith(normalizedQ) ||
+        appId.startsWith(q);
 
       const matchProgram =
         program === 'All Programs' || appProgram === program;
@@ -216,6 +226,43 @@ export default function ApplicationReview() {
   const replacementCandidates = useMemo(() => {
     return apps.filter((a) => a.disqualified);
   }, [apps]);
+
+  const handleExportExcel = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+
+      if (!token) {
+        throw new Error('No token found. Please log in again.');
+      }
+
+      const response = await fetch('http://localhost:5000/api/applications/export/excel', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to export Excel: ${response.status} ${errorText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'applications.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export Excel Error:', error);
+      alert(error.message);
+    }
+  };
 
   const STATS = useMemo(() => {
     return [
@@ -365,9 +412,10 @@ export default function ApplicationReview() {
             size="sm"
             className="rounded-lg text-white text-xs border-none"
             style={{ background: C.brownMid }}
+            onClick={handleExportExcel}
           >
             <Download className="mr-1.5 h-3.5 w-3.5" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </div>
@@ -461,7 +509,7 @@ export default function ApplicationReview() {
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
           <Input
-            placeholder="Search by name or ID..."
+            placeholder="Search by student name or PDM ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"

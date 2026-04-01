@@ -1,16 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const {
-    getApplications,
-    getApplicationDocuments,
-    disqualifyApplication,
-} = require('../controllers/applicationController');
+const applicationController = require('../controllers/applicationController');
 const { protect } = require('../middleware/authMiddleware');
 
-router.use(protect);
-
-router.get('/', getApplications);
-router.get('/:id/documents', getApplicationDocuments);
-router.post('/:id/disqualify', disqualifyApplication);
+router.get('/', protect, applicationController.getApplications);
+router.get('/export/excel', protect, applicationController.exportApplicationsExcel);
+router.get('/:id/documents', protect, applicationController.getApplicationDocuments);
+router.patch('/:id/disqualify', protect, applicationController.disqualifyApplication);
 
 module.exports = router;

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
 
 class StepAcademic extends StatefulWidget {

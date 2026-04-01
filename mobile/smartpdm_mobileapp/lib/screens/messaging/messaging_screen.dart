@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../constants.dart';
-import 'messaging_provider.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
 
 class MessagingScreen extends StatefulWidget {
   const MessagingScreen({super.key});
@@ -17,7 +17,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (_messageController.text.trim().isEmpty) return;
 
     // Send via Provider
-    context.read<MessagingProvider>().sendMessage(_messageController.text.trim());
+    context.read<MessagingProvider>().sendMessage(
+      _messageController.text.trim(),
+    );
     _messageController.clear();
   }
 

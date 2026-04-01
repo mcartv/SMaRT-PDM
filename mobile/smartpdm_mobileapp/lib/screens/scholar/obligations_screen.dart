@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../constants.dart';
-import '../widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class ObligationsScreen extends StatefulWidget {
   const ObligationsScreen({super.key});

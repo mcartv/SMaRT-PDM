@@ -64,6 +64,11 @@ class _DashboardContentState extends State<DashboardContent> {
     final studentId = prefs.getString('user_student_id') ?? 'Scholar';
     final isVerified = prefs.getBool('user_is_verified') ?? false;
 
+    // Initialize the real-time chat connection and load history
+    if (mounted) {
+      context.read<MessagingProvider>().initializeChat();
+    }
+
     if (mounted) {
       setState(() {
         _userName = studentId;

@@ -1,17 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/screens/login_screen.dart';
-import 'package:smartpdm_mobileapp/screens/register_screen.dart';
-import 'package:smartpdm_mobileapp/screens/otp_screen.dart';
+import 'package:smartpdm_mobileapp/screens/auth/login_screen.dart';
+import 'package:smartpdm_mobileapp/screens/auth/register_screen.dart';
+import 'package:smartpdm_mobileapp/screens/auth/otp_screen.dart';
+import 'package:smartpdm_mobileapp/screens/auth/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/screens/new_applicant_screen.dart';
-import 'package:smartpdm_mobileapp/screens/existing_scholar_screen.dart';
-import 'package:smartpdm_mobileapp/screens/success_screen.dart';
-import 'package:smartpdm_mobileapp/constants.dart'; // Import constants for colors
-import 'package:smartpdm_mobileapp/screens/dashboard_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/new_applicant_screen.dart';
+import 'package:smartpdm_mobileapp/screens/profile/existing_scholar_screen.dart';
+import 'package:smartpdm_mobileapp/screens/common/success_screen.dart';
+import 'package:smartpdm_mobileapp/screens/common/dashboard_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/screens/new_scholar_provider.dart';
-import 'package:smartpdm_mobileapp/screens/messaging_screen.dart';
-import 'package:smartpdm_mobileapp/screens/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/screens/providers/new_scholar_provider.dart';
+import 'package:smartpdm_mobileapp/screens/messaging/messaging_screen.dart';
+import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/interview_schedule_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/announcements_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/notifications_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/renewal_requirements_screen.dart';
+import 'package:smartpdm_mobileapp/screens/scholar/payout_schedule_screen.dart';
+import 'package:smartpdm_mobileapp/screens/scholar/ro_assignment_screen.dart';
+import 'package:smartpdm_mobileapp/screens/scholar/ro_completion_screen.dart';
+import 'package:smartpdm_mobileapp/screens/scholar/report_ticket_screen.dart';
+import 'package:smartpdm_mobileapp/screens/profile/profile_screen.dart';
 
 void main() {
   runApp(
@@ -19,6 +28,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => NewScholarProvider()),
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
+        ChangeNotifierProvider(create: (_) => NewScholarProvider()),
       ],
       child: const MyApp(),
     ),
@@ -51,25 +61,37 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/login', // Set your initial route
       routes: {
+        // Authentication
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/otp': (context) => const OtpScreen(),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
+
+        // Main Navigation
         '/home': (context) => const DashboardScreen(),
-        // Placeholder routes for Dashboard actions
+
+        // Applicant Routes
+        '/new_applicant': (context) => const NewApplicantScreen(),
         '/application': (context) => const PlaceholderScreen(title: 'Application'),
-        '/documents': (context) => const PlaceholderScreen(title: 'Documents'),
+        '/documents': (context) => const RenewalRequirementsScreen(),
         '/status': (context) => const PlaceholderScreen(title: 'Status'),
+        '/interview-schedule': (context) => const InterviewScheduleScreen(),
+        '/announcements': (context) => const AnnouncementsScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
         '/about': (context) => const PlaceholderScreen(title: 'About PDM/OSFA'),
         '/faqs': (context) => const PlaceholderScreen(title: 'FAQs'),
-        '/messaging': (context) => const MessagingScreen(), // Added for approved scholar
-        '/payouts': (context) => const PlaceholderScreen(title: 'Payout Schedule'),
-        '/tickets': (context) => const PlaceholderScreen(title: 'Submit Ticket'),
+        '/messaging': (context) => const MessagingScreen(),
 
-        // New routes for the application flow
-        '/new_applicant': (context) => const NewApplicantScreen(),
+        // Scholar Routes
+        '/payouts': (context) => const PayoutScheduleScreen(),
+        '/ro-assignment': (context) => const ROAssignmentScreen(),
+        '/ro-completion': (context) => ROCompletionScreen(),
+        '/tickets': (context) => const ReportTicketScreen(),
+
+        // Profile & Account
+        '/profile': (context) => const ProfileScreen(),
         '/existing_scholar_update': (context) => const ExistingScholarScreen(),
         '/success': (context) => const SuccessScreen(),
-        // Add other routes here as needed
       },
       debugShowCheckedModeBanner: false, // Set to true for debugging
     );

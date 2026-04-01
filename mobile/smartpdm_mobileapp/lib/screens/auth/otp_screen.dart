@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:io'; // Import for SocketException
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import '../constants.dart';
+import 'package:smartpdm_mobileapp/constants.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});

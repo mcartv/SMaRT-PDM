@@ -1,4 +1,4 @@
-ï»¿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
 
 class StepPersonal extends StatefulWidget {
@@ -43,9 +43,9 @@ class _StepPersonalState extends State<StepPersonal> {
       'Marilao': ['Abangan Norte', 'Abangan Sur', 'Ibayo', 'Lias', 'Loma de Gato', 'Nagbalon', 'Patubig', 'Poblacion I', 'Poblacion II', 'Prenza I', 'Prenza II', 'Santa Rosa I', 'Santa Rosa II', 'Saog', 'Tabing Ilog'],
       'Meycauayan': ['Bancal', 'Lawa', 'Malhacan', 'Perez', 'Saluysoy', 'Tugatog'],
       'Obando': ['Bugarin', 'Catanghalan', 'Lawang Bato', 'Pagalangang', 'Paco'],
-      'Bocaue': ['Antipona', 'Bagumbayan', 'Bambang', 'Batia', 'BiÃ±ang 1st', 'BiÃ±ang 2nd', 'Bolacan', 'Bundukan', 'Bunlo', 'Caingin', 'Duhat', 'Igulot', 'Lolomboy', 'Poblacion', 'Sulucan', 'Taal', 'Tambobong', 'Turo', 'Wakas'],
+      'Bocaue': ['Antipona', 'Bagumbayan', 'Bambang', 'Batia', 'Biñang 1st', 'Biñang 2nd', 'Bolacan', 'Bundukan', 'Bunlo', 'Caingin', 'Duhat', 'Igulot', 'Lolomboy', 'Poblacion', 'Sulucan', 'Taal', 'Tambobong', 'Turo', 'Wakas'],
       'Santa Maria': ['Bagbaguin', 'Balasing', 'Buenavista', 'Bulac', 'Camangyanan', 'Catmon', 'Cay Pombo', 'Caysio', 'Guyong', 'Lalakhan', 'Mag-asawang Sapa', 'Mahabang Parang', 'Manggahan', 'Parada', 'Poblacion', 'Pulong Buhangin', 'San Gabriel', 'San Jose Patag', 'San Vicente', 'Santa Clara', 'Santa Cruz', 'Silangan', 'Tabing Bakod', 'Tumana'],
-      'San Jose del Monte': ['Assumption', 'Bagong Buhay', 'Ciudad Real', 'Dulong Bayan', 'Fatima', 'Gaya-Gaya', 'Graceville', 'Gumaoc', 'Kaypian', 'Maharlika', 'Minuyan', 'Muzon', 'Poblacion', 'San Isidro', 'San Manuel', 'San Martin', 'San Pedro', 'San Rafael', 'San Roque', 'Santo Cristo', 'Santo NiÃ±o', 'Tungkong Mangga'],
+      'San Jose del Monte': ['Assumption', 'Bagong Buhay', 'Ciudad Real', 'Dulong Bayan', 'Fatima', 'Gaya-Gaya', 'Graceville', 'Gumaoc', 'Kaypian', 'Maharlika', 'Minuyan', 'Muzon', 'Poblacion', 'San Isidro', 'San Manuel', 'San Martin', 'San Pedro', 'San Rafael', 'San Roque', 'Santo Cristo', 'Santo Niño', 'Tungkong Mangga'],
     },
     'Cagayan': {}, 'Camarines Norte': {}, 'Camarines Sur': {}, 'Camiguin': {}, 'Capiz': {}, 'Catanduanes': {}, 'Cavite': {}, 'Cebu': {}, 'Cotabato': {}, 'Davao de Oro': {}, 'Davao del Norte': {}, 'Davao del Sur': {}, 'Davao Occidental': {}, 'Davao Oriental': {}, 'Dinagat Islands': {}, 'Eastern Samar': {}, 'Guimaras': {}, 'Ifugao': {}, 'Ilocos Norte': {}, 'Ilocos Sur': {}, 'Iloilo': {}, 'Isabela': {}, 'Kalinga': {}, 'La Union': {}, 'Laguna': {}, 'Lanao del Norte': {}, 'Lanao del Sur': {}, 'Leyte': {}, 'Maguindanao del Norte': {}, 'Maguindanao del Sur': {}, 'Marinduque': {}, 'Masbate': {},
     'Metro Manila': {

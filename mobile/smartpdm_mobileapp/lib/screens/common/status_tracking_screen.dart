@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class StatusTrackingScreen extends StatelessWidget {
   const StatusTrackingScreen({super.key});

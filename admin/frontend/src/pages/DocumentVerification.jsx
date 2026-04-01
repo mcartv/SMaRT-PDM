@@ -1,18 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-// --- SHADCN UI COMPONENTS ---
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-// --- ICONS ---
 import {
   CheckCircle, XCircle, Clock, ArrowLeft,
-  FileText, Flag, ChevronRight,
+  FileText, Flag, ChevronRight, Loader2,
 } from 'lucide-react';
 
-// ─── Palette ─────────────────────────────────────────────────
 const C = {
   blue: '#1E3A8A',
   blueMid: '#2563EB',
@@ -20,202 +17,324 @@ const C = {
   green: '#16a34a',
   greenSoft: '#F0FDF4',
   orange: '#d97706',
-  orangeSft: '#FFF7ED',
+  orangeSoft: '#FFF7ED',
   red: '#dc2626',
   redSoft: '#FEF2F2',
-  border: '#E5E7EB',
-  muted: '#6B7280',
-  text: '#3b1f0a',
+  text: '#1c1917',
   bg: '#faf7f2',
-  white: '#FFFFFF',
+  muted: '#78716c',
   brownMid: '#7c4a2e',
 };
 
-// ─── Data ────────────────────────────────────────────────────
-const DOCS = [
-  { id: 'cor', name: 'Certificate of Registration', status: 'verified', uploaded: 'Oct 20, 2025' },
-  { id: 'grades', name: 'Grade Form', status: 'pending', uploaded: 'Oct 20, 2025' },
-  { id: 'indigency', name: 'Certificate of Indigency', status: 'verified', uploaded: 'Oct 19, 2025' },
-  { id: 'id', name: 'Valid ID', status: 'verified', uploaded: 'Oct 20, 2025' },
-];
-
-const STUDENT = {
-  id: '2025-001', name: 'Juan Dela Cruz', initials: 'JD',
-  program: 'TES', email: 'juan.delacruz@student.edu.ph',
-  phone: '+63 912 345 6789', year: '2nd Year',
-  course: 'BS Computer Science', dept: 'Engineering', gwa: '1.75',
-};
-
 const DOC_STATUS = {
-  verified: { icon: <CheckCircle className="w-4 h-4" />, color: C.green, bg: C.greenSoft, label: 'Verified' },
-  pending: { icon: <Clock className="w-4 h-4" />, color: C.orange, bg: C.orangeSft, label: 'Pending' },
-  rejected: { icon: <XCircle className="w-4 h-4" />, color: C.red, bg: C.redSoft, label: 'Rejected' },
+  verified: { icon: <CheckCircle className="w-3.5 h-3.5" />, color: C.green, bg: C.greenSoft, label: 'Uploaded' },
+  pending: { icon: <Clock className="w-3.5 h-3.5" />, color: C.orange, bg: C.orangeSoft, label: 'Missing' },
+  rejected: { icon: <XCircle className="w-3.5 h-3.5" />, color: C.red, bg: C.redSoft, label: 'Rejected' },
 };
-
-// ─── Sub-Components ───────────────────────────────────────────
 
 function InfoRow({ label, value, mono }) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-0.5">{label}</p>
-      <p className={`text-sm ${mono ? 'font-mono font-bold text-stone-600' : 'font-semibold text-stone-800'}`}>{value}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 mb-0.5">{label}</p>
+      <p className={`text-sm ${mono ? 'font-mono text-stone-600' : 'font-medium text-stone-800'}`}>
+        {value || 'N/A'}
+      </p>
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────
-
 export default function DocumentVerification() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [doc, setDoc] = useState('cor');
+
+  const [application, setApplication] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [doc, setDoc] = useState('loi');
   const [comment, setComment] = useState('');
 
-  const verified = DOCS.filter(d => d.status === 'verified').length;
-  const progress = Math.round((verified / DOCS.length) * 100);
-  const activeDoc = DOCS.find(d => d.id === doc) || DOCS[0];
+  useEffect(() => {
+    const fetchApplicationDocuments = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await fetch(`http://localhost:5000/api/applications/${id}/documents`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload.error || 'Failed to load application documents');
+        }
+
+        const data = await res.json();
+        setApplication(data);
+
+        if (data?.documents?.length) {
+          const firstAvailable = data.documents.find((d) => d.url)?.id || data.documents[0].id;
+          setDoc(firstAvailable);
+        }
+      } catch (err) {
+        console.error('Document fetch error:', err);
+        setError(err.message || 'Failed to load document data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApplicationDocuments();
+  }, [id]);
+
+  const docs = useMemo(() => application?.documents || [], [application]);
+  const uploaded = docs.filter((d) => !!d.url).length;
+  const progress = docs.length ? Math.round((uploaded / docs.length) * 100) : 0;
+  const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
+        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading documents...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 bg-red-50 border border-red-100 rounded-xl text-center">
+        <XCircle className="w-7 h-7 text-red-400 mx-auto mb-3" />
+        <p className="text-sm font-semibold text-red-800">Failed to load document verification</p>
+        <p className="text-xs text-red-600 mt-1">{error}</p>
+        <Button
+          onClick={() => window.location.reload()}
+          variant="outline"
+          size="sm"
+          className="mt-4 border-red-200 text-red-600 text-xs"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 py-2 animate-in fade-in duration-500">
-
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="sm" onClick={() => navigate('/admin/applications')} className="h-10 w-10 p-0 rounded-xl border-stone-200 bg-white">
-          <ArrowLeft size={18} className="text-stone-600" />
+    <div className="space-y-5 py-2 animate-in fade-in duration-300" style={{ background: C.bg }}>
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/admin/applications')}
+          className="h-8 w-8 p-0 rounded-lg border-stone-200 bg-white"
+        >
+          <ArrowLeft size={15} className="text-stone-500" />
         </Button>
         <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-stone-400">
-            <span className="hover:text-stone-600 cursor-pointer transition-colors" onClick={() => navigate('/admin/applications')}>Registry</span>
-            <ChevronRight size={12} />
+          <div className="flex items-center gap-1.5 text-xs text-stone-400">
+            <span
+              className="hover:text-stone-600 cursor-pointer transition-colors"
+              onClick={() => navigate('/admin/applications')}
+            >
+              Registry
+            </span>
+            <ChevronRight size={11} />
             <span className="text-stone-600">{id}</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-stone-900">Document Verification</h1>
+          <h1 className="text-xl font-semibold text-stone-900 mt-0.5">Document Verification</h1>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-        {/* Left Column: Student Context */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-6">
-                <Avatar className="w-14 h-14 border-2 border-stone-100 shadow-sm">
-                  <AvatarFallback className="bg-blue-900 text-white font-bold">{STUDENT.initials}</AvatarFallback>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="border-stone-200 shadow-none bg-white">
+            <div className="p-5">
+              <div className="flex items-center gap-3 mb-5">
+                <Avatar className="w-12 h-12 border border-stone-100">
+                  <AvatarFallback className="bg-blue-900 text-white text-sm font-semibold">
+                    {application?.student?.initials || 'NA'}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h2 className="text-lg font-bold text-stone-900">{STUDENT.name}</h2>
-                  <p className="text-xs font-mono font-bold text-stone-400">{STUDENT.id}</p>
-                  <Badge className="mt-2 bg-blue-50 text-blue-700 border-blue-100 font-bold uppercase text-[9px]">{STUDENT.program}</Badge>
+                  <h2 className="text-base font-semibold text-stone-900">{application?.student?.name}</h2>
+                  <p className="text-xs font-mono text-stone-400">{application?.student?.pdm_id}</p>
+                  <Badge className="mt-1.5 bg-blue-50 text-blue-700 border-blue-100 font-medium text-[10px] uppercase tracking-wide">
+                    {application?.student?.program}
+                  </Badge>
                 </div>
               </div>
 
-              <div className="space-y-4 pt-6 border-t border-stone-100">
-                <InfoRow label="Email Address" value={STUDENT.email} />
-                <InfoRow label="Phone Number" value={STUDENT.phone} />
-                <div className="grid grid-cols-2 gap-4">
-                  <InfoRow label="Academic Year" value={STUDENT.year} />
-                  <InfoRow label="GWA Score" value={STUDENT.gwa} mono />
+              <div className="space-y-3.5 pt-4 border-t border-stone-100">
+                <InfoRow label="Email Address" value={application?.student?.email} />
+                <InfoRow label="Phone Number" value={application?.student?.phone} />
+                <div className="grid grid-cols-2 gap-3.5">
+                  <InfoRow label="Academic Year" value={application?.student?.year} />
+                  <InfoRow label="GWA Score" value={application?.student?.gwa} mono />
                 </div>
-                <InfoRow label="Course / Program" value={STUDENT.course} />
+                <InfoRow label="Course / Program" value={application?.student?.course} />
+                <InfoRow label="Document Status" value={application?.document_status} />
               </div>
             </div>
           </Card>
 
-          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
-            <div className="p-5 border-b border-stone-100 bg-stone-50/50 flex justify-between items-center">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-stone-800">Checklist</h3>
-              <span className="text-[10px] font-bold text-stone-400">{verified}/{DOCS.length} Done</span>
+          <Card className="border-stone-200 shadow-none bg-white">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
+              <h3 className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Checklist</h3>
+              <span className="text-xs text-stone-400">{uploaded}/{docs.length} done</span>
             </div>
-            <CardContent className="p-4 space-y-2">
-              {DOCS.map((d) => {
-                const s = DOC_STATUS[d.status];
+
+            <CardContent className="p-3 space-y-1.5">
+              {docs.map((d) => {
+                const s = DOC_STATUS[d.status] || DOC_STATUS.pending;
                 const isActive = doc === d.id;
+
                 return (
                   <button
                     key={d.id}
                     onClick={() => setDoc(d.id)}
-                    className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all text-left ${isActive ? 'border-blue-900 bg-blue-50 shadow-sm' : 'border-stone-100 bg-white hover:border-stone-300'}`}
+                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
+                        ? 'border-blue-800 bg-blue-50 shadow-sm'
+                        : 'border-stone-100 bg-white hover:border-stone-200'
+                      }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <span style={{ color: s.color }}>{s.icon}</span>
                       <div className="min-w-0">
-                        <p className={`text-xs truncate ${isActive ? 'font-bold text-blue-900' : 'font-semibold text-stone-700'}`}>{d.name}</p>
-                        <p className="text-[10px] text-stone-400 font-medium uppercase mt-0.5">Uploaded {d.uploaded}</p>
+                        <p className={`text-xs truncate ${isActive ? 'font-semibold text-blue-900' : 'font-medium text-stone-700'}`}>
+                          {d.name}
+                        </p>
+                        <p className="text-[10px] text-stone-400 mt-0.5">
+                          {d.url ? 'File uploaded' : 'No file uploaded'}
+                        </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="border-none text-[8px] font-bold uppercase py-0.5" style={{ background: s.bg, color: s.color }}>{s.label}</Badge>
+                    <span
+                      className="text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ml-2"
+                      style={{ background: s.bg, color: s.color }}
+                    >
+                      {s.label}
+                    </span>
                   </button>
                 );
               })}
 
-              <div className="mt-4 pt-4 border-t border-stone-100">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Verification Status</span>
-                  <span className="text-[10px] font-bold text-stone-900">{progress}%</span>
+              <div className="mt-3 pt-3 border-t border-stone-100">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                    Verification Progress
+                  </span>
+                  <span className="text-[10px] font-semibold text-stone-700">{progress}%</span>
                 </div>
                 <div className="w-full h-1.5 rounded-full bg-stone-100 overflow-hidden">
-                  <div className="h-full bg-green-600 transition-all duration-500" style={{ width: `${progress}%` }} />
+                  <div
+                    className="h-full bg-green-500 transition-all duration-500 rounded-full"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Right Column: Viewer & Actions */}
-        <div className="lg:col-span-3 space-y-6">
-          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
+        <div className="lg:col-span-3 space-y-4">
+          <Card className="border-stone-200 shadow-none bg-white overflow-hidden">
             <div className="flex border-b border-stone-100 bg-stone-50/50 overflow-x-auto">
-              {DOCS.map((d) => (
+              {docs.map((d) => (
                 <button
                   key={d.id}
                   onClick={() => setDoc(d.id)}
-                  className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all shrink-0 ${doc === d.id ? 'border-blue-900 text-blue-900 bg-white' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+                  className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${doc === d.id
+                      ? 'border-blue-800 text-blue-900 bg-white'
+                      : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
+                    }`}
                 >
                   {d.name}
                 </button>
               ))}
             </div>
 
-            <div className="p-8 min-h-[450px] bg-stone-50/30 flex items-center justify-center">
-              <div className="w-full max-w-md bg-white rounded-2xl p-12 text-center border border-stone-200 shadow-lg">
-                <div className="w-16 h-16 rounded-3xl bg-blue-50 flex items-center justify-center mx-auto mb-6">
-                  <FileText className="w-8 h-8 text-blue-600" />
+            <div className="p-6 min-h-[420px] bg-stone-50/30 flex items-center justify-center">
+              {!activeDoc ? (
+                <p className="text-sm text-stone-400">No document selected.</p>
+              ) : activeDoc.url ? (
+                <div className="w-full">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
+                      <p className="text-xs text-stone-400">Application Document Preview</p>
+                    </div>
+                    <a
+                      href={activeDoc.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-medium text-blue-700 hover:underline"
+                    >
+                      Open file
+                    </a>
+                  </div>
+
+                  <iframe
+                    src={activeDoc.url}
+                    title={activeDoc.name}
+                    className="w-full h-[480px] rounded-lg border border-stone-200 bg-white"
+                  />
                 </div>
-                <h4 className="text-sm font-bold text-stone-900">{activeDoc.name}</h4>
-                <p className="text-xs text-stone-400 font-medium mt-1">Version ID: {activeDoc.id.toUpperCase()}-2025-SEC</p>
-                <div className="mt-8 aspect-video rounded-xl bg-stone-50 border-2 border-dashed border-stone-200 flex items-center justify-center">
-                  <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest italic">Document Rendering...</p>
+              ) : (
+                <div className="w-full max-w-sm bg-white rounded-xl p-8 text-center border border-stone-100 shadow-sm">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
+                  <p className="text-xs text-stone-400 mt-1">No file uploaded yet.</p>
                 </div>
-              </div>
+              )}
             </div>
           </Card>
 
-          <Card className="border-stone-200 shadow-sm overflow-hidden bg-white">
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">Administrative Feedback</label>
+          <Card className="border-stone-200 shadow-none bg-white">
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
+                  Administrative Feedback
+                </label>
                 <Textarea
                   placeholder="Enter specific instructions or reasons for document rejection..."
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  className="rounded-xl bg-stone-50/50 border-stone-200 resize-none h-24 text-sm"
+                  className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Button variant="outline" className="rounded-xl font-bold text-[10px] uppercase h-11 border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200">
-                  <CheckCircle size={16} className="mr-2" /> Verify
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors"
+                >
+                  <CheckCircle size={13} className="mr-1.5" /> Verify
                 </Button>
-                <Button variant="outline" className="rounded-xl font-bold text-[10px] uppercase h-11 border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200">
-                  <XCircle size={16} className="mr-2" /> Re-upload
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors"
+                >
+                  <XCircle size={13} className="mr-1.5" /> Re-upload
                 </Button>
-                <Button variant="outline" className="rounded-xl font-bold text-[10px] uppercase h-11 border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200">
-                  <Flag size={16} className="mr-2" /> Flag
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors"
+                >
+                  <Flag size={13} className="mr-1.5" /> Flag
                 </Button>
               </div>
 
-              <Button className="w-full h-12 rounded-xl font-bold text-sm text-white border-none shadow-xl" style={{ background: C.blue }}>
+              <Button
+                className="w-full h-10 rounded-lg font-medium text-sm text-white border-none"
+                style={{ background: C.blue }}
+              >
                 Complete Verification & Next
               </Button>
             </div>
@@ -223,8 +342,10 @@ export default function DocumentVerification() {
         </div>
       </div>
 
-      <footer className="pt-8 pb-4 text-center border-t border-stone-100">
-        <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest italic">SMaRT PDM Secure Audit · Document Verification Layer</p>
+      <footer className="pt-6 pb-2 border-t border-stone-100">
+        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
+          SMaRT PDM · Document Verification Layer
+        </p>
       </footer>
     </div>
   );

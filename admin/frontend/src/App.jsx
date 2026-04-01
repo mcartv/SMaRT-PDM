@@ -51,7 +51,7 @@ export default function App() {
           {/* Admin Sub-pages */}
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="applications" element={<ApplicationReview />} />
-          <Route path="applications/:id" element={<DocumentVerification />} />
+          <Route path="applications/:id/documents" element={<DocumentVerification />} />
           <Route path="scholars" element={<ScholarMonitoring />} />
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />

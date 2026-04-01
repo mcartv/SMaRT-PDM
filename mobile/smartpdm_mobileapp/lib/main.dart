@@ -6,16 +6,19 @@ import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/screens/new_applicant_screen.dart';
 import 'package:smartpdm_mobileapp/screens/existing_scholar_screen.dart';
 import 'package:smartpdm_mobileapp/screens/success_screen.dart';
-// Import constants for colors
+import 'package:smartpdm_mobileapp/constants.dart'; // Import constants for colors
 import 'package:smartpdm_mobileapp/screens/dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/screens/new_scholar_provider.dart';
+import 'package:smartpdm_mobileapp/screens/messaging_screen.dart';
+import 'package:smartpdm_mobileapp/screens/messaging_provider.dart';
 
 void main() {
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => NewScholarProvider()),
+        ChangeNotifierProvider(create: (_) => MessagingProvider()),
       ],
       child: const MyApp(),
     ),
@@ -58,7 +61,7 @@ class MyApp extends StatelessWidget {
         '/status': (context) => const PlaceholderScreen(title: 'Status'),
         '/about': (context) => const PlaceholderScreen(title: 'About PDM/OSFA'),
         '/faqs': (context) => const PlaceholderScreen(title: 'FAQs'),
-        '/messaging': (context) => const PlaceholderScreen(title: 'Messaging'), // Added for approved scholar
+        '/messaging': (context) => const MessagingScreen(), // Added for approved scholar
         '/payouts': (context) => const PlaceholderScreen(title: 'Payout Schedule'),
         '/tickets': (context) => const PlaceholderScreen(title: 'Submit Ticket'),
 

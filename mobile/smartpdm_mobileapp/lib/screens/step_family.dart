@@ -255,7 +255,7 @@ class _StepFamilyState extends State<StepFamily> {
           ]),
           const SizedBox(height: 16),
           _field('Highest Educational Attainment', DropdownButtonFormField<String>(
-            value: selectedFatherEducation,
+            initialValue: selectedFatherEducation,
             decoration: _dec('Select'),
             items: educationalOptions.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
             onChanged: (val) {
@@ -285,7 +285,7 @@ class _StepFamilyState extends State<StepFamily> {
           ]),
           const SizedBox(height: 16),
           _field('Highest Educational Attainment', DropdownButtonFormField<String>(
-            value: selectedMotherEducation,
+            initialValue: selectedMotherEducation,
             decoration: _dec('Select'),
             items: educationalOptions.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
             onChanged: (val) {
@@ -328,7 +328,7 @@ class _StepFamilyState extends State<StepFamily> {
           ]),
           const SizedBox(height: 16),
           _field('Highest Educational Attainment', DropdownButtonFormField<String>(
-            value: selectedGuardianEducation,
+            initialValue: selectedGuardianEducation,
             decoration: _dec('Select'),
             items: educationalOptions.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
             onChanged: (val) {

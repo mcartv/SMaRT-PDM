@@ -274,7 +274,7 @@ class _StepPersonalState extends State<StepPersonal> {
           _field(
             label: 'Sex',
             child: DropdownButtonFormField<String>(
-              value: selectedSex,
+              initialValue: selectedSex,
               decoration: _dec('Sex'),
               items: sexOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
               onChanged: (value) {
@@ -296,7 +296,7 @@ class _StepPersonalState extends State<StepPersonal> {
           _field(
             label: 'Civil Status',
             child: DropdownButtonFormField<String>(
-              value: selectedCivilStatus,
+              initialValue: selectedCivilStatus,
               decoration: _dec('Civil Status'),
               items: civilStatusOptions.map((status) => DropdownMenuItem(value: status, child: Text(status))).toList(),
               onChanged: (value) {
@@ -328,7 +328,7 @@ class _StepPersonalState extends State<StepPersonal> {
           _field(
             label: 'Province',
             child: DropdownButtonFormField<String>(
-              value: selectedProvince,
+              initialValue: selectedProvince,
               hint: const Text('Select...'),
               decoration: _dec('Province'),
               items: locationData.keys
@@ -359,7 +359,7 @@ class _StepPersonalState extends State<StepPersonal> {
           _field(
             label: 'City / Municipality',
             child: DropdownButtonFormField<String>(
-              value: selectedCity,
+              initialValue: selectedCity,
               hint: const Text('Select...'),
               decoration: _dec('City / Municipality'),
               items: (selectedProvince != null ? locationData[selectedProvince!]!.keys : <String>[])
@@ -390,7 +390,7 @@ class _StepPersonalState extends State<StepPersonal> {
           _field(
             label: 'Barangay',
             child: DropdownButtonFormField<String>(
-              value: selectedBarangay,
+              initialValue: selectedBarangay,
               hint: const Text('Select...'),
               decoration: _dec('Barangay'),
               items: (selectedProvince != null && selectedCity != null

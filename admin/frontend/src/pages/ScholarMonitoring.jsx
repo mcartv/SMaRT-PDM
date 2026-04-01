@@ -47,41 +47,50 @@ const RO_COLOR = {
   behind: C.red,
 };
 
+const CONDITION_STYLE = {
+  good: { label: 'Good Standing', color: C.green, bg: C.greenSoft },
+  monitor: { label: 'Monitor', color: C.amber, bg: C.amberSoft },
+  risk: { label: 'At Risk', color: C.red, bg: C.redSoft },
+  critical: { label: 'Critical', color: '#991b1b', bg: '#fee2e2' },
+};
+
+function getScholarConditionMeta(gwa, sdu) {
+  const g = Number(gwa);
+  const level = sdu || 'none';
+
+  if (!Number.isNaN(g) && g > 2.0 && level === 'major') {
+    return CONDITION_STYLE.critical;
+  }
+
+  if (!Number.isNaN(g) && g > 2.0) {
+    return CONDITION_STYLE.risk;
+  }
+
+  if (level === 'major') {
+    return CONDITION_STYLE.risk;
+  }
+
+  if (level === 'minor') {
+    return CONDITION_STYLE.monitor;
+  }
+
+  return CONDITION_STYLE.good;
+}
+
 const PAGE_SIZE = 10;
 
-function ScholarProfileModal({ scholar, onClose }) {
-  if (!scholar) return null;
+function ScholarProfileModal({ scholar, loading, onClose }) {
+  if (!scholar && !loading) return null;
 
-  const gwaValue = Number(scholar.gwa);
-  const sduStyle = SDU_STYLE[scholar.sdu_level || 'none'] || SDU_STYLE.none;
-  const pct = Number(scholar.ro_progress || 0);
   const s = scholar || {};
+  const gwaValue = Number(s.gwa);
+  const sduStyle = SDU_STYLE[s.sdu_level || 'none'] || SDU_STYLE.none;
+  const pct = Number(s.ro_progress || 0);
+  const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
 
   const roStatus =
     pct === 100 ? 'complete' :
       pct >= 50 ? 'progress' : 'behind';
-
-  // temporary local placeholder logs
-  const activityLogs = scholar.activity_logs || [
-    {
-      id: 1,
-      date: '2026-03-10',
-      title: 'GWA record updated',
-      description: 'Latest semester GWA was encoded in the system.',
-    },
-    {
-      id: 2,
-      date: '2026-02-18',
-      title: 'RO progress reviewed',
-      description: 'RO compliance progress checked by scholarship admin.',
-    },
-    {
-      id: 3,
-      date: '2026-01-27',
-      title: 'Scholar profile verified',
-      description: 'Student academic and scholarship information was validated.',
-    },
-  ];
 
   return (
     <div
@@ -109,216 +118,220 @@ function ScholarProfileModal({ scholar, onClose }) {
         </div>
 
         <div className="overflow-y-auto max-h-[calc(90vh-73px)] p-5 space-y-5">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Left profile summary */}
-            <Card className="border-stone-200 shadow-none lg:col-span-1">
-              <CardContent className="p-5 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold"
-                    style={{ background: C.amberSoft, color: C.brown }}
-                  >
-                    {(scholar.student_name || 'NA')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase()}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center min-h-[320px] gap-3">
+              <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
+              <p className="text-xs text-stone-400 uppercase tracking-widest">
+                Loading scholar profile...
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <Card className="border-stone-200 shadow-none lg:col-span-1">
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold"
+                      style={{ background: C.amberSoft, color: C.brown }}
+                    >
+                      {(s.student_name || 'NA')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </div>
+
+                    <div>
+                      <h4 className="text-base font-semibold text-stone-800">
+                        {s.student_name || 'Unknown Scholar'}
+                      </h4>
+                      <p className="text-xs font-mono text-stone-400 mt-0.5">
+                        {s.student_number || 'N/A'}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] border-stone-200 text-stone-600 bg-white"
+                        >
+                          {s.program_name || 'No Program'}
+                        </Badge>
+
+                        <span
+                          className="text-[10px] font-medium px-2 py-1 rounded-full"
+                          style={{
+                            background: s.status === 'Active' ? C.greenSoft : C.redSoft,
+                            color: s.status === 'Active' ? C.green : C.red,
+                          }}
+                        >
+                          {s.status || 'Unknown'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <h4 className="text-base font-semibold text-stone-800">
-                      {scholar.student_name || 'Unknown Scholar'}
-                    </h4>
-                    <p className="text-xs font-mono text-stone-400 mt-0.5">
-                      {scholar.student_number || 'N/A'}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] border-stone-200 text-stone-600 bg-white"
-                      >
-                        {scholar.program_name || 'No Program'}
-                      </Badge>
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                      <span className="text-stone-500">Batch Year</span>
+                      <span className="font-medium text-stone-800">{s.batch_year || 'N/A'}</span>
+                    </div>
 
+                    <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                      <span className="text-stone-500">Date Awarded</span>
+                      <span className="font-medium text-stone-800">{s.date_awarded || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                      <span className="text-stone-500">GWA</span>
+                      <span
+                        className="font-semibold"
+                        style={{ color: gwaValue >= 2.0 ? C.red : C.green }}
+                      >
+                        {Number.isNaN(gwaValue) ? '—' : gwaValue.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                      <span className="text-stone-500">SDU Status</span>
                       <span
                         className="text-[10px] font-medium px-2 py-1 rounded-full"
-                        style={{
-                          background: scholar.status === 'Active' ? C.greenSoft : C.redSoft,
-                          color: scholar.status === 'Active' ? C.green : C.red,
-                        }}
+                        style={{ background: sduStyle.bg, color: sduStyle.color }}
                       >
-                        {scholar.status || 'Unknown'}
+                        {sduStyle.label}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
+                      <span className="text-stone-500">Condition</span>
+                      <span
+                        className="text-[10px] font-medium px-2 py-1 rounded-full"
+                        style={{ background: condition.bg, color: condition.color }}
+                      >
+                        {condition.label}
                       </span>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 gap-2 text-xs">
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">Batch Year</span>
-                    <span className="font-medium text-stone-800">{scholar.batch_year || 'N/A'}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">Date Awarded</span>
-                    <span className="font-medium text-stone-800">{scholar.date_awarded || 'N/A'}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">GWA</span>
-                    <span
-                      className="font-semibold"
-                      style={{ color: gwaValue >= 2.0 ? C.red : C.green }}
-                    >
-                      {Number.isNaN(gwaValue) ? '—' : gwaValue.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2">
-                    <span className="text-stone-500">SDU Status</span>
-                    <span
-                      className="text-[10px] font-medium px-2 py-1 rounded-full"
-                      style={{ background: sduStyle.bg, color: sduStyle.color }}
-                    >
-                      {sduStyle.label}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-stone-200 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-stone-700">RO Progress</p>
-                    <span
-                      className="text-[11px] font-semibold"
-                      style={{ color: RO_COLOR[roStatus] }}
-                    >
-                      {pct}%
-                    </span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${pct}%`,
-                        background: RO_COLOR[roStatus],
-                      }}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Right admin details */}
-            <div className="lg:col-span-2 space-y-5">
-              <Card className="border-stone-200 shadow-none">
-                <CardHeader className="pb-2">
-                  <h4 className="text-sm font-semibold text-stone-800">Admin Information</h4>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <Mail size={13} />
-                      <span>Email</span>
+                  <div className="rounded-xl border border-stone-200 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-medium text-stone-700">RO Progress</p>
+                      <span
+                        className="text-[11px] font-semibold"
+                        style={{ color: RO_COLOR[roStatus] }}
+                      >
+                        {pct}%
+                      </span>
                     </div>
-                    <p className="font-medium text-stone-800">{scholar.email || 'Not available'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <Phone size={13} />
-                      <span>Phone</span>
+                    <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
+                      <div
+                        className="h-2 rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: RO_COLOR[roStatus],
+                        }}
+                      />
                     </div>
-                    <p className="font-medium text-stone-800">{scholar.phone_number || 'Not available'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <CalendarDays size={13} />
-                      <span>Scholar ID</span>
-                    </div>
-                    <p className="font-medium text-stone-800">{scholar.scholar_id || 'N/A'}</p>
-                  </div>
-
-                  <div className="rounded-lg border border-stone-200 px-3 py-3">
-                    <div className="flex items-center gap-2 text-stone-500 mb-1">
-                      <ShieldAlert size={13} />
-                      <span>Monitoring Flag</span>
-                    </div>
-                    <p className="font-medium text-stone-800">
-                      {gwaValue > 2.0 ? 'At Risk' : 'In Good Standing'}
-                    </p>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-stone-200 shadow-none">
-                <CardHeader className="pb-2">
-                  <h4 className="text-sm font-semibold text-stone-800">Activity Logs</h4>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {Array.isArray(s.activity_logs) && s.activity_logs.length > 0 ? (
-                    s.activity_logs.map((log, index) => {
-                      const title =
-                        log.action ||
-                        log.title ||
-                        'Untitled activity';
+              <div className="lg:col-span-2 space-y-5">
+                <Card className="border-stone-200 shadow-none">
+                  <CardHeader className="pb-2">
+                    <h4 className="text-sm font-semibold text-stone-800">Admin Information</h4>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <Mail size={13} />
+                        <span>Email</span>
+                      </div>
+                      <p className="font-medium text-stone-800">{s.email || 'Not available'}</p>
+                    </div>
 
-                      const description =
-                        log.details ||
-                        log.description ||
-                        'No details provided.';
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <Phone size={13} />
+                        <span>Phone</span>
+                      </div>
+                      <p className="font-medium text-stone-800">{s.phone_number || 'Not available'}</p>
+                    </div>
 
-                      const dateValue =
-                        log.created_at ||
-                        log.date ||
-                        null;
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <CalendarDays size={13} />
+                        <span>Scholar ID</span>
+                      </div>
+                      <p className="font-medium text-stone-800">{s.scholar_id || 'N/A'}</p>
+                    </div>
 
-                      return (
-                        <div
-                          key={log.log_id || log.id || index}
-                          className="rounded-xl border border-stone-200 p-3 bg-white"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-medium text-stone-800">{title}</p>
-                              <p className="text-xs text-stone-500 mt-1">{description}</p>
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <ShieldAlert size={13} />
+                        <span>Monitoring Flag</span>
+                      </div>
+                      <p className="font-medium text-stone-800">{condition.label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-stone-200 shadow-none">
+                  <CardHeader className="pb-2">
+                    <h4 className="text-sm font-semibold text-stone-800">Activity Logs</h4>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {Array.isArray(s.activity_logs) && s.activity_logs.length > 0 ? (
+                      s.activity_logs.map((log, index) => {
+                        const title = log.action || log.title || 'Untitled activity';
+                        const description = log.details || log.description || 'No details provided.';
+                        const dateValue = log.created_at || log.date || null;
+
+                        return (
+                          <div
+                            key={log.log_id || log.id || index}
+                            className="rounded-xl border border-stone-200 p-3 bg-white"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium text-stone-800">{title}</p>
+                                <p className="text-xs text-stone-500 mt-1">{description}</p>
+                              </div>
+                              <span className="text-[11px] text-stone-400 whitespace-nowrap">
+                                {dateValue ? new Date(dateValue).toLocaleDateString() : 'N/A'}
+                              </span>
                             </div>
-                            <span className="text-[11px] text-stone-400 whitespace-nowrap">
-                              {dateValue ? new Date(dateValue).toLocaleDateString() : 'N/A'}
-                            </span>
                           </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
-                      <p className="text-xs text-stone-500">No activity logs available.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
+                        <p className="text-xs text-stone-500">No activity logs available.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-              <Card className="border-stone-200 shadow-none">
-                <CardHeader className="pb-2">
-                  <h4 className="text-sm font-semibold text-stone-800">Admin Notes</h4>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
-                    <div className="flex items-center gap-2 mb-2 text-stone-500">
-                      <FileText size={14} />
-                      <span className="text-xs font-medium">Internal remarks</span>
+                <Card className="border-stone-200 shadow-none">
+                  <CardHeader className="pb-2">
+                    <h4 className="text-sm font-semibold text-stone-800">Admin Notes</h4>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
+                      <div className="flex items-center gap-2 mb-2 text-stone-500">
+                        <FileText size={14} />
+                        <span className="text-xs font-medium">Internal remarks</span>
+                      </div>
+                      <p className="text-xs text-stone-600 leading-relaxed">
+                        Use this section for important scholarship monitoring details such as
+                        compliance follow-ups, academic intervention notes, SDU observations,
+                        renewal concerns, and beneficiary communication history.
+                      </p>
                     </div>
-                    <p className="text-xs text-stone-600 leading-relaxed">
-                      Use this section for important scholarship monitoring details such as
-                      compliance follow-ups, academic intervention notes, SDU observations,
-                      renewal concerns, and beneficiary communication history.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </Card>
     </div>
@@ -326,8 +339,6 @@ function ScholarProfileModal({ scholar, onClose }) {
 }
 
 export default function ScholarMonitoring() {
-  const navigate = useNavigate();
-
   // ─── STATE ───────────────────────────────────────────────────
   const [scholars, setScholars] = useState([]);
   const [stats, setStats] = useState({
@@ -348,6 +359,9 @@ export default function ScholarMonitoring() {
   const [selectedScholarId, setSelectedScholarId] = useState(null);
   const [selectedScholar, setSelectedScholar] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [sduFilter, setSduFilter] = useState('All SDU');
+  const [roFilter, setRoFilter] = useState('All RO');
+  const [sortBy, setSortBy] = useState('Name A-Z');
 
   // ─── FETCH ───────────────────────────────────────────────────
   useEffect(() => {
@@ -427,42 +441,105 @@ export default function ScholarMonitoring() {
 
   // ─── FILTERS ─────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
+    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
-    return scholars.filter((s) => {
+    let results = scholars.filter((s) => {
       const name = (s.student_name || '').toLowerCase();
-      const studentNumber = (s.student_number || '').toLowerCase();
+      const studentNumber = String(s.student_number || '').toLowerCase();
+      const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
       const programName = s.program_name || '';
-      const batch = s.batch_year || '';
+      const batch = String(s.batch_year || '');
       const scholarStatus = s.status || '';
       const gwa = Number(s.gwa);
+      const sduLevel = s.sdu_level || 'none';
+      const roProgress = Number(s.ro_progress || 0);
+
+      const nameParts = name
+        .replace(',', ' ')
+        .split(/\s+/)
+        .filter(Boolean);
 
       const matchSearch =
         !q ||
-        name.includes(q) ||
-        studentNumber.includes(q);
+        name.startsWith(q) ||
+        nameParts.some((part) => part.startsWith(q)) ||
+        studentNumber.startsWith(q) ||
+        normalizedStudentNumber.startsWith(normalizedQ);
 
       const matchProgram =
         program === 'All Programs' || programName === program;
 
       const matchBatch =
-        batchYear === 'All Years' || batch === batchYear;
+        batchYear === 'All Years' || batch === String(batchYear);
 
       const matchStatus =
         status === 'All Statuses' || scholarStatus === status;
 
-      let matchGwa = true;
-      if (gwaFilter === 'Excellence (<1.5)') matchGwa = gwa < 1.5;
-      else if (gwaFilter === 'Good (1.5-2.0)') matchGwa = gwa >= 1.5 && gwa <= 2.0;
-      else if (gwaFilter === 'At Risk (>2.0)') matchGwa = gwa > 2.0;
+      const matchSdu =
+        sduFilter === 'All SDU' ||
+        (sduFilter === 'Clear' && sduLevel === 'none') ||
+        (sduFilter === 'Minor' && sduLevel === 'minor') ||
+        (sduFilter === 'Major' && sduLevel === 'major');
 
-      return matchSearch && matchProgram && matchBatch && matchStatus && matchGwa;
+      let matchGwa = true;
+      if (gwaFilter === 'Excellence (<1.5)') matchGwa = !Number.isNaN(gwa) && gwa < 1.5;
+      else if (gwaFilter === 'Good (1.5-2.0)') matchGwa = !Number.isNaN(gwa) && gwa >= 1.5 && gwa <= 2.0;
+      else if (gwaFilter === 'At Risk (>2.0)') matchGwa = !Number.isNaN(gwa) && gwa > 2.0;
+
+      let matchRo = true;
+      if (roFilter === 'Complete (100%)') matchRo = roProgress === 100;
+      else if (roFilter === 'In Progress (50-99%)') matchRo = roProgress >= 50 && roProgress < 100;
+      else if (roFilter === 'Behind (<50%)') matchRo = roProgress < 50;
+
+      return (
+        matchSearch &&
+        matchProgram &&
+        matchBatch &&
+        matchStatus &&
+        matchSdu &&
+        matchGwa &&
+        matchRo
+      );
     });
-  }, [scholars, search, program, batchYear, status, gwaFilter]);
+
+    results = [...results].sort((a, b) => {
+      const nameA = (a.student_name || '').toLowerCase();
+      const nameB = (b.student_name || '').toLowerCase();
+      const gwaA = Number(a.gwa);
+      const gwaB = Number(b.gwa);
+      const batchA = Number(String(a.batch_year || '').split('-')[0]) || 0;
+      const batchB = Number(String(b.batch_year || '').split('-')[0]) || 0;
+      const roA = Number(a.ro_progress || 0);
+      const roB = Number(b.ro_progress || 0);
+
+      switch (sortBy) {
+        case 'Name Z-A':
+          return nameB.localeCompare(nameA);
+        case 'GWA Asc':
+          return gwaA - gwaB;
+        case 'GWA Desc':
+          return gwaB - gwaA;
+        case 'Batch Newest':
+          return batchB - batchA;
+        case 'Batch Oldest':
+          return batchA - batchB;
+        case 'RO Highest':
+          return roB - roA;
+        case 'RO Lowest':
+          return roA - roB;
+        case 'Name A-Z':
+        default:
+          return nameA.localeCompare(nameB);
+      }
+    });
+
+    return results;
+  }, [scholars, search, program, batchYear, status, gwaFilter, sduFilter, roFilter, sortBy]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, program, batchYear, status, gwaFilter]);
+  }, [search, program, batchYear, status, gwaFilter, sduFilter, roFilter, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -478,6 +555,28 @@ export default function ScholarMonitoring() {
   const batchOptions = useMemo(() => {
     return ['All Years', ...new Set(scholars.map((s) => s.batch_year).filter(Boolean))];
   }, [scholars]);
+
+  const statusOptions = ['All Statuses', 'Active', 'At Risk', 'Inactive'];
+
+  const sduOptions = ['All SDU', 'Clear', 'Minor', 'Major'];
+
+  const roOptions = [
+    'All RO',
+    'Complete (100%)',
+    'In Progress (50-99%)',
+    'Behind (<50%)',
+  ];
+
+  const sortOptions = [
+    'Name A-Z',
+    'Name Z-A',
+    'GWA Asc',
+    'GWA Desc',
+    'Batch Newest',
+    'Batch Oldest',
+    'RO Highest',
+    'RO Lowest',
+  ];
 
   const statCards = useMemo(() => {
     return [
@@ -599,10 +698,10 @@ export default function ScholarMonitoring() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-2">
-        <div className="relative flex-1 min-w-[240px]">
+        <div className="relative flex-1 min-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
           <Input
-            placeholder="Search by name or ID..."
+            placeholder="Search by scholar name or PDM ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
@@ -610,7 +709,7 @@ export default function ScholarMonitoring() {
         </div>
 
         <Select value={program} onValueChange={setProgram}>
-          <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[160px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -623,7 +722,7 @@ export default function ScholarMonitoring() {
         </Select>
 
         <Select value={batchYear} onValueChange={setBatchYear}>
-          <SelectTrigger className="w-[120px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[130px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -636,46 +735,96 @@ export default function ScholarMonitoring() {
         </Select>
 
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-[140px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[145px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="All Statuses" className="text-sm">All Statuses</SelectItem>
-            <SelectItem value="Active" className="text-sm">Active</SelectItem>
-            <SelectItem value="At Risk" className="text-sm">At Risk</SelectItem>
-            <SelectItem value="Inactive" className="text-sm">Inactive</SelectItem>
+            {statusOptions.map((item) => (
+              <SelectItem key={item} value={item} className="text-sm">
+                {item}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sduFilter} onValueChange={setSduFilter}>
+          <SelectTrigger className="w-[130px] h-9 rounded-lg border-stone-200 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sduOptions.map((item) => (
+              <SelectItem key={item} value={item} className="text-sm">
+                {item}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
         <Select value={gwaFilter} onValueChange={setGwaFilter}>
-          <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[155px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="All" className="text-sm">All Tiers</SelectItem>
+            <SelectItem value="All" className="text-sm">All GWA</SelectItem>
             <SelectItem value="Excellence (<1.5)" className="text-sm">Excellence</SelectItem>
             <SelectItem value="Good (1.5-2.0)" className="text-sm">Good</SelectItem>
             <SelectItem value="At Risk (>2.0)" className="text-sm">At Risk</SelectItem>
           </SelectContent>
         </Select>
 
-        {(search || program !== 'All Programs' || batchYear !== 'All Years' || status !== 'All Statuses' || gwaFilter !== 'All') && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setSearch('');
-              setProgram('All Programs');
-              setBatchYear('All Years');
-              setStatus('All Statuses');
-              setGwaFilter('All');
-              setPage(1);
-            }}
-            className="h-9 rounded-lg text-xs border-stone-200"
-          >
-            Reset
-          </Button>
-        )}
+        <Select value={roFilter} onValueChange={setRoFilter}>
+          <SelectTrigger className="w-[165px] h-9 rounded-lg border-stone-200 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {roOptions.map((item) => (
+              <SelectItem key={item} value={item} className="text-sm">
+                {item}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="w-[140px] h-9 rounded-lg border-stone-200 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((item) => (
+              <SelectItem key={item} value={item} className="text-sm">
+                {item}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {(search ||
+          program !== 'All Programs' ||
+          batchYear !== 'All Years' ||
+          status !== 'All Statuses' ||
+          sduFilter !== 'All SDU' ||
+          gwaFilter !== 'All' ||
+          roFilter !== 'All RO' ||
+          sortBy !== 'Name A-Z') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearch('');
+                setProgram('All Programs');
+                setBatchYear('All Years');
+                setStatus('All Statuses');
+                setSduFilter('All SDU');
+                setGwaFilter('All');
+                setRoFilter('All RO');
+                setSortBy('Name A-Z');
+                setPage(1);
+              }}
+              className="h-9 rounded-lg text-xs border-stone-200"
+            >
+              Reset
+            </Button>
+          )}
       </div>
 
       {/* Table */}
@@ -695,6 +844,7 @@ export default function ScholarMonitoring() {
               <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">GWA</TableHead>
               <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">Status</TableHead>
               <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">SDU</TableHead>
+              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">Condition</TableHead>
               <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">RO Progress</TableHead>
               <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Actions</TableHead>
             </TableRow>
@@ -703,7 +853,7 @@ export default function ScholarMonitoring() {
           <TableBody>
             {pageData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-sm text-stone-400">
+                <TableCell colSpan={6} className="text-center py-12 text-sm text-stone-400">
                   No scholars match the current filters.
                 </TableCell>
               </TableRow>
@@ -770,6 +920,20 @@ export default function ScholarMonitoring() {
                       >
                         {sduStyle.label}
                       </span>
+                    </TableCell>
+
+                    <TableCell className="py-3.5 text-center">
+                      {(() => {
+                        const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
+                        return (
+                          <span
+                            className="text-xs font-medium px-2.5 py-1 rounded-full"
+                            style={{ background: condition.bg, color: condition.color }}
+                          >
+                            {condition.label}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
 
                     <TableCell className="py-3.5 text-center">

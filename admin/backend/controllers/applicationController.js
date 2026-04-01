@@ -19,6 +19,11 @@ exports.getApplicationDocuments = async (req, res) => {
         res.status(200).json(payload);
     } catch (err) {
         console.error('APPLICATION DOCUMENTS CONTROLLER ERROR:', err.message);
+
+        if (err.message.includes('already been converted')) {
+            return res.status(409).json({ error: err.message });
+        }
+
         res.status(500).json({ error: err.message });
     }
 };

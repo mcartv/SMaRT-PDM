@@ -36,6 +36,13 @@ const DOC_STATUS_MAP = {
   'under review': { label: 'Under Review', bg: C.amberSoft, color: C.amber },
 };
 
+const SDO_STATUS_MAP = {
+  all: { label: 'All SDO' },
+  clear: { label: 'Clear', bg: C.greenSoft, color: C.green },
+  minor: { label: 'Minor', bg: C.amberSoft, color: C.amber },
+  major: { label: 'Major', bg: C.redSoft, color: C.red },
+};
+
 const DISQ_REASONS = [
   'Failed GWA requirement',
   'AWOL / No contact',
@@ -130,11 +137,13 @@ export default function ApplicationReview() {
   const [search, setSearch] = useState('');
   const [program, setProgram] = useState('All Programs');
   const [status, setStatus] = useState('all');
+  const [sdoFilter, setSdoFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(new Set());
 
   const [showRepl, setShowRepl] = useState(false);
   const [disqApp, setDisqApp] = useState(null);
+  const visibleApps = apps.filter(app => !app.is_scholar);
 
   useEffect(() => {
     const load = async () => {
@@ -167,20 +176,30 @@ export default function ApplicationReview() {
   }, []);
 
   const programOptions = useMemo(() => {
-    return ['All Programs', ...new Set(apps.map((a) => a.program).filter(Boolean))];
-  }, [apps]);
+    return ['All Programs', ...new Set(visibleApps.map((a) => a.program).filter(Boolean))];
+  }, [visibleApps]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
-    return apps.filter((a) => {
+    return visibleApps.filter((a) => {
       const fullName = (a.name || '').toLowerCase();
       const studentNumber = String(a.student_number || '').toLowerCase();
       const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
       const appId = String(a.id || '').toLowerCase();
       const appProgram = a.program || '';
       const docStatus = (a.document_status || '').toLowerCase();
+
+      // supports either sdu_level or sdo_status from backend
+      const rawSdo =
+        (a.sdu_level || a.sdo_status || '').toString().toLowerCase();
+
+      const normalizedSdo =
+        rawSdo.includes('major') ? 'major'
+          : rawSdo.includes('minor') ? 'minor'
+            : rawSdo.includes('clear') || rawSdo.includes('none') ? 'clear'
+              : 'clear';
 
       const nameParts = fullName
         .replace(',', ' ')
@@ -201,13 +220,16 @@ export default function ApplicationReview() {
       const matchStatus =
         status === 'all' || docStatus === status;
 
-      return matchSearch && matchProgram && matchStatus;
+      const matchSdo =
+        sdoFilter === 'all' || normalizedSdo === sdoFilter;
+
+      return matchSearch && matchProgram && matchStatus && matchSdo;
     });
-  }, [apps, search, program, status]);
+  }, [visibleApps, search, program, status, sdoFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, program, status]);
+  }, [search, program, status, sdoFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -220,13 +242,12 @@ export default function ApplicationReview() {
   }, [pageData, selected]);
 
   const disqualifiedCount = useMemo(() => {
-    return apps.filter((a) => a.disqualified).length;
-  }, [apps]);
+    return visibleApps.filter((a) => a.disqualified).length;
+  }, [visibleApps]);
 
   const replacementCandidates = useMemo(() => {
-    return apps.filter((a) => a.disqualified);
-  }, [apps]);
-
+    return visibleApps.filter((a) => a.disqualified);
+  }, [visibleApps]);
   const handleExportExcel = async () => {
     try {
       const token = localStorage.getItem('adminToken');
@@ -268,34 +289,34 @@ export default function ApplicationReview() {
     return [
       {
         label: 'Total Applications',
-        value: apps.length,
+        value: visibleApps.length,
         icon: Users,
         accent: C.brown,
         soft: C.amberSoft,
       },
       {
         label: 'Documents Ready',
-        value: apps.filter((a) => a.document_status === 'documents ready').length,
+        value: visibleApps.filter((a) => a.document_status === 'documents ready').length,
         icon: CheckCircle2,
         accent: C.green,
         soft: C.greenSoft,
       },
       {
         label: 'Under Review',
-        value: apps.filter((a) => a.document_status === 'under review').length,
+        value: visibleApps.filter((a) => a.document_status === 'under review').length,
         icon: Clock,
         accent: C.amber,
         soft: C.amberSoft,
       },
       {
         label: 'Missing Docs',
-        value: apps.filter((a) => a.document_status === 'missing docs').length,
+        value: visibleApps.filter((a) => a.document_status === 'missing docs').length,
         icon: AlertTriangle,
         accent: C.red,
         soft: C.redSoft,
       },
     ];
-  }, [apps]);
+  }, [visibleApps]);
 
   const toggleOne = (id) => {
     setSelected((prev) => {
@@ -480,7 +501,7 @@ export default function ApplicationReview() {
 
       <div className="flex items-center gap-2 flex-wrap">
         {Object.entries(DOC_STATUS_MAP).map(([key, s]) => {
-          const count = apps.filter((a) => a.document_status === key).length;
+          const count = visibleApps.filter((a) => a.document_status === key).length;
           const isActive = status === key;
 
           return (
@@ -528,6 +549,35 @@ export default function ApplicationReview() {
             ))}
           </SelectContent>
         </Select>
+
+        <Select value={sdoFilter} onValueChange={setSdoFilter}>
+          <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
+            <SelectValue placeholder="SDO Flag" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="text-sm">All SDO</SelectItem>
+            <SelectItem value="clear" className="text-sm">Clear</SelectItem>
+            <SelectItem value="minor" className="text-sm">Minor</SelectItem>
+            <SelectItem value="major" className="text-sm">Major</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {(search || program !== 'All Programs' || status !== 'all' || sdoFilter !== 'all') && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSearch('');
+              setProgram('All Programs');
+              setStatus('all');
+              setSdoFilter('all');
+              setPage(1);
+            }}
+            className="h-9 rounded-lg text-xs border-stone-200"
+          >
+            Reset
+          </Button>
+        )}
       </div>
 
       <Card className="border-stone-200 shadow-none overflow-hidden">
@@ -572,6 +622,7 @@ export default function ApplicationReview() {
               </TableHead>
               <TableHead className="text-xs font-medium text-stone-500 py-3">Student Profile</TableHead>
               <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">Docs Status</TableHead>
+              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">SDO Flag</TableHead>
               <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -633,6 +684,30 @@ export default function ApplicationReview() {
                       ) : (
                         <span className="text-xs text-stone-400">Unknown</span>
                       )}
+                    </TableCell>
+
+                    <TableCell className="py-3.5 text-center">
+                      {(() => {
+                        const rawSdo =
+                          (app.sdu_level || app.sdo_status || '').toString().toLowerCase();
+
+                        const normalizedSdo =
+                          rawSdo.includes('major') ? 'major'
+                            : rawSdo.includes('minor') ? 'minor'
+                              : rawSdo.includes('clear') || rawSdo.includes('none') ? 'clear'
+                                : 'clear';
+
+                        const sdoStyle = SDO_STATUS_MAP[normalizedSdo] || SDO_STATUS_MAP.clear;
+
+                        return (
+                          <span
+                            className="text-xs font-medium px-2.5 py-1 rounded-full"
+                            style={{ background: sdoStyle.bg, color: sdoStyle.color }}
+                          >
+                            {sdoStyle.label}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
 
                     <TableCell className="py-3.5 pr-5 text-right">

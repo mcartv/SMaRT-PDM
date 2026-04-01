@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
 import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/screens/step_personal.dart';
-import 'package:smartpdm_mobileapp/screens/step_family.dart';
-import 'package:smartpdm_mobileapp/screens/step_academic.dart';
-import 'package:smartpdm_mobileapp/screens/step_essay.dart';
-import 'package:smartpdm_mobileapp/screens/step_submit.dart';
+import 'package:smartpdm_mobileapp/screens/forms/step_personal.dart';
+import 'package:smartpdm_mobileapp/screens/forms/step_family.dart';
+import 'package:smartpdm_mobileapp/screens/forms/step_academic.dart';
+import 'package:smartpdm_mobileapp/screens/forms/step_essay.dart';
+import 'package:smartpdm_mobileapp/screens/forms/step_submit.dart';
 
 class NewApplicantScreen extends StatefulWidget {
   const NewApplicantScreen({super.key});
@@ -45,7 +45,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case 2: return StepAcademic(data: _data, onChanged: () => setState(() {}));
       case 3: return StepEssay(data: _data, onChanged: () => setState(() {}));
       case 4: return StepSubmit(data: _data, onChanged: () => setState(() {}));
-      default: return const SizedBox();
+      default: return const SizedBox.shrink();
     }
   }
 

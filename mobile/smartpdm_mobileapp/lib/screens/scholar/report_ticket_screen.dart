@@ -124,7 +124,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                 ),
                               )
                               .toList(),
-                      value: _selectedCategory,
+                      initialValue: _selectedCategory,
                       onChanged: (value) {
                         setState(() => _selectedCategory = value ?? 'General');
                       },
@@ -158,7 +158,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                             ),
                           )
                           .toList(),
-                      value: _selectedPriority,
+                      initialValue: _selectedPriority,
                       onChanged: (value) {
                         setState(() => _selectedPriority = value ?? 'Medium');
                       },

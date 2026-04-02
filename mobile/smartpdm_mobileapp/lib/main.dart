@@ -3,6 +3,7 @@ import 'package:smartpdm_mobileapp/screens/auth/login_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/register_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/otp_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/forgot_password_screen.dart';
+import 'package:smartpdm_mobileapp/screens/auth/splash_screen.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/new_applicant_screen.dart';
 import 'package:smartpdm_mobileapp/screens/profile/existing_scholar_screen.dart';
@@ -59,9 +60,10 @@ class MyApp extends StatelessWidget {
         }),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      initialRoute: '/login', // Set your initial route
+      initialRoute: '/splash', // Set your initial route
       routes: {
-        // Authentication
+        // Splash & Authentication
+        '/splash': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/otp': (context) => const OtpScreen(),

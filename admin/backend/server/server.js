@@ -7,6 +7,9 @@ const cors = require('cors');
 const authRoutes = require('../routes/authRoutes');
 const scholarRoutes = require('../routes/scholarRoutes');
 const applicationRoutes = require('../routes/applicationRoutes');
+const notificationRoutes = require('../routes/notificationRoutes');
+const announcementRoutes = require('../routes/announcementRoutes');
+const { runAnnouncementScheduler } = require('../services/schedulerService');
 
 const app = express();
 
@@ -16,6 +19,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/scholars', scholarRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/announcements', announcementRoutes);
 
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -24,3 +29,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+setInterval(() => {
+    runAnnouncementScheduler();
+}, 30000); // every 30 seconds

@@ -28,6 +28,26 @@ exports.getApplicationDocuments = async (req, res) => {
     }
 };
 
+exports.saveApplicationVerification = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await applicationService.saveApplicationVerification(
+            id,
+            req.body,
+            req.user
+        );
+
+        res.status(200).json({
+            message: 'Application verification saved successfully',
+            data: result,
+        });
+    } catch (err) {
+        console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.disqualifyApplication = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;

@@ -209,8 +209,8 @@ function OCRPanel({ activeDoc, application, extractedData }) {
 
                 <span
                   className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.verified
-                      ? 'bg-green-50 text-green-700'
-                      : 'bg-orange-50 text-orange-700'
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-orange-50 text-orange-700'
                     }`}
                 >
                   {item.verified ? 'Detected' : 'Review'}
@@ -331,6 +331,7 @@ export default function DocumentVerification() {
 
   const progress = docs.length ? Math.round((verifiedCount / docs.length) * 100) : 0;
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
+  const hasUploadedDocument = !!activeDoc?.url;
   const extractedData = useMemo(
     () => getMockExtractedData(activeDoc, application),
     [activeDoc, application]
@@ -367,14 +368,17 @@ export default function DocumentVerification() {
   };
 
   const handleVerify = () => {
+    if (!hasUploadedDocument) return;
     updateActiveDocStatus('verified');
   };
 
   const handleReupload = () => {
+    if (!hasUploadedDocument) return;
     updateActiveDocStatus('rejected');
   };
 
   const handleFlag = () => {
+    if (!hasUploadedDocument) return;
     updateActiveDocStatus('flagged');
   };
 
@@ -398,10 +402,26 @@ export default function DocumentVerification() {
           reupload: reuploadCount,
           progress,
         },
+        final_comment: comment || '',
       };
 
-      console.log('VERIFICATION PAYLOAD:', payload);
-      alert('Verification state saved locally in UI. Wire the backend endpoint next if needed.');
+      const res = await fetch(`http://localhost:5000/api/applications/${id}/verify`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save verification');
+      }
+
+      alert('Verification saved successfully.');
+      navigate('/admin/applications');
     } catch (err) {
       console.error('COMPLETE VERIFICATION ERROR:', err);
       alert(err.message || 'Failed to complete verification');
@@ -511,8 +531,8 @@ export default function DocumentVerification() {
                     key={d.id}
                     onClick={() => setDoc(d.id)}
                     className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
-                        ? 'border-blue-800 bg-blue-50 shadow-sm'
-                        : 'border-stone-100 bg-white hover:border-stone-200'
+                      ? 'border-blue-800 bg-blue-50 shadow-sm'
+                      : 'border-stone-100 bg-white hover:border-stone-200'
                       }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -579,8 +599,8 @@ export default function DocumentVerification() {
                   key={d.id}
                   onClick={() => setDoc(d.id)}
                   className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${doc === d.id
-                      ? 'border-blue-800 text-blue-900 bg-white'
-                      : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
+                    ? 'border-blue-800 text-blue-900 bg-white'
+                    : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
                     }`}
                 >
                   {d.name}
@@ -593,8 +613,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('preview')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   Document Preview
@@ -603,8 +623,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('ocr')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   OCR Validation Hub
@@ -613,8 +633,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('split')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -656,10 +676,15 @@ export default function DocumentVerification() {
                   Administrative Feedback
                 </label>
                 <Textarea
-                  placeholder="Enter specific instructions or reasons for document rejection..."
+                  placeholder={
+                    hasUploadedDocument
+                      ? 'Enter specific instructions or reasons for document rejection...'
+                      : 'No uploaded document selected yet.'
+                  }
                   value={comment}
                   onChange={(e) => handleCommentChange(e.target.value)}
-                  className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
+                  disabled={!hasUploadedDocument}
+                  className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -668,7 +693,8 @@ export default function DocumentVerification() {
                   variant="outline"
                   size="sm"
                   onClick={handleVerify}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors"
+                  disabled={!hasUploadedDocument}
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-stone-400 disabled:hover:border-stone-200"
                 >
                   <CheckCircle size={13} className="mr-1.5" /> Verify
                 </Button>
@@ -677,7 +703,8 @@ export default function DocumentVerification() {
                   variant="outline"
                   size="sm"
                   onClick={handleReupload}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors"
+                  disabled={!hasUploadedDocument}
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-stone-400 disabled:hover:border-stone-200"
                 >
                   <XCircle size={13} className="mr-1.5" /> Re-upload
                 </Button>
@@ -686,16 +713,23 @@ export default function DocumentVerification() {
                   variant="outline"
                   size="sm"
                   onClick={handleFlag}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors"
+                  disabled={!hasUploadedDocument}
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-stone-400 disabled:hover:border-stone-200"
                 >
                   <Flag size={13} className="mr-1.5" /> Flag
                 </Button>
               </div>
 
+              {!hasUploadedDocument && (
+                <p className="text-xs text-stone-400">
+                  Upload required before review actions and final verification become available.
+                </p>
+              )}
+
               <Button
                 onClick={handleCompleteVerification}
-                disabled={submitting}
-                className="w-full h-10 rounded-lg font-medium text-sm text-white border-none"
+                disabled={submitting || !hasUploadedDocument}
+                className="w-full h-10 rounded-lg font-medium text-sm text-white border-none disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: C.blue }}
               >
                 {submitting ? (

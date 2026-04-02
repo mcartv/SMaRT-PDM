@@ -227,3 +227,83 @@ exports.markApplicationDisqualified = async (id, reason) => {
 
     return data;
 };
+
+exports.saveApplicationVerification = async (applicationId, payload, user) => {
+    const {
+        document_reviews = [],
+        summary = {},
+        final_comment = '',
+    } = payload || {};
+
+    if (!Array.isArray(document_reviews)) {
+        throw new Error('document_reviews must be an array');
+    }
+
+    const reviewedBy = user?.userId || null;
+
+    const reviewRows = document_reviews.map((doc) => ({
+        application_id: applicationId,
+        document_key: doc.id,
+        document_name: doc.name,
+        review_status: doc.status || 'pending',
+        admin_comment: doc.comment || '',
+        file_url: doc.url || null,
+        reviewed_by: reviewedBy,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    }));
+
+    if (reviewRows.length > 0) {
+        const { error: reviewError } = await supabase
+            .from('application_document_reviews')
+            .upsert(reviewRows, {
+                onConflict: 'application_id,document_key',
+            });
+
+        if (reviewError) {
+            console.error('Supabase Review Upsert Error:', reviewError);
+            throw new Error(reviewError.message);
+        }
+    }
+
+    let nextDocumentStatus = 'under review';
+
+    const verifiedCount = Number(summary?.verified || 0);
+    const uploadedCount = Number(summary?.uploaded || 0);
+    const flaggedCount = Number(summary?.flagged || 0);
+    const reuploadCount = Number(summary?.reupload || 0);
+
+    if (uploadedCount === 0) {
+        nextDocumentStatus = 'missing docs';
+    } else if (reuploadCount > 0 || flaggedCount > 0) {
+        nextDocumentStatus = 'under review';
+    } else if (verifiedCount > 0 && verifiedCount === uploadedCount) {
+        nextDocumentStatus = 'documents ready';
+    }
+
+    const { data: updatedApplication, error: applicationUpdateError } = await supabase
+        .from('applications')
+        .update({
+            document_status: nextDocumentStatus,
+        })
+        .eq('application_id', applicationId)
+        .select()
+        .single();
+
+    if (applicationUpdateError) {
+        console.error('Supabase Application Update Error:', applicationUpdateError);
+        throw new Error(applicationUpdateError.message);
+    }
+
+    return {
+        application: updatedApplication,
+        summary: {
+            verified: verifiedCount,
+            uploaded: uploadedCount,
+            flagged: flaggedCount,
+            reupload: reuploadCount,
+            progress: Number(summary?.progress || 0),
+        },
+        final_comment,
+    };
+};

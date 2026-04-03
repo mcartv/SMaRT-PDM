@@ -1,229 +1,179 @@
-import React, { useState, useMemo } from 'react';
-import {
-  Download, Plus, Check, X, Camera, Mail, Phone,
-  ChevronLeft, ChevronRight, Eye, History, FileText,
-  CreditCard, Banknote, Send, RefreshCw, AlertCircle,
-  CheckCircle, Clock, Search
-} from 'lucide-react';
+// 🔥 CLEAN VERSION — CONSISTENT WITH YOUR SYSTEM
 
-// --- SHADCN UI COMPONENTS ---
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Loader2, Eye, Plus } from 'lucide-react';
 
-// ─── Palette ─────────────────────────────────────────────────
 const C = {
-  blue: '#1E3A8A',
-  blueMid: '#2563EB',
-  blueSoft: '#EFF6FF',
+  brownMid: '#7c4a2e',
   green: '#16a34a',
   greenSoft: '#F0FDF4',
+  blue: '#2563EB',
+  blueSoft: '#EFF6FF',
   orange: '#d97706',
   orangeSoft: '#FFF7ED',
-  red: '#dc2626',
-  redSoft: '#FEF2F2',
-  purple: '#7c3aed',
-  purpleSoft: '#FAF5FF',
-  border: '#E5E7EB',
-  muted: '#6B7280',
   text: '#111827',
+  muted: '#6B7280',
   bg: '#F9FAFB',
-  white: '#FFFFFF',
-  brownMid: '#7c4a2e',
-};
-
-// ─── Configs & Mock Data ─────────────────────────────────────
-const BENEFACTOR_CONFIG = {
-  'Kaizen': { payMode: 'check', contact: 'kaizen@corp.ph' },
-  'Genmart': { payMode: 'check', contact: 'genmart@corp.ph' },
-  'Food Crafters': { payMode: 'check', contact: 'fc@foodcrafters.ph' },
-  'BC Packaging': { payMode: 'cash', contact: 'bcpkg@bcpackaging.ph' },
-};
-
-const INIT_PAYOUTS = [
-  {
-    id: 'PAY-2025-001',
-    benefactor: 'Kaizen',
-    payMode: 'check',
-    ay: '2025-2026',
-    sem: '1st',
-    payDate: 'Oct 15, 2025',
-    totalAmount: 480000,
-    scholars: [
-      { scholarId: 'S2023-001', name: 'Dela Cruz, Maria', program: 'BSIT', amount: 5000, received: true },
-      { scholarId: 'S2023-002', name: 'Santos, Juan', program: 'BSTM', amount: 5000, received: true },
-      { scholarId: 'S2023-003', name: 'Reyes, Ana', program: 'BSIT', amount: 5000, received: false },
-    ],
-    acknowledged: true,
-    ackDate: 'Oct 16, 2025',
-    ackChannel: 'email',
-    hasProof: true,
-    proofLabel: 'kaizen_payout_oct2025.jpg',
-  },
-];
-
-const payModeStyle = {
-  cash: { label: 'Cash', icon: Banknote, color: C.green, bg: C.greenSoft },
-  check: { label: 'Check', icon: CreditCard, color: C.blue, bg: C.blueSoft },
 };
 
 const PAGE_SIZE = 5;
 
-// ─── Sub-Components ───────────────────────────────────────────
+export default function PayoutManagement() {
+  const [payouts, setPayouts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
-function PayoutDetailPanel({ payout, onClose, onUpdate }) {
-  const [local, setLocal] = useState({ ...payout });
-  const pm = payModeStyle[local.payMode];
-  const receivedCount = local.scholars.filter(s => s.received).length;
+  // 🔌 FETCH FROM BACKEND
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/payouts', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          },
+        });
+
+        if (!res.ok) throw new Error('Failed to fetch payouts');
+
+        const data = await res.json();
+        setPayouts(data);
+      } catch (err) {
+        console.error('PAYOUT FETCH ERROR:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  const pageData = useMemo(() => {
+    return payouts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [payouts, page]);
+
+  const totalDisbursed = useMemo(() => {
+    return payouts.reduce((acc, p) => acc + (p.total_amount || 0), 0);
+  }, [payouts]);
+
+  const renderCard = (p) => {
+    const received = p.scholars?.filter(s => s.received).length || 0;
+    const total = p.scholars?.length || 0;
+
+    return (
+      <div
+        key={p.id}
+        className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition"
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-900">
+              {p.benefactor}
+            </h3>
+            <p className="text-xs text-stone-400 mt-1">
+              {p.id}
+            </p>
+          </div>
+
+          <Badge
+            className="text-[10px]"
+            style={{
+              background: p.pay_mode === 'cash' ? C.greenSoft : C.blueSoft,
+              color: p.pay_mode === 'cash' ? C.green : C.blue,
+            }}
+          >
+            {p.pay_mode}
+          </Badge>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between text-xs">
+          <span className="text-stone-500">{p.pay_date}</span>
+
+          <span className={`font-semibold ${received === total ? 'text-green-600' : 'text-orange-600'
+            }`}>
+            {received}/{total} received
+          </span>
+        </div>
+
+        <div className="mt-3 text-sm font-semibold">
+          ₱{(p.total_amount || 0).toLocaleString()}
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <Button
+            size="sm"
+            className="h-8 px-3 rounded-lg border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 text-xs"
+          >
+            <Eye className="w-3 h-3 mr-1" />
+            View
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[300px]">
+        <Loader2 className="animate-spin text-stone-400" />
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-stone-900/40" onClick={onClose}>
-      <Card className="w-full max-w-2xl shadow-2xl border-none overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 bg-stone-50/50">
-          <div>
-            <CardTitle className="text-sm font-bold text-stone-900">{local.benefactor} · {local.id}</CardTitle>
-            <CardDescription className="text-xs">{local.sem} Sem · AY {local.ay}</CardDescription>
-          </div>
-          <button onClick={onClose} className="p-1 hover:bg-stone-200 rounded-full"><X className="w-4 h-4 text-stone-400" /></button>
+    <div className="space-y-5 py-2" style={{ background: C.bg }}>
+      {/* HEADER */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-semibold">Payout Management</h1>
+          <p className="text-sm text-stone-400">
+            {payouts.length} records
+          </p>
         </div>
-        <CardContent className="p-6 space-y-6">
-          <div className="space-y-2">
-            {local.scholars.map(s => (
-              <div key={s.scholarId} className="flex items-center justify-between px-4 py-3 rounded-xl border border-stone-100 bg-stone-50/50">
-                <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded border flex items-center justify-center ${s.received ? 'bg-green-600 border-green-600' : 'bg-white border-stone-200'}`}>
-                    {s.received && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                  <p className="text-xs font-bold text-stone-700">{s.name}</p>
-                </div>
-                <span className="text-xs font-bold tabular-nums">₱{s.amount.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
+
+        <Button
+          size="sm"
+          style={{ background: C.brownMid }}
+          className="text-white rounded-lg"
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          Log Payout
+        </Button>
+      </div>
+
+      {/* STATS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label="Total Disbursed" value={`₱${(totalDisbursed / 1000).toFixed(0)}K`} />
+        <Stat label="Payout Events" value={payouts.length} />
+        <Stat label="Pending" value={payouts.filter(p => !p.acknowledged).length} />
+        <Stat label="Benefactors" value="—" />
+      </div>
+
+      {/* LIST */}
+      <Card className="border-stone-200">
+        <CardContent className="p-4 space-y-3">
+          {pageData.length === 0 ? (
+            <p className="text-center text-sm text-stone-400">
+              No payouts yet.
+            </p>
+          ) : (
+            pageData.map(renderCard)
+          )}
         </CardContent>
-        <div className="p-4 bg-stone-50 border-t flex justify-between items-center px-6">
-          <span className="text-sm font-bold">Total: ₱{local.scholars.reduce((acc, s) => acc + s.amount, 0).toLocaleString()}</span>
-          <Button className="rounded-xl font-bold text-xs" style={{ background: C.brownMid }} onClick={onClose}>Close</Button>
-        </div>
       </Card>
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────
-
-export default function PayoutManagement() {
-  const [tab, setTab] = useState('log');
-  const [payouts, setPayouts] = useState(INIT_PAYOUTS);
-  const [detail, setDetail] = useState(null);
-  const [page, setPage] = useState(1);
-  const [histSearch, setHistSearch] = useState('');
-
-  const pageData = payouts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const totalDisbursed = payouts.reduce((acc, p) =>
-    acc + p.scholars.filter(s => s.received).reduce((sum, s) => sum + s.amount, 0), 0);
-
+function Stat({ label, value }) {
   return (
-    <div className="space-y-6 py-2 animate-in fade-in duration-500">
-      {detail && <PayoutDetailPanel payout={detail} onClose={() => setDetail(null)} onUpdate={() => { }} />}
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-stone-900">Payout Management</h1>
-          <p className="text-sm font-medium text-stone-400 mt-1 uppercase tracking-widest">Disbursement Tracking · 2025–2026</p>
-        </div>
-        <Button className="rounded-xl shadow-md text-white border-none" style={{ background: C.brownMid }}>
-          <Plus className="w-3 h-3 mr-2" /> Log Payout
-        </Button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Disbursed', value: `₱${(totalDisbursed / 1000).toFixed(0)}K`, color: C.blueMid },
-          { label: 'Payout Events', value: String(payouts.length), color: C.green },
-          { label: 'Pending Ack.', value: String(payouts.filter(p => !p.acknowledged).length), color: C.orange },
-          { label: 'Benefactors', value: '4', color: C.purple },
-        ].map(s => (
-          <Card key={s.label} className="border-stone-200 shadow-sm">
-            <CardContent className="p-5">
-              <p className="text-3xl font-bold tracking-tighter" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mt-1">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Main Container */}
-      <Card className="border-stone-200 shadow-sm overflow-hidden">
-        <div className="flex border-b border-stone-100 bg-stone-50/50">
-          {['log', 'history', 'renewal'].map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-6 py-4 text-xs font-bold uppercase tracking-widest border-b-2 transition-all ${tab === t ? 'text-blue-900 border-blue-900 bg-white' : 'text-stone-400 border-transparent hover:text-stone-600'}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'log' && (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-stone-50/80">
-                <TableRow className="hover:bg-transparent border-stone-100">
-                  <TableHead className="font-bold text-[10px] uppercase tracking-widest py-4 px-6">Benefactor</TableHead>
-                  <TableHead className="font-bold text-[10px] uppercase tracking-widest py-4 text-center">Mode</TableHead>
-                  <TableHead className="font-bold text-[10px] uppercase tracking-widest py-4 text-center">Date</TableHead>
-                  <TableHead className="font-bold text-[10px] uppercase tracking-widest py-4 text-center">Receipts</TableHead>
-                  <TableHead className="font-bold text-[10px] uppercase tracking-widest py-4 text-right px-6">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageData.map(p => {
-                  const pm = payModeStyle[p.payMode];
-                  const receivedCount = p.scholars.filter(s => s.received).length;
-                  return (
-                    <TableRow key={p.id} className="border-stone-100 hover:bg-amber-50/10 transition-colors">
-                      <TableCell className="px-6 py-5">
-                        <div className="font-bold text-stone-800 text-sm">{p.benefactor}</div>
-                        <div className="text-[10px] font-mono text-stone-400 mt-1">{p.id}</div>
-                      </TableCell>
-                      <TableCell className="py-5 text-center">
-                        <Badge variant="outline" className="border-none font-bold text-[9px] uppercase px-3 py-1" style={{ background: pm.bg, color: pm.color }}>{pm.label}</Badge>
-                      </TableCell>
-                      <TableCell className="py-5 text-center text-xs font-medium text-stone-500">{p.payDate}</TableCell>
-                      <TableCell className="py-5 text-center">
-                        <span className={`text-xs font-bold ${receivedCount === p.scholars.length ? 'text-green-600' : 'text-orange-600'}`}>
-                          {receivedCount}/{p.scholars.length}
-                        </span>
-                      </TableCell>
-                      <TableCell className="py-5 px-6 text-right">
-                        <Button size="sm" variant="outline" onClick={() => setDetail(p)} className="h-8 rounded-lg font-bold text-[9px] uppercase border-stone-200">
-                          <Eye className="w-3.5 h-3.5 mr-1.5" /> Manage
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Card>
-
-      <footer className="pt-10 pb-6 border-t border-stone-100 text-center">
-        <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest">SMaRT PDM Integrated Finance Subsystem</p>
-      </footer>
-    </div>
+    <Card className="border-stone-200 shadow-none">
+      <CardContent className="p-4">
+        <div className="text-xl font-semibold">{value}</div>
+        <p className="text-xs text-stone-400 mt-1">{label}</p>
+      </CardContent>
+    </Card>
   );
 }

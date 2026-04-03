@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Search, Download, Eye, ChevronLeft, ChevronRight,
-  UserMinus, UserPlus, FileText, Users, CheckCircle2,
+  UserMinus, UserPlus, Users, CheckCircle2,
   Clock, AlertTriangle, AlertCircle, Loader2, X,
+  ShieldCheck, XCircle, FileSearch, MessageSquare,
 } from 'lucide-react';
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ const C = {
   text: '#1c1917',
   bg: '#faf7f2',
   muted: '#78716c',
+  border: '#e7e5e4',
 };
 
 // ─── Constants ───────────────────────────────────────────────────
@@ -36,11 +38,25 @@ const DOC_STATUS_MAP = {
   'under review': { label: 'Under Review', bg: C.amberSoft, color: C.amber },
 };
 
+const APP_STATUS = {
+  pending: { label: 'Pending', bg: '#f5f5f4', color: '#57534e' },
+  review: { label: 'Under Review', bg: C.blueSoft, color: C.blueMid },
+  qualified: { label: 'Qualified', bg: C.greenSoft, color: C.green },
+  rejected: { label: 'Not Qualified', bg: C.redSoft, color: C.red },
+  disqualified: { label: 'Disqualified', bg: '#fee2e2', color: '#991b1b' },
+};
+
 const SDO_STATUS_MAP = {
   all: { label: 'All SDO' },
   clear: { label: 'Clear', bg: C.greenSoft, color: C.green },
   minor: { label: 'Minor', bg: C.amberSoft, color: C.amber },
   major: { label: 'Major', bg: C.redSoft, color: C.red },
+};
+
+const OCR_STATUS_MAP = {
+  match: { label: 'OCR Match', bg: C.greenSoft, color: C.green },
+  review: { label: 'Needs Review', bg: C.amberSoft, color: C.amber },
+  mismatch: { label: 'Mismatch', bg: C.redSoft, color: C.red },
 };
 
 const DISQ_REASONS = [
@@ -55,9 +71,63 @@ const DISQ_REASONS = [
 
 const PAGE_SIZE = 10;
 
+// ─── Helpers ─────────────────────────────────────────────────────
+function normalizeSdo(raw) {
+  const s = (raw || '').toString().toLowerCase();
+  if (s.includes('major')) return 'major';
+  if (s.includes('minor')) return 'minor';
+  if (s.includes('clear') || s.includes('none')) return 'clear';
+  return 'clear';
+}
+
+function getAppStatusMeta(status) {
+  return APP_STATUS[(status || '').toLowerCase()] || APP_STATUS.pending;
+}
+
+function getDocStatusMeta(status) {
+  return DOC_STATUS_MAP[(status || '').toLowerCase()] || {
+    label: 'Unknown',
+    bg: '#f5f5f4',
+    color: '#78716c',
+  };
+}
+
+function getGwaMeta(gwa) {
+  const numeric = Number(gwa);
+  if (!Number.isFinite(numeric)) {
+    return { label: 'No GWA', bg: '#f5f5f4', color: '#78716c' };
+  }
+  if (numeric <= 2.0) {
+    return { label: `Eligible · ${numeric}`, bg: C.greenSoft, color: C.green };
+  }
+  return { label: `At Risk · ${numeric}`, bg: C.redSoft, color: C.red };
+}
+
+function getOcrMeta(app) {
+  const ocr = (app.ocr_status || '').toLowerCase();
+  if (ocr && OCR_STATUS_MAP[ocr]) return OCR_STATUS_MAP[ocr];
+
+  const docStatus = (app.document_status || '').toLowerCase();
+  if (docStatus === 'documents ready') return OCR_STATUS_MAP.match;
+  if (docStatus === 'under review') return OCR_STATUS_MAP.review;
+  return OCR_STATUS_MAP.mismatch;
+}
+
+function StatusPill({ meta }) {
+  return (
+    <span
+      className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium"
+      style={{ background: meta.bg, color: meta.color }}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 // ─── Disqualify Modal ────────────────────────────────────────────
 function DisqModal({ app, onDisqualify, onClose }) {
   const [reason, setReason] = useState('');
+  const [includeInQueue, setIncludeInQueue] = useState(false);
 
   const displayName = app?.name || 'Unknown';
   const displayId = app?.student_number || app?.id || 'No ID';
@@ -84,8 +154,8 @@ function DisqModal({ app, onDisqualify, onClose }) {
           </button>
         </div>
 
-        <CardContent className="p-4 space-y-2">
-          <p className="text-xs text-stone-500 mb-3">Select a disqualification reason:</p>
+        <CardContent className="p-4 space-y-3">
+          <p className="text-xs text-stone-500">Select a disqualification reason:</p>
 
           {DISQ_REASONS.map((r) => (
             <button
@@ -100,6 +170,21 @@ function DisqModal({ app, onDisqualify, onClose }) {
             </button>
           ))}
 
+          <label className="flex items-start gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeInQueue}
+              onChange={(e) => setIncludeInQueue(e.target.checked)}
+              className="mt-0.5 accent-stone-700"
+            />
+            <div>
+              <p className="text-xs font-medium text-stone-700">Include in Replacement Queue</p>
+              <p className="text-[11px] text-stone-500 mt-0.5">
+                Keeps this disqualified applicant eligible for reconsideration if a scholar slot opens later.
+              </p>
+            </div>
+          </label>
+
           <div className="flex gap-2 pt-1">
             <Button
               variant="outline"
@@ -111,7 +196,7 @@ function DisqModal({ app, onDisqualify, onClose }) {
             <Button
               disabled={!reason}
               onClick={() => {
-                onDisqualify(app.id, reason);
+                onDisqualify(app.id, reason, includeInQueue);
                 onClose();
               }}
               className="flex-1 h-9 text-xs rounded-lg text-white border-none disabled:opacity-40"
@@ -126,53 +211,123 @@ function DisqModal({ app, onDisqualify, onClose }) {
   );
 }
 
+// ─── Remarks Modal ───────────────────────────────────────────────
+function RemarksModal({ app, value, onChange, onSave, onClose, saving }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-black/30"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-lg shadow-xl border-stone-200 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-3.5 border-b bg-stone-50 border-stone-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-800">Reviewer Remarks</h3>
+            <p className="text-xs text-stone-500 mt-0.5">{app?.name} · {app?.student_number}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 transition-colors"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        <CardContent className="p-4 space-y-3">
+          <Textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Enter admin-side reviewer remarks..."
+            className="min-h-[120px] rounded-lg border-stone-200 bg-white text-sm resize-none"
+          />
+
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="h-9 text-xs rounded-lg border-stone-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={onSave}
+              disabled={saving}
+              className="h-9 text-xs rounded-lg text-white border-none"
+              style={{ background: C.blueMid }}
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageSquare className="w-3.5 h-3.5 mr-1.5" />}
+              Save Remarks
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────
 export default function ApplicationReview() {
   const navigate = useNavigate();
 
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const [search, setSearch] = useState('');
   const [program, setProgram] = useState('All Programs');
   const [status, setStatus] = useState('all');
   const [sdoFilter, setSdoFilter] = useState('all');
+  const [appStatusFilter, setAppStatusFilter] = useState('All');
+
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(new Set());
 
   const [showRepl, setShowRepl] = useState(false);
   const [disqApp, setDisqApp] = useState(null);
-  const visibleApps = apps.filter(app => !app.is_scholar);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
+  const [remarksModal, setRemarksModal] = useState(null);
+  const [remarksText, setRemarksText] = useState('');
+  const [remarksSaving, setRemarksSaving] = useState(false);
+
+  const [decisionLoading, setDecisionLoading] = useState(null);
+
+  const visibleApps = useMemo(() => apps.filter((app) => !app.is_scholar), [apps]);
+
+  const reloadApplications = async ({ soft = false } = {}) => {
+    try {
+      if (soft) setTableLoading(true);
+      else {
         setLoading(true);
         setError(null);
-
-        const res = await fetch('http://localhost:5000/api/applications', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to fetch applications');
-        }
-
-        const data = await res.json();
-        setApps(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error('APPLICATION FETCH ERROR:', err);
-        setError(err.message || 'Failed to load applications');
-      } finally {
-        setLoading(false);
       }
-    };
 
-    load();
+      const res = await fetch('http://localhost:5000/api/applications', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to fetch applications');
+      }
+
+      const data = await res.json();
+      setApps(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('APPLICATION FETCH ERROR:', err);
+      setError(err.message || 'Failed to load applications');
+    } finally {
+      setLoading(false);
+      setTableLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reloadApplications();
   }, []);
 
   const programOptions = useMemo(() => {
@@ -183,23 +338,20 @@ export default function ApplicationReview() {
     const q = search.trim().toLowerCase();
     const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
-    return visibleApps.filter((a) => {
+    let base = [...visibleApps];
+
+    if (appStatusFilter !== 'All') {
+      base = base.filter((a) => (a.application_status || 'pending').toLowerCase() === appStatusFilter.toLowerCase());
+    }
+
+    return base.filter((a) => {
       const fullName = (a.name || '').toLowerCase();
       const studentNumber = String(a.student_number || '').toLowerCase();
       const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
       const appId = String(a.id || '').toLowerCase();
       const appProgram = a.program || '';
       const docStatus = (a.document_status || '').toLowerCase();
-
-      // supports either sdu_level or sdo_status from backend
-      const rawSdo =
-        (a.sdu_level || a.sdo_status || '').toString().toLowerCase();
-
-      const normalizedSdo =
-        rawSdo.includes('major') ? 'major'
-          : rawSdo.includes('minor') ? 'minor'
-            : rawSdo.includes('clear') || rawSdo.includes('none') ? 'clear'
-              : 'clear';
+      const normalizedSdo = normalizeSdo(a.sdu_level || a.sdo_status || '');
 
       const nameParts = fullName
         .replace(',', ' ')
@@ -214,22 +366,17 @@ export default function ApplicationReview() {
         normalizedStudentNumber.startsWith(normalizedQ) ||
         appId.startsWith(q);
 
-      const matchProgram =
-        program === 'All Programs' || appProgram === program;
-
-      const matchStatus =
-        status === 'all' || docStatus === status;
-
-      const matchSdo =
-        sdoFilter === 'all' || normalizedSdo === sdoFilter;
+      const matchProgram = program === 'All Programs' || appProgram === program;
+      const matchStatus = status === 'all' || docStatus === status;
+      const matchSdo = sdoFilter === 'all' || normalizedSdo === sdoFilter;
 
       return matchSearch && matchProgram && matchStatus && matchSdo;
     });
-  }, [visibleApps, search, program, status, sdoFilter]);
+  }, [visibleApps, search, program, status, sdoFilter, appStatusFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, program, status, sdoFilter]);
+  }, [search, program, status, sdoFilter, appStatusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -237,17 +384,26 @@ export default function ApplicationReview() {
     return filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [filtered, page]);
 
-  const allSel = useMemo(() => {
+  const allVisibleSelected = useMemo(() => {
     return pageData.length > 0 && pageData.every((a) => selected.has(a.id));
   }, [pageData, selected]);
 
   const disqualifiedCount = useMemo(() => {
-    return visibleApps.filter((a) => a.disqualified).length;
+    return visibleApps.filter(
+      (a) =>
+        ((a.disqualified || (a.application_status || '').toLowerCase() === 'disqualified')) &&
+        a.is_reconsideration_candidate
+    ).length;
   }, [visibleApps]);
 
   const replacementCandidates = useMemo(() => {
-    return visibleApps.filter((a) => a.disqualified);
+    return visibleApps.filter(
+      (a) =>
+        ((a.disqualified || (a.application_status || '').toLowerCase() === 'disqualified')) &&
+        a.is_reconsideration_candidate
+    );
   }, [visibleApps]);
+
   const handleExportExcel = async () => {
     try {
       const token = localStorage.getItem('adminToken');
@@ -296,21 +452,21 @@ export default function ApplicationReview() {
       },
       {
         label: 'Documents Ready',
-        value: visibleApps.filter((a) => a.document_status === 'documents ready').length,
+        value: visibleApps.filter((a) => (a.document_status || '').toLowerCase() === 'documents ready').length,
         icon: CheckCircle2,
         accent: C.green,
         soft: C.greenSoft,
       },
       {
         label: 'Under Review',
-        value: visibleApps.filter((a) => a.document_status === 'under review').length,
+        value: visibleApps.filter((a) => (a.application_status || 'pending').toLowerCase() === 'review').length,
         icon: Clock,
-        accent: C.amber,
-        soft: C.amberSoft,
+        accent: C.blueMid,
+        soft: C.blueSoft,
       },
       {
         label: 'Missing Docs',
-        value: visibleApps.filter((a) => a.document_status === 'missing docs').length,
+        value: visibleApps.filter((a) => (a.document_status || '').toLowerCase() === 'missing docs').length,
         icon: AlertTriangle,
         accent: C.red,
         soft: C.redSoft,
@@ -326,11 +482,11 @@ export default function ApplicationReview() {
     });
   };
 
-  const toggleAll = () => {
+  const toggleAllVisible = () => {
     setSelected((prev) => {
       const next = new Set(prev);
 
-      if (allSel) {
+      if (allVisibleSelected) {
         pageData.forEach((a) => next.delete(a.id));
       } else {
         pageData.forEach((a) => next.add(a.id));
@@ -340,7 +496,7 @@ export default function ApplicationReview() {
     });
   };
 
-  const handleDisqualify = async (id, reason) => {
+  const handleDisqualify = async (id, reason, includeInQueue) => {
     try {
       const res = await fetch(`http://localhost:5000/api/applications/${id}/disqualify`, {
         method: 'POST',
@@ -348,7 +504,10 @@ export default function ApplicationReview() {
           Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({
+          reason,
+          is_reconsideration_candidate: includeInQueue,
+        }),
       });
 
       if (!res.ok) {
@@ -362,6 +521,8 @@ export default function ApplicationReview() {
               ...a,
               disqualified: true,
               disqReason: reason,
+              application_status: 'disqualified',
+              is_reconsideration_candidate: includeInQueue,
             }
             : a
         )
@@ -370,6 +531,244 @@ export default function ApplicationReview() {
       console.error('DISQUALIFY ERROR:', err);
       alert(err.message || 'Failed to disqualify application');
     }
+  };
+
+  const handleDecision = async (id, action) => {
+    try {
+      setDecisionLoading(id);
+
+      const endpoint =
+        action === 'approve'
+          ? `http://localhost:5000/api/applications/${id}/approve`
+          : `http://localhost:5000/api/applications/${id}/reject`;
+
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to ${action} application`);
+      }
+
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+              ...a,
+              application_status: action === 'approve' ? 'qualified' : 'rejected',
+            }
+            : a
+        )
+      );
+    } catch (err) {
+      console.error('APPLICATION DECISION ERROR:', err);
+      alert(err.message || 'Failed to update application');
+    } finally {
+      setDecisionLoading(null);
+    }
+  };
+
+  const handleOpenRemarks = (app) => {
+    setRemarksModal(app);
+    setRemarksText(app.remarks || '');
+  };
+
+  const handleSaveRemarks = async () => {
+    if (!remarksModal) return;
+
+    try {
+      setRemarksSaving(true);
+
+      const res = await fetch(`http://localhost:5000/api/applications/${remarksModal.id}/remarks`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ remarks: remarksText }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to save remarks');
+      }
+
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === remarksModal.id
+            ? {
+              ...a,
+              remarks: remarksText,
+            }
+            : a
+        )
+      );
+
+      setRemarksModal(null);
+      setRemarksText('');
+    } catch (err) {
+      console.error('SAVE REMARKS ERROR:', err);
+      alert(err.message || 'Failed to save remarks');
+    } finally {
+      setRemarksSaving(false);
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (selected.size === 0) return;
+    const ids = Array.from(selected);
+
+    try {
+      for (const id of ids) {
+        await handleDecision(id, 'approve');
+      }
+      setSelected(new Set());
+    } catch {
+      // handled in inner function
+    }
+  };
+
+  const renderApplicationCard = (app) => {
+    const id = app.id;
+    const isDisq = app.disqualified || (app.application_status || '').toLowerCase() === 'disqualified';
+    const docMeta = getDocStatusMeta(app.document_status);
+    const appMeta = getAppStatusMeta(app.application_status || 'pending');
+    const gwaMeta = getGwaMeta(app.gwa);
+    const ocrMeta = getOcrMeta(app);
+    const normalizedSdo = normalizeSdo(app.sdu_level || app.sdo_status || '');
+    const sdoStyle = SDO_STATUS_MAP[normalizedSdo] || SDO_STATUS_MAP.clear;
+
+    const docStatus = (app.document_status || '').toLowerCase();
+    const appStatus = (app.application_status || 'pending').toLowerCase();
+
+    const isDocsComplete = docStatus === 'documents ready';
+    const isInReviewStage = appStatus === 'review';
+    const canDecide = isDocsComplete && isInReviewStage;
+
+    return (
+      <div
+        key={id}
+        className={`rounded-xl border px-4 py-4 bg-white transition-all ${isDisq ? 'border-red-100 bg-red-50/20' : 'border-stone-200 hover:border-stone-300'
+          }`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-semibold text-stone-900 truncate">{app.name}</h3>
+              <Badge
+                variant="outline"
+                className="text-[10px] font-medium border-stone-200 text-stone-500 bg-white"
+              >
+                {app.program}
+              </Badge>
+              {isDisq && (
+                <Badge className="bg-red-50 text-red-600 border-red-100 text-[10px] font-medium">
+                  Disqualified
+                </Badge>
+              )}
+              {app.is_reconsideration_candidate && (
+                <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-medium">
+                  Replacement Candidate
+                </Badge>
+              )}
+            </div>
+
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-mono text-stone-400">{app.student_number}</span>
+              {app.remarks ? (
+                <span className="text-[11px] text-stone-400">• With remarks</span>
+              ) : null}
+            </div>
+          </div>
+
+          <input
+            type="checkbox"
+            checked={selected.has(id)}
+            onChange={() => toggleOne(id)}
+            className="accent-stone-700 mt-1 shrink-0"
+          />
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <StatusPill meta={appMeta} />
+          <StatusPill meta={docMeta} />
+          <StatusPill meta={gwaMeta} />
+          <StatusPill meta={ocrMeta} />
+          <span
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium"
+            style={{ background: sdoStyle.bg, color: sdoStyle.color }}
+          >
+            {sdoStyle.label}
+          </span>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => navigate(`/admin/applications/${id}/documents`)}
+            className="h-8 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+          >
+            <Eye className="w-3 h-3 mr-1" />
+            Review Documents
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canDecide || decisionLoading === id}
+            onClick={() => handleDecision(id, 'approve')}
+            className="h-8 px-3 rounded-lg border-green-100 text-green-700 hover:bg-green-50 text-xs shadow-none disabled:opacity-40"
+          >
+            {decisionLoading === id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-1" />}
+            Qualify
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canDecide || decisionLoading === id}
+            onClick={() => handleDecision(id, 'reject')}
+            className="h-8 px-3 rounded-lg border-red-100 text-red-600 hover:bg-red-50 text-xs shadow-none disabled:opacity-40"
+          >
+            <XCircle className="w-3 h-3 mr-1" />
+            Reject
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleOpenRemarks(app)}
+            className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+          >
+            <FileSearch className="w-3 h-3 mr-1" />
+            Remarks
+          </Button>
+
+          {!isDisq && (
+            <Button
+              size="sm"
+              onClick={() => setDisqApp(app)}
+              className="h-8 w-8 p-0 rounded-lg bg-white border border-red-100 text-red-500 hover:bg-red-50 shadow-none"
+            >
+              <UserMinus className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+
+        {!canDecide && (
+          <p className="text-[11px] text-stone-400 mt-2">
+            {appStatus === 'pending'
+              ? 'Waiting for initial review'
+              : docStatus !== 'documents ready'
+                ? 'Complete required documents first'
+                : 'Move application to review stage first'}
+          </p>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -401,7 +800,24 @@ export default function ApplicationReview() {
 
   return (
     <div className="space-y-5 py-2" style={{ background: C.bg }}>
-      {disqApp && <DisqModal app={disqApp} onDisqualify={handleDisqualify} onClose={() => setDisqApp(null)} />}
+      {disqApp && (
+        <DisqModal
+          app={disqApp}
+          onDisqualify={handleDisqualify}
+          onClose={() => setDisqApp(null)}
+        />
+      )}
+
+      {remarksModal && (
+        <RemarksModal
+          app={remarksModal}
+          value={remarksText}
+          onChange={setRemarksText}
+          onSave={handleSaveRemarks}
+          onClose={() => setRemarksModal(null)}
+          saving={remarksSaving}
+        />
+      )}
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
@@ -467,13 +883,13 @@ export default function ApplicationReview() {
           <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
             <CardTitle className="text-sm font-semibold text-stone-800">Replacement Queue</CardTitle>
             <CardDescription className="text-xs">
-              Applications marked disqualified that may open scholarship slots
+              Disqualified applicants retained for reconsideration if scholarship slots reopen
             </CardDescription>
           </CardHeader>
 
           <div className="p-4">
             {replacementCandidates.length === 0 ? (
-              <div className="text-xs text-stone-400">No disqualified applications yet.</div>
+              <div className="text-xs text-stone-400">No replacement candidates yet.</div>
             ) : (
               <div className="space-y-2">
                 {replacementCandidates.map((app) => (
@@ -488,8 +904,8 @@ export default function ApplicationReview() {
                         {app.disqReason ? ` · ${app.disqReason}` : ''}
                       </p>
                     </div>
-                    <Badge className="bg-red-50 text-red-600 border-red-100 text-[10px] font-medium">
-                      Disqualified
+                    <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-medium">
+                      Reconsideration Pool
                     </Badge>
                   </div>
                 ))}
@@ -501,7 +917,7 @@ export default function ApplicationReview() {
 
       <div className="flex items-center gap-2 flex-wrap">
         {Object.entries(DOC_STATUS_MAP).map(([key, s]) => {
-          const count = visibleApps.filter((a) => a.document_status === key).length;
+          const count = visibleApps.filter((a) => (a.document_status || '').toLowerCase() === key).length;
           const isActive = status === key;
 
           return (
@@ -562,7 +978,21 @@ export default function ApplicationReview() {
           </SelectContent>
         </Select>
 
-        {(search || program !== 'All Programs' || status !== 'all' || sdoFilter !== 'all') && (
+        <Select value={appStatusFilter} onValueChange={setAppStatusFilter}>
+          <SelectTrigger className="w-[160px] h-9 rounded-lg border-stone-200 text-sm">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Status</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="review">Under Review</SelectItem>
+            <SelectItem value="qualified">Qualified</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="disqualified">Disqualified</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {(search || program !== 'All Programs' || status !== 'all' || sdoFilter !== 'all' || appStatusFilter !== 'All') && (
           <Button
             variant="outline"
             size="sm"
@@ -571,6 +1001,7 @@ export default function ApplicationReview() {
               setProgram('All Programs');
               setStatus('all');
               setSdoFilter('all');
+              setAppStatusFilter('All');
               setPage(1);
             }}
             className="h-9 rounded-lg text-xs border-stone-200"
@@ -582,8 +1013,24 @@ export default function ApplicationReview() {
 
       <Card className="border-stone-200 shadow-none overflow-hidden">
         <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-          <CardTitle className="text-sm font-semibold text-stone-800">Application Registry</CardTitle>
-          <CardDescription className="text-xs">Integrated scholarship management ledger</CardDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-sm font-semibold text-stone-800">Application Registry</CardTitle>
+              <CardDescription className="text-xs">
+                Condensed review layout for faster admin scanning
+              </CardDescription>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-stone-600 bg-white border border-stone-200 rounded-lg px-3 py-2 shrink-0">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleAllVisible}
+                className="accent-stone-700"
+              />
+              Select all on page
+            </label>
+          </div>
 
           {selected.size > 0 && (
             <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 mt-2">
@@ -593,6 +1040,7 @@ export default function ApplicationReview() {
                   size="sm"
                   className="h-7 text-xs rounded-md text-white border-none"
                   style={{ background: C.green }}
+                  onClick={handleBulkApprove}
                 >
                   Approve All
                 </Button>
@@ -609,135 +1057,24 @@ export default function ApplicationReview() {
           )}
         </CardHeader>
 
-        <Table>
-          <TableHeader className="bg-stone-50/80">
-            <TableRow className="border-stone-100 hover:bg-transparent">
-              <TableHead className="w-10 px-5 py-3">
-                <input
-                  type="checkbox"
-                  checked={allSel}
-                  onChange={toggleAll}
-                  className="rounded accent-stone-700"
-                />
-              </TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3">Student Profile</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">Docs Status</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">SDO Flag</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {pageData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-sm text-stone-400">
-                  No applications match the current filters.
-                </TableCell>
-              </TableRow>
-            ) : (
-              pageData.map((app) => {
-                const id = app.id;
-                const isDisq = app.disqualified;
-                const statusStyle = DOC_STATUS_MAP[app.document_status];
-
-                return (
-                  <TableRow
-                    key={id}
-                    className={`border-stone-100 transition-colors ${isDisq ? 'bg-red-50/20' : 'hover:bg-amber-50/20'
-                      }`}
-                  >
-                    <TableCell className="px-5 py-3.5">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(id)}
-                        onChange={() => toggleOne(id)}
-                        className="accent-stone-700"
-                      />
-                    </TableCell>
-
-                    <TableCell className="py-3.5">
-                      <div className="font-medium text-stone-800 text-sm">{app.name}</div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-xs font-mono text-stone-400">{app.student_number}</span>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-medium border-stone-200 text-stone-500 bg-white"
-                        >
-                          {app.program}
-                        </Badge>
-                        {isDisq && (
-                          <Badge className="bg-red-50 text-red-600 border-red-100 text-[10px] font-medium h-4 px-1.5">
-                            Disqualified
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-
-                    <TableCell className="py-3.5 text-center">
-                      {statusStyle ? (
-                        <span
-                          className="text-xs font-medium px-2.5 py-1 rounded-full"
-                          style={{ background: statusStyle.bg, color: statusStyle.color }}
-                        >
-                          {statusStyle.label}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-stone-400">Unknown</span>
-                      )}
-                    </TableCell>
-
-                    <TableCell className="py-3.5 text-center">
-                      {(() => {
-                        const rawSdo =
-                          (app.sdu_level || app.sdo_status || '').toString().toLowerCase();
-
-                        const normalizedSdo =
-                          rawSdo.includes('major') ? 'major'
-                            : rawSdo.includes('minor') ? 'minor'
-                              : rawSdo.includes('clear') || rawSdo.includes('none') ? 'clear'
-                                : 'clear';
-
-                        const sdoStyle = SDO_STATUS_MAP[normalizedSdo] || SDO_STATUS_MAP.clear;
-
-                        return (
-                          <span
-                            className="text-xs font-medium px-2.5 py-1 rounded-full"
-                            style={{ background: sdoStyle.bg, color: sdoStyle.color }}
-                          >
-                            {sdoStyle.label}
-                          </span>
-                        );
-                      })()}
-                    </TableCell>
-
-                    <TableCell className="py-3.5 pr-5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          onClick={() => navigate(`/admin/applications/${id}/documents`)}
-                          className="h-7 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                        >
-                          <Eye className="w-3 h-3 mr-1" />
-                          Review Documents
-                        </Button>
-
-                        {!isDisq && (
-                          <Button
-                            size="sm"
-                            onClick={() => setDisqApp(app)}
-                            className="h-7 w-7 p-0 rounded-lg bg-white border border-red-100 text-red-500 hover:bg-red-50 shadow-none"
-                          >
-                            <UserMinus className="w-3 h-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+        <CardContent className="p-4">
+          {tableLoading ? (
+            <div className="text-center py-12 text-sm text-stone-400">
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Refreshing records...
+              </div>
+            </div>
+          ) : pageData.length === 0 ? (
+            <div className="text-center py-12 text-sm text-stone-400">
+              No applications match the current filters.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pageData.map(renderApplicationCard)}
+            </div>
+          )}
+        </CardContent>
 
         <div className="px-5 py-3 bg-stone-50/50 border-t border-stone-100 flex items-center justify-between">
           <span className="text-xs text-stone-400">

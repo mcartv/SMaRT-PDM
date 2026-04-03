@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
+import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  final bool showBottomNav;
+
+  const DashboardScreen({
+    super.key,
+    this.showBottomNav = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,37 +25,35 @@ class DashboardScreen extends StatelessWidget {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
-      ),
-      selectedIndex: 0,
-      showDrawer: true,
-      applyPadding: false,
-      child: Stack(
-        children: [
-          const DashboardContent(),
-          Positioned(
-            bottom: 70,
-            right: 16,
-            child: Consumer<MessagingProvider>(
-              builder: (context, messagingProvider, child) {
-                return Badge(
+        automaticallyImplyLeading: false,
+        actions: [
+          Consumer<MessagingProvider>(
+            builder: (context, messagingProvider, child) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Badge(
                   isLabelVisible: messagingProvider.unreadCount > 0,
                   label: Text('${messagingProvider.unreadCount}'),
                   backgroundColor: Colors.red,
-                  child: FloatingActionButton(
+                  child: IconButton(
                     onPressed: () {
                       messagingProvider.clearUnread();
-                      Navigator.pushNamed(context, '/messaging');
+                      Navigator.pushNamed(context, AppRoutes.messaging);
                     },
-                    backgroundColor: primaryColor,
                     tooltip: 'Open Messaging',
-                    child: const Icon(Icons.chat, color: Colors.white),
+                    icon: const Icon(Icons.chat_bubble_outline),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),
+      selectedIndex: 0,
+      showDrawer: false,
+      showBottomNav: showBottomNav,
+      applyPadding: false,
+      child: const DashboardContent(),
     );
   }
 }
@@ -88,23 +94,336 @@ class _DashboardContentState extends State<DashboardContent> {
     }
   }
 
-  Widget _buildTopicChip(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: ActionChip(
-        label: Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.darkBrown,
-            fontWeight: FontWeight.w600,
+  Widget _buildAnnouncementCard({
+    required String title,
+    required String subtitle,
+    required String timeAgo,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x16000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F7FB),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.notifications_none_rounded,
+                color: Color(0xFF7C9AD8),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0E318B),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: AppColors.brown,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              timeAgo,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF9A9A9A),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturedArticleCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F3ED),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.gold, width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'FEATURED ARTICLE',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.darkBrown,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () =>
+                      AppNavigator.goToTopLevel(context, AppRoutes.notifications),
+                  child: const Text(
+                    'READ MORE',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Scholarship opportunities from agencies and private benefactors',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: AppColors.darkBrown,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Stay updated on CHED, UNIFAST, TES, TDP, and private grant support including BC Packaging, Food Crafters, Genmart, Kaizen, and Pusong Mapagkalinga.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.brown,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOngoingObligationsCard() {
+    const progressValue = 0.6;
+    const progressPercentage = 60;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F3ED),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.gold, width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () => AppNavigator.goToTopLevel(context, AppRoutes.payouts),
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ONGOING OBLIGATIONS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                            color: AppColors.brown,
+                          ),
+                        ),
+                        SizedBox(height: 10),
+                        Text(
+                          'RO COMPLIANCE',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.darkBrown,
+                            height: 1.05,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.yellow,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'ACTIVE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.darkBrown,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.gold, width: 1),
+                        ),
+                        child: IconButton(
+                          onPressed: () =>
+                              AppNavigator.goToTopLevel(context, AppRoutes.payouts),
+                          icon: const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 18,
+                            color: AppColors.brown,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: const [
+                  Expanded(
+                    child: Text(
+                      'Completion Progress',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.brown,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$progressPercentage%',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.darkBrown,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progressValue,
+                  minHeight: 7,
+                  backgroundColor: AppColors.lightGray,
+                  valueColor: const AlwaysStoppedAnimation<Color>(primaryColor),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.gold.withOpacity(0.5)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 18,
+                      color: AppColors.orange,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'REQUIRES ACTION',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: AppColors.orange,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'SUBMIT RO COMPLETION',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.darkBrown,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-        backgroundColor: AppColors.yellow,
-        onPressed: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Selected $label')));
-        },
       ),
     );
   }
@@ -172,55 +491,16 @@ class _DashboardContentState extends State<DashboardContent> {
                     ],
                   ),
                 ),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.yellow,
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back Home'),
-                ),
               ],
             ),
             const SizedBox(height: 14),
             const Text(
-              'Academics',
+              '"WHERE QUALITY EDUCATION IS A RIGHT, NOT A PRIVILEGE"',
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
                 color: Colors.white,
               ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Forge your future to academic excellence.',
-              style: TextStyle(fontSize: 14, color: Colors.white70),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children:
-                  [
-                        'Academics',
-                        'Admission',
-                        'Financial Aid',
-                        'Student Life',
-                        'Scholarships',
-                      ]
-                      .map(
-                        (label) => Chip(
-                          label: Text(
-                            label,
-                            style: const TextStyle(
-                              color: AppColors.darkBrown,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          backgroundColor: AppColors.yellow,
-                        ),
-                      )
-                      .toList(),
             ),
           ],
         ),
@@ -338,6 +618,53 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
+  Widget _buildQuickActionTile({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final isCompact = MediaQuery.of(context).size.width < 360;
+
+    return Card(
+      color: const Color(0xFFF8F3ED),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 10 : 12,
+            vertical: isCompact ? 12 : 16,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: primaryColor,
+                size: isCompact ? 18 : 20,
+              ),
+              SizedBox(width: isCompact ? 8 : 10),
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isCompact ? 13 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.darkBrown,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox.expand(
@@ -358,213 +685,12 @@ class _DashboardContentState extends State<DashboardContent> {
               children: [
                 _buildCampusHero(),
                 const SizedBox(height: 12),
-                _buildFeatureCards(),
+                _buildFeaturedArticleCard(),
                 const SizedBox(height: 20),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xF2FFFFFF),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.gold, width: 1.5),
-                    boxShadow: [
-                      const BoxShadow(
-                        color: Color(0x1A000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Explore Academics',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.darkBrown,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Grounded in purpose, we radiate possibility. Learn, connect, and take the next step in your scholarship journey.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.brown,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () => Navigator.pushNamed(
-                                  context,
-                                  '/new_applicant',
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.gold,
-                                  foregroundColor: AppColors.darkBrown,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'APPLY NOW',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () =>
-                                    Navigator.pushNamed(context, '/faqs'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.darkBrown,
-                                  side: const BorderSide(
-                                    color: AppColors.darkBrown,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                                child: const Text('REQUEST INFO'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      _buildTopicChip('Academics'),
-                      _buildTopicChip('Admission'),
-                      _buildTopicChip('Financial Aid'),
-                      _buildTopicChip('Student Life'),
-                      _buildTopicChip('Graduate Studies'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Application Status',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text('TES 2025'),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: 0.6,
-                          backgroundColor: Colors.grey[300],
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            primaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Documents Pending'),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Deadlines',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.red[100],
-                            borderRadius: BorderRadius.circular(borderRadius),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today,
-                            color: Colors.red,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('TES Oct 30'),
-                              Text('Deadline approaching'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.orange[100],
-                            borderRadius: BorderRadius.circular(borderRadius),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today,
-                            color: Colors.orange,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('TDP Nov 15'),
-                              Text('Upcoming deadline'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
+                if (_isApproved) ...[
+                  _buildOngoingObligationsCard(),
+                  const SizedBox(height: 20),
+                ],
                 const Text(
                   'Quick Actions',
                   style: TextStyle(
@@ -574,64 +700,54 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Card(
-                        child: InkWell(
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/application'),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Column(
-                              children: [
-                                Icon(Icons.add, color: primaryColor),
-                                SizedBox(height: 8),
-                                Text('Apply'),
-                              ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 340;
+                    final itemWidth = isCompact
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - 20) / 3;
+
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildQuickActionTile(
+                            context: context,
+                            icon: Icons.upload_file,
+                            label: 'Upload',
+                            onTap: () =>
+                                Navigator.pushNamed(context, AppRoutes.documents),
+                          ),
+                        ),
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildQuickActionTile(
+                            context: context,
+                            icon: Icons.campaign_outlined,
+                            label: 'Announcements',
+                            onTap: () => AppNavigator.goToTopLevel(
+                              context,
+                              AppRoutes.notifications,
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Card(
-                        child: InkWell(
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/documents'),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Column(
-                              children: [
-                                Icon(Icons.upload_file, color: primaryColor),
-                                SizedBox(height: 8),
-                                Text('Documents'),
-                              ],
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildQuickActionTile(
+                            context: context,
+                            icon: Icons.assignment_turned_in,
+                            label: 'Obligs',
+                            onTap: () => AppNavigator.goToTopLevel(
+                              context,
+                              AppRoutes.payouts,
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Card(
-                        child: InkWell(
-                          onTap: () => Navigator.pushNamed(context, '/status'),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Column(
-                              children: [
-                                Icon(Icons.track_changes, color: primaryColor),
-                                SizedBox(height: 8),
-                                Text('Status'),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
                 if (!_isApproved) ...[
@@ -666,31 +782,27 @@ class _DashboardContentState extends State<DashboardContent> {
                             color: Colors.grey,
                           ),
                           onTap: () {
-                            Navigator.pushNamed(context, '/new_applicant');
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.newApplicant,
+                            );
                           },
                         ),
                         const Divider(height: 1),
                         ListTile(
                           leading: const Icon(
-                            Icons.edit_note,
+                            Icons.settings_outlined,
                             color: primaryColor,
                           ),
-                          title: const Text(
-                            'Update Personal Data (Existing Scholar)',
-                          ),
+                          title: const Text('App Settings'),
                           subtitle: const Text(
-                            'Update your profile if you are an existing scholar',
+                            'Manage preferences, privacy, and account options',
                           ),
                           trailing: const Icon(
                             Icons.chevron_right,
                             color: Colors.grey,
                           ),
-                          onTap: () {
-                            Navigator.pushNamed(
-                              context,
-                              '/existing_scholar_update',
-                            );
-                          },
+                          onTap: () => showAppSettingsSheet(context),
                         ),
                       ],
                     ),
@@ -725,7 +837,8 @@ class _DashboardContentState extends State<DashboardContent> {
                             Icons.chevron_right,
                             color: Colors.grey,
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/about'),
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRoutes.about),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -739,7 +852,8 @@ class _DashboardContentState extends State<DashboardContent> {
                             Icons.chevron_right,
                             color: Colors.grey,
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/faqs'),
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRoutes.faqs),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -756,7 +870,10 @@ class _DashboardContentState extends State<DashboardContent> {
                             color: Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/notifications'),
+                              AppNavigator.goToTopLevel(
+                                context,
+                                AppRoutes.notifications,
+                              ),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -771,7 +888,10 @@ class _DashboardContentState extends State<DashboardContent> {
                             color: Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/announcements'),
+                              AppNavigator.goToTopLevel(
+                                context,
+                                AppRoutes.notifications,
+                              ),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -789,7 +909,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           ),
                           onTap: () => Navigator.pushNamed(
                             context,
-                            '/interview-schedule',
+                            AppRoutes.interviewSchedule,
                           ),
                         ),
                         const Divider(height: 1),
@@ -807,7 +927,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             color: Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/documents'),
+                              Navigator.pushNamed(context, AppRoutes.documents),
                         ),
                       ],
                     ),
@@ -815,7 +935,7 @@ class _DashboardContentState extends State<DashboardContent> {
                 ] else ...[
                   // --- APPROVED SCHOLAR SECTION ---
                   const Text(
-                    'Scholar Portal',
+                    'Return Obligations',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -825,10 +945,13 @@ class _DashboardContentState extends State<DashboardContent> {
                   const SizedBox(height: 10),
                   // Quick RO Access Card
                   Card(
-                    color: Colors.blue[50],
+                    color: const Color(0xFFF5F5F5),
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(borderRadius),
+                      side: BorderSide(
+                        color: AppColors.gold.withOpacity(0.35),
+                      ),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -837,10 +960,18 @@ class _DashboardContentState extends State<DashboardContent> {
                         children: [
                           Row(
                             children: [
-                              Icon(
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
                                 Icons.assignment_turned_in,
-                                color: Colors.blue[700],
-                                size: 28,
+                                  color: AppColors.darkBrown,
+                                  size: 22,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               const Expanded(
@@ -849,7 +980,7 @@ class _DashboardContentState extends State<DashboardContent> {
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.blue,
+                                    color: AppColors.darkBrown,
                                   ),
                                 ),
                               ),
@@ -860,7 +991,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             'Access your RO assignments, submit completions, and track your progress.',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.blue[800],
+                              color: AppColors.brown.withOpacity(0.88),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -870,12 +1001,12 @@ class _DashboardContentState extends State<DashboardContent> {
                                 child: ElevatedButton.icon(
                                   onPressed: () => Navigator.pushNamed(
                                     context,
-                                    '/ro-assignment',
+                                    AppRoutes.roAssignment,
                                   ),
                                   icon: const Icon(Icons.visibility),
                                   label: const Text('View Assignments'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue,
+                                    backgroundColor: primaryColor,
                                     foregroundColor: Colors.white,
                                   ),
                                 ),
@@ -885,13 +1016,18 @@ class _DashboardContentState extends State<DashboardContent> {
                                 child: OutlinedButton.icon(
                                   onPressed: () => Navigator.pushNamed(
                                     context,
-                                    '/ro-completion',
+                                    AppRoutes.roCompletion,
                                   ),
                                   icon: const Icon(Icons.done_all),
                                   label: const Text('Submit RO'),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.blue,
-                                    side: const BorderSide(color: Colors.blue),
+                                    foregroundColor: AppColors.darkBrown,
+                                    side: BorderSide(
+                                      color: AppColors.gold.withOpacity(0.8),
+                                    ),
+                                    backgroundColor: AppColors.gold.withOpacity(
+                                      0.10,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -921,7 +1057,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             color: Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/messaging'),
+                              Navigator.pushNamed(context, AppRoutes.messaging),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -937,7 +1073,10 @@ class _DashboardContentState extends State<DashboardContent> {
                             Icons.chevron_right,
                             color: Colors.grey,
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/payouts'),
+                          onTap: () => AppNavigator.goToTopLevel(
+                            context,
+                            AppRoutes.payouts,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -954,7 +1093,10 @@ class _DashboardContentState extends State<DashboardContent> {
                             color: Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/ro-assignment'),
+                              Navigator.pushNamed(
+                                context,
+                                AppRoutes.roAssignment,
+                              ),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -971,7 +1113,10 @@ class _DashboardContentState extends State<DashboardContent> {
                             color: Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/ro-completion'),
+                              Navigator.pushNamed(
+                                context,
+                                AppRoutes.roCompletion,
+                              ),
                         ),
                         const Divider(height: 1),
                         ListTile(
@@ -987,39 +1132,13 @@ class _DashboardContentState extends State<DashboardContent> {
                             Icons.chevron_right,
                             color: Colors.grey,
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/tickets'),
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRoutes.tickets),
                         ),
                       ],
                     ),
                   ),
                 ],
-                const SizedBox(height: 20),
-                const Text(
-                  'Announcements',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text(
-                      'BC Packaging Grant - New scholarship opportunity available!',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text(
-                      'Grade Reminder - Submit your latest grades for TES application.',
-                    ),
-                  ),
-                ),
                 // Developer option to test scholar features
                 const SizedBox(height: 20),
                 if (!_isApproved) ...[

@@ -9,7 +9,8 @@ class ObligationsScreen extends StatefulWidget {
   State<ObligationsScreen> createState() => _ObligationsScreenState();
 }
 
-class _ObligationsScreenState extends State<ObligationsScreen> with SingleTickerProviderStateMixin {
+class _ObligationsScreenState extends State<ObligationsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -27,16 +28,13 @@ class _ObligationsScreenState extends State<ObligationsScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
-      selectedIndex: 3,
+      selectedIndex: 1,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'My Obligations',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
           Container(
@@ -64,10 +62,7 @@ class _ObligationsScreenState extends State<ObligationsScreen> with SingleTicker
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildActiveTab(),
-                _buildCompletedTab(),
-              ],
+              children: [_buildActiveTab(), _buildCompletedTab()],
             ),
           ),
         ],
@@ -125,9 +120,7 @@ class _ObligationsScreenState extends State<ObligationsScreen> with SingleTicker
                     children: const [
                       Text(
                         'Community Service - Completed Dec 1',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.w900),
                       ),
                       SizedBox(height: 6),
                       Text(
@@ -195,10 +188,7 @@ class ObligationCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 4),
             if (hours.isNotEmpty) Text(hours),
@@ -232,10 +222,7 @@ class ObligationCard extends StatelessWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {},
-                child: Text(actionText),
-              ),
+              child: ElevatedButton(onPressed: () {}, child: Text(actionText)),
             ),
           ],
         ),

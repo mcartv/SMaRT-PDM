@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class DocumentUploadScreen extends StatefulWidget {
@@ -10,209 +12,74 @@ class DocumentUploadScreen extends StatefulWidget {
 }
 
 class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
-  bool _allRequiredUploaded = false;
-
-  final List<DocumentItem> _documents = [
-    DocumentItem(name: 'COR', status: 'UPLOADED', fileName: 'COR_2025.pdf', isRequired: true),
-    DocumentItem(name: 'Grade Form', status: 'REQUIRED', isRequired: true),
-    DocumentItem(name: 'Certificate of Indigency', status: 'OPTIONAL', isRequired: false),
-    DocumentItem(name: 'Valid ID', status: 'UPLOADED', fileName: 'ID.jpg', isRequired: true),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAllRequired();
-  }
-
-  void _checkAllRequired() {
-    _allRequiredUploaded = _documents.where((doc) => doc.isRequired).every((doc) => doc.status == 'UPLOADED');
-    setState(() {});
-  }
-
-  void _showUploadOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Upload Document',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.camera),
-              title: const Text('Camera'),
-              onTap: () {
-                Navigator.pop(context);
-                // Implement camera upload
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo),
-              title: const Text('Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                // Implement gallery upload
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.file_present),
-              title: const Text('Files'),
-              onTap: () {
-                Navigator.pop(context);
-                // Implement file picker
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
-      selectedIndex: 2,
+      appBar: AppBar(
+        title: const Text('Document Upload'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+      ),
+      selectedIndex: 1,
+      showDrawer: false,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Upload Documents - TES',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: primaryColor.withOpacity(0.12)),
             ),
-          ),
-          const SizedBox(height: 14),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _documents.length,
-              itemBuilder: (context, index) {
-                final doc = _documents[index];
-                final bool uploaded = doc.status == 'UPLOADED';
-                final bool required = doc.status == 'REQUIRED';
-                final bool optional = doc.status == 'OPTIONAL';
-
-                final String statusLabel = uploaded
-                    ? (doc.name == 'COR' ? 'UPLOADED ✓' : 'UPLOADED')
-                    : required
-                        ? 'REQUIRED'
-                        : optional
-                            ? 'OPTIONAL'
-                            : doc.status;
-
-                final Color statusColor = uploaded
-                    ? Colors.green
-                    : required
-                        ? Colors.orange
-                        : Colors.grey;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                doc.name,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        if (uploaded) ...[
-                          Text(
-                            doc.fileName ?? '',
-                            style: TextStyle(
-                              color: Colors.grey.shade800,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              '[REPLACE]',
-                              style: TextStyle(
-                                color: primaryColor,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          ElevatedButton(
-                            onPressed: _showUploadOptions,
-                            child: const Text('+ UPLOAD'),
-                          ),
-                        ],
-                        ],
-                      ),
-                    ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Renewal uploads now live in Scholar > Renewal Documents.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
-                );
-              },
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'This legacy screen is no longer used for the active scholar renewal flow.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.black54,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _allRequiredUploaded
-                  ? () {
-                      Navigator.pushNamed(context, '/status');
-                    }
-                  : null,
-              child: const Text('SUBMIT DOCUMENTS'),
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.documents),
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Open Renewal Documents'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () =>
+                  AppNavigator.goToTopLevel(context, AppRoutes.payouts),
+              child: const Text('Back to Scholar Tab'),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-class DocumentItem {
-  String name;
-  String status;
-  String? fileName;
-  bool isRequired;
-
-  DocumentItem({
-    required this.name,
-    required this.status,
-    this.fileName,
-    required this.isRequired,
-  });
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';
 
 class SmartPdmDrawer extends StatelessWidget {
   final bool isScholar;
@@ -21,12 +24,10 @@ class SmartPdmDrawer extends StatelessWidget {
           GestureDetector(
             onTap: () {
               Navigator.pop(context);
-              Navigator.pushNamed(context, '/profile');
+              AppNavigator.goToTopLevel(context, AppRoutes.profile);
             },
             child: DrawerHeader(
-              decoration: const BoxDecoration(
-                color: primaryColor,
-              ),
+              decoration: const BoxDecoration(color: primaryColor),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -54,10 +55,7 @@ class SmartPdmDrawer extends StatelessWidget {
                   ),
                   Text(
                     isScholar ? 'Approved Scholar' : 'Applicant',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),
@@ -81,25 +79,25 @@ class SmartPdmDrawer extends StatelessWidget {
             context: context,
             icon: Icons.assignment,
             label: 'Apply for Scholarship',
-            route: '/new_applicant',
+            route: AppRoutes.newApplicant,
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.check_circle,
             label: 'Application Status',
-            route: '/status',
+            route: AppRoutes.status,
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.info_outline,
             label: 'About PDM/OSFA',
-            route: '/about',
+            route: AppRoutes.about,
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.help_outline,
             label: 'FAQs',
-            route: '/faqs',
+            route: AppRoutes.faqs,
           ),
 
           // Scholar Section
@@ -120,25 +118,25 @@ class SmartPdmDrawer extends StatelessWidget {
               context: context,
               icon: Icons.payment,
               label: 'Payout Schedule',
-              route: '/payouts',
+              route: AppRoutes.payouts,
             ),
             _buildDrawerItem(
               context: context,
               icon: Icons.assignment_turned_in,
               label: 'RO Assignment',
-              route: '/ro-assignment',
+              route: AppRoutes.roAssignment,
             ),
             _buildDrawerItem(
               context: context,
               icon: Icons.done_all,
               label: 'Submit RO Completion',
-              route: '/ro-completion',
+              route: AppRoutes.roCompletion,
             ),
             _buildDrawerItem(
               context: context,
               icon: Icons.support_agent,
               label: 'Support Ticket',
-              route: '/tickets',
+              route: AppRoutes.tickets,
             ),
           ],
 
@@ -162,19 +160,34 @@ class SmartPdmDrawer extends StatelessWidget {
             context: context,
             icon: Icons.person,
             label: 'Profile',
-            route: '/existing_scholar_update',
+            route: AppRoutes.profile,
+          ),
+          _buildDrawerActionItem(
+            context: context,
+            icon: Icons.settings_outlined,
+            label: 'App Settings',
+            onTap: () async {
+              Navigator.pop(context);
+              await showAppSettingsSheet(context);
+            },
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.chat,
             label: 'Messages',
-            route: '/messaging',
+            route: AppRoutes.messaging,
+          ),
+          _buildDrawerItem(
+            context: context,
+            icon: Icons.alternate_email,
+            label: 'Change Email',
+            route: AppRoutes.changeEmail,
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.lock,
             label: 'Change Password',
-            route: '/forgot-password',
+            route: AppRoutes.forgotPassword,
           ),
 
           // Spacer
@@ -198,7 +211,7 @@ class SmartPdmDrawer extends StatelessWidget {
                       TextButton(
                         onPressed: () {
                           Navigator.pop(context);
-                          Navigator.pushReplacementNamed(context, '/login');
+                          AppNavigator.goToTopLevel(context, AppRoutes.login);
                         },
                         child: const Text('Logout'),
                       ),
@@ -230,8 +243,25 @@ class SmartPdmDrawer extends StatelessWidget {
       title: Text(label),
       onTap: () {
         Navigator.pop(context);
+        if (AppRoutes.isTopLevel(route)) {
+          AppNavigator.goToTopLevel(context, route);
+          return;
+        }
         Navigator.pushNamed(context, route);
       },
+    );
+  }
+
+  Widget _buildDrawerActionItem({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Future<void> Function() onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: primaryColor),
+      title: Text(label),
+      onTap: onTap,
     );
   }
 }

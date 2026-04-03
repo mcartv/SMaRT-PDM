@@ -1,40 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class PayoutScheduleScreen extends StatefulWidget {
-  const PayoutScheduleScreen({super.key});
+  final bool showBottomNav;
+
+  const PayoutScheduleScreen({
+    super.key,
+    this.showBottomNav = true,
+  });
 
   @override
   State<PayoutScheduleScreen> createState() => _PayoutScheduleScreenState();
 }
 
 class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
+  String _selectedScholarView = 'Payout Schedule';
+
   final List<Map<String, dynamic>> payouts = [
     {
       'month': 'August 2025',
-      'amount': '₱15,000',
+      'amount': 'PHP 15,000',
       'status': 'Paid',
       'date': 'August 15, 2025',
       'reference': 'REF-2025-0801',
     },
     {
       'month': 'September 2025',
-      'amount': '₱15,000',
+      'amount': 'PHP 15,000',
       'status': 'Approved',
       'date': 'Expected Sep 15, 2025',
       'reference': 'REF-2025-0902',
     },
     {
       'month': 'October 2025',
-      'amount': '₱15,000',
+      'amount': 'PHP 15,000',
       'status': 'Processing',
       'date': 'Expected Oct 15, 2025',
       'reference': 'REF-2025-1003',
     },
     {
       'month': 'November 2025',
-      'amount': '₱15,000',
+      'amount': 'PHP 15,000',
       'status': 'Pending',
       'date': 'Expected Nov 15, 2025',
       'reference': '-',
@@ -71,48 +80,71 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
+  Widget _buildScholarChip(String label) {
+    final isSelected = _selectedScholarView == label;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        showCheckmark: isSelected,
+        checkmarkColor: Colors.white,
+        backgroundColor: Colors.grey[200],
+        selectedColor: primaryColor,
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.black,
+          fontWeight: FontWeight.bold,
+        ),
+        onSelected: (_) {
+          setState(() {
+            _selectedScholarView = label;
+          });
+
+          switch (label) {
+            case 'Payout Schedule':
+              AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+              break;
+            case 'RO Assignment':
+              Navigator.pushNamed(context, AppRoutes.roAssignment);
+              break;
+            case 'RO Completion':
+              Navigator.pushNamed(context, AppRoutes.roCompletion);
+              break;
+          }
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final totalAmount = payouts.length * 15000;
-    final paidAmount =
-        payouts.where((p) => p['status'] == 'Paid').length * 15000;
-
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Payout Schedule'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
       ),
-      selectedIndex: 2,
-      showDrawer: true,
+      selectedIndex: 1,
+      showBottomNav: widget.showBottomNav,
+      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Summary Cards
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    title: 'Total Scholarship',
-                    amount: '₱${totalAmount.toString()}',
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    title: 'Amount Received',
-                    amount: '₱${paidAmount.toString()}',
-                    color: Colors.green,
-                  ),
-                ),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildScholarChip('Payout Schedule'),
+                  _buildScholarChip('RO Assignment'),
+                  _buildScholarChip('RO Completion'),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
-
-            // Payout Schedule
             const Text(
               'Payment Schedule',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -125,6 +157,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               itemBuilder: (context, index) {
                 final payout = payouts[index];
                 return Card(
+                  color: const Color(0xFFF5F5F5),
                   margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -221,8 +254,6 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               },
             ),
             const SizedBox(height: 20),
-
-            // Bank Details
             Card(
               color: Colors.blue[50],
               child: Padding(
@@ -271,40 +302,6 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard({
-    required String title,
-    required String amount,
-    required Color color,
-  }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              amount,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
               ),
             ),
           ],

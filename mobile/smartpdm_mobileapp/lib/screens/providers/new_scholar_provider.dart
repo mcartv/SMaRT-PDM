@@ -1,7 +1,11 @@
 import 'package:flutter/foundation.dart';
-
 import 'package:flutter/material.dart';
-
+import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/models/app_data.dart';
 
 class NewScholarProvider extends ChangeNotifier {
   // Add your state variables here
@@ -36,6 +40,7 @@ class NewScholarProvider extends ChangeNotifier {
     _phone = null;
     notifyListeners();
   }
+
   int _currentStep = 0;
   bool _isLoading = false;
   String? _submissionError;
@@ -69,23 +74,55 @@ class NewScholarProvider extends ChangeNotifier {
   }
 
   // Submission Method
-  Future<bool> submitApplication() async {
+  Future<bool> submitApplication(ApplicationData applicationData) async {
     _isLoading = true;
     _submissionError = null;
     notifyListeners();
 
     try {
-      // Simulate network request / API call
-      await Future.delayed(const Duration(seconds: 2));
-      
+      final response = await http
+          .post(
+            Uri.parse('$BASE_URL/api/applications'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(applicationData.toSubmissionPayload()),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final responseBody = response.body.isNotEmpty
+            ? jsonDecode(response.body)
+            : null;
+        _submissionError =
+            responseBody is Map<String, dynamic> &&
+                responseBody['error'] is String
+            ? responseBody['error'] as String
+            : 'Failed to submit application.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
       _isLoading = false;
       notifyListeners();
-      return true; // Return true on success
+      return true;
+    } on TimeoutException {
+      _submissionError =
+          'Submission timed out. Please check your connection and try again.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } on SocketException {
+      _submissionError =
+          'Network connection error. Please check your internet connection.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e) {
       _isLoading = false;
-      _submissionError = 'Failed to submit application. Please check your connection and try again.';
+      _submissionError =
+          'Failed to submit application. Please check your connection and try again.';
       notifyListeners();
-      return false; // Return false on error
+      return false;
     }
   }
 }

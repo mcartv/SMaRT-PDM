@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class MessagingScreen extends StatefulWidget {
   const MessagingScreen({super.key});
@@ -27,13 +29,20 @@ class _MessagingScreenState extends State<MessagingScreen> {
   Widget build(BuildContext context) {
     final messages = context.watch<MessagingProvider>().messages;
 
-    return Scaffold(
+    return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Messaging'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => AppNavigator.goBackOrHome(context),
+        ),
       ),
-      body: Column(
+      selectedIndex: 0,
+      showBottomNav: false,
+      applyPadding: false,
+      child: Column(
         children: [
           Expanded(
             child: ListView.builder(

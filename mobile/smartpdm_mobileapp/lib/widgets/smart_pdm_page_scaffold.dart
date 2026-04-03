@@ -11,6 +11,7 @@ class SmartPdmPageScaffold extends StatefulWidget {
   final bool applyPadding;
   final bool applyTopSafeArea;
   final bool showDrawer;
+  final bool showBottomNav;
   final int unreadNotifications;
 
   const SmartPdmPageScaffold({
@@ -20,7 +21,8 @@ class SmartPdmPageScaffold extends StatefulWidget {
     this.appBar,
     this.applyPadding = true,
     this.applyTopSafeArea = true,
-    this.showDrawer = true,
+    this.showDrawer = false,
+    this.showBottomNav = true,
     this.unreadNotifications = 0,
   });
 
@@ -49,28 +51,24 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold> {
   @override
   Widget build(BuildContext context) {
     final content = widget.applyPadding
-        ? Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: widget.child,
-          )
+        ? Padding(padding: const EdgeInsets.all(16.0), child: widget.child)
         : widget.child;
 
     return Scaffold(
       appBar: widget.appBar,
       backgroundColor: backgroundColor,
       drawer: widget.showDrawer
-          ? SmartPdmDrawer(
-              isScholar: _isScholar,
-              userName: _userName,
+          ? SmartPdmDrawer(isScholar: _isScholar, userName: _userName)
+          : null,
+      bottomNavigationBar: widget.showBottomNav
+          ? SafeArea(
+              top: false,
+              child: SmartPdmBottomNav(
+                selectedIndex: widget.selectedIndex,
+                unreadNotifications: widget.unreadNotifications,
+              ),
             )
           : null,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: SmartPdmBottomNav(
-          selectedIndex: widget.selectedIndex,
-          unreadNotifications: widget.unreadNotifications,
-        ),
-      ),
       body: SafeArea(
         bottom: false,
         top: widget.applyTopSafeArea,

@@ -3,7 +3,12 @@ import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  final bool showBottomNav;
+
+  const NotificationsScreen({
+    super.key,
+    this.showBottomNav = true,
+  });
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -109,7 +114,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       selectedIndex: 2,
-      showDrawer: true,
+      showBottomNav: widget.showBottomNav,
+      showDrawer: false,
       child: notifications.isEmpty
           ? Center(
               child: Column(

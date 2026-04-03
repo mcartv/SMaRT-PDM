@@ -64,7 +64,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
         foregroundColor: Colors.white,
       ),
       selectedIndex: 0,
-      showDrawer: true,
+      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

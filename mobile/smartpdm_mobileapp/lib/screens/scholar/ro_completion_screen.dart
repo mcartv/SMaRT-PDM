@@ -157,7 +157,7 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
         foregroundColor: Colors.white,
       ),
       selectedIndex: 0,
-      showDrawer: true,
+      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -453,7 +453,9 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                             )
                           : const Icon(Icons.send),
                       label: Text(
-                        _isSubmitting ? 'Submitting...' : 'Submit Completion Report',
+                        _isSubmitting
+                            ? 'Submitting...'
+                            : 'Submit Completion Report',
                         maxLines: 1,
                         overflow: TextOverflow.visible,
                         style: const TextStyle(

@@ -39,8 +39,8 @@ class _InterviewScheduleScreenState extends State<InterviewScheduleScreen> {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
-      selectedIndex: 3,
-      showDrawer: true,
+      selectedIndex: 2,
+      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

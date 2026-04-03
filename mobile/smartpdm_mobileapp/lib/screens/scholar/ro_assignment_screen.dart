@@ -46,7 +46,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
         foregroundColor: Colors.white,
       ),
       selectedIndex: 1,
-      showDrawer: true,
+      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

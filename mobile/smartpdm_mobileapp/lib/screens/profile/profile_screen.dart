@@ -1,30 +1,50 @@
-import 'dart:io';
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool showBottomNav;
+
+  const ProfileScreen({
+    super.key,
+    this.showBottomNav = true,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const List<String> _courseOptions = [
+    'BSTM',
+    'BSOAD',
+    'BECED',
+    'BSCS',
+    'BSIT',
+    'BSHM',
+    'BTLED',
+  ];
+
   String _userName = 'SCHOLAR';
   String? _imagePath;
   bool _isUploading = false;
   bool _isEditing = false;
   bool _isSaving = false;
+  bool _isEmailInvalid = false;
 
-  // Edit controllers
   late TextEditingController _firstNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _emailController;
+  late TextEditingController _courseController;
+  late TextEditingController _sectionController;
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
   late TextEditingController _studentIdController;
@@ -35,6 +55,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _firstNameController = TextEditingController();
     _lastNameController = TextEditingController();
     _emailController = TextEditingController();
+    _courseController = TextEditingController();
+    _sectionController = TextEditingController();
     _phoneController = TextEditingController();
     _addressController = TextEditingController();
     _studentIdController = TextEditingController();
@@ -46,43 +68,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final firstName = prefs.getString('user_first_name') ?? '';
     final lastName = prefs.getString('user_last_name') ?? '';
     final email = prefs.getString('user_email') ?? '';
+    final course = prefs.getString('user_course') ?? '';
+    final section = prefs.getString('user_section') ?? '';
     final phone = prefs.getString('user_phone') ?? '';
     final address = prefs.getString('user_address') ?? '';
     final studentId = prefs.getString('user_student_id') ?? '';
     final imagePath = prefs.getString('user_profile_image');
-    
-    if (mounted) {
+
+    if (!mounted) return;
+
+    setState(() {
+      _imagePath = imagePath;
+      _firstNameController.text = firstName;
+      _lastNameController.text = lastName;
+      _emailController.text = email;
+      _courseController.text = course;
+      _sectionController.text = section;
+      _phoneController.text = phone;
+      _addressController.text = address;
+      _studentIdController.text = studentId;
+    });
+
+    if (firstName.isNotEmpty && lastName.isNotEmpty) {
       setState(() {
-        _imagePath = imagePath;
-        _firstNameController.text = firstName;
-        _lastNameController.text = lastName;
-        _emailController.text = email;
-        _phoneController.text = phone;
-        _addressController.text = address;
-        _studentIdController.text = studentId;
+        _userName = '${firstName.toUpperCase()} ${lastName.toUpperCase()}';
       });
-      
-      if (firstName.isNotEmpty && lastName.isNotEmpty) {
-        setState(() {
-          _userName = '${firstName.toUpperCase()} ${lastName.toUpperCase()}';
-        });
-      } else {
-        // Fallback for older accounts registered without a name
-        if (email.isNotEmpty) {
-          String name = email.split('@').first.replaceAll('.', ' ');
-          name = name.split(' ').map((word) => word.toUpperCase()).join(' ');
-          setState(() {
-            _userName = name;
-          });
-        }
+      return;
+    }
+
+    if (email.isNotEmpty) {
+      String name = email.split('@').first.replaceAll('.', ' ');
+      name = name.split(' ').map((word) => word.toUpperCase()).join(' ');
+      setState(() {
+        _userName = name;
+      });
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('user_email') ?? '';
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('http://192.168.22.2:3000/api/auth/upload-avatar'),
+      );
+      request.fields['email'] = email;
+      request.files.add(
+        await http.MultipartFile.fromPath('image', pickedFile.path),
+      );
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200) {
+        throw Exception('Upload failed');
+      }
+
+      final responseData = jsonDecode(response.body);
+      final newImageUrl = responseData['avatarUrl'];
+      await prefs.setString('user_profile_image', newImageUrl);
+
+      if (!mounted) return;
+
+      setState(() => _imagePath = newImageUrl);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile photo updated!')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to upload image to server.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
       }
     }
   }
 
   Future<void> _saveProfile() async {
+    final email = _emailController.text.trim();
+
     if (_firstNameController.text.isEmpty || _lastNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('First name and last name are required')),
+      );
+      return;
+    }
+
+    if (_isInvalidEmail(email)) {
+      setState(() => _isEmailInvalid = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address')),
       );
       return;
     }
@@ -91,95 +177,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      // Save the fields
       await prefs.setString('user_first_name', _firstNameController.text);
       await prefs.setString('user_last_name', _lastNameController.text);
-      await prefs.setString('user_email', _emailController.text);
+      await prefs.setString('user_email', email);
+      await prefs.setString('user_course', _courseController.text.trim());
+      await prefs.setString('user_section', _sectionController.text.trim());
       await prefs.setString('user_phone', _phoneController.text);
       await prefs.setString('user_address', _addressController.text);
 
-      // Update the display name
+      if (!mounted) return;
+
       setState(() {
-        _userName = '${_firstNameController.text.toUpperCase()} ${_lastNameController.text.toUpperCase()}';
+        _userName =
+            '${_firstNameController.text.toUpperCase()} ${_lastNameController.text.toUpperCase()}';
         _isEditing = false;
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving profile: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving profile: $e')),
+      );
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  bool _isInvalidEmail(String email) {
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    return email.isEmpty || !emailRegex.hasMatch(email);
+  }
+
+  String _getDisplayCourseName(String courseCode) {
+    switch (courseCode) {
+      case 'BSTM':
+        return 'BS Tourism Management';
+      case 'BSOAD':
+        return 'BS Office Administration';
+      case 'BECED':
+        return 'Bachelor of Early Childhood Education';
+      case 'BSCS':
+        return 'BS Computer Science';
+      case 'BSIT':
+        return 'BS Information Technology';
+      case 'BSHM':
+        return 'BS Hospitality Management';
+      case 'BTLED':
+        return 'Bachelor of Technology and Livelihood Education';
+      default:
+        return courseCode.isEmpty ? 'BS Computer Science' : courseCode;
     }
   }
 
   Future<void> _handleLogout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    // Clear all saved user session data
     await prefs.remove('jwt_token');
+    await prefs.remove('user_id');
     await prefs.remove('user_email');
+    await prefs.remove('user_student_id');
     await prefs.remove('user_first_name');
     await prefs.remove('user_last_name');
     await prefs.remove('user_profile_image');
 
     if (context.mounted) {
-      // Use pushNamedAndRemoveUntil to prevent the user from using the back button to return to the profile
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-    }
-  }
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    
-    if (pickedFile != null) {
-      setState(() => _isUploading = true);
-      
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final email = prefs.getString('user_email') ?? '';
-
-        var request = http.MultipartRequest(
-          'POST',
-          Uri.parse('http://192.168.22.2:3000/api/auth/upload-avatar'),
-        );
-        request.fields['email'] = email;
-        request.files.add(await http.MultipartFile.fromPath('image', pickedFile.path));
-
-        var streamedResponse = await request.send();
-        var response = await http.Response.fromStream(streamedResponse);
-
-        if (response.statusCode == 200) {
-          final responseData = jsonDecode(response.body);
-          final newImageUrl = responseData['avatarUrl'];
-
-          await prefs.setString('user_profile_image', newImageUrl);
-          if (mounted) setState(() => _imagePath = newImageUrl);
-          
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile photo updated!')));
-          }
-        } else {
-          throw Exception('Upload failed');
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to upload image to server.')));
-        }
-      } finally {
-        if (mounted) setState(() => _isUploading = false);
-      }
     }
   }
 
@@ -189,7 +258,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Confirm Logout'),
-          content: const Text('Are you sure you want to terminate your session?'),
+          content: const Text(
+            'Are you sure you want to terminate your session?',
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
           ),
@@ -200,10 +271,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close the dialog
-                _handleLogout(context); // Proceed with the actual logout
+                Navigator.of(dialogContext).pop();
+                _handleLogout(context);
               },
-              child: const Text('LOG OUT', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'LOG OUT',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         );
@@ -214,314 +291,530 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
-      selectedIndex: 4,
+      appBar: AppBar(
+        title: const Text('Profile'),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.darkBrown,
+      ),
+      selectedIndex: 3,
+      showBottomNav: widget.showBottomNav,
+      showDrawer: true,
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        Container(
-                          width: 92,
-                          height: 92,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: accentColor,
-                              width: 4,
-                            ),
-                            borderRadius: BorderRadius.circular(28),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              color: primaryColor.withOpacity(0.1),
-                              child: _imagePath != null
-                                  ? (_imagePath!.startsWith('http')
-                                      ? Image.network(_imagePath!, fit: BoxFit.cover)
-                                      : Image.file(File(_imagePath!), fit: BoxFit.cover)) // Fallback for old local images
-                                  : const Center(child: Icon(Icons.person, size: 44, color: primaryColor)),
-                            ),
-                          ),
-                        ),
-                        if (_isUploading)
-                          Container(
-                            width: 92,
-                            height: 92,
-                            decoration: BoxDecoration(
-                              color: Colors.black45,
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                            child: const Center(
-                              child: CircularProgressIndicator(color: Colors.white),
-                            ),
-                          ),
-                        Positioned(
-                          bottom: -10,
-                          right: -10,
-                          child: IconButton(
-                            onPressed: _pickImage,
-                            icon: const CircleAvatar(
-                              radius: 14,
-                              backgroundColor: primaryColor,
-                              child: Icon(Icons.camera_alt, size: 14, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
+            _buildProfileHeader(),
+            const SizedBox(height: 24),
+            _buildSectionLabel('Account'),
+            if (_isEditing) _buildEditSection() else _buildOverviewSection(),
+            const SizedBox(height: 24),
+            _buildSectionLabel('Account Links'),
+            _profileRowCard(
+              icon: Icons.alternate_email,
+              title: 'Change Email',
+              subtitle: 'Send a link to update your email address',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.changeEmail),
+            ),
+            _profileRowCard(
+              icon: Icons.lock_outline,
+              title: 'Change Password',
+              subtitle: 'Manage your sign-in credentials',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.forgotPassword),
+            ),
+            _profileRowCard(
+              icon: Icons.help_outline,
+              title: 'FAQs',
+              subtitle: 'View common scholarship questions',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    return Container(
+      padding: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.42),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppColors.gold.withOpacity(0.22)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Stack(
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.gold,
+                        width: 2.5,
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    child: ClipOval(
+                      child: Container(
+                        color: primaryColor.withOpacity(0.06),
+                        child: _imagePath != null
+                            ? (_imagePath!.startsWith('http')
+                                  ? Image.network(
+                                      _imagePath!,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(_imagePath!),
+                                      fit: BoxFit.cover,
+                                    ))
+                            : const Center(
+                                child: Icon(
+                                  Icons.person,
+                                  size: 34,
+                                  color: primaryColor,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                  if (_isUploading)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.black38,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: InkWell(
+                      onTap: _pickImage,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: primaryColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
                       _userName,
                       style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.4,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.darkBrown,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'INSTITUTIONAL SCHOLAR',
+                    const SizedBox(height: 4),
+                    Text(
+                      'Institutional Scholar',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
+                        fontSize: 13,
+                        color: AppColors.brown.withOpacity(0.78),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                        horizontal: 10,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(borderRadius),
+                        color: AppColors.gold.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         _studentIdController.text.isNotEmpty
-                            ? '${_studentIdController.text} | BS Computer Science'
-                            : '2021-0452 | BS Computer Science',
+                            ? _studentIdController.text
+                            : 'Scholar account',
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.darkBrown,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.62),
+              borderRadius: BorderRadius.circular(18),
             ),
-            const SizedBox(height: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildHeaderStat(
+                    'Course',
+                    _getDisplayCourseName(_courseController.text),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 34,
+                  color: AppColors.gold.withOpacity(0.35),
+                ),
+                Expanded(
+                  child: _buildHeaderStat(
+                    'Email',
+                    _emailController.text.isNotEmpty
+                        ? _emailController.text
+                        : 'Not set',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            // Edit Profile Section
-            if (_isEditing)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Edit Profile Information',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _firstNameController,
-                              decoration: InputDecoration(
-                                labelText: 'First Name',
-                                prefixIcon: const Icon(Icons.person),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _lastNameController,
-                              decoration: InputDecoration(
-                                labelText: 'Last Name',
-                                prefixIcon: const Icon(Icons.person_outline),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _studentIdController,
-                        enabled: false,
-                        decoration: InputDecoration(
-                          labelText: 'Student ID',
-                          prefixIcon: const Icon(Icons.badge),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _emailController,
-                        decoration: InputDecoration(
-                          labelText: 'Email',
-                          prefixIcon: const Icon(Icons.email),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _phoneController,
-                        decoration: InputDecoration(
-                          labelText: 'Phone Number',
-                          prefixIcon: const Icon(Icons.phone),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _addressController,
-                        decoration: InputDecoration(
-                          labelText: 'Address',
-                          prefixIcon: const Icon(Icons.location_on),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                _loadUserData();
-                                setState(() => _isEditing = false);
-                              },
-                              icon: const Icon(Icons.close),
-                              label: const Text('Cancel'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _isSaving ? null : _saveProfile,
-                              icon: _isSaving
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                          Colors.white,
-                                        ),
-                                      ),
-                                    )
-                                  : const Icon(Icons.save),
-                              label: Text(_isSaving ? 'Saving...' : 'Save'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                                foregroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              _profileRowCard(
-                icon: Icons.edit,
-                title: 'EDIT PROFILE',
-                subtitle: 'Update your personal information',
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => setState(() => _isEditing = true),
-              ),
-            const SizedBox(height: 10),
-            _profileRowCard(
-              icon: Icons.school,
-              title: 'ACADEMIC PERFORMANCE',
-              trailing: const Icon(Icons.chevron_right),
+  Widget _buildHeaderStat(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 1,
+              color: AppColors.brown.withOpacity(0.6),
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 10),
-            _profileRowCard(
-              icon: Icons.verified_user,
-              title: 'IDENTITY VERIFICATION',
-              subtitle: 'Verified ✓',
-              trailing: const Icon(Icons.chevron_right),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.darkBrown,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 10),
-            _profileRowCard(
-              icon: Icons.lock,
-              title: 'SECURITY & ACCESS',
-              subtitle: 'PDM MFA Enabled',
-              trailing: const Icon(Icons.chevron_right),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          letterSpacing: 1.2,
+          color: AppColors.brown.withOpacity(0.65),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewSection() {
+    return Column(
+      children: [
+        _profileRowCard(
+          icon: Icons.edit_outlined,
+          title: 'Edit profile',
+          subtitle: 'Update your personal information',
+          onTap: () => setState(() => _isEditing = true),
+        ),
+        _profileRowCard(
+          icon: Icons.badge_outlined,
+          title: 'Student ID',
+          subtitle: _studentIdController.text.isNotEmpty
+              ? _studentIdController.text
+              : 'No student ID on file',
+        ),
+        _profileRowCard(
+          icon: Icons.school_outlined,
+          title: 'Course',
+          subtitle: _getDisplayCourseName(_courseController.text),
+        ),
+        _profileRowCard(
+          icon: Icons.mail_outline,
+          title: 'Email',
+          subtitle: _emailController.text.isNotEmpty
+              ? _emailController.text
+              : 'No email saved',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditSection() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.gold.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.darkBrown.withOpacity(0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Edit Profile Information',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.darkBrown,
             ),
-            const SizedBox(height: 14),
-            Card(
-              color: Colors.red.withOpacity(0.08),
-              shape: RoundedRectangleBorder(
-                side: BorderSide(color: Colors.red.shade300),
-                borderRadius: BorderRadius.circular(borderRadius),
-              ),
-              child: InkWell(
-                onTap: () => _confirmLogout(context),
-                borderRadius: BorderRadius.circular(borderRadius),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.logout,
-                        color: Colors.red,
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'TERMINATE SESSION',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                      const Icon(Icons.error_outline, color: Colors.red),
-                    ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _firstNameController,
+                  enabled: false,
+                  enableInteractiveSelection: false,
+                  decoration: _fieldDecoration(
+                    label: 'First Name',
+                    icon: Icons.person,
+                    enabled: false,
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _lastNameController,
+                  enabled: false,
+                  enableInteractiveSelection: false,
+                  decoration: _fieldDecoration(
+                    label: 'Last Name',
+                    icon: Icons.person_outline,
+                    enabled: false,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _studentIdController,
+            enabled: false,
+            enableInteractiveSelection: false,
+            decoration: _fieldDecoration(
+              label: 'Student ID',
+              icon: Icons.badge,
+              enabled: false,
             ),
-            const SizedBox(height: 8),
-          ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            onChanged: (value) {
+              setState(() {
+                _isEmailInvalid = _isInvalidEmail(value.trim());
+              });
+            },
+            decoration: _fieldDecoration(
+              label: 'Email',
+              icon: Icons.email,
+              isError: _isEmailInvalid,
+              errorText: _isEmailInvalid
+                  ? 'Please enter a valid email address'
+                  : null,
+            ),
+            style: TextStyle(color: _isEmailInvalid ? Colors.red : null),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  value: _courseOptions.contains(_courseController.text)
+                      ? _courseController.text
+                      : null,
+                  items: _courseOptions
+                      .map(
+                        (course) => DropdownMenuItem<String>(
+                          value: course,
+                          child: Text(course),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _courseController.text = value ?? '';
+                    });
+                  },
+                  decoration: _fieldDecoration(
+                    label: 'Course',
+                    icon: Icons.school_outlined,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _sectionController,
+                  decoration: _fieldDecoration(
+                    label: 'Section',
+                    icon: Icons.groups_outlined,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _phoneController,
+            decoration: _fieldDecoration(
+              label: 'Phone Number',
+              icon: Icons.phone,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _addressController,
+            decoration: _fieldDecoration(
+              label: 'Address',
+              icon: Icons.location_on,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _loadUserData();
+                    setState(() => _isEditing = false);
+                  },
+                  icon: const Icon(Icons.close),
+                  label: const Text('Cancel'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.darkBrown,
+                    side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveProfile,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(_isSaving ? 'Saving...' : 'Save'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _fieldDecoration({
+    required String label,
+    required IconData icon,
+    bool enabled = true,
+    bool isError = false,
+    String? errorText,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      errorText: errorText,
+      prefixIcon: Icon(icon, color: isError ? Colors.red : primaryColor),
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(
+          color: isError
+              ? Colors.red
+              : enabled
+                  ? AppColors.gold.withOpacity(0.3)
+                  : AppColors.gold.withOpacity(0.24),
+        ),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: AppColors.gold.withOpacity(0.24)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(
+          color: isError ? Colors.red : primaryColor,
+          width: 1.5,
         ),
       ),
     );
@@ -531,56 +824,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String title,
     String? subtitle,
-    required Widget trailing,
     VoidCallback? onTap,
   }) {
-    return Card(
-      child: InkWell(
-        onTap: onTap ?? () {},
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: primaryColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              trailing,
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.gold.withOpacity(0.16)),
+        ),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        leading: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppColors.gold.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(14),
           ),
+          child: Icon(icon, color: AppColors.darkBrown),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: AppColors.darkBrown,
+          ),
+        ),
+        subtitle: subtitle == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.brown.withOpacity(0.72),
+                  ),
+                ),
+              ),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: AppColors.brown.withOpacity(0.55),
         ),
       ),
     );
@@ -591,6 +877,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
+    _courseController.dispose();
+    _sectionController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _studentIdController.dispose();

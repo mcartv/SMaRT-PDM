@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
 
 class StepAcademic extends StatefulWidget {
@@ -35,14 +39,31 @@ class _StepAcademicState extends State<StepAcademic> {
   late final TextEditingController elementaryClubController;
   late final TextEditingController elementaryYearController;
 
-  late final TextEditingController currentCourseController;
   late final TextEditingController currentYearLevelController;
   late final TextEditingController currentSectionController;
   late final TextEditingController studentNumberController;
   late final TextEditingController lrnController;
 
-  final List<String> supportOptions = ['Parents', 'Scholarship', 'Loan', 'Other'];
+  final List<String> supportOptions = [
+    'Parents',
+    'Scholarship',
+    'Loan',
+    'Other',
+  ];
+  final List<String> courseOptions = [
+    'BSTM',
+    'BSOAD',
+    'BECED',
+    'BSCS',
+    'BSIT',
+    'BSHM',
+    'BTLED',
+  ];
   String selectedFinancialSupport = 'Parents';
+  String? selectedCourse;
+  String? selectedProgramId;
+  List<_ProgramOption> scholarshipPrograms = const [];
+  bool isLoadingPrograms = false;
 
   bool scholarshipHistory = false;
   bool scholarshipElementary = false;
@@ -56,19 +77,22 @@ class _StepAcademicState extends State<StepAcademic> {
   late final TextEditingController disciplinaryExplanationController;
 
   InputDecoration _dec(String placeholder) => InputDecoration(
-        hintText: placeholder,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      );
+    hintText: placeholder,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  );
 
   Widget _field(String label, Widget child) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          child,
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 8),
+      child,
+    ],
+  );
 
   Widget _row(List<Widget> children) {
     return LayoutBuilder(
@@ -76,10 +100,18 @@ class _StepAcademicState extends State<StepAcademic> {
         if (constraints.maxWidth < 600) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: children.asMap().entries.map((entry) => Padding(
-              padding: EdgeInsets.only(bottom: entry.key < children.length - 1 ? 16.0 : 0),
-              child: entry.value,
-            )).toList(),
+            children: children
+                .asMap()
+                .entries
+                .map(
+                  (entry) => Padding(
+                    padding: EdgeInsets.only(
+                      bottom: entry.key < children.length - 1 ? 16.0 : 0,
+                    ),
+                    child: entry.value,
+                  ),
+                )
+                .toList(),
           );
         }
         return Row(
@@ -87,12 +119,16 @@ class _StepAcademicState extends State<StepAcademic> {
           children: children
               .asMap()
               .entries
-              .map((entry) => Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(right: entry.key < children.length - 1 ? 16.0 : 0),
-                      child: entry.value,
+              .map(
+                (entry) => Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: entry.key < children.length - 1 ? 16.0 : 0,
                     ),
-                  ))
+                    child: entry.value,
+                  ),
+                ),
+              )
               .toList(),
         );
       },
@@ -110,47 +146,108 @@ class _StepAcademicState extends State<StepAcademic> {
   void initState() {
     super.initState();
 
-    collegeSchoolController = TextEditingController(text: widget.data.collegeSchool);
-    collegeAddressController = TextEditingController(text: widget.data.collegeAddress);
-    collegeHonorsController = TextEditingController(text: widget.data.collegeHonors);
-    collegeClubController = TextEditingController(text: widget.data.collegeClub);
-    collegeYearController = TextEditingController(text: widget.data.collegeYearGraduated);
+    collegeSchoolController = TextEditingController(
+      text: widget.data.collegeSchool,
+    );
+    collegeAddressController = TextEditingController(
+      text: widget.data.collegeAddress,
+    );
+    collegeHonorsController = TextEditingController(
+      text: widget.data.collegeHonors,
+    );
+    collegeClubController = TextEditingController(
+      text: widget.data.collegeClub,
+    );
+    collegeYearController = TextEditingController(
+      text: widget.data.collegeYearGraduated,
+    );
 
-    highSchoolSchoolController = TextEditingController(text: widget.data.highSchoolSchool);
-    highSchoolAddressController = TextEditingController(text: widget.data.highSchoolAddress);
-    highSchoolHonorsController = TextEditingController(text: widget.data.highSchoolHonors);
-    highSchoolClubController = TextEditingController(text: widget.data.highSchoolClub);
-    highSchoolYearController = TextEditingController(text: widget.data.highSchoolYearGraduated);
+    highSchoolSchoolController = TextEditingController(
+      text: widget.data.highSchoolSchool,
+    );
+    highSchoolAddressController = TextEditingController(
+      text: widget.data.highSchoolAddress,
+    );
+    highSchoolHonorsController = TextEditingController(
+      text: widget.data.highSchoolHonors,
+    );
+    highSchoolClubController = TextEditingController(
+      text: widget.data.highSchoolClub,
+    );
+    highSchoolYearController = TextEditingController(
+      text: widget.data.highSchoolYearGraduated,
+    );
 
-    seniorHighSchoolController = TextEditingController(text: widget.data.seniorHighSchool);
-    seniorHighAddressController = TextEditingController(text: widget.data.seniorHighAddress);
-    seniorHighHonorsController = TextEditingController(text: widget.data.seniorHighHonors);
-    seniorHighClubController = TextEditingController(text: widget.data.seniorHighClub);
-    seniorHighYearController = TextEditingController(text: widget.data.seniorHighYearGraduated);
+    seniorHighSchoolController = TextEditingController(
+      text: widget.data.seniorHighSchool,
+    );
+    seniorHighAddressController = TextEditingController(
+      text: widget.data.seniorHighAddress,
+    );
+    seniorHighHonorsController = TextEditingController(
+      text: widget.data.seniorHighHonors,
+    );
+    seniorHighClubController = TextEditingController(
+      text: widget.data.seniorHighClub,
+    );
+    seniorHighYearController = TextEditingController(
+      text: widget.data.seniorHighYearGraduated,
+    );
 
-    elementarySchoolController = TextEditingController(text: widget.data.elementarySchool);
-    elementaryAddressController = TextEditingController(text: widget.data.elementaryAddress);
-    elementaryHonorsController = TextEditingController(text: widget.data.elementaryHonors);
-    elementaryClubController = TextEditingController(text: widget.data.elementaryClub);
-    elementaryYearController = TextEditingController(text: widget.data.elementaryYearGraduated);
+    elementarySchoolController = TextEditingController(
+      text: widget.data.elementarySchool,
+    );
+    elementaryAddressController = TextEditingController(
+      text: widget.data.elementaryAddress,
+    );
+    elementaryHonorsController = TextEditingController(
+      text: widget.data.elementaryHonors,
+    );
+    elementaryClubController = TextEditingController(
+      text: widget.data.elementaryClub,
+    );
+    elementaryYearController = TextEditingController(
+      text: widget.data.elementaryYearGraduated,
+    );
 
-    currentCourseController = TextEditingController(text: widget.data.currentCourse);
-    currentYearLevelController = TextEditingController(text: widget.data.currentYearLevel);
-    currentSectionController = TextEditingController(text: widget.data.currentSection);
-    studentNumberController = TextEditingController(text: widget.data.studentNumber);
+    currentYearLevelController = TextEditingController(
+      text: widget.data.currentYearLevel,
+    );
+    currentSectionController = TextEditingController(
+      text: widget.data.currentSection,
+    );
+    studentNumberController = TextEditingController(
+      text: widget.data.studentNumber.isNotEmpty
+          ? widget.data.studentNumber
+          : widget.data.accountStudentId,
+    );
     lrnController = TextEditingController(text: widget.data.lrn);
 
-    selectedFinancialSupport = widget.data.financialSupport.isNotEmpty ? widget.data.financialSupport : supportOptions[0];
+    selectedCourse = courseOptions.contains(widget.data.currentCourse)
+        ? widget.data.currentCourse
+        : null;
+    selectedProgramId = widget.data.programId.isNotEmpty
+        ? widget.data.programId
+        : null;
+    selectedFinancialSupport = widget.data.financialSupport.isNotEmpty
+        ? widget.data.financialSupport
+        : supportOptions[0];
     scholarshipHistory = widget.data.scholarshipHistory;
     scholarshipElementary = widget.data.scholarshipElementary;
     scholarshipHighSchool = widget.data.scholarshipHighSchool;
     scholarshipCollege = widget.data.scholarshipCollege;
     scholarshipOthers = widget.data.scholarshipOthers;
 
-    scholarshipDetailsController = TextEditingController(text: widget.data.scholarshipDetails);
-    scholarshipOthersSpecifyController = TextEditingController(text: widget.data.scholarshipOthersSpecify);
+    scholarshipDetailsController = TextEditingController(
+      text: widget.data.scholarshipDetails,
+    );
+    scholarshipOthersSpecifyController = TextEditingController(
+      text: widget.data.scholarshipOthersSpecify,
+    );
     disciplinaryAction = widget.data.disciplinaryAction;
-    disciplinaryExplanationController = TextEditingController(text: widget.data.disciplinaryExplanation);
+    disciplinaryExplanationController = TextEditingController(
+      text: widget.data.disciplinaryExplanation,
+    );
 
     _bind(collegeSchoolController, (v) => widget.data.collegeSchool = v);
     _bind(collegeAddressController, (v) => widget.data.collegeAddress = v);
@@ -159,32 +256,88 @@ class _StepAcademicState extends State<StepAcademic> {
     _bind(collegeYearController, (v) => widget.data.collegeYearGraduated = v);
 
     _bind(highSchoolSchoolController, (v) => widget.data.highSchoolSchool = v);
-    _bind(highSchoolAddressController, (v) => widget.data.highSchoolAddress = v);
+    _bind(
+      highSchoolAddressController,
+      (v) => widget.data.highSchoolAddress = v,
+    );
     _bind(highSchoolHonorsController, (v) => widget.data.highSchoolHonors = v);
     _bind(highSchoolClubController, (v) => widget.data.highSchoolClub = v);
-    _bind(highSchoolYearController, (v) => widget.data.highSchoolYearGraduated = v);
+    _bind(
+      highSchoolYearController,
+      (v) => widget.data.highSchoolYearGraduated = v,
+    );
 
     _bind(seniorHighSchoolController, (v) => widget.data.seniorHighSchool = v);
-    _bind(seniorHighAddressController, (v) => widget.data.seniorHighAddress = v);
+    _bind(
+      seniorHighAddressController,
+      (v) => widget.data.seniorHighAddress = v,
+    );
     _bind(seniorHighHonorsController, (v) => widget.data.seniorHighHonors = v);
     _bind(seniorHighClubController, (v) => widget.data.seniorHighClub = v);
-    _bind(seniorHighYearController, (v) => widget.data.seniorHighYearGraduated = v);
+    _bind(
+      seniorHighYearController,
+      (v) => widget.data.seniorHighYearGraduated = v,
+    );
 
     _bind(elementarySchoolController, (v) => widget.data.elementarySchool = v);
-    _bind(elementaryAddressController, (v) => widget.data.elementaryAddress = v);
+    _bind(
+      elementaryAddressController,
+      (v) => widget.data.elementaryAddress = v,
+    );
     _bind(elementaryHonorsController, (v) => widget.data.elementaryHonors = v);
     _bind(elementaryClubController, (v) => widget.data.elementaryClub = v);
-    _bind(elementaryYearController, (v) => widget.data.elementaryYearGraduated = v);
+    _bind(
+      elementaryYearController,
+      (v) => widget.data.elementaryYearGraduated = v,
+    );
 
-    _bind(currentCourseController, (v) => widget.data.currentCourse = v);
     _bind(currentYearLevelController, (v) => widget.data.currentYearLevel = v);
     _bind(currentSectionController, (v) => widget.data.currentSection = v);
     _bind(studentNumberController, (v) => widget.data.studentNumber = v);
     _bind(lrnController, (v) => widget.data.lrn = v);
 
-    _bind(scholarshipDetailsController, (v) => widget.data.scholarshipDetails = v);
-    _bind(scholarshipOthersSpecifyController, (v) => widget.data.scholarshipOthersSpecify = v);
-    _bind(disciplinaryExplanationController, (v) => widget.data.disciplinaryExplanation = v);
+    _bind(
+      scholarshipDetailsController,
+      (v) => widget.data.scholarshipDetails = v,
+    );
+    _bind(
+      scholarshipOthersSpecifyController,
+      (v) => widget.data.scholarshipOthersSpecify = v,
+    );
+    _bind(
+      disciplinaryExplanationController,
+      (v) => widget.data.disciplinaryExplanation = v,
+    );
+
+    _loadScholarshipPrograms();
+  }
+
+  Future<void> _loadScholarshipPrograms() async {
+    setState(() => isLoadingPrograms = true);
+    try {
+      final response = await http.get(
+        Uri.parse('$BASE_URL/api/scholarship-programs'),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> decoded =
+            jsonDecode(response.body) as List<dynamic>;
+        scholarshipPrograms = decoded
+            .whereType<Map<String, dynamic>>()
+            .map(
+              (program) => _ProgramOption(
+                id: program['program_id']?.toString() ?? '',
+                name: program['program_name']?.toString() ?? 'Unnamed Program',
+              ),
+            )
+            .where((program) => program.id.isNotEmpty)
+            .toList();
+      }
+    } catch (_) {
+      scholarshipPrograms = const [];
+    }
+
+    if (!mounted) return;
+    setState(() => isLoadingPrograms = false);
   }
 
   @override
@@ -213,7 +366,6 @@ class _StepAcademicState extends State<StepAcademic> {
     elementaryClubController.dispose();
     elementaryYearController.dispose();
 
-    currentCourseController.dispose();
     currentYearLevelController.dispose();
     currentSectionController.dispose();
     studentNumberController.dispose();
@@ -236,22 +388,120 @@ class _StepAcademicState extends State<StepAcademic> {
           const Text('III. ACADEMIC INFORMATION', style: sectionTitle),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 24),
-          _section('COLLEGE', collegeSchoolController, collegeAddressController, collegeHonorsController, collegeClubController, collegeYearController),
-          _section('HIGH SCHOOL', highSchoolSchoolController, highSchoolAddressController, highSchoolHonorsController, highSchoolClubController, highSchoolYearController),
-          _section('SENIOR HIGH SCHOOL', seniorHighSchoolController, seniorHighAddressController, seniorHighHonorsController, seniorHighClubController, seniorHighYearController),
-          _section('ELEMENTARY', elementarySchoolController, elementaryAddressController, elementaryHonorsController, elementaryClubController, elementaryYearController),
+          _section(
+            'COLLEGE',
+            collegeSchoolController,
+            collegeAddressController,
+            collegeHonorsController,
+            collegeClubController,
+            collegeYearController,
+          ),
+          _section(
+            'HIGH SCHOOL',
+            highSchoolSchoolController,
+            highSchoolAddressController,
+            highSchoolHonorsController,
+            highSchoolClubController,
+            highSchoolYearController,
+          ),
+          _section(
+            'SENIOR HIGH SCHOOL',
+            seniorHighSchoolController,
+            seniorHighAddressController,
+            seniorHighHonorsController,
+            seniorHighClubController,
+            seniorHighYearController,
+          ),
+          _section(
+            'ELEMENTARY',
+            elementarySchoolController,
+            elementaryAddressController,
+            elementaryHonorsController,
+            elementaryClubController,
+            elementaryYearController,
+          ),
           const SizedBox(height: 8),
           const Text('CURRENT ENROLLMENT', style: sectionTitle),
           const SizedBox(height: 16),
           _row([
-            _field('Course', TextFormField(controller: currentCourseController, decoration: _dec('Course'))),
-            _field('Year Level', TextFormField(controller: currentYearLevelController, decoration: _dec('Year Level'))),
-            _field('Section', TextFormField(controller: currentSectionController, decoration: _dec('Section'))),
+            _field(
+              'Scholarship Program',
+              isLoadingPrograms
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: LinearProgressIndicator(),
+                    )
+                  : DropdownButtonFormField<String>(
+                      value: selectedProgramId,
+                      decoration: _dec('Select Program'),
+                      items: scholarshipPrograms
+                          .map(
+                            (program) => DropdownMenuItem<String>(
+                              value: program.id,
+                              child: Text(program.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() => selectedProgramId = value);
+                        widget.data.programId = value ?? '';
+                        widget.onChanged();
+                      },
+                    ),
+            ),
           ]),
           const SizedBox(height: 16),
           _row([
-            _field('Student Number', TextFormField(controller: studentNumberController, decoration: _dec('Student Number'))),
-            _field('LRN', TextFormField(controller: lrnController, decoration: _dec('LRN'))),
+            _field(
+              'Course',
+              DropdownButtonFormField<String>(
+                value: selectedCourse,
+                decoration: _dec('Course'),
+                items: courseOptions
+                    .map(
+                      (course) => DropdownMenuItem<String>(
+                        value: course,
+                        child: Text(course),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => selectedCourse = value);
+                  widget.data.currentCourse = value ?? '';
+                  widget.onChanged();
+                },
+              ),
+            ),
+            _field(
+              'Year Level',
+              TextFormField(
+                controller: currentYearLevelController,
+                keyboardType: TextInputType.number,
+                decoration: _dec('Year Level'),
+              ),
+            ),
+            _field(
+              'Section',
+              TextFormField(
+                controller: currentSectionController,
+                decoration: _dec('Section'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          _row([
+            _field(
+              'Student Number',
+              TextFormField(
+                controller: studentNumberController,
+                readOnly: widget.data.accountStudentId.isNotEmpty,
+                decoration: _dec('Student Number'),
+              ),
+            ),
+            _field(
+              'LRN',
+              TextFormField(controller: lrnController, decoration: _dec('LRN')),
+            ),
           ]),
           const SizedBox(height: 24),
           const Text('FINANCIAL SUPPORT', style: sectionTitle),
@@ -259,102 +509,170 @@ class _StepAcademicState extends State<StepAcademic> {
           Wrap(
             spacing: 10,
             children: supportOptions
-                .map((option) => ChoiceChip(
-                      label: Text(option),
-                      selected: selectedFinancialSupport == option,
-                      onSelected: (isSelected) {
-                        if (isSelected) {
-                          setState(() {
-                            selectedFinancialSupport = option;
-                            widget.data.financialSupport = option;
-                          });
-                          widget.onChanged();
-                        }
-                      },
-                    ))
+                .map(
+                  (option) => ChoiceChip(
+                    label: Text(option),
+                    selected: selectedFinancialSupport == option,
+                    onSelected: (isSelected) {
+                      if (isSelected) {
+                        setState(() {
+                          selectedFinancialSupport = option;
+                          widget.data.financialSupport = option;
+                        });
+                        widget.onChanged();
+                      }
+                    },
+                  ),
+                )
                 .toList(),
           ),
           const SizedBox(height: 24),
           const Text('SCHOLARSHIP HISTORY', style: sectionTitle),
-          buildBooleanRow('Have you ever been a scholar?', scholarshipHistory, (val) {
+          buildBooleanRow('Have you ever been a scholar?', scholarshipHistory, (
+            val,
+          ) {
             setState(() {
               scholarshipHistory = val;
               widget.data.scholarshipHistory = val;
-          if (!val) {
-            scholarshipElementary = false;
-            widget.data.scholarshipElementary = false;
-            scholarshipHighSchool = false;
-            widget.data.scholarshipHighSchool = false;
-            scholarshipCollege = false;
-            widget.data.scholarshipCollege = false;
-            scholarshipOthers = false;
-            widget.data.scholarshipOthers = false;
-            scholarshipOthersSpecifyController.clear();
-            widget.data.scholarshipOthersSpecify = '';
-            scholarshipDetailsController.clear();
-            widget.data.scholarshipDetails = '';
-          }
-            });
-            widget.onChanged();
-          }),
-      if (scholarshipHistory) ...[
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          children: [
-            _buildCheck('Elementary', scholarshipElementary, (v) => setState(() { scholarshipElementary = v; widget.data.scholarshipElementary = v; widget.onChanged(); })),
-            _buildCheck('High School', scholarshipHighSchool, (v) => setState(() { scholarshipHighSchool = v; widget.data.scholarshipHighSchool = v; widget.onChanged(); })),
-            _buildCheck('College', scholarshipCollege, (v) => setState(() { scholarshipCollege = v; widget.data.scholarshipCollege = v; widget.onChanged(); })),
-            _buildCheck('Others', scholarshipOthers, (v) => setState(() { 
-              scholarshipOthers = v; 
-              widget.data.scholarshipOthers = v; 
-              if (!v) { scholarshipOthersSpecifyController.clear(); widget.data.scholarshipOthersSpecify = ''; }
-              widget.onChanged(); 
-            })),
-          ],
-        ),
-        if (scholarshipOthers) ...[
-          const SizedBox(height: 16),
-          _field('If Other, specify:', TextFormField(controller: scholarshipOthersSpecifyController, decoration: _dec('Specify...'))),
-        ],
-        const SizedBox(height: 16),
-        TextFormField(controller: scholarshipDetailsController, maxLines: 4, decoration: _dec('Details (School, Course, SY, Amount)')),
-      ],
-          const SizedBox(height: 24),
-          const Text('DISCIPLINARY ACTION', style: sectionTitle),
-          const SizedBox(height: 16),
-          buildBooleanRow('Have you ever been subject to disciplinary action from any school or institution attended?', disciplinaryAction, (val) {
-            setState(() {
-              disciplinaryAction = val;
-              widget.data.disciplinaryAction = val;
               if (!val) {
-                disciplinaryExplanationController.clear();
-                widget.data.disciplinaryExplanation = '';
+                scholarshipElementary = false;
+                widget.data.scholarshipElementary = false;
+                scholarshipHighSchool = false;
+                widget.data.scholarshipHighSchool = false;
+                scholarshipCollege = false;
+                widget.data.scholarshipCollege = false;
+                scholarshipOthers = false;
+                widget.data.scholarshipOthers = false;
+                scholarshipOthersSpecifyController.clear();
+                widget.data.scholarshipOthersSpecify = '';
+                scholarshipDetailsController.clear();
+                widget.data.scholarshipDetails = '';
               }
             });
             widget.onChanged();
           }),
+          if (scholarshipHistory) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              children: [
+                _buildCheck(
+                  'Elementary',
+                  scholarshipElementary,
+                  (v) => setState(() {
+                    scholarshipElementary = v;
+                    widget.data.scholarshipElementary = v;
+                    widget.onChanged();
+                  }),
+                ),
+                _buildCheck(
+                  'High School',
+                  scholarshipHighSchool,
+                  (v) => setState(() {
+                    scholarshipHighSchool = v;
+                    widget.data.scholarshipHighSchool = v;
+                    widget.onChanged();
+                  }),
+                ),
+                _buildCheck(
+                  'College',
+                  scholarshipCollege,
+                  (v) => setState(() {
+                    scholarshipCollege = v;
+                    widget.data.scholarshipCollege = v;
+                    widget.onChanged();
+                  }),
+                ),
+                _buildCheck(
+                  'Others',
+                  scholarshipOthers,
+                  (v) => setState(() {
+                    scholarshipOthers = v;
+                    widget.data.scholarshipOthers = v;
+                    if (!v) {
+                      scholarshipOthersSpecifyController.clear();
+                      widget.data.scholarshipOthersSpecify = '';
+                    }
+                    widget.onChanged();
+                  }),
+                ),
+              ],
+            ),
+            if (scholarshipOthers) ...[
+              const SizedBox(height: 16),
+              _field(
+                'If Other, specify:',
+                TextFormField(
+                  controller: scholarshipOthersSpecifyController,
+                  decoration: _dec('Specify...'),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: scholarshipDetailsController,
+              maxLines: 4,
+              decoration: _dec('Details (School, Course, SY, Amount)'),
+            ),
+          ],
+          const SizedBox(height: 24),
+          const Text('DISCIPLINARY ACTION', style: sectionTitle),
+          const SizedBox(height: 16),
+          buildBooleanRow(
+            'Have you ever been subject to disciplinary action from any school or institution attended?',
+            disciplinaryAction,
+            (val) {
+              setState(() {
+                disciplinaryAction = val;
+                widget.data.disciplinaryAction = val;
+                if (!val) {
+                  disciplinaryExplanationController.clear();
+                  widget.data.disciplinaryExplanation = '';
+                }
+              });
+              widget.onChanged();
+            },
+          ),
           if (disciplinaryAction) ...[
             const SizedBox(height: 16),
-            TextFormField(controller: disciplinaryExplanationController, maxLines: 4, decoration: _dec('Please explain briefly')),
+            TextFormField(
+              controller: disciplinaryExplanationController,
+              maxLines: 4,
+              decoration: _dec('Please explain briefly'),
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget buildBooleanRow(String label, bool value, ValueChanged<bool> onChanged) {
+  Widget buildBooleanRow(
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        ),
         Row(
           children: [
-            Radio<bool>(value: true, groupValue: value, onChanged: (v) => onChanged(v ?? false)),
+            Radio<bool>(
+              value: true,
+              groupValue: value,
+              onChanged: (v) => onChanged(v ?? false),
+            ),
             const SizedBox(width: 4),
             const Text('Yes'),
             const SizedBox(width: 16),
-            Radio<bool>(value: false, groupValue: value, onChanged: (v) => onChanged(v ?? false)),
+            Radio<bool>(
+              value: false,
+              groupValue: value,
+              onChanged: (v) => onChanged(v ?? false),
+            ),
             const SizedBox(width: 4),
             const Text('No'),
           ],
@@ -373,21 +691,50 @@ class _StepAcademicState extends State<StepAcademic> {
     );
   }
 
-  Widget _section(String title, TextEditingController school, TextEditingController address, TextEditingController honors, TextEditingController club, TextEditingController year) {
+  Widget _section(
+    String title,
+    TextEditingController school,
+    TextEditingController address,
+    TextEditingController honors,
+    TextEditingController club,
+    TextEditingController year,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: sectionTitle),
         const SizedBox(height: 16),
         _row([
-          _field('School', TextFormField(controller: school, decoration: _dec('School'))),
-          _field('Address', TextFormField(controller: address, decoration: _dec('Address'))),
+          _field(
+            'School',
+            TextFormField(controller: school, decoration: _dec('School')),
+          ),
+          _field(
+            'Address',
+            TextFormField(controller: address, decoration: _dec('Address')),
+          ),
         ]),
         const SizedBox(height: 16),
         _row([
-          _field('Honors / Awards', TextFormField(controller: honors, decoration: _dec('Honors / Awards'))),
-          _field('Club / Org', TextFormField(controller: club, decoration: _dec('Club / Org'))),
-          _field('Year Graduated', TextFormField(controller: year, keyboardType: TextInputType.number, decoration: _dec('YYYY'))),
+          _field(
+            'Honors / Awards',
+            TextFormField(
+              controller: honors,
+              decoration: _dec('Honors / Awards'),
+            ),
+          ),
+          _field(
+            'Club / Org',
+            TextFormField(controller: club, decoration: _dec('Club / Org')),
+          ),
+          _field(
+            'Year Graduated',
+            TextFormField(
+              controller: year,
+              keyboardType: TextInputType.number,
+              decoration: _dec('YYYY'),
+            ),
+          ),
         ]),
         const SizedBox(height: 24),
       ],
@@ -395,4 +742,15 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 }
 
-const TextStyle sectionTitle = TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.brown);
+class _ProgramOption {
+  final String id;
+  final String name;
+
+  const _ProgramOption({required this.id, required this.name});
+}
+
+const TextStyle sectionTitle = TextStyle(
+  fontSize: 15,
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+);

@@ -10,6 +10,7 @@ const applicationRoutes = require('../routes/applicationRoutes');
 const notificationRoutes = require('../routes/notificationRoutes');
 const announcementRoutes = require('../routes/announcementRoutes');
 const { runAnnouncementScheduler } = require('../services/schedulerService');
+const roRoutes = require('../routes/roRoutes');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use('/api/scholars', scholarRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use('/api/ro', roRoutes);
 
 app.use((err, req, res, next) => {
     console.error(err.stack);

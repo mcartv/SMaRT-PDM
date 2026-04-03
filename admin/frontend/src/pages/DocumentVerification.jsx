@@ -66,57 +66,125 @@ function InfoRow({ label, value, mono }) {
   );
 }
 
-function getMockExtractedData(activeDoc, application) {
+function buildExtractedData(activeDoc, application) {
+  if (!activeDoc) return [];
+
   const student = application?.student || {};
+  const ocr = activeDoc?.ocr || {};
+
+  const fallbackName = ocr.extracted_name || student.name || 'Not detected';
+  const fallbackGwa = ocr.extracted_gwa ?? student.gwa ?? 'Not detected';
+  const confidence = ocr.confidence ?? activeDoc.ocr_confidence ?? null;
 
   const base = [
-    { label: 'Student Name', value: student.name || 'Not detected', verified: true },
-    { label: 'PDM ID', value: student.pdm_id || 'Not detected', verified: true },
-    { label: 'Program', value: student.program || 'Not detected', verified: true },
-    { label: 'Course', value: student.course || 'Not detected', verified: true },
+    {
+      label: 'Student Name',
+      value: fallbackName,
+      verified: !!fallbackName && fallbackName !== 'Not detected',
+    },
+    {
+      label: 'PDM ID',
+      value: student.pdm_id || 'Not detected',
+      verified: !!student.pdm_id,
+    },
+    {
+      label: 'Program',
+      value: student.program || 'Not detected',
+      verified: !!student.program,
+    },
+    {
+      label: 'Course',
+      value: student.course || 'Not detected',
+      verified: !!student.course,
+    },
+    {
+      label: 'OCR Confidence',
+      value: confidence !== null && confidence !== undefined ? `${confidence}%` : 'N/A',
+      verified: confidence !== null && confidence !== undefined,
+    },
   ];
-
-  if (!activeDoc) return base;
 
   switch (activeDoc.id) {
     case 'loi':
       return [
         ...base,
         { label: 'Document Type', value: 'Letter of Intent', verified: true },
-        { label: 'Intent Statement', value: 'Applicant expresses intent to apply for scholarship assistance.', verified: true },
-        { label: 'Signature Presence', value: activeDoc.url ? 'Detected' : 'Not detected', verified: !!activeDoc.url },
+        {
+          label: 'Intent Statement',
+          value: activeDoc.url
+            ? 'Detected and ready for admin review'
+            : 'No uploaded file detected',
+          verified: !!activeDoc.url,
+        },
+        {
+          label: 'Signature Presence',
+          value: activeDoc.url ? 'Detected' : 'Not detected',
+          verified: !!activeDoc.url,
+        },
       ];
 
     case 'cor':
       return [
         ...base,
         { label: 'Document Type', value: 'Certificate of Registration', verified: true },
-        { label: 'Academic Year', value: student.year || 'Not detected', verified: true },
-        { label: 'Enrollment Status', value: activeDoc.url ? 'Enrolled' : 'Unknown', verified: !!activeDoc.url },
+        {
+          label: 'Academic Year',
+          value: student.year || 'Not detected',
+          verified: !!student.year,
+        },
+        {
+          label: 'Enrollment Status',
+          value: activeDoc.url ? 'Detected from uploaded document' : 'Unknown',
+          verified: !!activeDoc.url,
+        },
       ];
 
     case 'grades':
       return [
         ...base,
         { label: 'Document Type', value: 'Grade Form', verified: true },
-        { label: 'Detected GWA', value: student.gwa ?? 'Not detected', verified: student.gwa !== undefined && student.gwa !== null },
-        { label: 'Academic Standing', value: Number(student.gwa) > 2.0 ? 'At Risk' : 'Good Standing', verified: true },
+        {
+          label: 'Detected GWA',
+          value: fallbackGwa,
+          verified: fallbackGwa !== 'Not detected' && fallbackGwa !== 'N/A',
+        },
+        {
+          label: 'GWA Eligibility',
+          value: Number(student.gwa) <= 2.0 ? 'Eligible' : 'Needs Review',
+          verified: Number(student.gwa) <= 2.0,
+        },
       ];
 
     case 'indigency':
       return [
         ...base,
         { label: 'Document Type', value: 'Certificate of Indigency', verified: true },
-        { label: 'Issuing Office', value: activeDoc.url ? 'Barangay / LGU Certificate' : 'Not detected', verified: !!activeDoc.url },
-        { label: 'Applicant Eligibility Marker', value: activeDoc.url ? 'Present' : 'Missing', verified: !!activeDoc.url },
+        {
+          label: 'Issuing Office',
+          value: activeDoc.url ? 'Barangay / LGU Certificate' : 'Not detected',
+          verified: !!activeDoc.url,
+        },
+        {
+          label: 'Eligibility Marker',
+          value: activeDoc.url ? 'Present' : 'Missing',
+          verified: !!activeDoc.url,
+        },
       ];
 
     case 'valid_id':
       return [
         ...base,
         { label: 'Document Type', value: 'Valid ID', verified: true },
-        { label: 'ID Presence', value: activeDoc.url ? 'Detected' : 'Not detected', verified: !!activeDoc.url },
-        { label: 'Readable Identity Fields', value: activeDoc.url ? 'Partially readable' : 'Unavailable', verified: !!activeDoc.url },
+        {
+          label: 'ID Presence',
+          value: activeDoc.url ? 'Detected' : 'Not detected',
+          verified: !!activeDoc.url,
+        },
+        {
+          label: 'Readable Identity Fields',
+          value: activeDoc.url ? 'Partially readable' : 'Unavailable',
+          verified: !!activeDoc.url,
+        },
       ];
 
     default:
@@ -171,6 +239,8 @@ function DocumentPreviewPanel({ activeDoc }) {
 }
 
 function OCRPanel({ activeDoc, application, extractedData }) {
+  const confidence = activeDoc?.ocr?.confidence ?? activeDoc?.ocr_confidence ?? null;
+
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50">
@@ -182,9 +252,16 @@ function OCRPanel({ activeDoc, application, extractedData }) {
           </div>
         </div>
 
-        <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-medium">
-          Extracted Preview
-        </Badge>
+        <div className="flex items-center gap-2">
+          {confidence !== null && confidence !== undefined && (
+            <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-[10px] font-medium">
+              Confidence: {confidence}%
+            </Badge>
+          )}
+          <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-medium">
+            Extracted Preview
+          </Badge>
+        </div>
       </div>
 
       <div className="p-4 min-h-[520px] space-y-4">
@@ -208,9 +285,7 @@ function OCRPanel({ activeDoc, application, extractedData }) {
                 </div>
 
                 <span
-                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.verified
-                    ? 'bg-green-50 text-green-700'
-                    : 'bg-orange-50 text-orange-700'
+                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.verified ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
                     }`}
                 >
                   {item.verified ? 'Detected' : 'Review'}
@@ -228,8 +303,9 @@ function OCRPanel({ activeDoc, application, extractedData }) {
             </p>
           </div>
           <p className="text-xs text-stone-500 leading-relaxed">
-            Use this panel to compare scanned documents against extracted text. If OCR values look incomplete,
-            blurred, or mismatched with the student record, mark the document for re-upload or flag it for review.
+            Compare the uploaded file against the extracted OCR fields. If text is incomplete,
+            blurred, inconsistent, or mismatched with student records, mark the document for
+            re-upload or flag it for further review.
           </p>
         </div>
 
@@ -245,8 +321,8 @@ GWA: ${application?.student?.gwa ?? 'N/A'}
 
 STATUS:
 - File ${activeDoc.url ? 'detected and readable' : 'not uploaded'}
-- Parsed fields available for manual validation
-- Admin review required before final approval`}
+- OCR fields available for manual admin validation
+- Final approval depends on review status`}
           </div>
         </div>
       </div>
@@ -299,7 +375,7 @@ export default function DocumentVerification() {
 
         initialDocs.forEach((d) => {
           initialStatuses[d.id] = d.status || 'pending';
-          initialComments[d.id] = '';
+          initialComments[d.id] = d.admin_comment || '';
         });
 
         setDocStatuses(initialStatuses);
@@ -324,16 +400,29 @@ export default function DocumentVerification() {
     }));
   }, [application, docStatuses, docComments]);
 
+  const REQUIRED_DOC_COUNT = 5;
+
   const uploaded = docs.filter((d) => !!d.url).length;
+  const hasAnyUpload = uploaded > 0;
+  const hasCompleteRequirements = uploaded >= REQUIRED_DOC_COUNT;
+
   const verifiedCount = docs.filter((d) => d.status === 'verified').length;
   const flaggedCount = docs.filter((d) => d.status === 'flagged').length;
   const reuploadCount = docs.filter((d) => d.status === 'rejected').length;
+
+  const requiredDocs = docs.slice(0, REQUIRED_DOC_COUNT);
+  const allRequiredDocsUploaded = requiredDocs.every((d) => !!d.url);
+  const allRequiredDocsReviewed = requiredDocs.every((d) => !!d.url && d.status !== 'pending');
+
+  const canCompleteVerification =
+    allRequiredDocsUploaded &&
+    allRequiredDocsReviewed;
 
   const progress = docs.length ? Math.round((verifiedCount / docs.length) * 100) : 0;
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
   const hasUploadedDocument = !!activeDoc?.url;
   const extractedData = useMemo(
-    () => getMockExtractedData(activeDoc, application),
+    () => buildExtractedData(activeDoc, application),
     [activeDoc, application]
   );
 
@@ -354,7 +443,7 @@ export default function DocumentVerification() {
   };
 
   const updateActiveDocStatus = (nextStatus) => {
-    if (!activeDoc) return;
+    if (!activeDoc || !hasUploadedDocument) return;
 
     setDocStatuses((prev) => ({
       ...prev,
@@ -367,20 +456,9 @@ export default function DocumentVerification() {
     }));
   };
 
-  const handleVerify = () => {
-    if (!hasUploadedDocument) return;
-    updateActiveDocStatus('verified');
-  };
-
-  const handleReupload = () => {
-    if (!hasUploadedDocument) return;
-    updateActiveDocStatus('rejected');
-  };
-
-  const handleFlag = () => {
-    if (!hasUploadedDocument) return;
-    updateActiveDocStatus('flagged');
-  };
+  const handleVerify = () => updateActiveDocStatus('verified');
+  const handleReupload = () => updateActiveDocStatus('rejected');
+  const handleFlag = () => updateActiveDocStatus('flagged');
 
   const handleCompleteVerification = async () => {
     try {
@@ -389,7 +467,7 @@ export default function DocumentVerification() {
       const payload = {
         application_id: id,
         document_reviews: docs.map((d) => ({
-          id: d.id,
+          document_id: d.id,
           name: d.name,
           status: d.status,
           comment: d.admin_comment || '',
@@ -397,12 +475,12 @@ export default function DocumentVerification() {
         })),
         summary: {
           verified: verifiedCount,
+          reviewed: reviewedCount,
           uploaded,
           flagged: flaggedCount,
           reupload: reuploadCount,
           progress,
         },
-        final_comment: comment || '',
       };
 
       const res = await fetch(`http://localhost:5000/api/applications/${id}/verify`, {
@@ -418,6 +496,19 @@ export default function DocumentVerification() {
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to save verification');
+      }
+
+      const markReviewRes = await fetch(`http://localhost:5000/api/applications/${id}/mark-reviewed`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!markReviewRes.ok) {
+        const payload = await markReviewRes.json().catch(() => ({}));
+        throw new Error(payload.error || 'Verification saved, but application review status was not updated');
       }
 
       alert('Verification saved successfully.');
@@ -586,6 +677,28 @@ export default function DocumentVerification() {
                     <p className="text-sm font-semibold text-orange-700">{reuploadCount}</p>
                   </div>
                 </div>
+
+                <div className="rounded-lg border border-stone-200 bg-white px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-wide text-stone-400">Readiness</p>
+
+                  {!hasAnyUpload ? (
+                    <p className="text-xs font-semibold mt-1 text-red-700">
+                      No uploaded documents yet.
+                    </p>
+                  ) : !hasCompleteRequirements ? (
+                    <p className="text-xs font-semibold mt-1 text-orange-700">
+                      Incomplete requirements: {uploaded}/{REQUIRED_DOC_COUNT} uploaded.
+                    </p>
+                  ) : !allRequiredDocsReviewed ? (
+                    <p className="text-xs font-semibold mt-1 text-orange-700">
+                      All 5 documents are uploaded, but admin review actions are still pending.
+                    </p>
+                  ) : (
+                    <p className="text-xs font-semibold mt-1 text-green-700">
+                      All 5 required documents are uploaded and reviewed.
+                    </p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -722,13 +835,31 @@ export default function DocumentVerification() {
 
               {!hasUploadedDocument && (
                 <p className="text-xs text-stone-400">
-                  Upload required before review actions and final verification become available.
+                  Upload required before review actions can be applied to this document.
+                </p>
+              )}
+
+              {!hasAnyUpload && (
+                <p className="text-xs text-stone-400">
+                  Complete verification is disabled until the applicant uploads the required documents.
+                </p>
+              )}
+
+              {hasAnyUpload && !hasCompleteRequirements && (
+                <p className="text-xs text-orange-600">
+                  Complete verification is disabled until all 5 required documents are uploaded.
+                </p>
+              )}
+
+              {hasCompleteRequirements && !allRequiredDocsReviewed && (
+                <p className="text-xs text-orange-600">
+                  All 5 documents are present. Apply admin feedback/actions to each document before completing verification.
                 </p>
               )}
 
               <Button
                 onClick={handleCompleteVerification}
-                disabled={submitting || !hasUploadedDocument}
+                disabled={submitting || !canCompleteVerification}
                 className="w-full h-10 rounded-lg font-medium text-sm text-white border-none disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: C.blue }}
               >
@@ -737,6 +868,12 @@ export default function DocumentVerification() {
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Saving Verification...
                   </>
+                ) : !hasAnyUpload ? (
+                  'Complete Verification & Next'
+                ) : !hasCompleteRequirements ? (
+                  `Upload All ${REQUIRED_DOC_COUNT} Documents First`
+                ) : !allRequiredDocsReviewed ? (
+                  'Review All Documents First'
                 ) : (
                   'Complete Verification & Next'
                 )}

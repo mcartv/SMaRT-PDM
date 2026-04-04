@@ -3,6 +3,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:io';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
+import 'package:smartpdm_mobileapp/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class ROCompletionScreen extends StatefulWidget {
@@ -16,7 +20,6 @@ class ROCompletionScreen extends StatefulWidget {
 
 class _ROCompletionScreenState extends State<ROCompletionScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _hoursCompletedController = TextEditingController();
   final _descriptionController = TextEditingController();
   // ignore: unused_field
   String _supervisorApproval = '';
@@ -37,7 +40,6 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
 
   @override
   void dispose() {
-    _hoursCompletedController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -109,7 +111,6 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
       // Prepare completion data for API submission
       // In a real app, this would be sent to backend:
       // final completionData = {
-      //   'hoursCompleted': int.tryParse(_hoursCompletedController.text) ?? 0,
       //   'supervisorApproval': _supervisorApproval,
       //   'workSummary': _descriptionController.text,
       //   'timeIn': _timeIn?.format(context),
@@ -145,28 +146,56 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
     }
   }
 
+  void _handleScholarChipTap(String label) {
+    switch (label) {
+      case 'Payout Schedule':
+        AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+        break;
+      case 'Renewal Documents':
+        Navigator.pushNamed(context, AppRoutes.documents);
+        break;
+      case 'RO Assignment':
+        Navigator.pushNamed(context, AppRoutes.roAssignment);
+        break;
+      case 'RO Completion':
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final assignment =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Submit RO Completion'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
-      selectedIndex: 0,
+      selectedIndex: 1,
       showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            ScholarNavChips(
+              selectedLabel: 'RO Completion',
+              onTap: _handleScholarChipTap,
+            ),
+            const SizedBox(height: 20),
             // Assignment Info (if available)
             if (assignment != null) ...[
               Card(
-                color: primaryColor.withValues(alpha: 0.1),
+                color: isDark
+                    ? const Color(0xFF3A2718)
+                    : primaryColor.withValues(alpha: 0.1),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
@@ -174,15 +203,16 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                     children: [
                       Text(
                         assignment['title'] ?? 'RO Assignment',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
+                          color: titleColor,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Supervisor: ${assignment['supervisor'] ?? 'N/A'}',
-                        style: const TextStyle(fontSize: 12),
+                        style: TextStyle(fontSize: 12, color: subtitleColor),
                       ),
                     ],
                   ),
@@ -192,9 +222,13 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
             ],
 
             // Form Title
-            const Text(
+            Text(
               'Completion Report',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -203,34 +237,13 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
               key: _formKey,
               child: Column(
                 children: [
-                  // Hours Completed
-                  TextFormField(
-                    controller: _hoursCompletedController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Hours Completed',
-                      hintText: 'e.g., 40',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      prefixIcon: const Icon(Icons.schedule),
-                    ),
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return 'Hours completed is required';
-                      }
-                      if (int.tryParse(value!) == null) {
-                        return 'Please enter a valid number';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
                   // Supervisor Approval
                   Container(
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
+                      color: cardColor,
+                      border: Border.all(
+                        color: isDark ? Colors.white12 : Colors.grey[300]!,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -269,17 +282,23 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                           child: InputDecorator(
                             decoration: InputDecoration(
                               labelText: 'Time In',
+                              labelStyle: TextStyle(color: subtitleColor),
+                              filled: true,
+                              fillColor: cardColor,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              prefixIcon: const Icon(Icons.access_time),
+                              prefixIcon: Icon(
+                                Icons.access_time,
+                                color: accentColor,
+                              ),
                             ),
                             child: Text(
                               _timeIn?.format(context) ?? 'Select time',
                               style: TextStyle(
                                 color: _timeIn != null
-                                    ? Colors.black
-                                    : Colors.grey,
+                                    ? titleColor
+                                    : subtitleColor,
                               ),
                             ),
                           ),
@@ -292,17 +311,23 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                           child: InputDecorator(
                             decoration: InputDecoration(
                               labelText: 'Time Out',
+                              labelStyle: TextStyle(color: subtitleColor),
+                              filled: true,
+                              fillColor: cardColor,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              prefixIcon: const Icon(Icons.access_time),
+                              prefixIcon: Icon(
+                                Icons.access_time,
+                                color: accentColor,
+                              ),
                             ),
                             child: Text(
                               _timeOut?.format(context) ?? 'Select time',
                               style: TextStyle(
                                 color: _timeOut != null
-                                    ? Colors.black
-                                    : Colors.grey,
+                                    ? titleColor
+                                    : subtitleColor,
                               ),
                             ),
                           ),
@@ -315,19 +340,23 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                   // Picture Upload
                   Container(
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
+                      color: cardColor,
+                      border: Border.all(
+                        color: isDark ? Colors.white12 : Colors.grey[300]!,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
-                            Icons.camera_alt,
-                            color: primaryColor,
+                          leading: Icon(Icons.camera_alt, color: accentColor),
+                          title: Text(
+                            'Completion Photo',
+                            style: TextStyle(color: titleColor),
                           ),
-                          title: const Text('Completion Photo'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Take a photo of your completed work',
+                            style: TextStyle(color: subtitleColor),
                           ),
                           trailing: _completionImage != null
                               ? const Icon(
@@ -354,8 +383,11 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: TextButton.icon(
                               onPressed: _pickImage,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Retake Photo'),
+                              icon: Icon(Icons.refresh, color: accentColor),
+                              label: Text(
+                                'Retake Photo',
+                                style: TextStyle(color: accentColor),
+                              ),
                             ),
                           ),
                         ],
@@ -366,22 +398,26 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
 
                   // QR Code Verification
                   Card(
-                    color: Colors.green[50],
+                    color: isDark ? const Color(0xFF3A2718) : Colors.green[50],
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         children: [
-                          const Text(
+                          Text(
                             'Verification QR Code',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
+                              color: titleColor,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
+                          Text(
                             'Scan this QR code to verify completion',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: subtitleColor,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Container(
@@ -399,9 +435,9 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                           const SizedBox(height: 8),
                           Text(
                             'ID: ${_qrCodeData.split(':')[1]}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 10,
-                              color: Colors.grey,
+                              color: subtitleColor,
                               fontFamily: 'monospace',
                             ),
                           ),
@@ -418,6 +454,10 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                     decoration: InputDecoration(
                       labelText: 'Work Summary & Accomplishments',
                       hintText: 'Describe the work you completed...',
+                      labelStyle: TextStyle(color: subtitleColor),
+                      hintStyle: TextStyle(color: subtitleColor),
+                      filled: true,
+                      fillColor: cardColor,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -432,6 +472,7 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                       }
                       return null;
                     },
+                    style: TextStyle(color: titleColor),
                   ),
                   const SizedBox(height: 20),
 
@@ -497,26 +538,33 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
 
             // Info Card
             Card(
-              color: Colors.blue[50],
+              color: isDark ? const Color(0xFF2D1E12) : Colors.blue[50],
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.info, color: Colors.blue),
-                        SizedBox(width: 8),
+                        Icon(Icons.info, color: accentColor),
+                        const SizedBox(width: 8),
                         Text(
                           'Important',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: titleColor,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Please ensure your supervisor has approved your work before submitting. All information must be accurate and complete.',
-                      style: TextStyle(fontSize: 12, height: 1.5),
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.5,
+                        color: isDark ? Colors.white70 : AppColors.darkBrown,
+                      ),
                     ),
                   ],
                 ),

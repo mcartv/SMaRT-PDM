@@ -409,6 +409,7 @@ export default function DocumentVerification() {
   const verifiedCount = docs.filter((d) => d.status === 'verified').length;
   const flaggedCount = docs.filter((d) => d.status === 'flagged').length;
   const reuploadCount = docs.filter((d) => d.status === 'rejected').length;
+  const reviewedCount = docs.filter((d) => !!d.url && d.status !== 'pending').length;
 
   const requiredDocs = docs.slice(0, REQUIRED_DOC_COUNT);
   const allRequiredDocsUploaded = requiredDocs.every((d) => !!d.url);
@@ -467,7 +468,9 @@ export default function DocumentVerification() {
       const payload = {
         application_id: id,
         document_reviews: docs.map((d) => ({
+          document_key: d.document_key || d.id,
           document_id: d.id,
+          requirement_id: d.requirement_id || null,
           name: d.name,
           status: d.status,
           comment: d.admin_comment || '',

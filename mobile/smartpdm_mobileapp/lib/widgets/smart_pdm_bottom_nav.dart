@@ -37,13 +37,18 @@ class SmartPdmBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentIndex = selectedIndex.clamp(0, _labels.length - 1);
+    final theme = Theme.of(context);
+    final bottomNavTheme = theme.bottomNavigationBarTheme;
 
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       currentIndex: currentIndex,
-      selectedItemColor: primaryColor,
-      unselectedItemColor: Colors.grey[600],
-      backgroundColor: Colors.white,
+      selectedItemColor:
+          bottomNavTheme.selectedItemColor ?? primaryColor,
+      unselectedItemColor:
+          bottomNavTheme.unselectedItemColor ?? Colors.grey[600],
+      backgroundColor:
+          bottomNavTheme.backgroundColor ?? theme.colorScheme.surface,
       elevation: 8,
       items: List.generate(_labels.length, (index) {
         final hasUnreadNotifications = index == 2 && unreadNotifications > 0;

@@ -1,7 +1,11 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
+import 'package:smartpdm_mobileapp/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class RenewalRequirementsScreen extends StatefulWidget {
@@ -36,20 +40,6 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
       status: 'pending',
       icon: Icons.school_outlined,
     ),
-    _RenewalDocument(
-      title: 'Good Moral Character',
-      description: 'Issued by your institution guidance office',
-      status: 'pending',
-      icon: Icons.verified_user_outlined,
-    ),
-    _RenewalDocument(
-      title: 'Financial Aid Status Report',
-      description: 'Current financial aid and scholarship standing',
-      status: 'review',
-      fileName: 'Aid_Status_Report.pdf',
-      updatedAt: 'Submitted Mar 30',
-      icon: Icons.request_quote_outlined,
-    ),
   ];
 
   int get _uploadedCount =>
@@ -74,35 +64,84 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
     }
   }
 
-  void _handleDocumentAction(_RenewalDocument document) {
-    if (document.status == 'pending') {
-      setState(() {
-        document.status = 'uploaded';
-        document.fileName =
-            '${document.title.replaceAll(' ', '_').toLowerCase()}.pdf';
-        document.updatedAt = 'Uploaded just now';
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${document.title} uploaded successfully.')),
-      );
-      return;
-    }
+  Future<void> _handleDocumentAction(_RenewalDocument document) async {
+    final messenger = ScaffoldMessenger.of(context);
 
     if (document.status == 'review') {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Viewing ${document.title} submission...')),
       );
       return;
     }
 
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      allowMultiple: false,
+    );
+
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+
+    final pickedFile = result.files.single;
+    final fileName = pickedFile.name;
+    final extension = fileName.split('.').last.toLowerCase();
+    const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png'};
+
+    if (!allowedExtensions.contains(extension)) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Only PDF, JPG, JPEG, and PNG files are allowed.'),
+        ),
+      );
+      return;
+    }
+
+    final hadExistingFile = document.fileName != null;
+
     setState(() {
-      document.updatedAt = 'Replaced just now';
+      document.status = 'uploaded';
+      document.fileName = fileName;
+      document.filePath = pickedFile.path;
+      document.updatedAt = hadExistingFile
+          ? 'Replaced just now'
+          : 'Uploaded just now';
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${document.title} replaced successfully.')),
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '${document.title} ${hadExistingFile ? 'replaced' : 'uploaded'} successfully.',
+        ),
+      ),
     );
+  }
+
+  Future<void> _viewSubmittedFile(_RenewalDocument document) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (document.filePath == null || document.filePath!.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('This sample file is not available to open yet.'),
+        ),
+      );
+      return;
+    }
+
+    final result = await OpenFilex.open(document.filePath!);
+    if (result.type != ResultType.done && mounted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.message.isNotEmpty
+                ? result.message
+                : 'Unable to open the submitted file.',
+          ),
+        ),
+      );
+    }
   }
 
   Color _statusColor(String status) {
@@ -129,46 +168,20 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
     }
   }
 
-  String _actionLabel(String status) {
-    switch (status) {
-      case 'uploaded':
-        return 'Replace';
-      case 'review':
-        return 'View';
-      case 'pending':
-      default:
-        return 'Upload';
-    }
-  }
-
-  Widget _buildScholarChip(String label, {bool selected = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: selected,
-        showCheckmark: selected,
-        checkmarkColor: Colors.white,
-        backgroundColor: Colors.grey[200],
-        selectedColor: primaryColor,
-        labelStyle: TextStyle(
-          color: selected ? Colors.white : Colors.black,
-          fontWeight: FontWeight.bold,
-        ),
-        onSelected: (_) => _handleScholarChipTap(label),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final progress = _uploadedCount / _requirements.length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Renewal Documents'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        elevation: 0,
       ),
       selectedIndex: 1,
       showDrawer: false,
@@ -177,22 +190,17 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildScholarChip('Payout Schedule'),
-                  _buildScholarChip('Renewal Documents', selected: true),
-                  _buildScholarChip('RO Assignment'),
-                  _buildScholarChip('RO Completion'),
-                ],
-              ),
+            ScholarNavChips(
+              selectedLabel: 'Renewal Documents',
+              onTap: _handleScholarChipTap,
             ),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: primaryColor.withOpacity(0.08),
+                color: isDark
+                    ? const Color(0xFF2D1E12)
+                    : primaryColor.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: primaryColor.withOpacity(0.12)),
               ),
@@ -202,7 +210,7 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -211,14 +219,15 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                               style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
+                                color: titleColor,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
                               'Submit all required documents to maintain your scholarship for the next release cycle.',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.black54,
+                                color: subtitleColor,
                                 height: 1.4,
                               ),
                             ),
@@ -228,10 +237,10 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                       const SizedBox(width: 12),
                       Text(
                         '$_uploadedCount/${_requirements.length}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
-                          color: primaryColor,
+                          color: accentColor,
                         ),
                       ),
                     ],
@@ -242,10 +251,10 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: 8,
-                      backgroundColor: Colors.white,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        primaryColor,
-                      ),
+                      backgroundColor: isDark
+                          ? const Color(0xFF24180F)
+                          : Colors.white,
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -271,14 +280,18 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Required Documents',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Upload each document below. You can replace files before final submission.',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
+            Text(
+              'Upload each document below. Allowed files: PDF, JPG, and PNG. You can replace files before final submission.',
+              style: TextStyle(fontSize: 12, color: subtitleColor),
             ),
             const SizedBox(height: 14),
             ..._requirements.map(_buildDocumentRow),
@@ -327,13 +340,18 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
   }
 
   Widget _buildDocumentRow(_RenewalDocument document) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = _statusColor(document.status);
+    final hasFile = document.fileName != null;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF332216) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: primaryColor.withOpacity(0.10)),
       ),
@@ -343,10 +361,12 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: primaryColor.withOpacity(0.08),
+              color: isDark
+                  ? const Color(0xFF3A2718)
+                  : primaryColor.withOpacity(0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(document.icon, color: primaryColor),
+            child: Icon(document.icon, color: accentColor),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -355,47 +375,59 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
               children: [
                 Text(
                   document.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   document.description,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(fontSize: 12, color: subtitleColor),
                 ),
-                if (document.fileName != null || document.updatedAt != null) ...[
+                if (hasFile || document.updatedAt != null) ...[
                   const SizedBox(height: 6),
-                  Text(
-                    document.fileName ?? document.updatedAt!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w600,
+                  if (hasFile)
+                    Text(
+                      'Submitted file',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isDark ? Colors.white60 : Colors.grey.shade600,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
                     ),
-                  ),
-                  if (document.fileName != null && document.updatedAt != null)
+                  if (hasFile) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      document.fileName!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white70 : Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  if (document.updatedAt != null)
                     Text(
                       document.updatedAt!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: Colors.black45,
+                        color: isDark ? Colors.white54 : Colors.black45,
                       ),
                     ),
                 ],
+                _buildDocumentActions(document),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -409,19 +441,50 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () => _handleDocumentAction(document),
-                child: Text(
-                  _actionLabel(document.status),
-                  style: const TextStyle(
-                    color: primaryColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentActions(_RenewalDocument document) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasFile = document.fileName != null;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () => _handleDocumentAction(document),
+            icon: Icon(
+              document.status == 'uploaded' ? Icons.sync : Icons.upload_file,
+              size: 16,
+            ),
+            label: Text(
+              document.status == 'uploaded' ? 'Replace file' : 'Upload file',
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: accentColor,
+              side: BorderSide(color: accentColor.withOpacity(0.35)),
+              backgroundColor: isDark
+                  ? const Color(0xFF3A2718)
+                  : primaryColor.withOpacity(0.04),
+            ),
+          ),
+          if (hasFile)
+            TextButton.icon(
+              onPressed: () => _viewSubmittedFile(document),
+              icon: const Icon(Icons.visibility_outlined, size: 16),
+              label: const Text('View file'),
+              style: TextButton.styleFrom(
+                foregroundColor: isDark ? accentColor : AppColors.darkBrown,
+              ),
+            ),
         ],
       ),
     );
@@ -435,6 +498,7 @@ class _RenewalDocument {
     required this.status,
     required this.icon,
     this.fileName,
+    this.filePath,
     this.updatedAt,
   });
 
@@ -442,6 +506,7 @@ class _RenewalDocument {
   final String description;
   String status;
   String? fileName;
+  String? filePath;
   String? updatedAt;
   final IconData icon;
 }

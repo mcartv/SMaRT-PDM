@@ -13,10 +13,7 @@ import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 class ProfileScreen extends StatefulWidget {
   final bool showBottomNav;
 
-  const ProfileScreen({
-    super.key,
-    this.showBottomNav = true,
-  });
+  const ProfileScreen({super.key, this.showBottomNav = true});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -140,9 +137,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       setState(() => _imagePath = newImageUrl);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo updated!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile photo updated!')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -201,9 +198,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving profile: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error saving profile: $e')));
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -290,12 +287,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Profile'),
         elevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.darkBrown,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 3,
       showBottomNav: widget.showBottomNav,
@@ -337,13 +336,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+
     return Container(
       padding: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.42),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.gold.withOpacity(0.22)),
-      ),
       child: Column(
         children: [
           Row(
@@ -355,14 +354,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: 76,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.gold,
-                        width: 2.5,
-                      ),
+                      border: Border.all(color: AppColors.gold, width: 2.5),
                     ),
                     child: ClipOval(
                       child: Container(
-                        color: primaryColor.withOpacity(0.06),
+                        color: isDark
+                            ? const Color(0xFF3A2718)
+                            : primaryColor.withOpacity(0.06),
                         child: _imagePath != null
                             ? (_imagePath!.startsWith('http')
                                   ? Image.network(
@@ -373,11 +371,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       File(_imagePath!),
                                       fit: BoxFit.cover,
                                     ))
-                            : const Center(
+                            : Center(
                                 child: Icon(
                                   Icons.person,
                                   size: 34,
-                                  color: primaryColor,
+                                  color: accentColor,
                                 ),
                               ),
                       ),
@@ -412,14 +410,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
-                          color: primaryColor,
+                          color: accentColor,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF24180F)
+                                : Colors.white,
+                            width: 2,
+                          ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.camera_alt,
                           size: 14,
-                          color: Colors.white,
+                          color: isDark ? AppColors.darkBrown : Colors.white,
                         ),
                       ),
                     ),
@@ -433,10 +436,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Text(
                       _userName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.darkBrown,
+                        color: titleColor,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -444,7 +447,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       'Institutional Scholar',
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.brown.withOpacity(0.78),
+                        color: subtitleColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -477,31 +480,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 18),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.62),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: _buildHeaderStat(
-                    'Course',
-                    _getDisplayCourseName(_courseController.text),
-                  ),
+                _buildHeaderStat(
+                  'Course',
+                  _getDisplayCourseName(_courseController.text),
                 ),
-                Container(
-                  width: 1,
-                  height: 34,
-                  color: AppColors.gold.withOpacity(0.35),
-                ),
-                Expanded(
-                  child: _buildHeaderStat(
-                    'Email',
-                    _emailController.text.isNotEmpty
-                        ? _emailController.text
-                        : 'Not set',
-                  ),
+                const SizedBox(height: 14),
+                _buildHeaderStat(
+                  'Email',
+                  _emailController.text.isNotEmpty
+                      ? _emailController.text
+                      : 'Not set',
                 ),
               ],
             ),
@@ -512,6 +504,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHeaderStat(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Column(
@@ -522,18 +516,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 11,
               letterSpacing: 1,
-              color: AppColors.brown.withOpacity(0.6),
+              color: isDark ? Colors.white60 : AppColors.brown.withOpacity(0.6),
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: AppColors.darkBrown,
+              color: isDark ? Colors.white : AppColors.darkBrown,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -543,6 +537,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildSectionLabel(String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(
@@ -550,7 +546,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: TextStyle(
           fontSize: 11,
           letterSpacing: 1.2,
-          color: AppColors.brown.withOpacity(0.65),
+          color: isDark ? Colors.white60 : AppColors.brown.withOpacity(0.65),
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -566,34 +562,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           subtitle: 'Update your personal information',
           onTap: () => setState(() => _isEditing = true),
         ),
-        _profileRowCard(
-          icon: Icons.badge_outlined,
-          title: 'Student ID',
-          subtitle: _studentIdController.text.isNotEmpty
-              ? _studentIdController.text
-              : 'No student ID on file',
-        ),
-        _profileRowCard(
-          icon: Icons.school_outlined,
-          title: 'Course',
-          subtitle: _getDisplayCourseName(_courseController.text),
-        ),
-        _profileRowCard(
-          icon: Icons.mail_outline,
-          title: 'Email',
-          subtitle: _emailController.text.isNotEmpty
-              ? _emailController.text
-              : 'No email saved',
-        ),
       ],
     );
   }
 
   Widget _buildEditSection() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
+        color: isDark
+            ? const Color(0xFF332216)
+            : Colors.white.withOpacity(0.92),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.gold.withOpacity(0.2)),
         boxShadow: [
@@ -607,12 +588,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Edit Profile Information',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: AppColors.darkBrown,
+              color: isDark ? Colors.white : AppColors.darkBrown,
             ),
           ),
           const SizedBox(height: 16),
@@ -787,23 +768,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool isError = false,
     String? errorText,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+
     return InputDecoration(
       labelText: label,
       errorText: errorText,
-      prefixIcon: Icon(icon, color: isError ? Colors.red : primaryColor),
+      labelStyle: TextStyle(color: isDark ? Colors.white70 : null),
+      prefixIcon: Icon(icon, color: isError ? Colors.red : accentColor),
       filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
+      fillColor: isDark ? const Color(0xFF2D1E12) : Colors.white,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(
           color: isError
               ? Colors.red
               : enabled
-                  ? AppColors.gold.withOpacity(0.3)
-                  : AppColors.gold.withOpacity(0.24),
+              ? AppColors.gold.withOpacity(0.3)
+              : AppColors.gold.withOpacity(0.24),
         ),
       ),
       disabledBorder: OutlineInputBorder(
@@ -813,7 +796,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(
-          color: isError ? Colors.red : primaryColor,
+          color: isError ? Colors.red : accentColor,
           width: 1.5,
         ),
       ),
@@ -826,6 +809,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? subtitle,
     VoidCallback? onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final iconAccent = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -839,17 +827,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: AppColors.gold.withOpacity(0.12),
+            color: isDark
+                ? const Color(0xFF3A2718)
+                : AppColors.gold.withOpacity(0.12),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(icon, color: AppColors.darkBrown),
+          child: Icon(icon, color: iconAccent),
         ),
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w700,
             fontSize: 14,
-            color: AppColors.darkBrown,
+            color: titleColor,
           ),
         ),
         subtitle: subtitle == null
@@ -858,15 +848,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.brown.withOpacity(0.72),
-                  ),
+                  style: TextStyle(fontSize: 12, color: subtitleColor),
                 ),
               ),
         trailing: Icon(
           Icons.chevron_right,
-          color: AppColors.brown.withOpacity(0.55),
+          color: isDark ? Colors.white54 : AppColors.brown.withOpacity(0.55),
         ),
       ),
     );

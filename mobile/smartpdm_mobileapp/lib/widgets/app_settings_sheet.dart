@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/screens/providers/theme_provider.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 
 Future<void> showAppSettingsSheet(BuildContext context) {
@@ -23,7 +25,6 @@ class _AppSettingsSheet extends StatefulWidget {
 
 class _AppSettingsSheetState extends State<_AppSettingsSheet> {
   bool _notificationsEnabled = true;
-  bool _darkModeEnabled = false;
 
   void _showComingSoon(String label) {
     Navigator.pop(context);
@@ -113,6 +114,8 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+
     return DraggableScrollableSheet(
       initialChildSize: 0.78,
       minChildSize: 0.5,
@@ -171,10 +174,8 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     _buildToggleTile(
                       icon: Icons.dark_mode_outlined,
                       title: 'Enable Dark Mode',
-                      value: _darkModeEnabled,
-                      onChanged: (value) {
-                        setState(() => _darkModeEnabled = value);
-                      },
+                      value: themeProvider.isDarkMode,
+                      onChanged: (value) => themeProvider.setDarkMode(value),
                     ),
                     _buildSectionTitle('Services'),
                     _buildActionTile(

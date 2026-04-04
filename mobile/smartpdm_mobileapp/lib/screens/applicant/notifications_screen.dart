@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final bool showBottomNav;
 
-  const NotificationsScreen({
-    super.key,
-    this.showBottomNav = true,
-  });
+  const NotificationsScreen({super.key, this.showBottomNav = true});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -91,12 +89,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final unreadCount = notifications.where((n) => !n['read']).length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final unreadCardColor = isDark ? const Color(0xFF3A2718) : Colors.blue[50]!;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        elevation: 0,
         actions: [
           if (unreadCount > 0)
             Padding(
@@ -104,9 +109,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: Center(
                 child: TextButton(
                   onPressed: _markAllAsRead,
-                  child: const Text(
+                  child: Text(
                     'Mark all as read',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    style: TextStyle(
+                      color: isDark ? accentColor : AppColors.darkBrown,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
@@ -124,14 +132,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   Icon(
                     Icons.notifications_off,
                     size: 64,
-                    color: Colors.grey[300],
+                    color: isDark ? Colors.white38 : Colors.grey[300],
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'No notifications',
                     style: TextStyle(
                       fontSize: 18,
-                      color: Colors.grey[600],
+                      color: isDark ? Colors.white70 : Colors.grey[600],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -156,9 +164,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       horizontal: 8,
                       vertical: 8,
                     ),
-                    color: notification['read']
-                        ? Colors.white
-                        : Colors.blue[50],
+                    color: notification['read'] ? cardColor : unreadCardColor,
                     child: ListTile(
                       leading: Container(
                         padding: const EdgeInsets.all(8),
@@ -180,6 +186,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 fontWeight: notification['read']
                                     ? FontWeight.normal
                                     : FontWeight.bold,
+                                color: titleColor,
                               ),
                             ),
                           ),
@@ -202,13 +209,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             notification['message'],
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: subtitleColor),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             notification['timestamp'],
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey,
+                              color: subtitleColor,
                             ),
                           ),
                         ],
@@ -222,6 +230,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         );
                       },
                       trailing: PopupMenuButton(
+                        iconColor: accentColor,
                         itemBuilder: (context) => [
                           if (!notification['read'])
                             PopupMenuItem(
@@ -244,6 +253,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildNotificationDetail(Map<String, dynamic> notification) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+
     return DraggableScrollableSheet(
       expand: false,
       builder: (context, scrollController) => SingleChildScrollView(
@@ -274,17 +287,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       children: [
                         Text(
                           notification['title'],
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
+                            color: titleColor,
                           ),
                         ),
                         Text(
                           notification['timestamp'],
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: subtitleColor, fontSize: 12),
                         ),
                       ],
                     ),
@@ -294,7 +305,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               const SizedBox(height: 20),
               Text(
                 notification['message'],
-                style: const TextStyle(fontSize: 14, height: 1.6),
+                style: TextStyle(fontSize: 14, height: 1.6, color: titleColor),
               ),
               const SizedBox(height: 20),
               Row(

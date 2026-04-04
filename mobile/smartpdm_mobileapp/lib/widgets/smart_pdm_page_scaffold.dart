@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
 import 'smart_pdm_bottom_nav.dart';
 import 'smart_pdm_drawer.dart';
 
@@ -56,7 +55,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold> {
 
     return Scaffold(
       appBar: widget.appBar,
-      backgroundColor: backgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       drawer: widget.showDrawer
           ? SmartPdmDrawer(isScholar: _isScholar, userName: _userName)
           : null,

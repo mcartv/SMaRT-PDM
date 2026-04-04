@@ -64,6 +64,302 @@ function buildAuthResponse(user) {
   };
 }
 
+const LEGACY_DOCUMENT_DEFINITIONS = [
+  {
+    id: 'loi',
+    name: 'Letter of Intent',
+    aliases: ['letter of intent', 'loi', 'intent'],
+  },
+  {
+    id: 'cor',
+    name: 'Certificate of Registration',
+    aliases: ['certificate of registration', 'cor', 'registration'],
+  },
+  {
+    id: 'grades',
+    name: 'Grade Form',
+    aliases: ['grade form', 'grades', 'report of grades'],
+  },
+  {
+    id: 'indigency',
+    name: 'Certificate of Indigency',
+    aliases: ['certificate of indigency', 'indigency'],
+  },
+  {
+    id: 'valid_id',
+    name: 'Valid ID',
+    aliases: ['valid id', 'government id', 'identification'],
+  },
+];
+
+function normalizeLookupValue(value) {
+  return (value ?? '')
+    .toString()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function inferDocumentKey(document = {}) {
+  const candidates = [
+    document.document_type,
+    document.program_requirements?.requirement_name,
+    document.program_requirements?.name,
+    document.file_name,
+  ]
+    .filter(Boolean)
+    .map((value) => normalizeLookupValue(value));
+
+  for (const definition of LEGACY_DOCUMENT_DEFINITIONS) {
+    if (
+      candidates.some((candidate) =>
+        definition.aliases.some((alias) => candidate.includes(alias))
+      )
+    ) {
+      return definition.id;
+    }
+  }
+
+  return document.requirement_id
+    ? `requirement-${document.requirement_id}`
+    : normalizeLookupValue(document.document_type || document.file_name || 'document').replace(/\s+/g, '_');
+}
+
+function deriveDocumentReviewStatus(document = {}, review = null) {
+  const preferredStatus = normalizeLookupValue(
+    review?.review_status ?? document.file_status
+  );
+
+  if (preferredStatus === 'verified') return 'verified';
+  if (preferredStatus === 'rejected' || preferredStatus === 're upload') return 'rejected';
+  if (preferredStatus === 'flagged') return 'flagged';
+  if (preferredStatus === 'uploaded') return 'uploaded';
+  return document.file_url ? 'uploaded' : 'pending';
+}
+
+function deriveApplicationDocumentStatus(documents = []) {
+  const uploadedCount = documents.filter((document) => !!document.file_url).length;
+  const verifiedCount = documents.filter(
+    (document) => deriveDocumentReviewStatus(document) === 'verified'
+  ).length;
+  const needsReview = documents.some((document) => {
+    const status = deriveDocumentReviewStatus(document);
+    return status === 'rejected' || status === 'flagged' || status === 'uploaded';
+  });
+
+  if (uploadedCount === 0) {
+    return 'Missing Docs';
+  }
+
+  if (needsReview) {
+    return 'Under Review';
+  }
+
+  if (verifiedCount > 0 && verifiedCount === uploadedCount) {
+    return 'Documents Ready';
+  }
+
+  return 'Under Review';
+}
+
+async function buildApplicationDetails(applicationId) {
+  const { data: applicationRecord, error: applicationError } = await supabase
+    .from('applications')
+    .select(`
+      application_id,
+      student_id,
+      program_id,
+      application_status,
+      document_status,
+      submission_date,
+      is_disqualified,
+      disqualification_reason,
+      evaluator_id,
+      students (
+        user_id,
+        first_name,
+        middle_name,
+        last_name,
+        pdm_id,
+        gwa,
+        year_level,
+        course_id,
+        barangay
+      ),
+      scholarship_programs (
+        program_id,
+        program_name
+      )
+    `)
+    .eq('application_id', applicationId)
+    .single();
+
+  if (applicationError) {
+    throw applicationError;
+  }
+
+  const [
+    formSubmissionResult,
+    personalDetailsResult,
+    familyMembersResult,
+    educationRecordsResult,
+    documentsResult,
+    reviewsResult,
+  ] = await Promise.all([
+    supabase
+      .from('application_form_submissions')
+      .select('*')
+      .eq('application_id', applicationId)
+      .maybeSingle(),
+    supabase
+      .from('application_personal_details')
+      .select('*')
+      .eq('application_id', applicationId)
+      .maybeSingle(),
+    supabase
+      .from('application_family_members')
+      .select('*')
+      .eq('application_id', applicationId)
+      .order('relation_type', { ascending: true }),
+    supabase
+      .from('application_education_records')
+      .select('*')
+      .eq('application_id', applicationId)
+      .order('education_level', { ascending: true }),
+    supabase
+      .from('application_documents_submitted')
+      .select(`
+        *,
+        program_requirements (*)
+      `)
+      .eq('application_id', applicationId)
+      .order('uploaded_at', { ascending: true }),
+    supabase
+      .from('application_document_reviews')
+      .select('*')
+      .eq('application_id', applicationId),
+  ]);
+
+  const resultErrors = [
+    formSubmissionResult.error,
+    personalDetailsResult.error,
+    familyMembersResult.error,
+    educationRecordsResult.error,
+    documentsResult.error,
+    reviewsResult.error,
+  ].filter(Boolean);
+
+  if (resultErrors.length > 0) {
+    throw resultErrors[0];
+  }
+
+  const student = applicationRecord.students || {};
+  let userContact = { email: null, phone_number: null };
+
+  if (student.user_id) {
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('email, phone_number')
+      .eq('user_id', student.user_id)
+      .maybeSingle();
+
+    if (userError) {
+      throw userError;
+    }
+
+    if (userData) {
+      userContact = userData;
+    }
+  }
+
+  let courseCode = null;
+  if (student.course_id) {
+    const { data: courseData, error: courseError } = await supabase
+      .from('academic_course')
+      .select('course_code')
+      .eq('course_id', student.course_id)
+      .maybeSingle();
+
+    if (courseError) {
+      throw courseError;
+    }
+
+    courseCode = courseData?.course_code ?? null;
+  }
+
+  const reviewByKey = new Map(
+    (reviewsResult.data || []).map((review) => [review.document_key, review])
+  );
+
+  const normalizedDocuments = (documentsResult.data || []).map((document) => {
+    const documentKey = inferDocumentKey(document);
+    const review = reviewByKey.get(documentKey) || null;
+    const requirementMeta = document.program_requirements || {};
+
+    return {
+      id: documentKey,
+      document_key: documentKey,
+      requirement_id: document.requirement_id,
+      requirement_name:
+        requirementMeta.requirement_name ??
+        requirementMeta.name ??
+        document.document_type ??
+        document.file_name ??
+        'Document',
+      name:
+        requirementMeta.requirement_name ??
+        requirementMeta.name ??
+        document.document_type ??
+        document.file_name ??
+        'Document',
+      document_type: document.document_type ?? null,
+      file_name: document.file_name ?? null,
+      url: review?.file_url ?? document.file_url ?? null,
+      file_url: review?.file_url ?? document.file_url ?? null,
+      status: deriveDocumentReviewStatus(document, review),
+      file_status: document.file_status ?? 'pending',
+      admin_comment: review?.admin_comment ?? document.notes ?? '',
+      notes: document.notes ?? null,
+      uploaded_at: document.uploaded_at ?? null,
+      reviewed_at: review?.reviewed_at ?? document.reviewed_at ?? null,
+    };
+  });
+
+  return {
+    application: {
+      application_id: applicationRecord.application_id,
+      student_id: applicationRecord.student_id,
+      program_id: applicationRecord.program_id,
+      application_status: applicationRecord.application_status,
+      document_status: applicationRecord.document_status,
+      submission_date: applicationRecord.submission_date,
+      is_disqualified: !!applicationRecord.is_disqualified,
+      disqualification_reason: applicationRecord.disqualification_reason,
+      evaluator_id: applicationRecord.evaluator_id ?? null,
+    },
+    student: {
+      user_id: student.user_id ?? null,
+      first_name: student.first_name ?? null,
+      middle_name: student.middle_name ?? null,
+      last_name: student.last_name ?? null,
+      pdm_id: student.pdm_id ?? null,
+      gwa: student.gwa ?? null,
+      year_level: student.year_level ?? null,
+      course_code: courseCode,
+      email: userContact.email ?? null,
+      phone_number: userContact.phone_number ?? null,
+      program_name: applicationRecord.scholarship_programs?.program_name ?? null,
+      barangay: student.barangay ?? null,
+    },
+    form_submission: formSubmissionResult.data ?? null,
+    personal_details: personalDetailsResult.data ?? null,
+    family_members: familyMembersResult.data ?? [],
+    education_records: educationRecordsResult.data ?? [],
+    documents: normalizedDocuments,
+  };
+}
+
 async function sendOTPEmail(userEmail, otpCode) {
   const mailOptions = {
     from: '"SMaRT-PDM Admin" <pelimavenice.pdm@gmail.com>',
@@ -606,7 +902,7 @@ app.post('/api/applications', async (req, res) => {
   ].map((member) => ({
     application_id: applicationId,
     ...member,
-  })).toList();
+  }));
 
   const { error: familyMembersError } = await supabase
     .from('application_family_members')
@@ -686,7 +982,7 @@ app.post('/api/applications', async (req, res) => {
   ].map((record) => ({
     application_id: applicationId,
     ...record,
-  })).toList();
+  }));
 
   const { error: educationRecordsError } = await supabase
     .from('application_education_records')
@@ -719,12 +1015,47 @@ app.post('/api/applications', async (req, res) => {
       console.error('Application submitted documents upsert error:', documentsError);
       return res.status(500).json({ error: documentsError.message || 'Failed to save submitted documents.' });
     }
+
+    const nextDocumentStatus = deriveApplicationDocumentStatus(documentPayloads);
+    const { error: applicationStatusError } = await supabase
+      .from('applications')
+      .update({ document_status: nextDocumentStatus })
+      .eq('application_id', applicationId);
+
+    if (applicationStatusError) {
+      console.error('Application document status update error:', applicationStatusError);
+      return res.status(500).json({ error: applicationStatusError.message || 'Failed to update application document status.' });
+    }
+  }
+
+  let detailedApplication;
+  try {
+    detailedApplication = await buildApplicationDetails(applicationId);
+  } catch (detailError) {
+    console.error('Application detail build error:', detailError);
+    return res.status(500).json({ error: detailError.message || 'Application saved but failed to load the normalized response.' });
   }
 
   res.status(200).json({
     message: 'Application submitted successfully.',
-    application: savedApplication,
+    application: detailedApplication.application,
+    student: detailedApplication.student,
+    form_submission: detailedApplication.form_submission,
+    personal_details: detailedApplication.personal_details,
+    family_members: detailedApplication.family_members,
+    education_records: detailedApplication.education_records,
+    documents: detailedApplication.documents,
   });
+});
+
+app.get('/api/applications/:id', async (req, res) => {
+  try {
+    const payload = await buildApplicationDetails(req.params.id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('Application detail fetch error:', error);
+    res.status(500).json({ error: error.message || 'Failed to load application details.' });
+  }
 });
 
 // 6. Get Chat History Route

@@ -273,11 +273,7 @@ class ApplicationData {
         'agree': agree,
       },
       'documents': {
-        'letter_of_intent_url': null,
-        'certificate_of_registration_url': null,
-        'grade_form_url': null,
-        'certificate_of_indigency_url': null,
-        'valid_id_url': null,
+        'records': <Map<String, dynamic>>[],
       },
     };
   }

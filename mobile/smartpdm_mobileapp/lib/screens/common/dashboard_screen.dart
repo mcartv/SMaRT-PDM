@@ -12,19 +12,15 @@ import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
 class DashboardScreen extends StatelessWidget {
   final bool showBottomNav;
 
-  const DashboardScreen({
-    super.key,
-    this.showBottomNav = true,
-  });
+  const DashboardScreen({super.key, this.showBottomNav = true});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('SMaRT-PDM Dashboard'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
+        title: const Text('SMaRT-PDM'),
         automaticallyImplyLeading: false,
         actions: [
           Consumer<MessagingProvider>(
@@ -41,7 +37,10 @@ class DashboardScreen extends StatelessWidget {
                       Navigator.pushNamed(context, AppRoutes.messaging);
                     },
                     tooltip: 'Open Messaging',
-                    icon: const Icon(Icons.chat_bubble_outline),
+                    icon: Icon(
+                      Icons.chat_bubble_outline,
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                    ),
                   ),
                 ),
               );
@@ -69,6 +68,28 @@ class _DashboardContentState extends State<DashboardContent> {
   String _userName = 'Scholar';
   bool _isApproved =
       false; // Mocking approval status based on backend verification
+
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _pageBackground =>
+      _isDarkMode ? const Color(0xFF24180F) : Colors.white.withOpacity(0.96);
+  Color get _surfaceColor =>
+      _isDarkMode ? const Color(0xFF332216) : const Color(0xFFF8F3ED);
+  Color get _plainCardColor =>
+      _isDarkMode ? const Color(0xFF2D1E12) : Colors.white;
+  Color get _titleColor => _isDarkMode ? Colors.white : AppColors.darkBrown;
+  Color get _subtitleColor => _isDarkMode ? Colors.white70 : Colors.grey;
+  Color get _bodyColor => _isDarkMode ? Colors.white70 : AppColors.brown;
+  Color get _heroOverlay => _isDarkMode
+      ? const Color(0xFF4A331B).withOpacity(0.66)
+      : Colors.white.withOpacity(0.58);
+  List<Color> get _heroGradient => _isDarkMode
+      ? const [
+          Color(0xFF4D2B0F),
+          Color(0xFF6B4318),
+          Color(0xFF8A6526),
+          Color(0xFFD49C10),
+        ]
+      : const [Color(0xFFF8F3ED), Color(0xFFF4E1B8)];
 
   @override
   void initState() {
@@ -102,7 +123,7 @@ class _DashboardContentState extends State<DashboardContent> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _plainCardColor,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
           BoxShadow(
@@ -120,12 +141,16 @@ class _DashboardContentState extends State<DashboardContent> {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F7FB),
+                color: _isDarkMode
+                    ? const Color(0xFF3A2718)
+                    : const Color(0xFFF5F7FB),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.notifications_none_rounded,
-                color: Color(0xFF7C9AD8),
+                color: _isDarkMode
+                    ? const Color(0xFFFFD54F)
+                    : const Color(0xFF7C9AD8),
               ),
             ),
             const SizedBox(width: 14),
@@ -135,19 +160,19 @@ class _DashboardContentState extends State<DashboardContent> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF0E318B),
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       height: 1.35,
-                      color: AppColors.brown,
+                      color: _bodyColor,
                     ),
                   ),
                 ],
@@ -156,10 +181,10 @@ class _DashboardContentState extends State<DashboardContent> {
             const SizedBox(width: 12),
             Text(
               timeAgo,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF9A9A9A),
+                color: _subtitleColor,
               ),
             ),
           ],
@@ -171,7 +196,7 @@ class _DashboardContentState extends State<DashboardContent> {
   Widget _buildFeaturedArticleCard() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F3ED),
+        color: _surfaceColor,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.gold, width: 1.2),
         boxShadow: const [
@@ -210,219 +235,36 @@ class _DashboardContentState extends State<DashboardContent> {
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () =>
-                      AppNavigator.goToTopLevel(context, AppRoutes.notifications),
+                  onPressed: () => AppNavigator.goToTopLevel(
+                    context,
+                    AppRoutes.notifications,
+                  ),
                   child: const Text(
                     'READ MORE',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.orange,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Scholarship opportunities from agencies and private benefactors',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
-                color: AppColors.darkBrown,
+                color: _titleColor,
                 height: 1.15,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Stay updated on CHED, UNIFAST, TES, TDP, and private grant support including BC Packaging, Food Crafters, Genmart, Kaizen, and Pusong Mapagkalinga.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.brown,
-                height: 1.45,
-              ),
+              style: TextStyle(fontSize: 14, color: _bodyColor, height: 1.45),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOngoingObligationsCard() {
-    const progressValue = 0.6;
-    const progressPercentage = 60;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F3ED),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold, width: 1.2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () => AppNavigator.goToTopLevel(context, AppRoutes.payouts),
-        borderRadius: BorderRadius.circular(18),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ONGOING OBLIGATIONS',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.1,
-                            color: AppColors.brown,
-                          ),
-                        ),
-                        SizedBox(height: 10),
-                        Text(
-                          'RO COMPLIANCE',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.darkBrown,
-                            height: 1.05,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.yellow,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'ACTIVE',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.darkBrown,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.gold, width: 1),
-                        ),
-                        child: IconButton(
-                          onPressed: () =>
-                              AppNavigator.goToTopLevel(context, AppRoutes.payouts),
-                          icon: const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 18,
-                            color: AppColors.brown,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: const [
-                  Expanded(
-                    child: Text(
-                      'Completion Progress',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.brown,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '$progressPercentage%',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.darkBrown,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: progressValue,
-                  minHeight: 7,
-                  backgroundColor: AppColors.lightGray,
-                  valueColor: const AlwaysStoppedAnimation<Color>(primaryColor),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.gold.withOpacity(0.5)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.error_outline_rounded,
-                      size: 18,
-                      color: AppColors.orange,
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'REQUIRES ACTION',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: AppColors.orange,
-                            ),
-                          ),
-                          SizedBox(height: 3),
-                          Text(
-                            'SUBMIT RO COMPLETION',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.darkBrown,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -432,22 +274,22 @@ class _DashboardContentState extends State<DashboardContent> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        image: const DecorationImage(
+        image: DecorationImage(
           image: AssetImage('assets/images/school_logo.png'),
           fit: BoxFit.cover,
-          opacity: 0.2,
+          opacity: _isDarkMode ? 0.18 : 0.1,
         ),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF3B2B11), Color(0xFFE5C059)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        gradient: LinearGradient(
+          colors: _heroGradient,
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
       ),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: Colors.black.withOpacity(0.35),
+          color: _heroOverlay,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,21 +314,18 @@ class _DashboardContentState extends State<DashboardContent> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Pambayang Dalubhasaan ng Marilao',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: _titleColor,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Hello, $_userName!',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: _subtitleColor, fontSize: 12),
                       ),
                     ],
                   ),
@@ -494,12 +333,12 @@ class _DashboardContentState extends State<DashboardContent> {
               ],
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               '"WHERE QUALITY EDUCATION IS A RIGHT, NOT A PRIVILEGE"',
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: _titleColor,
               ),
             ),
           ],
@@ -558,7 +397,7 @@ class _DashboardContentState extends State<DashboardContent> {
           physics: const NeverScrollableScrollPhysics(),
           children: cards.map((cardData) {
             return Card(
-              color: AppColors.lightGray,
+              color: _plainCardColor,
               elevation: 2,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -577,7 +416,9 @@ class _DashboardContentState extends State<DashboardContent> {
                     children: [
                       Icon(
                         cardData['icon'] as IconData,
-                        color: AppColors.darkBrown,
+                        color: _isDarkMode
+                            ? const Color(0xFFFFD54F)
+                            : AppColors.darkBrown,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -587,25 +428,24 @@ class _DashboardContentState extends State<DashboardContent> {
                           children: [
                             Text(
                               cardData['title'] as String,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.darkBrown,
+                                color: _titleColor,
                               ),
                             ),
                             const SizedBox(height: 3),
                             Text(
                               cardData['subtitle'] as String,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.brown,
-                              ),
+                              style: TextStyle(fontSize: 12, color: _bodyColor),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.arrow_forward,
-                        color: AppColors.darkBrown,
+                        color: _isDarkMode
+                            ? const Color(0xFFFFD54F)
+                            : AppColors.darkBrown,
                       ),
                     ],
                   ),
@@ -627,7 +467,7 @@ class _DashboardContentState extends State<DashboardContent> {
     final isCompact = MediaQuery.of(context).size.width < 360;
 
     return Card(
-      color: const Color(0xFFF8F3ED),
+      color: _surfaceColor,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -641,7 +481,7 @@ class _DashboardContentState extends State<DashboardContent> {
             children: [
               Icon(
                 icon,
-                color: primaryColor,
+                color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
                 size: isCompact ? 18 : 20,
               ),
               SizedBox(width: isCompact ? 8 : 10),
@@ -652,9 +492,9 @@ class _DashboardContentState extends State<DashboardContent> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: isCompact ? 13 : 14,
+                    fontSize: isCompact ? 11.5 : 12.5,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.darkBrown,
+                    color: _titleColor,
                   ),
                 ),
               ),
@@ -669,14 +509,7 @@ class _DashboardContentState extends State<DashboardContent> {
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.darkBrown, AppColors.brown, AppColors.gold],
-            stops: [0.0, 0.6, 1.0],
-          ),
-        ),
+        decoration: BoxDecoration(color: _pageBackground),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
@@ -685,24 +518,29 @@ class _DashboardContentState extends State<DashboardContent> {
               children: [
                 _buildCampusHero(),
                 const SizedBox(height: 12),
+                Text(
+                  'Office Updates',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _titleColor,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 _buildFeaturedArticleCard(),
                 const SizedBox(height: 20),
-                if (_isApproved) ...[
-                  _buildOngoingObligationsCard(),
-                  const SizedBox(height: 20),
-                ],
-                const Text(
+                Text(
                   'Quick Actions',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: _titleColor,
                   ),
                 ),
                 const SizedBox(height: 10),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final isCompact = constraints.maxWidth < 340;
+                    final isCompact = constraints.maxWidth < 420;
                     final itemWidth = isCompact
                         ? constraints.maxWidth
                         : (constraints.maxWidth - 20) / 3;
@@ -717,8 +555,10 @@ class _DashboardContentState extends State<DashboardContent> {
                             context: context,
                             icon: Icons.upload_file,
                             label: 'Upload',
-                            onTap: () =>
-                                Navigator.pushNamed(context, AppRoutes.documents),
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              AppRoutes.documents,
+                            ),
                           ),
                         ),
                         SizedBox(
@@ -739,9 +579,9 @@ class _DashboardContentState extends State<DashboardContent> {
                             context: context,
                             icon: Icons.assignment_turned_in,
                             label: 'Obligs',
-                            onTap: () => AppNavigator.goToTopLevel(
+                            onTap: () => Navigator.pushNamed(
                               context,
-                              AppRoutes.payouts,
+                              AppRoutes.roCompletion,
                             ),
                           ),
                         ),
@@ -752,12 +592,12 @@ class _DashboardContentState extends State<DashboardContent> {
                 const SizedBox(height: 20),
                 if (!_isApproved) ...[
                   // --- NOT VERIFIED YET SECTION ---
-                  const Text(
+                  Text(
                     'Scholarship Application',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -769,17 +609,20 @@ class _DashboardContentState extends State<DashboardContent> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.person_add,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Apply for New Scholarship'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Start your application as a new scholar',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () {
                             Navigator.pushNamed(
@@ -790,17 +633,20 @@ class _DashboardContentState extends State<DashboardContent> {
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.settings_outlined,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('App Settings'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Manage preferences, privacy, and account options',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () => showAppSettingsSheet(context),
                         ),
@@ -808,12 +654,12 @@ class _DashboardContentState extends State<DashboardContent> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'General Information',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -825,87 +671,104 @@ class _DashboardContentState extends State<DashboardContent> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.info_outline,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('About PDM/OSFA'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'History, Vision, Mission, Contacts',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () =>
                               Navigator.pushNamed(context, AppRoutes.about),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.question_answer,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('FAQs'),
-                          subtitle: const Text('Frequently asked questions'),
-                          trailing: const Icon(
+                          subtitle: Text(
+                            'Frequently asked questions',
+                            style: TextStyle(color: _subtitleColor),
+                          ),
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () =>
                               Navigator.pushNamed(context, AppRoutes.faqs),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.notifications,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('View Notifications'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Check your notifications and updates',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () =>
-                              AppNavigator.goToTopLevel(
-                                context,
-                                AppRoutes.notifications,
-                              ),
+                          onTap: () => AppNavigator.goToTopLevel(
+                            context,
+                            AppRoutes.notifications,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.announcement,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('View Announcements'),
-                          subtitle: const Text('Latest news and announcements'),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.grey,
+                          subtitle: Text(
+                            'Latest news and announcements',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          onTap: () =>
-                              AppNavigator.goToTopLevel(
-                                context,
-                                AppRoutes.notifications,
-                              ),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
+                          ),
+                          onTap: () => AppNavigator.goToTopLevel(
+                            context,
+                            AppRoutes.notifications,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.calendar_today,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('View Interview Schedule'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Check your scheduled interviews',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () => Navigator.pushNamed(
                             context,
@@ -914,17 +777,20 @@ class _DashboardContentState extends State<DashboardContent> {
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.file_upload,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Upload Renewal Requirements'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Submit required documents for renewal',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () =>
                               Navigator.pushNamed(context, AppRoutes.documents),
@@ -934,24 +800,22 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                 ] else ...[
                   // --- APPROVED SCHOLAR SECTION ---
-                  const Text(
+                  Text(
                     'Return Obligations',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 10),
                   // Quick RO Access Card
                   Card(
-                    color: const Color(0xFFF5F5F5),
+                    color: _surfaceColor,
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(borderRadius),
-                      side: BorderSide(
-                        color: AppColors.gold.withOpacity(0.35),
-                      ),
+                      side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -968,19 +832,19 @@ class _DashboardContentState extends State<DashboardContent> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Icon(
-                                Icons.assignment_turned_in,
+                                  Icons.assignment_turned_in,
                                   color: AppColors.darkBrown,
                                   size: 22,
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Research Opportunity (RO) Management',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.darkBrown,
+                                    color: _titleColor,
                                   ),
                                 ),
                               ),
@@ -989,10 +853,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           const SizedBox(height: 12),
                           Text(
                             'Access your RO assignments, submit completions, and track your progress.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.brown.withOpacity(0.88),
-                            ),
+                            style: TextStyle(fontSize: 14, color: _bodyColor),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -1004,7 +865,12 @@ class _DashboardContentState extends State<DashboardContent> {
                                     AppRoutes.roAssignment,
                                   ),
                                   icon: const Icon(Icons.visibility),
-                                  label: const Text('View Assignments'),
+                                  label: const Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [Text('View RO')],
+                                  ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: primaryColor,
                                     foregroundColor: Colors.white,
@@ -1039,39 +905,50 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                   const SizedBox(height: 20),
                   Card(
-                    elevation: 2,
+                    color: _plainCardColor,
+                    elevation: 1,
+                    shadowColor: const Color(0x14000000),
+                    clipBehavior: Clip.antiAlias,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(borderRadius),
                     ),
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.message,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Messaging'),
-                          subtitle: const Text('Chat with OSFA & Agencies'),
-                          trailing: const Icon(
+                          subtitle: Text(
+                            'Chat with OSFA & Agencies',
+                            style: TextStyle(color: _subtitleColor),
+                          ),
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () =>
                               Navigator.pushNamed(context, AppRoutes.messaging),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.payment,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Payout Schedule'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'View your personalized schedule',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () => AppNavigator.goToTopLevel(
                             context,
@@ -1080,57 +957,64 @@ class _DashboardContentState extends State<DashboardContent> {
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.assignment,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('RO Assignment'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'View your research opportunity assignment',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () =>
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.roAssignment,
-                              ),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.roAssignment,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.done_all,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Submit RO Completion'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Submit your completed research opportunity',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () =>
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.roCompletion,
-                              ),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.roCompletion,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.support_agent,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Submit Support Ticket'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Get help regarding your scholarship',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () =>
                               Navigator.pushNamed(context, AppRoutes.tickets),

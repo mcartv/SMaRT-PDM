@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
+import 'package:smartpdm_mobileapp/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class PayoutScheduleScreen extends StatefulWidget {
   final bool showBottomNav;
 
-  const PayoutScheduleScreen({
-    super.key,
-    this.showBottomNav = true,
-  });
+  const PayoutScheduleScreen({super.key, this.showBottomNav = true});
 
   @override
   State<PayoutScheduleScreen> createState() => _PayoutScheduleScreenState();
@@ -80,50 +79,23 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     }
   }
 
-  Widget _buildScholarChip(String label) {
-    final isSelected = _selectedScholarView == label;
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        showCheckmark: isSelected,
-        checkmarkColor: Colors.white,
-        backgroundColor: Colors.grey[200],
-        selectedColor: primaryColor,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.white : Colors.black,
-          fontWeight: FontWeight.bold,
-        ),
-        onSelected: (_) {
-          setState(() {
-            _selectedScholarView = label;
-          });
-
-          switch (label) {
-            case 'Payout Schedule':
-              AppNavigator.goToTopLevel(context, AppRoutes.payouts);
-              break;
-            case 'RO Assignment':
-              Navigator.pushNamed(context, AppRoutes.roAssignment);
-              break;
-            case 'RO Completion':
-              Navigator.pushNamed(context, AppRoutes.roCompletion);
-              break;
-          }
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final sectionCardColor = isDark
+        ? const Color(0xFF2D1E12)
+        : Colors.blue[50]!;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final iconAccent = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Payout Schedule'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        elevation: 0,
         automaticallyImplyLeading: false,
       ),
       selectedIndex: 1,
@@ -134,20 +106,37 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildScholarChip('Payout Schedule'),
-                  _buildScholarChip('RO Assignment'),
-                  _buildScholarChip('RO Completion'),
-                ],
-              ),
+            ScholarNavChips(
+              selectedLabel: _selectedScholarView,
+              onTap: (label) {
+                setState(() {
+                  _selectedScholarView = label;
+                });
+
+                switch (label) {
+                  case 'Payout Schedule':
+                    AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+                    break;
+                  case 'Renewal Documents':
+                    Navigator.pushNamed(context, AppRoutes.documents);
+                    break;
+                  case 'RO Assignment':
+                    Navigator.pushNamed(context, AppRoutes.roAssignment);
+                    break;
+                  case 'RO Completion':
+                    Navigator.pushNamed(context, AppRoutes.roCompletion);
+                    break;
+                }
+              },
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Payment Schedule',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
             ),
             const SizedBox(height: 12),
             ListView.builder(
@@ -157,7 +146,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               itemBuilder: (context, index) {
                 final payout = payouts[index];
                 return Card(
-                  color: const Color(0xFFF5F5F5),
+                  color: cardColor,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -187,17 +176,18 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                 children: [
                                   Text(
                                     payout['month'],
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
+                                      color: titleColor,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     payout['date'],
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey,
+                                      color: subtitleColor,
                                     ),
                                   ),
                                 ],
@@ -208,9 +198,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                               children: [
                                 Text(
                                   payout['amount'],
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
+                                    color: titleColor,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -242,9 +233,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                         if (payout['reference'] != '-')
                           Text(
                             'Reference: ${payout['reference']}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey,
+                              color: subtitleColor,
                             ),
                           ),
                       ],
@@ -255,39 +246,40 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
             ),
             const SizedBox(height: 20),
             Card(
-              color: Colors.blue[50],
+              color: sectionCardColor,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.account_balance, color: Colors.blue),
-                        SizedBox(width: 8),
+                        Icon(Icons.account_balance, color: iconAccent),
+                        const SizedBox(width: 8),
                         Text(
                           'Bank Details',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
+                            color: titleColor,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'Bank: BDO Unibank',
-                      style: TextStyle(fontSize: 13),
+                      style: TextStyle(fontSize: 13, color: titleColor),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       'Account Name: John Doe',
-                      style: TextStyle(fontSize: 13),
+                      style: TextStyle(fontSize: 13, color: titleColor),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       'Account Number: ****5678',
-                      style: TextStyle(fontSize: 13),
+                      style: TextStyle(fontSize: 13, color: titleColor),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
@@ -298,7 +290,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                           ),
                         );
                       },
-                      child: const Text('Update Bank Details'),
+                      child: Text(
+                        'Update Bank Details',
+                        style: TextStyle(color: iconAccent),
+                      ),
                     ),
                   ],
                 ),

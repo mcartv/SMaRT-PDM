@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/screens/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/screens/messaging/messaging_screen.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/screens/providers/theme_provider.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/interview_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/announcements_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/renewal_requirements_screen.dart';
@@ -27,7 +28,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => NewScholarProvider()),
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
-        ChangeNotifierProvider(create: (_) => NewScholarProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const MyApp(),
     ),
@@ -39,73 +40,105 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SMaRT-PDM',
-      theme: ThemeData(
-        // Define a custom color scheme using your constants
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor, // Use your primary color as the seed
-          primary: primaryColor,
-          secondary: accentColor,
-          // You can define other colors here as well, e.g., background, surface, etc.
-        ),
-        // The primarySwatch is a MaterialColor (a map of 10 shades).
-        // If you want to use your single primaryColor as the primarySwatch,
-        // you need to create a MaterialColor from it.
-        // This ensures older widgets or those relying on primarySwatch still get your color.
-        primarySwatch: MaterialColor(primaryColor.value, <int, Color>{
-          50: primaryColor.withOpacity(0.1),
-          100: primaryColor.withOpacity(0.2),
-          200: primaryColor.withOpacity(0.3),
-          300: primaryColor.withOpacity(0.4),
-          400: primaryColor.withOpacity(0.5),
-          500: primaryColor.withOpacity(0.6),
-          600: primaryColor.withOpacity(0.7),
-          700: primaryColor.withOpacity(0.8),
-          800: primaryColor.withOpacity(0.9),
-          900: primaryColor.withOpacity(1.0),
-        }),
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+    final lightTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryColor,
+        primary: primaryColor,
+        secondary: accentColor,
+        brightness: Brightness.light,
       ),
-      initialRoute: AppRoutes.splash,
-      routes: {
-        // Splash & Authentication
-        AppRoutes.splash: (context) => const SplashScreen(),
-        AppRoutes.login: (context) => const LoginScreen(),
-        AppRoutes.register: (context) => const RegisterScreen(),
-        AppRoutes.otp: (context) => const OtpScreen(),
-        AppRoutes.forgotPassword: (context) => const ForgotPasswordScreen(),
-        AppRoutes.changeEmail: (context) => const ChangeEmailScreen(),
+      primarySwatch: MaterialColor(primaryColor.value, <int, Color>{
+        50: primaryColor.withOpacity(0.1),
+        100: primaryColor.withOpacity(0.2),
+        200: primaryColor.withOpacity(0.3),
+        300: primaryColor.withOpacity(0.4),
+        400: primaryColor.withOpacity(0.5),
+        500: primaryColor.withOpacity(0.6),
+        600: primaryColor.withOpacity(0.7),
+        700: primaryColor.withOpacity(0.8),
+        800: primaryColor.withOpacity(0.9),
+        900: primaryColor.withOpacity(1.0),
+      }),
+      scaffoldBackgroundColor: backgroundColor,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        foregroundColor: pdmDarkBrown,
+        elevation: 0,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.white,
+      ),
+      visualDensity: VisualDensity.adaptivePlatformDensity,
+    );
 
-        // Top-level dashboard routes
-        AppRoutes.home: (context) =>
-            const TopLevelShellScreen(initialIndex: 0),
-        AppRoutes.payouts: (context) =>
-            const TopLevelShellScreen(initialIndex: 1),
-        AppRoutes.notifications: (context) =>
-            const TopLevelShellScreen(initialIndex: 2),
-        AppRoutes.profile: (context) =>
-            const TopLevelShellScreen(initialIndex: 3),
+    final darkTheme = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryColor,
+        primary: accentColor,
+        secondary: accentColor,
+        brightness: Brightness.dark,
+      ),
+      scaffoldBackgroundColor: const Color(0xFF24180F),
+      canvasColor: const Color(0xFF2D1E12),
+      cardColor: const Color(0xFF332216),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF24180F),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Color(0xFF2D1E12),
+        selectedItemColor: accentColor,
+        unselectedItemColor: Colors.white70,
+      ),
+      dividerColor: Colors.white12,
+      visualDensity: VisualDensity.adaptivePlatformDensity,
+    );
 
-        // Dashboard detail routes
-        AppRoutes.newApplicant: (context) => const NewApplicantScreen(),
-        AppRoutes.application: (context) =>
-            const PlaceholderScreen(title: 'Application'),
-        AppRoutes.documents: (context) => const RenewalRequirementsScreen(),
-        AppRoutes.status: (context) => const PlaceholderScreen(title: 'Status'),
-        AppRoutes.interviewSchedule: (context) =>
-            const InterviewScheduleScreen(),
-        AppRoutes.announcements: (context) => const AnnouncementsScreen(),
-        AppRoutes.about: (context) =>
-            const PlaceholderScreen(title: 'About PDM/OSFA'),
-        AppRoutes.faqs: (context) => const PlaceholderScreen(title: 'FAQs'),
-        AppRoutes.messaging: (context) => const MessagingScreen(),
-        AppRoutes.roAssignment: (context) => const ROAssignmentScreen(),
-        AppRoutes.roCompletion: (context) => ROCompletionScreen(),
-        AppRoutes.tickets: (context) => const ReportTicketScreen(),
-        AppRoutes.success: (context) => const SuccessScreen(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'SMaRT-PDM',
+          theme: lightTheme,
+          darkTheme: darkTheme,
+          themeMode: themeProvider.themeMode,
+          initialRoute: AppRoutes.splash,
+          routes: {
+            AppRoutes.splash: (context) => const SplashScreen(),
+            AppRoutes.login: (context) => const LoginScreen(),
+            AppRoutes.register: (context) => const RegisterScreen(),
+            AppRoutes.otp: (context) => const OtpScreen(),
+            AppRoutes.forgotPassword: (context) => const ForgotPasswordScreen(),
+            AppRoutes.changeEmail: (context) => const ChangeEmailScreen(),
+            AppRoutes.home: (context) =>
+                const TopLevelShellScreen(initialIndex: 0),
+            AppRoutes.payouts: (context) =>
+                const TopLevelShellScreen(initialIndex: 1),
+            AppRoutes.notifications: (context) =>
+                const TopLevelShellScreen(initialIndex: 2),
+            AppRoutes.profile: (context) =>
+                const TopLevelShellScreen(initialIndex: 3),
+            AppRoutes.newApplicant: (context) => const NewApplicantScreen(),
+            AppRoutes.application: (context) =>
+                const PlaceholderScreen(title: 'Application'),
+            AppRoutes.documents: (context) => const RenewalRequirementsScreen(),
+            AppRoutes.status: (context) =>
+                const PlaceholderScreen(title: 'Status'),
+            AppRoutes.interviewSchedule: (context) =>
+                const InterviewScheduleScreen(),
+            AppRoutes.announcements: (context) => const AnnouncementsScreen(),
+            AppRoutes.about: (context) =>
+                const PlaceholderScreen(title: 'About PDM/OSFA'),
+            AppRoutes.faqs: (context) => const PlaceholderScreen(title: 'FAQs'),
+            AppRoutes.messaging: (context) => const MessagingScreen(),
+            AppRoutes.roAssignment: (context) => const ROAssignmentScreen(),
+            AppRoutes.roCompletion: (context) => ROCompletionScreen(),
+            AppRoutes.tickets: (context) => const ReportTicketScreen(),
+            AppRoutes.success: (context) => const SuccessScreen(),
+          },
+          debugShowCheckedModeBanner: false,
+        );
       },
-      debugShowCheckedModeBanner: false, // Set to true for debugging
     );
   }
 }

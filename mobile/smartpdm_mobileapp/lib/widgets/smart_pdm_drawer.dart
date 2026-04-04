@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';
 
 class SmartPdmDrawer extends StatelessWidget {
@@ -16,7 +17,21 @@ class SmartPdmDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final drawerBackground =
+        isDark ? const Color(0xFF2D1E12) : const Color(0xFFFFFBF6);
+    final headerBackground =
+        isDark ? const Color(0xFF3A2718) : AppColors.gold.withOpacity(0.18);
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor =
+        isDark ? Colors.white70 : AppColors.brown.withOpacity(0.72);
+    final sectionColor =
+        isDark ? Colors.white70 : AppColors.brown.withOpacity(0.6);
+    final itemTextColor = isDark ? Colors.white : AppColors.darkBrown;
+    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+
     return Drawer(
+      backgroundColor: drawerBackground,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
@@ -27,7 +42,9 @@ class SmartPdmDrawer extends StatelessWidget {
               AppNavigator.goToTopLevel(context, AppRoutes.profile);
             },
             child: DrawerHeader(
-              decoration: const BoxDecoration(color: primaryColor),
+              decoration: BoxDecoration(
+                color: headerBackground,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -37,25 +54,28 @@ class SmartPdmDrawer extends StatelessWidget {
                     backgroundColor: Colors.white,
                     child: Text(
                       userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: primaryColor,
+                        color: isDark ? AppColors.darkBrown : AppColors.darkBrown,
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     userName,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: titleColor,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
                     isScholar ? 'Approved Scholar' : 'Applicant',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: TextStyle(
+                      color: subtitleColor,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -70,7 +90,7 @@ class SmartPdmDrawer extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[600],
+                color: sectionColor,
                 letterSpacing: 1,
               ),
             ),
@@ -109,7 +129,7 @@ class SmartPdmDrawer extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
+                  color: sectionColor,
                   letterSpacing: 1,
                 ),
               ),
@@ -141,7 +161,10 @@ class SmartPdmDrawer extends StatelessWidget {
           ],
 
           // Divider
-          const Divider(height: 24),
+          Divider(
+            height: 24,
+            color: isDark ? Colors.white12 : null,
+          ),
 
           // Account Section
           Padding(
@@ -151,7 +174,7 @@ class SmartPdmDrawer extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[600],
+                color: sectionColor,
                 letterSpacing: 1,
               ),
             ),
@@ -190,8 +213,7 @@ class SmartPdmDrawer extends StatelessWidget {
             route: AppRoutes.forgotPassword,
           ),
 
-          // Spacer
-          Expanded(child: Container()),
+          const SizedBox(height: 12),
 
           // Logout
           Padding(
@@ -238,9 +260,20 @@ class SmartPdmDrawer extends StatelessWidget {
     required String label,
     required String route,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+    final textColor = isDark ? Colors.white : AppColors.darkBrown;
+
     return ListTile(
-      leading: Icon(icon, color: primaryColor),
-      title: Text(label),
+      leading: Icon(icon, color: iconColor),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+        ),
+      ),
+      iconColor: iconColor,
+      textColor: textColor,
       onTap: () {
         Navigator.pop(context);
         if (AppRoutes.isTopLevel(route)) {
@@ -258,9 +291,20 @@ class SmartPdmDrawer extends StatelessWidget {
     required String label,
     required Future<void> Function() onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+    final textColor = isDark ? Colors.white : AppColors.darkBrown;
+
     return ListTile(
-      leading: Icon(icon, color: primaryColor),
-      title: Text(label),
+      leading: Icon(icon, color: iconColor),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+        ),
+      ),
+      iconColor: iconColor,
+      textColor: textColor,
       onTap: onTap,
     );
   }

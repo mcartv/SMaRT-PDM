@@ -43,7 +43,9 @@ const APP_STATUS = {
   review: { label: 'Under Review', bg: C.blueSoft, color: C.blueMid },
   qualified: { label: 'Qualified', bg: C.greenSoft, color: C.green },
   rejected: { label: 'Not Qualified', bg: C.redSoft, color: C.red },
+  notqualified: { label: 'Not Qualified', bg: C.redSoft, color: C.red },
   disqualified: { label: 'Disqualified', bg: '#fee2e2', color: '#991b1b' },
+  requires_reupload: { label: 'Needs Re-upload', bg: C.amberSoft, color: C.amber },
 };
 
 const SDO_STATUS_MAP = {
@@ -162,8 +164,8 @@ function DisqModal({ app, onDisqualify, onClose }) {
               key={r}
               onClick={() => setReason(r)}
               className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-medium transition-all border ${reason === r
-                ? 'bg-red-600 border-red-600 text-white'
-                : 'bg-white border-stone-200 text-stone-600 hover:border-red-200 hover:bg-red-50'
+                  ? 'bg-red-600 border-red-600 text-white'
+                  : 'bg-white border-stone-200 text-stone-600 hover:border-red-200 hover:bg-red-50'
                 }`}
             >
               {r}
@@ -341,7 +343,11 @@ export default function ApplicationReview() {
     let base = [...visibleApps];
 
     if (appStatusFilter !== 'All') {
-      base = base.filter((a) => (a.application_status || 'pending').toLowerCase() === appStatusFilter.toLowerCase());
+      base = base.filter((a) => {
+        const raw = (a.application_status || 'pending').toLowerCase();
+        if (appStatusFilter === 'notqualified') return raw === 'rejected' || raw === 'notqualified';
+        return raw === appStatusFilter.toLowerCase();
+      });
     }
 
     return base.filter((a) => {
@@ -353,10 +359,7 @@ export default function ApplicationReview() {
       const docStatus = (a.document_status || '').toLowerCase();
       const normalizedSdo = normalizeSdo(a.sdu_level || a.sdo_status || '');
 
-      const nameParts = fullName
-        .replace(',', ' ')
-        .split(/\s+/)
-        .filter(Boolean);
+      const nameParts = fullName.replace(',', ' ').split(/\s+/).filter(Boolean);
 
       const matchSearch =
         !q ||
@@ -633,20 +636,36 @@ export default function ApplicationReview() {
 
   const renderApplicationCard = (app) => {
     const id = app.id;
-    const isDisq = app.disqualified || (app.application_status || '').toLowerCase() === 'disqualified';
+    const normalizedAppStatus = (app.application_status || 'pending').toLowerCase();
+    const isDisq = app.disqualified || normalizedAppStatus === 'disqualified';
+
     const docMeta = getDocStatusMeta(app.document_status);
-    const appMeta = getAppStatusMeta(app.application_status || 'pending');
+    const appMeta = getAppStatusMeta(normalizedAppStatus);
     const gwaMeta = getGwaMeta(app.gwa);
     const ocrMeta = getOcrMeta(app);
     const normalizedSdo = normalizeSdo(app.sdu_level || app.sdo_status || '');
     const sdoStyle = SDO_STATUS_MAP[normalizedSdo] || SDO_STATUS_MAP.clear;
 
     const docStatus = (app.document_status || '').toLowerCase();
-    const appStatus = (app.application_status || 'pending').toLowerCase();
+    const appStatus = normalizedAppStatus;
+    const verificationStatus = (app.verification_status || '').toLowerCase();
 
     const isDocsComplete = docStatus === 'documents ready';
     const isInReviewStage = appStatus === 'review';
-    const canDecide = isDocsComplete && isInReviewStage;
+    const isVerified = verificationStatus === 'verified';
+
+    const requiresReupload =
+      docStatus === 'missing docs' ||
+      docStatus === 'under review' ||
+      verificationStatus === 'rejected' ||
+      appStatus === 'requires_reupload';
+
+    const canDecide =
+      isDocsComplete &&
+      isInReviewStage &&
+      isVerified &&
+      !requiresReupload &&
+      !!app.remarks;
 
     return (
       <div
@@ -658,17 +677,26 @@ export default function ApplicationReview() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-semibold text-stone-900 truncate">{app.name}</h3>
+
               <Badge
                 variant="outline"
                 className="text-[10px] font-medium border-stone-200 text-stone-500 bg-white"
               >
                 {app.program}
               </Badge>
+
               {isDisq && (
                 <Badge className="bg-red-50 text-red-600 border-red-100 text-[10px] font-medium">
                   Disqualified
                 </Badge>
               )}
+
+              {requiresReupload && (
+                <Badge className="bg-orange-50 text-orange-700 border-orange-100 text-[10px] font-medium">
+                  Needs Re-upload
+                </Badge>
+              )}
+
               {app.is_reconsideration_candidate && (
                 <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-medium">
                   Replacement Candidate
@@ -678,9 +706,12 @@ export default function ApplicationReview() {
 
             <div className="mt-1 flex items-center gap-2 flex-wrap">
               <span className="text-xs font-mono text-stone-400">{app.student_number}</span>
-              {app.remarks ? (
-                <span className="text-[11px] text-stone-400">• With remarks</span>
-              ) : null}
+              {app.remarks && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-blue-600">
+                  <MessageSquare className="w-3 h-3" />
+                  Has Remarks
+                </span>
+              )}
             </div>
           </div>
 
@@ -734,7 +765,7 @@ export default function ApplicationReview() {
             className="h-8 px-3 rounded-lg border-red-100 text-red-600 hover:bg-red-50 text-xs shadow-none disabled:opacity-40"
           >
             <XCircle className="w-3 h-3 mr-1" />
-            Reject
+            Not Qualified
           </Button>
 
           <Button
@@ -760,11 +791,15 @@ export default function ApplicationReview() {
 
         {!canDecide && (
           <p className="text-[11px] text-stone-400 mt-2">
-            {appStatus === 'pending'
-              ? 'Waiting for initial review'
+            {!isInReviewStage
+              ? 'Move application to review stage first.'
               : docStatus !== 'documents ready'
-                ? 'Complete required documents first'
-                : 'Move application to review stage first'}
+                ? 'Documents incomplete or require re-upload.'
+                : !isVerified
+                  ? 'Finish document verification first.'
+                  : !app.remarks
+                    ? 'Add reviewer remarks before decision.'
+                    : 'Not ready for decision.'}
           </p>
         )}
       </div>
@@ -987,7 +1022,7 @@ export default function ApplicationReview() {
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="review">Under Review</SelectItem>
             <SelectItem value="qualified">Qualified</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="notqualified">Not Qualified</SelectItem>
             <SelectItem value="disqualified">Disqualified</SelectItem>
           </SelectContent>
         </Select>

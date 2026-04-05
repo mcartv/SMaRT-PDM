@@ -1,0 +1,992 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+    Plus, Search, Loader2, CalendarDays, Users, FolderOpen,
+    Pencil, Archive, X, CheckCircle2, Clock3, Ban, RefreshCw,
+    Sparkles, Megaphone, Layers3, ShieldCheck, EyeOff
+} from 'lucide-react';
+
+const C = {
+    brown: '#5c2d0e',
+    brownMid: '#7c4a2e',
+    amber: '#d97706',
+    amberSoft: '#FFF7ED',
+    green: '#16a34a',
+    greenSoft: '#F0FDF4',
+    red: '#dc2626',
+    redSoft: '#FEF2F2',
+    blueMid: '#2563EB',
+    blueSoft: '#EFF6FF',
+    text: '#1c1917',
+    bg: '#faf7f2',
+    muted: '#78716c',
+    border: '#e7e5e4',
+};
+
+const STATUS_META = {
+    draft: { label: 'Draft', color: C.amber, bg: C.amberSoft },
+    open: { label: 'Open', color: C.green, bg: C.greenSoft },
+    closed: { label: 'Closed', color: C.red, bg: C.redSoft },
+    archived: { label: 'Archived', color: '#57534e', bg: '#f5f5f4' },
+};
+
+function fmtDate(v) {
+    if (!v) return 'N/A';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return v;
+    return d.toLocaleDateString();
+}
+
+function fmtMoney(v) {
+    const n = Number(v || 0);
+    return `₱${n.toLocaleString()}`;
+}
+
+function StatCard({ label, value, icon: Icon, accent, soft }) {
+    return (
+        <Card className="border-stone-200 shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
+                <div
+                    className="w-8 h-8 rounded-xl flex items-center justify-center"
+                    style={{ background: soft }}
+                >
+                    <Icon className="w-4 h-4" style={{ color: accent }} />
+                </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+                <div className="text-2xl font-semibold" style={{ color: C.text }}>
+                    {value}
+                </div>
+                <p className="text-xs text-stone-500 mt-0.5">{label}</p>
+            </CardContent>
+        </Card>
+    );
+}
+
+function OpeningModal({
+    open,
+    mode,
+    form,
+    setForm,
+    template,
+    onClose,
+    onSave,
+    saving,
+}) {
+    if (!open) return null;
+
+    const isEdit = mode === 'edit';
+    const title = isEdit ? 'Edit Scholarship Opening' : 'Open Program for New Batch';
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-3xl border-stone-200 shadow-xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-base font-semibold text-stone-800">{title}</h3>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                            {isEdit
+                                ? 'Update this active scholarship opening'
+                                : 'Create a live application cycle using the selected template'}
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <CardContent className="p-5 space-y-5">
+                    {template && !isEdit && (
+                        <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+                            <div className="flex items-start gap-3">
+                                <div
+                                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                                    style={{ background: C.blueSoft }}
+                                >
+                                    <Layers3 className="w-4 h-4" style={{ color: C.blueMid }} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-stone-800">
+                                        {template.program_name}
+                                    </p>
+                                    <p className="text-xs text-stone-500 mt-1">
+                                        {template.description || 'No default description set.'}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                            {template.benefactor_name || template.benefactor_id || 'No Benefactor'}
+                                        </Badge>
+                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                            GWA ≤ {template.gwa_threshold ?? 'N/A'}
+                                        </Badge>
+                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                            RO: {template.requires_ro ? 'Required' : 'Not Required'}
+                                        </Badge>
+                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                            {template.renewal_cycle || 'No Renewal'}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Opening Title
+                            </label>
+                            <Input
+                                value={form.opening_title}
+                                onChange={(e) => setForm((prev) => ({ ...prev, opening_title: e.target.value }))}
+                                placeholder="e.g. AY 2026-2027 First Semester Intake"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Posting Status
+                            </label>
+                            <Select
+                                value={form.posting_status}
+                                onValueChange={(value) => setForm((prev) => ({ ...prev, posting_status: value }))}
+                            >
+                                <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="draft">Draft</SelectItem>
+                                    <SelectItem value="open">Open</SelectItem>
+                                    <SelectItem value="closed">Closed</SelectItem>
+                                    <SelectItem value="archived">Archived</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Application Start
+                            </label>
+                            <Input
+                                type="date"
+                                value={form.application_start}
+                                onChange={(e) => setForm((prev) => ({ ...prev, application_start: e.target.value }))}
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Application End
+                            </label>
+                            <Input
+                                type="date"
+                                value={form.application_end}
+                                onChange={(e) => setForm((prev) => ({ ...prev, application_end: e.target.value }))}
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Screening Start
+                            </label>
+                            <Input
+                                type="date"
+                                value={form.screening_start}
+                                onChange={(e) => setForm((prev) => ({ ...prev, screening_start: e.target.value }))}
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Screening End
+                            </label>
+                            <Input
+                                type="date"
+                                value={form.screening_end}
+                                onChange={(e) => setForm((prev) => ({ ...prev, screening_end: e.target.value }))}
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Allocated Slots
+                            </label>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={form.allocated_slots}
+                                onChange={(e) => setForm((prev) => ({ ...prev, allocated_slots: e.target.value }))}
+                                placeholder="0"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Financial Allocation
+                            </label>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={form.financial_allocation}
+                                onChange={(e) => setForm((prev) => ({ ...prev, financial_allocation: e.target.value }))}
+                                placeholder="0.00"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5 md:col-span-2">
+                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Opening Notes / Instructions
+                            </label>
+                            <Textarea
+                                value={form.announcement_text}
+                                onChange={(e) => setForm((prev) => ({ ...prev, announcement_text: e.target.value }))}
+                                placeholder="Instructions for this batch, reminders, submission notes, special conditions..."
+                                className="min-h-[120px] rounded-lg border-stone-200 text-sm resize-none"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            className="h-9 rounded-lg border-stone-200 text-xs"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={onSave}
+                            disabled={saving || !form.opening_title || !form.application_start || !form.application_end}
+                            className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+                            style={{ background: C.brownMid }}
+                        >
+                            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                            {isEdit ? 'Save Changes' : 'Create Opening'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
+    if (!open || !opening) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-5 py-4 border-b border-stone-100 bg-stone-50">
+                    <h3 className="text-base font-semibold text-stone-800">Opening Created</h3>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                        {opening.opening_title || 'Scholarship opening created successfully.'}
+                    </p>
+                </div>
+
+                <CardContent className="p-5 space-y-4">
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        <p className="text-sm font-medium text-stone-800">
+                            Do you want to create an announcement for this opening now?
+                        </p>
+                        <p className="text-xs text-stone-500 mt-1">
+                            This will redirect you to the announcements page with prefilled content.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            className="h-9 rounded-lg border-stone-200 text-xs"
+                        >
+                            Skip for Now
+                        </Button>
+                        <Button
+                            onClick={onCreateAnnouncement}
+                            className="h-9 rounded-lg text-white text-xs border-none"
+                            style={{ background: C.brownMid }}
+                        >
+                            <Megaphone className="w-4 h-4 mr-2" />
+                            Create Announcement
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+export default function ScholarshipOpenings() {
+    const navigate = useNavigate();
+
+    const [templates, setTemplates] = useState([]);
+    const [openings, setOpenings] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('All Statuses');
+    const [programFilter, setProgramFilter] = useState('All Programs');
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('create');
+    const [activeTemplate, setActiveTemplate] = useState(null);
+    const [editingOpeningId, setEditingOpeningId] = useState(null);
+
+    const [postCreateOpen, setPostCreateOpen] = useState(false);
+    const [newOpeningForPrompt, setNewOpeningForPrompt] = useState(null);
+
+    const emptyForm = {
+        program_id: '',
+        opening_title: '',
+        application_start: '',
+        application_end: '',
+        screening_start: '',
+        screening_end: '',
+        allocated_slots: '',
+        financial_allocation: '',
+        posting_status: 'draft',
+        announcement_text: '',
+    };
+
+    const [form, setForm] = useState(emptyForm);
+
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+
+            const [templatesRes, openingsRes] = await Promise.all([
+                fetch('http://localhost:5000/api/scholarship-programs', {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
+                fetch('http://localhost:5000/api/program-openings', {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
+            ]);
+
+            if (!templatesRes.ok) throw new Error('Failed to load scholarship program templates');
+            if (!openingsRes.ok) throw new Error('Failed to load scholarship openings');
+
+            const templatesData = await templatesRes.json();
+            const openingsData = await openingsRes.json();
+
+            setTemplates(Array.isArray(templatesData) ? templatesData.filter((t) => !t.is_archived) : []);
+            setOpenings(Array.isArray(openingsData) ? openingsData : []);
+        } catch (err) {
+            console.error('SCHOLARSHIP OPENINGS FETCH ERROR:', err);
+            alert(err.message || 'Failed to load scholarship openings');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const programOptions = useMemo(() => {
+        return ['All Programs', ...new Set(openings.map((o) => o.program_name).filter(Boolean))];
+    }, [openings]);
+
+    const filteredOpenings = useMemo(() => {
+        const q = search.trim().toLowerCase();
+
+        return openings.filter((o) => {
+            const matchSearch =
+                !q ||
+                (o.opening_title || '').toLowerCase().includes(q) ||
+                (o.program_name || '').toLowerCase().includes(q) ||
+                (o.benefactor_name || '').toLowerCase().includes(q);
+
+            const matchStatus =
+                statusFilter === 'All Statuses' ||
+                (o.posting_status || '').toLowerCase() === statusFilter.toLowerCase();
+
+            const matchProgram =
+                programFilter === 'All Programs' ||
+                (o.program_name || '') === programFilter;
+
+            return matchSearch && matchStatus && matchProgram;
+        });
+    }, [openings, search, statusFilter, programFilter]);
+
+    const stats = useMemo(() => {
+        return {
+            templates: templates.length,
+            total: openings.length,
+            open: openings.filter((o) => (o.posting_status || '').toLowerCase() === 'open').length,
+            draft: openings.filter((o) => (o.posting_status || '').toLowerCase() === 'draft').length,
+        };
+    }, [templates, openings]);
+
+    const openCreateFromTemplate = (template) => {
+        const currentYear = new Date().getFullYear();
+
+        setModalMode('create');
+        setEditingOpeningId(null);
+        setActiveTemplate(template);
+        setForm({
+            program_id: template.program_id,
+            opening_title: `${template.program_name} AY ${currentYear}-${currentYear + 1}`,
+            application_start: '',
+            application_end: '',
+            screening_start: '',
+            screening_end: '',
+            allocated_slots: '',
+            financial_allocation: '',
+            posting_status: 'draft',
+            announcement_text: template.description || '',
+        });
+        setModalOpen(true);
+    };
+
+    const openEditModal = (opening) => {
+        setModalMode('edit');
+        setEditingOpeningId(opening.opening_id);
+        setActiveTemplate(null);
+        setForm({
+            program_id: opening.program_id || '',
+            opening_title: opening.opening_title || '',
+            application_start: opening.application_start ? String(opening.application_start).slice(0, 10) : '',
+            application_end: opening.application_end ? String(opening.application_end).slice(0, 10) : '',
+            screening_start: opening.screening_start ? String(opening.screening_start).slice(0, 10) : '',
+            screening_end: opening.screening_end ? String(opening.screening_end).slice(0, 10) : '',
+            allocated_slots: opening.allocated_slots ?? '',
+            financial_allocation: opening.financial_allocation ?? '',
+            posting_status: (opening.posting_status || 'draft').toLowerCase(),
+            announcement_text: opening.announcement_text || '',
+        });
+        setModalOpen(true);
+    };
+
+    const handleSaveOpening = async () => {
+        try {
+            setSaving(true);
+
+            const payload = {
+                program_id: form.program_id,
+                opening_title: form.opening_title,
+                application_start: form.application_start,
+                application_end: form.application_end,
+                screening_start: form.screening_start || null,
+                screening_end: form.screening_end || null,
+                allocated_slots: Number(form.allocated_slots || 0),
+                financial_allocation: Number(form.financial_allocation || 0),
+                posting_status: form.posting_status,
+                announcement_text: form.announcement_text || null,
+            };
+
+            const isEdit = modalMode === 'edit' && editingOpeningId;
+            const url = isEdit
+                ? `http://localhost:5000/api/program-openings/${editingOpeningId}`
+                : 'http://localhost:5000/api/program-openings';
+
+            const method = isEdit ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to save scholarship opening');
+            }
+
+            setModalOpen(false);
+            setForm(emptyForm);
+            setEditingOpeningId(null);
+            setActiveTemplate(null);
+            await fetchData();
+
+            if (!isEdit) {
+                setNewOpeningForPrompt(data || payload);
+                setPostCreateOpen(true);
+            }
+        } catch (err) {
+            console.error('SAVE OPENING ERROR:', err);
+            alert(err.message || 'Failed to save scholarship opening');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleQuickStatusUpdate = async (openingId, nextStatus) => {
+        try {
+            const res = await fetch(`http://localhost:5000/api/program-openings/${openingId}`, {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ posting_status: nextStatus }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to update opening status');
+            }
+
+            await fetchData();
+        } catch (err) {
+            console.error('STATUS UPDATE ERROR:', err);
+            alert(err.message || 'Failed to update opening status');
+        }
+    };
+
+    const handleCreateAnnouncementRedirect = () => {
+        if (!newOpeningForPrompt) return;
+
+        const params = new URLSearchParams({
+            opening_title: newOpeningForPrompt.opening_title || '',
+            announcement_text: newOpeningForPrompt.announcement_text || '',
+            posting_status: newOpeningForPrompt.posting_status || '',
+            opening_id: newOpeningForPrompt.opening_id || '',
+            program_id: newOpeningForPrompt.program_id || '',
+        });
+
+        navigate(`/admin/announcements?prefill=opening&${params.toString()}`);
+    };
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+                <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
+                <p className="text-xs text-stone-400 uppercase tracking-widest">
+                    Loading scholarship openings...
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-5 py-2" style={{ background: C.bg }}>
+            <OpeningModal
+                open={modalOpen}
+                mode={modalMode}
+                form={form}
+                setForm={setForm}
+                template={activeTemplate}
+                onClose={() => {
+                    setModalOpen(false);
+                    setActiveTemplate(null);
+                    setEditingOpeningId(null);
+                }}
+                onSave={handleSaveOpening}
+                saving={saving}
+            />
+
+            <PostCreatePrompt
+                open={postCreateOpen}
+                opening={newOpeningForPrompt}
+                onClose={() => {
+                    setPostCreateOpen(false);
+                    setNewOpeningForPrompt(null);
+                }}
+                onCreateAnnouncement={handleCreateAnnouncementRedirect}
+            />
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
+                        Scholarship Openings
+                    </h1>
+                    <p className="text-sm mt-0.5" style={{ color: C.muted }}>
+                        Reuse program templates and finalize batch-specific opening details here
+                    </p>
+                </div>
+
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={fetchData}
+                    className="rounded-lg text-xs border-stone-200 text-stone-600"
+                >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                    Refresh
+                </Button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatCard label="Templates" value={stats.templates} icon={Layers3} accent={C.brown} soft={C.amberSoft} />
+                <StatCard label="Total Openings" value={stats.total} icon={FolderOpen} accent={C.blueMid} soft={C.blueSoft} />
+                <StatCard label="Currently Open" value={stats.open} icon={CheckCircle2} accent={C.green} soft={C.greenSoft} />
+                <StatCard label="Draft Openings" value={stats.draft} icon={Clock3} accent={C.amber} soft={C.amberSoft} />
+            </div>
+
+            <Card className="border-stone-200 shadow-none overflow-hidden">
+                <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
+                    <div>
+                        <CardTitle className="text-sm font-semibold text-stone-800">Program Templates</CardTitle>
+                        <CardDescription className="text-xs">
+                            Reusable scholarship programs maintained in Maintenance
+                        </CardDescription>
+                    </div>
+                </CardHeader>
+
+                <CardContent className="p-4">
+                    {templates.length === 0 ? (
+                        <div className="text-center py-12 text-sm text-stone-400">
+                            No scholarship templates found. Add them first in Maintenance.
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                            {templates.map((template) => (
+                                <div
+                                    key={template.program_id}
+                                    className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h3 className="text-sm font-semibold text-stone-900">
+                                                    {template.program_name}
+                                                </h3>
+                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                                    {template.benefactor_name || template.benefactor_id || 'No Benefactor'}
+                                                </Badge>
+
+                                                {(template.visibility_status || '').toLowerCase() === 'hidden' ? (
+                                                    <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-500">
+                                                        <EyeOff className="w-3 h-3 mr-1" />
+                                                        Hidden
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-[10px] border-green-200 bg-green-50 text-green-700">
+                                                        Visible
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            <p className="text-xs text-stone-500 mt-1 line-clamp-2">
+                                                {template.description || 'No description set.'}
+                                            </p>
+                                        </div>
+
+                                        <Button
+                                            size="sm"
+                                            className="rounded-lg text-white text-xs border-none shrink-0"
+                                            style={{ background: C.brownMid }}
+                                            onClick={() => openCreateFromTemplate(template)}
+                                        >
+                                            <Plus className="w-3.5 h-3.5 mr-1.5" />
+                                            Open for Batch
+                                        </Button>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                            <p className="text-[10px] uppercase tracking-wide text-stone-400">GWA Threshold</p>
+                                            <p className="text-sm font-medium text-stone-800 mt-1">{template.gwa_threshold ?? 'N/A'}</p>
+                                        </div>
+
+                                        <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                            <p className="text-[10px] uppercase tracking-wide text-stone-400">RO</p>
+                                            <p className="text-sm font-medium text-stone-800 mt-1">
+                                                {template.requires_ro ? 'Required' : 'Not Required'}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                            <p className="text-[10px] uppercase tracking-wide text-stone-400">Renewal Cycle</p>
+                                            <p className="text-sm font-medium text-stone-800 mt-1">
+                                                {template.renewal_cycle || 'N/A'}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                            <p className="text-[10px] uppercase tracking-wide text-stone-400">Visibility</p>
+                                            <p className="text-sm font-medium text-stone-800 mt-1">
+                                                {template.visibility_status || 'N/A'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[260px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
+                    <Input
+                        placeholder="Search by title, program, or benefactor..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
+                    />
+                </div>
+
+                <Select value={programFilter} onValueChange={setProgramFilter}>
+                    <SelectTrigger className="w-[190px] h-9 rounded-lg border-stone-200 text-sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {programOptions.map((item) => (
+                            <SelectItem key={item} value={item} className="text-sm">
+                                {item}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[160px] h-9 rounded-lg border-stone-200 text-sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All Statuses">All Statuses</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="open">Open</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                        <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                {(search || statusFilter !== 'All Statuses' || programFilter !== 'All Programs') && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            setSearch('');
+                            setStatusFilter('All Statuses');
+                            setProgramFilter('All Programs');
+                        }}
+                        className="h-9 rounded-lg text-xs border-stone-200"
+                    >
+                        Reset
+                    </Button>
+                )}
+            </div>
+
+            <Card className="border-stone-200 shadow-none overflow-hidden">
+                <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
+                    <div>
+                        <CardTitle className="text-sm font-semibold text-stone-800">Active Opening Registry</CardTitle>
+                        <CardDescription className="text-xs">
+                            Live application cycles created from the saved templates
+                        </CardDescription>
+                    </div>
+                </CardHeader>
+
+                <CardContent className="p-4">
+                    {filteredOpenings.length === 0 ? (
+                        <div className="text-center py-12 text-sm text-stone-400">
+                            No scholarship openings match the current filters.
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {filteredOpenings.map((opening) => {
+                                const meta = STATUS_META[(opening.posting_status || 'draft').toLowerCase()] || STATUS_META.draft;
+
+                                return (
+                                    <div
+                                        key={opening.opening_id}
+                                        className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
+                                    >
+                                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="text-sm font-semibold text-stone-900">
+                                                        {opening.opening_title}
+                                                    </h3>
+
+                                                    <span
+                                                        className="text-[10px] font-medium px-2.5 py-1 rounded-full"
+                                                        style={{ background: meta.bg, color: meta.color }}
+                                                    >
+                                                        {meta.label}
+                                                    </span>
+
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="text-[10px] border-stone-200 text-stone-500 bg-white"
+                                                    >
+                                                        {opening.program_name || 'Program'}
+                                                    </Badge>
+                                                </div>
+
+                                                <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-stone-400">
+                                                    <span>{opening.benefactor_name || 'Benefactor N/A'}</span>
+                                                    <span>•</span>
+                                                    <span>{opening.opening_id}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+                                                    onClick={() => {
+                                                        const query = new URLSearchParams();
+                                                        if (opening.program_id) query.set('program_id', opening.program_id);
+                                                        if (opening.opening_id) query.set('opening_id', opening.opening_id);
+                                                        navigate(`/admin/applications?${query.toString()}`);
+                                                    }}
+                                                >
+                                                    <Users className="w-3.5 h-3.5 mr-1.5" />
+                                                    View Applicants
+                                                </Button>
+
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+                                                    onClick={() => openEditModal(opening)}
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                                                    Edit
+                                                </Button>
+
+                                                {(opening.posting_status || '').toLowerCase() !== 'open' && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 px-3 rounded-lg border-green-200 text-green-700 hover:bg-green-50 text-xs shadow-none"
+                                                        onClick={() => handleQuickStatusUpdate(opening.opening_id, 'open')}
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                                        Open
+                                                    </Button>
+                                                )}
+
+                                                {(opening.posting_status || '').toLowerCase() === 'open' && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 px-3 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs shadow-none"
+                                                        onClick={() => handleQuickStatusUpdate(opening.opening_id, 'closed')}
+                                                    >
+                                                        <Ban className="w-3.5 h-3.5 mr-1.5" />
+                                                        Close
+                                                    </Button>
+                                                )}
+
+                                                {(opening.posting_status || '').toLowerCase() !== 'archived' && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+                                                        onClick={() => handleQuickStatusUpdate(opening.opening_id, 'archived')}
+                                                    >
+                                                        <Archive className="w-3.5 h-3.5 mr-1.5" />
+                                                        Archive
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
+                                                    <CalendarDays className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Application Start</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.application_start)}</p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
+                                                    <CalendarDays className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Application End</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.application_end)}</p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
+                                                    <Users className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Allocated Slots</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">{opening.allocated_slots ?? 0}</p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
+                                                    <FolderOpen className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Applicants</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">{opening.applicant_count ?? 0}</p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Allocation</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">
+                                                    {fmtMoney(opening.financial_allocation)}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {opening.announcement_text && (
+                                            <div className="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 px-3 py-3">
+                                                <p className="text-[10px] uppercase tracking-wide text-stone-400 mb-1">
+                                                    Opening Notes
+                                                </p>
+                                                <p className="text-xs text-stone-600 leading-relaxed">
+                                                    {opening.announcement_text}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <footer className="pt-6 pb-2 border-t border-stone-100">
+                <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
+                    SMaRT PDM · Scholarship Opening Management
+                </p>
+            </footer>
+        </div>
+    );
+}

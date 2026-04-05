@@ -84,6 +84,25 @@ exports.createProgramOpening = async (payload) => {
     if (!application_start) throw new Error('Application start date is required');
     if (!application_end) throw new Error('Application end date is required');
 
+    const normalizedStatus = String(posting_status || 'draft').toLowerCase();
+
+    // prevent duplicate draft rows for the same program
+    if (normalizedStatus === 'draft') {
+        const { data: existingDraft, error: existingDraftError } = await supabase
+            .from('program_openings')
+            .select('opening_id')
+            .eq('program_id', program_id)
+            .eq('posting_status', 'draft')
+            .limit(1)
+            .maybeSingle();
+
+        if (existingDraftError) throw new Error(existingDraftError.message);
+
+        if (existingDraft?.opening_id) {
+            throw new Error('A draft opening already exists for this program. Please continue editing the existing draft.');
+        }
+    }
+
     const insertPayload = {
         program_id,
         opening_title: opening_title.trim(),
@@ -93,7 +112,7 @@ exports.createProgramOpening = async (payload) => {
         screening_end: screening_end || null,
         allocated_slots: Number(allocated_slots || 0),
         financial_allocation: Number(financial_allocation || 0),
-        posting_status: String(posting_status || 'draft').toLowerCase(),
+        posting_status: normalizedStatus,
         announcement_text: announcement_text || null,
     };
 

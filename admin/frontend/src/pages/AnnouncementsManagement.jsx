@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Plus, Edit, Trash2, Send, Eye, Calendar, Users, X, Loader2,
   AlertTriangle, FileText, Megaphone, Clock3, CheckCircle2,
-  Sparkles,
+  Sparkles, Search, Filter
 } from 'lucide-react';
 
 // ─── Shared Admin Palette ───────────────────────────────────────
@@ -134,7 +135,6 @@ function ComposeAnnouncementModal({
   if (!open) return null;
 
   const scheduled = !!schedDate;
-
   const minScheduleDateTime = new Date(
     Date.now() - new Date().getTimezoneOffset() * 60000
   ).toISOString().slice(0, 16);
@@ -264,11 +264,7 @@ function ComposeAnnouncementModal({
                     min={minScheduleDateTime}
                     onChange={(e) => {
                       const value = e.target.value;
-
-                      if (value && value < minScheduleDateTime) {
-                        return;
-                      }
-
+                      if (value && value < minScheduleDateTime) return;
                       setSchedDate(value);
                     }}
                     className="h-10 rounded-lg bg-white border-stone-200 text-sm"
@@ -509,6 +505,9 @@ function ConfirmTemplateApplyModal({
 }
 
 export default function AnnouncementsManagement() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [showForm, setShowForm] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showTemplateConfirmModal, setShowTemplateConfirmModal] = useState(false);
@@ -528,6 +527,9 @@ export default function AnnouncementsManagement() {
   const [deletingId, setDeletingId] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null);
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
 
   useEffect(() => {
     const loadAnnouncements = async () => {
@@ -561,6 +563,34 @@ export default function AnnouncementsManagement() {
     loadAnnouncements();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const prefill = params.get('prefill');
+
+    if (prefill === 'opening') {
+      const openingTitle = params.get('opening_title') || 'Scholarship Opening Announcement';
+      const openingText = params.get('announcement_text') || '';
+      const programId = params.get('program_id') || '';
+      const openingId = params.get('opening_id') || '';
+
+      setEditingAnnouncementId(null);
+      setTitle(openingTitle);
+      setContent(openingText);
+      setAudience('all');
+      setSchedDate('');
+      setIsRoVoluntary('false');
+      setSelectedTemplate('blank');
+      setValidationErrors({});
+      setShowForm(true);
+
+      const cleanUrl = location.pathname;
+      navigate(cleanUrl, { replace: true });
+
+      void programId;
+      void openingId;
+    }
+  }, [location.search, location.pathname, navigate]);
+
   const totalViews = items.reduce((sum, item) => sum + Number(item.views || 0), 0);
 
   const hasUnsavedChanges = useMemo(() => {
@@ -572,6 +602,23 @@ export default function AnnouncementsManagement() {
       isRoVoluntary !== 'false'
     );
   }, [title, content, audience, schedDate, isRoVoluntary]);
+
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const matchSearch =
+        !q ||
+        (item.title || '').toLowerCase().includes(q) ||
+        (item.content || '').toLowerCase().includes(q) ||
+        (item.audience || '').toLowerCase().includes(q);
+
+      const matchStatus =
+        statusFilter === 'All' || item.status === statusFilter;
+
+      return matchSearch && matchStatus;
+    });
+  }, [items, search, statusFilter]);
 
   const resetForm = () => {
     setTitle('');
@@ -585,8 +632,7 @@ export default function AnnouncementsManagement() {
   };
 
   const handleOpenModal = () => {
-    setValidationErrors({});
-    setSelectedTemplate('blank');
+    resetForm();
     setShowForm(true);
   };
 
@@ -610,7 +656,7 @@ export default function AnnouncementsManagement() {
     setEditingAnnouncementId(announcement.id);
     setTitle(announcement.title || '');
     setContent(announcement.content || '');
-    setAudience(announcement.audienceKey || 'all');
+    setAudience(announcement.audienceKey || announcement.audience || 'all');
     setSchedDate(
       announcement.status === 'Scheduled' && announcement.date
         ? String(announcement.date).slice(0, 16)
@@ -650,8 +696,10 @@ export default function AnnouncementsManagement() {
   };
 
   const handleApplyTemplate = () => {
+    const hasContent = title.trim() || content.trim();
+
     if (selectedTemplate === 'blank') {
-      if (hasUnsavedChanges) {
+      if (hasContent) {
         setShowTemplateConfirmModal(true);
         return;
       }
@@ -659,7 +707,7 @@ export default function AnnouncementsManagement() {
       return;
     }
 
-    if (title.trim() || content.trim()) {
+    if (hasContent) {
       setShowTemplateConfirmModal(true);
       return;
     }
@@ -718,14 +766,10 @@ export default function AnnouncementsManagement() {
         }
       }
 
-      const successMessage = editingAnnouncementId
-        ? 'Announcement updated successfully.'
-        : 'Announcement saved successfully.';
-
       resetForm();
       setShowForm(false);
       setShowDiscardModal(false);
-      alert(successMessage);
+      alert(editingAnnouncementId ? 'Announcement updated successfully.' : 'Announcement saved successfully.');
     } catch (err) {
       console.error('POST ANNOUNCEMENT ERROR:', err);
       alert(err.message || 'Failed to save announcement');
@@ -921,6 +965,44 @@ export default function AnnouncementsManagement() {
         ))}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[260px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
+          <Input
+            placeholder="Search by title, content, or audience..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
+          />
+        </div>
+
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[160px] h-9 rounded-lg border-stone-200 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Statuses</SelectItem>
+            <SelectItem value="Published">Published</SelectItem>
+            <SelectItem value="Draft">Draft</SelectItem>
+            <SelectItem value="Scheduled">Scheduled</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {(search || statusFilter !== 'All') && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSearch('');
+              setStatusFilter('All');
+            }}
+            className="h-9 rounded-lg text-xs border-stone-200"
+          >
+            Reset
+          </Button>
+        )}
+      </div>
+
       <Card className="border-stone-200 shadow-none overflow-hidden">
         <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
           <CardTitle className="text-sm font-semibold text-stone-800">Archive & Active Posts</CardTitle>
@@ -930,7 +1012,7 @@ export default function AnnouncementsManagement() {
         </CardHeader>
 
         <div className="divide-y divide-stone-100">
-          {items.map((a) => (
+          {filteredItems.map((a) => (
             <div
               key={a.id}
               className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 hover:bg-stone-50/50 transition-colors"
@@ -965,7 +1047,7 @@ export default function AnnouncementsManagement() {
 
                     <span className="flex items-center gap-1.5">
                       <Users size={12} />
-                      {a.audience}
+                      {AUDIENCE_LABEL[a.audienceKey || a.audience] || a.audience || 'Audience'}
                     </span>
 
                     {a.status === 'Published' && (
@@ -1029,7 +1111,7 @@ export default function AnnouncementsManagement() {
             </div>
           ))}
 
-          {items.length === 0 && (
+          {filteredItems.length === 0 && (
             <div className="p-10 text-center text-sm text-stone-400">
               No announcements found.
             </div>

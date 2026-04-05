@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
+import 'package:smartpdm_mobileapp/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class ROAssignmentScreen extends StatefulWidget {
@@ -37,30 +41,61 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
     },
   ];
 
+  void _handleScholarChipTap(String label) {
+    switch (label) {
+      case 'Payout Schedule':
+        AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+        break;
+      case 'Renewal Documents':
+        Navigator.pushNamed(context, AppRoutes.documents);
+        break;
+      case 'RO Assignment':
+        break;
+      case 'RO Completion':
+        Navigator.pushNamed(context, AppRoutes.roCompletion);
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final innerCardColor = isDark ? const Color(0xFF2D1E12) : Colors.grey[100]!;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('RO Assignment'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 1,
-      showDrawer: true,
+      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            ScholarNavChips(
+              selectedLabel: 'RO Assignment',
+              onTap: _handleScholarChipTap,
+            ),
+            const SizedBox(height: 20),
             // Header
-            const Text(
+            Text(
               'Research Opportunity Assignments',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'As a scholar, you are required to complete research opportunities',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: subtitleColor, fontSize: 13),
             ),
             const SizedBox(height: 20),
 
@@ -74,6 +109,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                 final isActive = assignment['status'] == 'Active';
 
                 return Card(
+                  color: cardColor,
                   margin: const EdgeInsets.only(bottom: 16),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -90,17 +126,18 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                                 children: [
                                   Text(
                                     assignment['title'],
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
+                                      color: titleColor,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     assignment['id'],
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11,
-                                      color: Colors.grey,
+                                      color: subtitleColor,
                                     ),
                                   ),
                                 ],
@@ -181,26 +218,27 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.grey[100],
+                            color: innerCardColor,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Description',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.grey,
+                                  color: subtitleColor,
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 assignment['description'],
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
                                   height: 1.5,
+                                  color: titleColor,
                                 ),
                               ),
                             ],
@@ -280,32 +318,45 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
     required String label,
     required String value,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+
     return Row(
       children: [
-        Icon(icon, color: primaryColor, size: 18),
+        Icon(icon, color: accentColor, size: 18),
         const SizedBox(width: 8),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: Colors.grey,
+            color: subtitleColor,
             fontWeight: FontWeight.w500,
           ),
         ),
         const Spacer(),
         Text(
           value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: titleColor,
+          ),
         ),
       ],
     );
   }
 
   Widget _buildDurationBox(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: isDark ? const Color(0xFF2D1E12) : Colors.grey[100],
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -313,16 +364,20 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              color: Colors.grey,
+              color: subtitleColor,
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: titleColor,
+            ),
           ),
         ],
       ),

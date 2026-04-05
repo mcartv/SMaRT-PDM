@@ -2,6 +2,11 @@
 
 The Scholarship Management and Recipient Tracking - Program Document Management (SMaRT-PDM) system. This repository contains both the web application (for administrators) and the mobile application (for scholars and applicants).
 
+## Project Status
+
+- Current delivery checklist and build order: `DELIVERY_CHECKLIST.md`
+- Production deployment/config notes: `backend/PRODUCTION_DEPLOYMENT.md`
+
 ## 🚀 Features
 
 ### Web Application (Admin Portal)

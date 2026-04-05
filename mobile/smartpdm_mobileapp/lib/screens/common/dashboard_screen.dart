@@ -2,52 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
+import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  final bool showBottomNav;
+
+  const DashboardScreen({super.key, this.showBottomNav = true});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('SMaRT-PDM Dashboard'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      selectedIndex: 0,
-      showDrawer: true,
-      applyPadding: false,
-      child: Stack(
-        children: [
-          const DashboardContent(),
-          Positioned(
-            bottom: 70,
-            right: 16,
-            child: Consumer<MessagingProvider>(
-              builder: (context, messagingProvider, child) {
-                return Badge(
+        title: const Text('SMaRT-PDM'),
+        automaticallyImplyLeading: false,
+        actions: [
+          Consumer<MessagingProvider>(
+            builder: (context, messagingProvider, child) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Badge(
                   isLabelVisible: messagingProvider.unreadCount > 0,
                   label: Text('${messagingProvider.unreadCount}'),
                   backgroundColor: Colors.red,
-                  child: FloatingActionButton(
+                  child: IconButton(
                     onPressed: () {
                       messagingProvider.clearUnread();
-                      Navigator.pushNamed(context, '/messaging');
+                      Navigator.pushNamed(context, AppRoutes.messaging);
                     },
-                    backgroundColor: primaryColor,
                     tooltip: 'Open Messaging',
-                    child: const Icon(Icons.chat, color: Colors.white),
+                    icon: Icon(
+                      Icons.chat_bubble_outline,
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                    ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),
+      selectedIndex: 0,
+      showDrawer: false,
+      showBottomNav: showBottomNav,
+      applyPadding: false,
+      child: const DashboardContent(),
     );
   }
 }
@@ -63,6 +68,28 @@ class _DashboardContentState extends State<DashboardContent> {
   String _userName = 'Scholar';
   bool _isApproved =
       false; // Mocking approval status based on backend verification
+
+  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
+  Color get _pageBackground =>
+      _isDarkMode ? const Color(0xFF24180F) : Colors.white.withOpacity(0.96);
+  Color get _surfaceColor =>
+      _isDarkMode ? const Color(0xFF332216) : const Color(0xFFF8F3ED);
+  Color get _plainCardColor =>
+      _isDarkMode ? const Color(0xFF2D1E12) : Colors.white;
+  Color get _titleColor => _isDarkMode ? Colors.white : AppColors.darkBrown;
+  Color get _subtitleColor => _isDarkMode ? Colors.white70 : Colors.grey;
+  Color get _bodyColor => _isDarkMode ? Colors.white70 : AppColors.brown;
+  Color get _heroOverlay => _isDarkMode
+      ? const Color(0xFF4A331B).withOpacity(0.66)
+      : Colors.white.withOpacity(0.58);
+  List<Color> get _heroGradient => _isDarkMode
+      ? const [
+          Color(0xFF4D2B0F),
+          Color(0xFF6B4318),
+          Color(0xFF8A6526),
+          Color(0xFFD49C10),
+        ]
+      : const [Color(0xFFF8F3ED), Color(0xFFF4E1B8)];
 
   @override
   void initState() {
@@ -88,23 +115,157 @@ class _DashboardContentState extends State<DashboardContent> {
     }
   }
 
-  Widget _buildTopicChip(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: ActionChip(
-        label: Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.darkBrown,
-            fontWeight: FontWeight.w600,
+  Widget _buildAnnouncementCard({
+    required String title,
+    required String subtitle,
+    required String timeAgo,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: _plainCardColor,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x16000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: _isDarkMode
+                    ? const Color(0xFF3A2718)
+                    : const Color(0xFFF5F7FB),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                Icons.notifications_none_rounded,
+                color: _isDarkMode
+                    ? const Color(0xFFFFD54F)
+                    : const Color(0xFF7C9AD8),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: _titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: _bodyColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              timeAgo,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _subtitleColor,
+              ),
+            ),
+          ],
         ),
-        backgroundColor: AppColors.yellow,
-        onPressed: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Selected $label')));
-        },
+      ),
+    );
+  }
+
+  Widget _buildFeaturedArticleCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _surfaceColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.gold, width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'FEATURED ARTICLE',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.darkBrown,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => AppNavigator.goToTopLevel(
+                    context,
+                    AppRoutes.notifications,
+                  ),
+                  child: const Text(
+                    'READ MORE',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.orange,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Scholarship opportunities from agencies and private benefactors',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: _titleColor,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Stay updated on CHED, UNIFAST, TES, TDP, and private grant support including BC Packaging, Food Crafters, Genmart, Kaizen, and Pusong Mapagkalinga.',
+              style: TextStyle(fontSize: 14, color: _bodyColor, height: 1.45),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -113,22 +274,22 @@ class _DashboardContentState extends State<DashboardContent> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        image: const DecorationImage(
+        image: DecorationImage(
           image: AssetImage('assets/images/school_logo.png'),
           fit: BoxFit.cover,
-          opacity: 0.2,
+          opacity: _isDarkMode ? 0.18 : 0.1,
         ),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF3B2B11), Color(0xFFE5C059)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        gradient: LinearGradient(
+          colors: _heroGradient,
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
       ),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: Colors.black.withOpacity(0.35),
+          color: _heroOverlay,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,74 +314,32 @@ class _DashboardContentState extends State<DashboardContent> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Pambayang Dalubhasaan ng Marilao',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: _titleColor,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Hello, $_userName!',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: _subtitleColor, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.yellow,
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back Home'),
-                ),
               ],
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Academics',
+            Text(
+              '"WHERE QUALITY EDUCATION IS A RIGHT, NOT A PRIVILEGE"',
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w900,
-                color: Colors.white,
+                color: _titleColor,
               ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Forge your future to academic excellence.',
-              style: TextStyle(fontSize: 14, color: Colors.white70),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children:
-                  [
-                        'Academics',
-                        'Admission',
-                        'Financial Aid',
-                        'Student Life',
-                        'Scholarships',
-                      ]
-                      .map(
-                        (label) => Chip(
-                          label: Text(
-                            label,
-                            style: const TextStyle(
-                              color: AppColors.darkBrown,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          backgroundColor: AppColors.yellow,
-                        ),
-                      )
-                      .toList(),
             ),
           ],
         ),
@@ -278,7 +397,7 @@ class _DashboardContentState extends State<DashboardContent> {
           physics: const NeverScrollableScrollPhysics(),
           children: cards.map((cardData) {
             return Card(
-              color: AppColors.lightGray,
+              color: _plainCardColor,
               elevation: 2,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -297,7 +416,9 @@ class _DashboardContentState extends State<DashboardContent> {
                     children: [
                       Icon(
                         cardData['icon'] as IconData,
-                        color: AppColors.darkBrown,
+                        color: _isDarkMode
+                            ? const Color(0xFFFFD54F)
+                            : AppColors.darkBrown,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -307,25 +428,24 @@ class _DashboardContentState extends State<DashboardContent> {
                           children: [
                             Text(
                               cardData['title'] as String,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.darkBrown,
+                                color: _titleColor,
                               ),
                             ),
                             const SizedBox(height: 3),
                             Text(
                               cardData['subtitle'] as String,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.brown,
-                              ),
+                              style: TextStyle(fontSize: 12, color: _bodyColor),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.arrow_forward,
-                        color: AppColors.darkBrown,
+                        color: _isDarkMode
+                            ? const Color(0xFFFFD54F)
+                            : AppColors.darkBrown,
                       ),
                     ],
                   ),
@@ -338,18 +458,58 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
+  Widget _buildQuickActionTile({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final isCompact = MediaQuery.of(context).size.width < 360;
+
+    return Card(
+      color: _surfaceColor,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 10 : 12,
+            vertical: isCompact ? 12 : 16,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
+                size: isCompact ? 18 : 20,
+              ),
+              SizedBox(width: isCompact ? 8 : 10),
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isCompact ? 11.5 : 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: _titleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.darkBrown, AppColors.brown, AppColors.gold],
-            stops: [0.0, 0.6, 1.0],
-          ),
-        ),
+        decoration: BoxDecoration(color: _pageBackground),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
@@ -358,290 +518,86 @@ class _DashboardContentState extends State<DashboardContent> {
               children: [
                 _buildCampusHero(),
                 const SizedBox(height: 12),
-                _buildFeatureCards(),
-                const SizedBox(height: 20),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xF2FFFFFF),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.gold, width: 1.5),
-                    boxShadow: [
-                      const BoxShadow(
-                        color: Color(0x1A000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Explore Academics',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.darkBrown,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Grounded in purpose, we radiate possibility. Learn, connect, and take the next step in your scholarship journey.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.brown,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () => Navigator.pushNamed(
-                                  context,
-                                  '/new_applicant',
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.gold,
-                                  foregroundColor: AppColors.darkBrown,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'APPLY NOW',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () =>
-                                    Navigator.pushNamed(context, '/faqs'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.darkBrown,
-                                  side: const BorderSide(
-                                    color: AppColors.darkBrown,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                                child: const Text('REQUEST INFO'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      _buildTopicChip('Academics'),
-                      _buildTopicChip('Admission'),
-                      _buildTopicChip('Financial Aid'),
-                      _buildTopicChip('Student Life'),
-                      _buildTopicChip('Graduate Studies'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Application Status',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text('TES 2025'),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: 0.6,
-                          backgroundColor: Colors.grey[300],
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            primaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text('Documents Pending'),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Deadlines',
+                Text(
+                  'Office Updates',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: _titleColor,
                   ),
                 ),
                 const SizedBox(height: 10),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.red[100],
-                            borderRadius: BorderRadius.circular(borderRadius),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today,
-                            color: Colors.red,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('TES Oct 30'),
-                              Text('Deadline approaching'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.orange[100],
-                            borderRadius: BorderRadius.circular(borderRadius),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today,
-                            color: Colors.orange,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('TDP Nov 15'),
-                              Text('Upcoming deadline'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _buildFeaturedArticleCard(),
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'Quick Actions',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: _titleColor,
                   ),
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Card(
-                        child: InkWell(
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/application'),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Column(
-                              children: [
-                                Icon(Icons.add, color: primaryColor),
-                                SizedBox(height: 8),
-                                Text('Apply'),
-                              ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 420;
+                    final itemWidth = isCompact
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - 20) / 3;
+
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildQuickActionTile(
+                            context: context,
+                            icon: Icons.upload_file,
+                            label: 'Upload',
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              AppRoutes.documents,
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Card(
-                        child: InkWell(
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/documents'),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Column(
-                              children: [
-                                Icon(Icons.upload_file, color: primaryColor),
-                                SizedBox(height: 8),
-                                Text('Documents'),
-                              ],
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildQuickActionTile(
+                            context: context,
+                            icon: Icons.campaign_outlined,
+                            label: 'Announcements',
+                            onTap: () => AppNavigator.goToTopLevel(
+                              context,
+                              AppRoutes.notifications,
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Card(
-                        child: InkWell(
-                          onTap: () => Navigator.pushNamed(context, '/status'),
-                          child: const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Column(
-                              children: [
-                                Icon(Icons.track_changes, color: primaryColor),
-                                SizedBox(height: 8),
-                                Text('Status'),
-                              ],
+                        SizedBox(
+                          width: itemWidth,
+                          child: _buildQuickActionTile(
+                            context: context,
+                            icon: Icons.assignment_turned_in,
+                            label: 'Obligs',
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              AppRoutes.roCompletion,
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
                 if (!_isApproved) ...[
                   // --- NOT VERIFIED YET SECTION ---
-                  const Text(
+                  Text(
                     'Scholarship Application',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -653,55 +609,57 @@ class _DashboardContentState extends State<DashboardContent> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.person_add,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Apply for New Scholarship'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Start your application as a new scholar',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
-                          ),
-                          onTap: () {
-                            Navigator.pushNamed(context, '/new_applicant');
-                          },
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.edit_note,
-                            color: primaryColor,
-                          ),
-                          title: const Text(
-                            'Update Personal Data (Existing Scholar)',
-                          ),
-                          subtitle: const Text(
-                            'Update your profile if you are an existing scholar',
-                          ),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () {
                             Navigator.pushNamed(
                               context,
-                              '/existing_scholar_update',
+                              AppRoutes.newApplicant,
                             );
                           },
+                        ),
+                        const Divider(height: 1),
+                        ListTile(
+                          leading: Icon(
+                            Icons.settings_outlined,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
+                          ),
+                          title: const Text('App Settings'),
+                          subtitle: Text(
+                            'Manage preferences, privacy, and account options',
+                            style: TextStyle(color: _subtitleColor),
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
+                          ),
+                          onTap: () => showAppSettingsSheet(context),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'General Information',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -713,122 +671,151 @@ class _DashboardContentState extends State<DashboardContent> {
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.info_outline,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('About PDM/OSFA'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'History, Vision, Mission, Contacts',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/about'),
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRoutes.about),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.question_answer,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('FAQs'),
-                          subtitle: const Text('Frequently asked questions'),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.grey,
+                          subtitle: Text(
+                            'Frequently asked questions',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/faqs'),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
+                          ),
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRoutes.faqs),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.notifications,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('View Notifications'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Check your notifications and updates',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/notifications'),
+                          onTap: () => AppNavigator.goToTopLevel(
+                            context,
+                            AppRoutes.notifications,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.announcement,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('View Announcements'),
-                          subtitle: const Text('Latest news and announcements'),
-                          trailing: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.grey,
+                          subtitle: Text(
+                            'Latest news and announcements',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/announcements'),
+                          trailing: Icon(
+                            Icons.chevron_right,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
+                          ),
+                          onTap: () => AppNavigator.goToTopLevel(
+                            context,
+                            AppRoutes.notifications,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.calendar_today,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('View Interview Schedule'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Check your scheduled interviews',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () => Navigator.pushNamed(
                             context,
-                            '/interview-schedule',
+                            AppRoutes.interviewSchedule,
                           ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.file_upload,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Upload Renewal Requirements'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Submit required documents for renewal',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/documents'),
+                              Navigator.pushNamed(context, AppRoutes.documents),
                         ),
                       ],
                     ),
                   ),
                 ] else ...[
                   // --- APPROVED SCHOLAR SECTION ---
-                  const Text(
-                    'Scholar Portal',
+                  Text(
+                    'Return Obligations',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: _titleColor,
                     ),
                   ),
                   const SizedBox(height: 10),
                   // Quick RO Access Card
                   Card(
-                    color: Colors.blue[50],
+                    color: _surfaceColor,
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(borderRadius),
+                      side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -837,19 +824,27 @@ class _DashboardContentState extends State<DashboardContent> {
                         children: [
                           Row(
                             children: [
-                              Icon(
-                                Icons.assignment_turned_in,
-                                color: Colors.blue[700],
-                                size: 28,
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.assignment_turned_in,
+                                  color: AppColors.darkBrown,
+                                  size: 22,
+                                ),
                               ),
                               const SizedBox(width: 12),
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Research Opportunity (RO) Management',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.blue,
+                                    color: _titleColor,
                                   ),
                                 ),
                               ),
@@ -858,10 +853,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           const SizedBox(height: 12),
                           Text(
                             'Access your RO assignments, submit completions, and track your progress.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.blue[800],
-                            ),
+                            style: TextStyle(fontSize: 14, color: _bodyColor),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -870,12 +862,17 @@ class _DashboardContentState extends State<DashboardContent> {
                                 child: ElevatedButton.icon(
                                   onPressed: () => Navigator.pushNamed(
                                     context,
-                                    '/ro-assignment',
+                                    AppRoutes.roAssignment,
                                   ),
                                   icon: const Icon(Icons.visibility),
-                                  label: const Text('View Assignments'),
+                                  label: const Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [Text('View RO')],
+                                  ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue,
+                                    backgroundColor: primaryColor,
                                     foregroundColor: Colors.white,
                                   ),
                                 ),
@@ -885,13 +882,18 @@ class _DashboardContentState extends State<DashboardContent> {
                                 child: OutlinedButton.icon(
                                   onPressed: () => Navigator.pushNamed(
                                     context,
-                                    '/ro-completion',
+                                    AppRoutes.roCompletion,
                                   ),
                                   icon: const Icon(Icons.done_all),
                                   label: const Text('Submit RO'),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.blue,
-                                    side: const BorderSide(color: Colors.blue),
+                                    foregroundColor: AppColors.darkBrown,
+                                    side: BorderSide(
+                                      color: AppColors.gold.withOpacity(0.8),
+                                    ),
+                                    backgroundColor: AppColors.gold.withOpacity(
+                                      0.10,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -903,123 +905,124 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                   const SizedBox(height: 20),
                   Card(
-                    elevation: 2,
+                    color: _plainCardColor,
+                    elevation: 1,
+                    shadowColor: const Color(0x14000000),
+                    clipBehavior: Clip.antiAlias,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(borderRadius),
                     ),
                     child: Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.message,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Messaging'),
-                          subtitle: const Text('Chat with OSFA & Agencies'),
-                          trailing: const Icon(
+                          subtitle: Text(
+                            'Chat with OSFA & Agencies',
+                            style: TextStyle(color: _subtitleColor),
+                          ),
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
                           onTap: () =>
-                              Navigator.pushNamed(context, '/messaging'),
+                              Navigator.pushNamed(context, AppRoutes.messaging),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.payment,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Payout Schedule'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'View your personalized schedule',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/payouts'),
+                          onTap: () => AppNavigator.goToTopLevel(
+                            context,
+                            AppRoutes.payouts,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.assignment,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('RO Assignment'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'View your research opportunity assignment',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/ro-assignment'),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.roAssignment,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.done_all,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Submit RO Completion'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Submit your completed research opportunity',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () =>
-                              Navigator.pushNamed(context, '/ro-completion'),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.roCompletion,
+                          ),
                         ),
                         const Divider(height: 1),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.support_agent,
-                            color: primaryColor,
+                            color: _isDarkMode
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
                           ),
                           title: const Text('Submit Support Ticket'),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Get help regarding your scholarship',
+                            style: TextStyle(color: _subtitleColor),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right,
-                            color: Colors.grey,
+                            color: _isDarkMode ? Colors.white54 : Colors.grey,
                           ),
-                          onTap: () => Navigator.pushNamed(context, '/tickets'),
+                          onTap: () =>
+                              Navigator.pushNamed(context, AppRoutes.tickets),
                         ),
                       ],
                     ),
                   ),
                 ],
-                const SizedBox(height: 20),
-                const Text(
-                  'Announcements',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text(
-                      'BC Packaging Grant - New scholarship opportunity available!',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Text(
-                      'Grade Reminder - Submit your latest grades for TES application.',
-                    ),
-                  ),
-                ),
                 // Developer option to test scholar features
                 const SizedBox(height: 20),
                 if (!_isApproved) ...[

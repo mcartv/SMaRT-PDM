@@ -472,7 +472,9 @@ export default function DocumentVerification() {
         application_id: id,
         verification_status: finalVerificationStatus,
         document_reviews: docs.map((d) => ({
+          document_key: d.document_key || d.id,
           document_id: d.id,
+          requirement_id: d.requirement_id || null,
           name: d.name,
           status: d.status,
           comment: d.admin_comment || '',

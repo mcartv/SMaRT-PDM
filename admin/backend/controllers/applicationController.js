@@ -28,6 +28,23 @@ exports.getApplicationDocuments = async (req, res) => {
     }
 };
 
+exports.getApplicationDetails = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const payload = await applicationService.fetchApplicationDetailsById(id);
+        res.status(200).json(payload);
+    } catch (err) {
+        console.error('APPLICATION DETAILS CONTROLLER ERROR:', err.message);
+
+        if (err.message.includes('already been converted')) {
+            return res.status(409).json({ error: err.message });
+        }
+
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.saveApplicationVerification = async (req, res) => {
     const { id } = req.params;
 
@@ -44,6 +61,21 @@ exports.saveApplicationVerification = async (req, res) => {
         });
     } catch (err) {
         console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.markApplicationReviewed = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const data = await applicationService.markApplicationReviewed(id);
+        res.status(200).json({
+            message: 'Application moved to review successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('MARK APPLICATION REVIEWED CONTROLLER ERROR:', err.message);
         res.status(500).json({ error: err.message });
     }
 };

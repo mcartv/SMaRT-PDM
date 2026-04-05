@@ -1,12 +1,15 @@
 const supabase = require('../config/supabase');
 const _ = require('lodash');
 
-const LEGACY_DOCUMENT_DEFINITIONS = [
-    { id: 'loi', name: 'Letter of Intent', aliases: ['letter of intent', 'loi', 'intent'] },
-    { id: 'cor', name: 'Certificate of Registration', aliases: ['certificate of registration', 'cor', 'registration'] },
-    { id: 'grades', name: 'Grade Form', aliases: ['grade form', 'grades', 'report of grades'] },
-    { id: 'indigency', name: 'Certificate of Indigency', aliases: ['certificate of indigency', 'indigency'] },
-    { id: 'valid_id', name: 'Valid ID', aliases: ['valid id', 'government id', 'identification'] },
+const APPLICATION_DOCUMENT_DEFINITIONS = [
+    { id: 'survey_form', name: 'Survey Form', aliases: ['survey form'] },
+    { id: 'letter_of_request', name: 'Letter of Request', aliases: ['letter of request', 'request letter'] },
+    { id: 'certificate_of_indigency', name: 'Certificate of Indigency', aliases: ['certificate of indigency', 'indigency'] },
+    { id: 'certificate_of_good_moral_character', name: 'Certificate of Good Moral Character', aliases: ['certificate of good moral character', 'good moral'] },
+    { id: 'senior_high_school_card', name: 'Senior High School Card', aliases: ['senior high school card', 'shs card'] },
+    { id: 'student_grade_forms', name: 'Student Grade Forms', aliases: ['student grade forms', 'grade forms', 'grades'] },
+    { id: 'certificate_of_registration', name: 'Certificate of Registration', aliases: ['certificate of registration', 'cor', 'registration'] },
+    { id: 'id_picture', name: 'ID Picture', aliases: ['id picture', 'picture', 'photo'] },
 ];
 
 function getOrdinalSuffix(n) {
@@ -36,7 +39,7 @@ function inferDocumentKey(document = {}) {
         .filter(Boolean)
         .map((value) => normalizeLookupValue(value));
 
-    for (const definition of LEGACY_DOCUMENT_DEFINITIONS) {
+    for (const definition of APPLICATION_DOCUMENT_DEFINITIONS) {
         if (
             candidates.some((candidate) =>
                 definition.aliases.some((alias) => candidate.includes(alias))
@@ -52,15 +55,13 @@ function inferDocumentKey(document = {}) {
 }
 
 function deriveReviewStatus(document = {}, review = null) {
-    const preferredStatus = normalizeLookupValue(
-        review?.review_status ?? document.file_status
-    );
+    const preferredStatus = normalizeLookupValue(review?.review_status);
 
     if (preferredStatus === 'verified') return 'verified';
     if (preferredStatus === 'rejected' || preferredStatus === 're upload') return 'rejected';
     if (preferredStatus === 'flagged') return 'flagged';
-    if (preferredStatus === 'uploaded') return 'uploaded';
-    return document.file_url ? 'uploaded' : 'pending';
+    if (preferredStatus === 'uploaded' || preferredStatus === 'under review') return 'uploaded';
+    return document.is_submitted || document.file_url ? 'uploaded' : 'pending';
 }
 
 function deriveAggregateDocumentStatus(summary = {}) {
@@ -84,33 +85,28 @@ function deriveAggregateDocumentStatus(summary = {}) {
     return 'Under Review';
 }
 
-function ensureLegacyDocumentCoverage(normalizedDocuments = []) {
+function ensureDocumentCoverage(normalizedDocuments = []) {
     const documentMap = new Map(normalizedDocuments.map((document) => [document.id, document]));
-    const legacyDocuments = LEGACY_DOCUMENT_DEFINITIONS.map((definition) => (
+    const requiredDocuments = APPLICATION_DOCUMENT_DEFINITIONS.map((definition) => (
         documentMap.get(definition.id) || {
             id: definition.id,
             document_key: definition.id,
-            requirement_id: null,
-            requirement_name: definition.name,
             name: definition.name,
-            document_type: null,
-            file_name: null,
-            url: null,
+            document_type: definition.name,
             file_url: null,
             status: 'pending',
-            file_status: 'pending',
             admin_comment: '',
             notes: null,
-            uploaded_at: null,
+            submitted_at: null,
             reviewed_at: null,
         }
     ));
 
     const extraDocuments = normalizedDocuments.filter(
-        (document) => !LEGACY_DOCUMENT_DEFINITIONS.some((definition) => definition.id === document.id)
+        (document) => !APPLICATION_DOCUMENT_DEFINITIONS.some((definition) => definition.id === document.id)
     );
 
-    return [...legacyDocuments, ...extraDocuments];
+    return [...requiredDocuments, ...extraDocuments];
 }
 
 async function buildApplicationDetails(applicationId) {
@@ -168,41 +164,32 @@ async function buildApplicationDetails(applicationId) {
     }
 
     const [
-        formSubmissionResult,
-        personalDetailsResult,
+        profileResult,
         familyMembersResult,
         educationRecordsResult,
         documentsResult,
         reviewsResult,
     ] = await Promise.all([
         supabase
-            .from('application_form_submissions')
+            .from('student_profiles')
             .select('*')
-            .eq('application_id', applicationId)
+            .eq('student_id', applicationRecord.student_id)
             .maybeSingle(),
         supabase
-            .from('application_personal_details')
+            .from('student_family')
             .select('*')
-            .eq('application_id', applicationId)
-            .maybeSingle(),
+            .eq('student_id', applicationRecord.student_id)
+            .order('relation', { ascending: true }),
         supabase
-            .from('application_family_members')
+            .from('student_education')
             .select('*')
-            .eq('application_id', applicationId)
-            .order('relation_type', { ascending: true }),
-        supabase
-            .from('application_education_records')
-            .select('*')
-            .eq('application_id', applicationId)
+            .eq('student_id', applicationRecord.student_id)
             .order('education_level', { ascending: true }),
         supabase
-            .from('application_documents_submitted')
-            .select(`
-                *,
-                program_requirements (*)
-            `)
+            .from('application_documents')
+            .select('*')
             .eq('application_id', applicationId)
-            .order('uploaded_at', { ascending: true }),
+            .order('submitted_at', { ascending: true }),
         supabase
             .from('application_document_reviews')
             .select('*')
@@ -210,8 +197,7 @@ async function buildApplicationDetails(applicationId) {
     ]);
 
     const resultErrors = [
-        formSubmissionResult.error,
-        personalDetailsResult.error,
+        profileResult.error,
         familyMembersResult.error,
         educationRecordsResult.error,
         documentsResult.error,
@@ -268,32 +254,25 @@ async function buildApplicationDetails(applicationId) {
         const documentKey = inferDocumentKey(document);
         const review = reviewByKey.get(documentKey) || null;
         const requirementName =
-            _.get(document, 'program_requirements.requirement_name') ||
-            _.get(document, 'program_requirements.name') ||
             document.document_type ||
-            document.file_name ||
             'Document';
 
         return {
             id: documentKey,
             document_key: documentKey,
-            requirement_id: document.requirement_id,
-            requirement_name: requirementName,
             name: requirementName,
             document_type: document.document_type || null,
-            file_name: document.file_name || null,
             url: review?.file_url || document.file_url || null,
             file_url: review?.file_url || document.file_url || null,
             status: deriveReviewStatus(document, review),
-            file_status: document.file_status || 'pending',
             admin_comment: review?.admin_comment || document.notes || '',
             notes: document.notes || null,
-            uploaded_at: document.uploaded_at || null,
-            reviewed_at: review?.reviewed_at || document.reviewed_at || null,
+            uploaded_at: document.submitted_at || null,
+            reviewed_at: review?.reviewed_at || null,
         };
     });
 
-    const documents = ensureLegacyDocumentCoverage(normalizedDocuments);
+    const documents = ensureDocumentCoverage(normalizedDocuments);
 
     return {
         id: applicationRecord.application_id,
@@ -326,8 +305,7 @@ async function buildApplicationDetails(applicationId) {
             program: applicationRecord.scholarship_programs?.program_name || 'General',
             course: courseCode,
         },
-        form_submission: formSubmissionResult.data || null,
-        personal_details: personalDetailsResult.data || null,
+        student_profile: profileResult.data || null,
         family_members: familyMembersResult.data || [],
         education_records: educationRecordsResult.data || [],
         documents,
@@ -400,7 +378,7 @@ exports.markApplicationDisqualified = async (id, reason) => {
         .update({
             is_disqualified: true,
             disqualification_reason: reason,
-            application_status: 'Disqualified',
+            application_status: 'Rejected',
         })
         .eq('application_id', id)
         .select();
@@ -453,20 +431,21 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
     }
 
     for (const doc of document_reviews) {
-        if (!doc.requirement_id) {
+        const documentType = doc.document_type || doc.name;
+        if (!documentType) {
             continue;
         }
 
         const { error: submittedDocumentError } = await supabase
-            .from('application_documents_submitted')
+            .from('application_documents')
             .update({
-                file_status: doc.status || 'pending',
-                reviewed_at: reviewedAt,
-                notes: doc.comment || null,
+                is_submitted: !!doc.url,
                 file_url: doc.url || null,
+                submitted_at: doc.url ? reviewedAt : null,
+                remarks: doc.comment || null,
             })
             .eq('application_id', applicationId)
-            .eq('requirement_id', doc.requirement_id);
+            .eq('document_type', documentType);
 
         if (submittedDocumentError) {
             console.error('Supabase Submitted Document Update Error:', submittedDocumentError);
@@ -507,7 +486,7 @@ exports.markApplicationReviewed = async (applicationId) => {
     const { data, error } = await supabase
         .from('applications')
         .update({
-            application_status: 'Review',
+            application_status: 'Interview',
         })
         .eq('application_id', applicationId)
         .select()

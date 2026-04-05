@@ -1,11 +1,8 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:io'; // Import for SocketException
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/services/auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -15,6 +12,7 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
+  final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
   final List<TextEditingController> _controllers = List.generate(
     6,
@@ -73,53 +71,13 @@ class _OtpScreenState extends State<OtpScreen> {
           '/new_applicant'; // Default to /new_applicant if nextRoute is not provided
 
       try {
-        final url = Uri.parse('$BASE_URL/api/auth/verify-otp');
-        final response = await http
-            .post(
-              url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'email': email ?? '', 'otp': otp}),
-            )
-            .timeout(const Duration(seconds: 15));
+        await _authService.verifyOtp(email: email ?? '', otp: otp);
 
-        if (response.statusCode == 200) {
-          final responseData =
-              jsonDecode(response.body) as Map<String, dynamic>;
-          final user = (responseData['user'] as Map<String, dynamic>?) ?? {};
-          final prefs = await SharedPreferences.getInstance();
-
-          await prefs.setString(
-            'jwt_token',
-            responseData['token']?.toString() ?? '',
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Email Verified Successfully!')),
           );
-          await prefs.setString(
-            'user_id',
-            user['user_id']?.toString() ?? args?['user_id'] ?? '',
-          );
-          await prefs.setString(
-            'user_email',
-            user['email']?.toString() ?? email ?? '',
-          );
-          await prefs.setString(
-            'user_student_id',
-            user['student_id']?.toString() ?? args?['student_id'] ?? '',
-          );
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Email Verified Successfully!')),
-            );
-            Navigator.pushReplacementNamed(
-              context,
-              nextRoute,
-            ); // Navigate to the specified nextRoute
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Invalid OTP. Please try again.')),
-            );
-          }
+          Navigator.pushReplacementNamed(context, nextRoute);
         }
       } on TimeoutException {
         if (mounted) {
@@ -129,23 +87,11 @@ class _OtpScreenState extends State<OtpScreen> {
             ),
           );
         }
-      } on SocketException catch (e) {
-        if (mounted) {
-          print('OTP Verify Socket Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Network connection error. Please try again.'),
-            ),
-          );
-        }
       } catch (e) {
         if (mounted) {
-          print('OTP Verify HTTP Client Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Connection error. Please try again.'),
-            ),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.toString())));
         }
       } finally {
         if (mounted) {
@@ -165,14 +111,7 @@ class _OtpScreenState extends State<OtpScreen> {
     if (email == null) return;
 
     try {
-      final url = Uri.parse('$BASE_URL/api/auth/resend-otp');
-      await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': email}),
-          )
-          .timeout(const Duration(seconds: 15));
+      await _authService.resendOtp(email);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -189,11 +128,10 @@ class _OtpScreenState extends State<OtpScreen> {
         );
       }
     } catch (e) {
-      print('OTP Resend Network Error: $e'); // Added debug print
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Failed to resend OTP.')));
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
   }

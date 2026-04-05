@@ -94,6 +94,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final selectedTabIndex = args?['selectedTabIndex'] as int? ?? 0;
     final filtered = _getFilteredAnnouncements();
 
     return SmartPdmPageScaffold(
@@ -102,8 +105,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
-      selectedIndex: 1,
-      showDrawer: true,
+      selectedIndex: selectedTabIndex,
+      showDrawer: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

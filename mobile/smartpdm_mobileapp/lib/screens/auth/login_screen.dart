@@ -1,9 +1,7 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:io'; // Import for SocketException
-import 'package:http/http.dart' as http;
-import 'package:smartpdm_mobileapp/constants.dart'; // Assuming you have your colors here based on main.dart
+import 'package:smartpdm_mobileapp/services/auth_service.dart';
+import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +11,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
   final _studentIdController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -31,57 +30,29 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       try {
-        // Note: 10.0.2.2 points to localhost on the Android Emulator.
-        // Use your PC's local IP address if testing on a physical device.
-        final url = Uri.parse('$BASE_URL/api/auth/login');
+        await _authService.login(
+          studentId: _studentIdController.text,
+          password: _passwordController.text,
+        );
 
-        final response = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'student_id': _studentIdController.text.trim(),
-            'password': _passwordController.text,
-          }),
-        ).timeout(const Duration(seconds: 15));
-
-        if (response.statusCode == 200) {
-          if (mounted) {
-            // Assuming successful login navigates to a home screen or dashboard
-            Navigator.pushReplacementNamed(context, '/new_applicant'); // Replace with your actual home route
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Login failed: ${response.body}')),
-            );
-          }
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
         }
       } on TimeoutException {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Request timed out. Please check your connection or try again.')),
-          );
-        }
-      } on SocketException catch (e) {
-        if (mounted) {
-          print('Login Socket Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Network connection error. Please check your internet connection.')),
-          );
-        }
-      } on http.ClientException catch (e) { // Catch specific HTTP client errors (e.g., connection refused)
-        if (mounted) {
-          print('Login HTTP Client Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Connection error. Please ensure your backend is running and accessible.')),
+            const SnackBar(
+              content: Text(
+                'Request timed out. Please check your connection or try again.',
+              ),
+            ),
           );
         }
       } catch (e) {
         if (mounted) {
-          print('Login Unexpected Error: $e'); // Catch all other unexpected errors (like routing errors)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.toString())));
         }
       } finally {
         if (mounted) {
@@ -111,22 +82,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Logo
+                  Image.asset(
+                    'assets/images/school_logo.png',
+                    height: 120,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 16),
                   // Header text
                   const Text(
                     'Welcome Back!',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Login to your SMaRT-PDM account.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
@@ -134,7 +106,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Student ID Field
                   TextFormField(
                     controller: _studentIdController,
-                    keyboardType: TextInputType.text, // Student ID can be alphanumeric
+                    keyboardType:
+                        TextInputType.text, // Student ID can be alphanumeric
                     decoration: const InputDecoration(
                       labelText: 'Student ID',
                       prefixIcon: Icon(Icons.school_outlined),
@@ -161,7 +134,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -191,18 +166,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Login Button
-                  ElevatedButton(
-                    onPressed: _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
+                  // Login Button (Gold)
+                  SizedBox(
+                    width: double.infinity,
                     child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('LOGIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ? const Center(
+                            child: SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : GoldButton(label: 'Login', onTap: _handleLogin),
                   ),
                   const SizedBox(height: 24),
 
@@ -222,15 +197,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Google Sign In Button
-                  OutlinedButton.icon(
-                    onPressed: _handleGoogleSignIn,
-                    icon: const Icon(Icons.g_mobiledata, size: 32),
-                    label: const Text('Sign in with Google', style: TextStyle(fontSize: 16)),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      foregroundColor: Colors.black87,
-                      side: BorderSide(color: Colors.grey.shade300),
+                  // Google Sign Up Button (Ghost)
+                  SizedBox(
+                    width: double.infinity,
+                    child: GhostButton(
+                      label: 'Sign up with Google',
+                      icon: Image.asset('assets/images/google.png', height: 20),
+                      onTap: _handleGoogleSignIn,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -244,9 +217,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: TextStyle(color: Colors.grey.shade700),
                       ),
                       TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/register'); // Replace with your actual register route
-                        },
+                        onPressed: () => Navigator.pushReplacementNamed(
+                          context,
+                          '/register',
+                        ),
                         child: const Text(
                           'Register',
                           style: TextStyle(fontWeight: FontWeight.bold),

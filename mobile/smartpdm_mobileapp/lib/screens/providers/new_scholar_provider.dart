@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
-
 import 'package:flutter/material.dart';
-
+import 'dart:async';
+import 'package:smartpdm_mobileapp/models/app_data.dart';
+import 'package:smartpdm_mobileapp/services/application_service.dart';
 
 class NewScholarProvider extends ChangeNotifier {
+  final ApplicationService _applicationService = ApplicationService();
   // Add your state variables here
   String? _scholarName;
   String? _email;
@@ -36,14 +38,17 @@ class NewScholarProvider extends ChangeNotifier {
     _phone = null;
     notifyListeners();
   }
+
   int _currentStep = 0;
   bool _isLoading = false;
   String? _submissionError;
+  String? _successMessage;
 
   // Getters
   int get currentStep => _currentStep;
   bool get isLoading => _isLoading;
   String? get submissionError => _submissionError;
+  String? get successMessage => _successMessage;
 
   // Navigation Methods
   void goToNextStep() {
@@ -64,28 +69,38 @@ class NewScholarProvider extends ChangeNotifier {
     _currentStep = 0;
     _isLoading = false;
     _submissionError = null;
+    _successMessage = null;
     // TODO: Clear any saved form data here
     notifyListeners();
   }
 
   // Submission Method
-  Future<bool> submitApplication() async {
+  Future<bool> submitApplication(ApplicationData applicationData) async {
     _isLoading = true;
     _submissionError = null;
+    _successMessage = null;
     notifyListeners();
 
     try {
-      // Simulate network request / API call
-      await Future.delayed(const Duration(seconds: 2));
-      
+      final response = await _applicationService.submitApplication(
+        applicationData,
+      );
+      _successMessage = response['message']?.toString();
+
       _isLoading = false;
       notifyListeners();
-      return true; // Return true on success
+      return true;
+    } on TimeoutException {
+      _submissionError =
+          'Submission timed out. Please check your connection and try again.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e) {
       _isLoading = false;
-      _submissionError = 'Failed to submit application. Please check your connection and try again.';
+      _submissionError = e.toString();
       notifyListeners();
-      return false; // Return false on error
+      return false;
     }
   }
 }

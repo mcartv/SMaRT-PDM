@@ -1,10 +1,8 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:io'; // Import for SocketException
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/services/auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -14,8 +12,12 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
+  final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
-  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _controllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
   int _resendCooldown = 0;
@@ -51,63 +53,45 @@ class _OtpScreenState extends State<OtpScreen> {
       final otp = _controllers.map((c) => c.text).join();
       if (otp.length < 6) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter all 6 digits of the OTP.')),
+          const SnackBar(
+            content: Text('Please enter all 6 digits of the OTP.'),
+          ),
         );
         return;
       }
 
       setState(() => _isLoading = true);
-      
-      // Retrieve the email passed from the registration screen
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
-      final email = args?['email'];
-      final nextRoute = args?['nextRoute'] ?? '/new_applicant'; // Default to /new_applicant if nextRoute is not provided
 
+      // Retrieve the email passed from the registration screen
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+      final email = args?['email'];
+      final nextRoute =
+          args?['nextRoute'] ??
+          '/new_applicant'; // Default to /new_applicant if nextRoute is not provided
 
       try {
-        final url = Uri.parse('$BASE_URL/api/auth/verify-otp');
-        final response = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': email ?? '',
-            'otp': otp,
-          }),
-        ).timeout(const Duration(seconds: 15));
+        await _authService.verifyOtp(email: email ?? '', otp: otp);
 
-        if (response.statusCode == 200) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Email Verified Successfully!')),
-            );
-            Navigator.pushReplacementNamed(context, nextRoute); // Navigate to the specified nextRoute
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Invalid OTP. Please try again.')),
-            );
-          }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Email Verified Successfully!')),
+          );
+          Navigator.pushReplacementNamed(context, nextRoute);
         }
       } on TimeoutException {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Request timed out. Server might be down.')),
-          );
-        }
-      } on SocketException catch (e) {
-        if (mounted) {
-          print('OTP Verify Socket Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Network connection error. Please try again.')),
+            const SnackBar(
+              content: Text('Request timed out. Server might be down.'),
+            ),
           );
         }
       } catch (e) {
         if (mounted) {
-          print('OTP Verify HTTP Client Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Connection error. Please try again.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.toString())));
         }
       } finally {
         if (mounted) {
@@ -120,19 +104,15 @@ class _OtpScreenState extends State<OtpScreen> {
   Future<void> _resendOtp() async {
     if (_resendCooldown > 0) return;
 
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
     final email = args?['email'];
 
     if (email == null) return;
 
     try {
-      final url = Uri.parse('$BASE_URL/api/auth/resend-otp');
-      await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      ).timeout(const Duration(seconds: 15));
-      
+      await _authService.resendOtp(email);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('OTP Resent! Check your email.')),
@@ -142,15 +122,16 @@ class _OtpScreenState extends State<OtpScreen> {
     } on TimeoutException {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request timed out. Server might be down.')),
+          const SnackBar(
+            content: Text('Request timed out. Server might be down.'),
+          ),
         );
       }
     } catch (e) {
-      print('OTP Resend Network Error: $e'); // Added debug print
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to resend OTP.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
   }
@@ -176,19 +157,13 @@ class _OtpScreenState extends State<OtpScreen> {
                   // Header text
                   const Text(
                     'Verify Your Account',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Enter the 6-digit OTP sent to your email address.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
@@ -209,7 +184,10 @@ class _OtpScreenState extends State<OtpScreen> {
                             LengthLimitingTextInputFormatter(6),
                             FilteringTextInputFormatter.digitsOnly,
                           ],
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                           decoration: InputDecoration(
                             counterText: '',
                             contentPadding: EdgeInsets.zero,
@@ -220,7 +198,11 @@ class _OtpScreenState extends State<OtpScreen> {
                           onChanged: (value) {
                             if (value.length > 1) {
                               // Handle copy-paste string across multiple boxes
-                              for (int i = 0; i < value.length && (index + i) < 6; i++) {
+                              for (
+                                int i = 0;
+                                i < value.length && (index + i) < 6;
+                                i++
+                              ) {
                                 _controllers[index + i].text = value[i];
                               }
                               // Move focus to the appropriate next node or dismiss keyboard
@@ -235,7 +217,8 @@ class _OtpScreenState extends State<OtpScreen> {
                             } else if (value.isEmpty && index > 0) {
                               _focusNodes[index - 1].requestFocus();
                             } else if (value.isNotEmpty && index == 5) {
-                              _focusNodes[index].unfocus(); // Dismiss keyboard when done
+                              _focusNodes[index]
+                                  .unfocus(); // Dismiss keyboard when done
                             }
                           },
                         ),
@@ -259,7 +242,13 @@ class _OtpScreenState extends State<OtpScreen> {
                               strokeWidth: 2,
                             ),
                           )
-                        : const Text('VERIFY', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        : const Text(
+                            'VERIFY',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 24),
 
@@ -274,10 +263,14 @@ class _OtpScreenState extends State<OtpScreen> {
                       TextButton(
                         onPressed: _resendCooldown > 0 ? null : _resendOtp,
                         child: Text(
-                          _resendCooldown > 0 ? 'RESEND IN ${_resendCooldown}s' : 'RESEND',
+                          _resendCooldown > 0
+                              ? 'RESEND IN ${_resendCooldown}s'
+                              : 'RESEND',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold, 
-                            color: _resendCooldown > 0 ? Colors.grey : accentColor,
+                            fontWeight: FontWeight.bold,
+                            color: _resendCooldown > 0
+                                ? Colors.grey
+                                : accentColor,
                           ),
                         ),
                       ),

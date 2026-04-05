@@ -1,9 +1,7 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:http/http.dart' as http;
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -13,6 +11,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   bool _isLoading = false;
@@ -34,42 +33,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       });
 
       try {
-        final url = Uri.parse('$BASE_URL/api/auth/forgot-password');
-        
-        final response = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'email': _emailController.text.trim()}),
-        ).timeout(const Duration(seconds: 15));
+        await _authService.requestPasswordReset(_emailController.text);
 
-        if (response.statusCode == 200) {
-          if (mounted) {
-            setState(() {
-              _successMessage = 'Password reset link sent to your email!';
-            });
-            Future.delayed(const Duration(seconds: 2), () {
-              if (mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
-              }
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              _errorMessage = 'Email not found. Please check and try again.';
-            });
-          }
-        }
-      } on SocketException {
         if (mounted) {
           setState(() {
-            _errorMessage = 'Network error. Please check your connection.';
+            _successMessage = 'Password reset link sent to your email!';
+          });
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/login');
+            }
           });
         }
       } catch (e) {
         if (mounted) {
           setState(() {
-            _errorMessage = 'An error occurred. Please try again.';
+            _errorMessage = e.toString();
           });
         }
       } finally {
@@ -164,8 +143,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         if (value?.isEmpty ?? true) {
                           return 'Email is required';
                         }
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                            .hasMatch(value!)) {
+                        if (!RegExp(
+                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                        ).hasMatch(value!)) {
                           return 'Please enter a valid email';
                         }
                         return null;
@@ -194,7 +174,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : const Text(

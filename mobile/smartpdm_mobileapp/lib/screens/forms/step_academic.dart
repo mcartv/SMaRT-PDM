@@ -1,14 +1,16 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
 
 class StepAcademic extends StatefulWidget {
   final ApplicationData data;
   final VoidCallback onChanged;
-  const StepAcademic({super.key, required this.data, required this.onChanged});
+  final bool showErrors;
+  const StepAcademic({
+    super.key,
+    required this.data,
+    required this.onChanged,
+    this.showErrors = false,
+  });
 
   @override
   State<StepAcademic> createState() => _StepAcademicState();
@@ -59,11 +61,9 @@ class _StepAcademicState extends State<StepAcademic> {
     'BSHM',
     'BTLED',
   ];
+
   String selectedFinancialSupport = 'Parents';
   String? selectedCourse;
-  String? selectedProgramId;
-  List<_ProgramOption> scholarshipPrograms = const [];
-  bool isLoadingPrograms = false;
 
   bool scholarshipHistory = false;
   bool scholarshipElementary = false;
@@ -140,6 +140,51 @@ class _StepAcademicState extends State<StepAcademic> {
       setter(c.text);
       widget.onChanged();
     });
+  }
+
+  String? _yearLevelError() {
+    if (!widget.showErrors) return null;
+    final value = currentYearLevelController.text.trim();
+    if (value.isEmpty) return 'Year level is required.';
+    final parsed = int.tryParse(value);
+    if (parsed == null) return 'Year level must be a valid number.';
+    if (parsed < 1) return 'Year level must be at least 1.';
+    if (parsed > 6) return 'Year level cannot be above 6.';
+    return null;
+  }
+
+  String? _courseError() {
+    if (!widget.showErrors) return null;
+    if ((selectedCourse ?? '').trim().isEmpty) return 'Course is required.';
+    return null;
+  }
+
+  String? _sectionError() {
+    if (!widget.showErrors) return null;
+    if (currentSectionController.text.trim().isEmpty) {
+      return 'Section is required.';
+    }
+    return null;
+  }
+
+  String? _studentNumberError() {
+    if (!widget.showErrors) return null;
+    final studentNumber = studentNumberController.text.trim();
+    if (studentNumber.isEmpty) return 'Student number is required.';
+    if (widget.data.accountStudentId.isNotEmpty &&
+        studentNumber != widget.data.accountStudentId) {
+      return 'Student number must match your logged-in account.';
+    }
+    return null;
+  }
+
+  String? _otherSupportError() {
+    if (!widget.showErrors) return null;
+    if (selectedFinancialSupport != 'Other') return null;
+    if (scholarshipOthersSpecifyController.text.trim().isEmpty) {
+      return 'Please specify the other financial support.';
+    }
+    return null;
   }
 
   @override
@@ -226,9 +271,6 @@ class _StepAcademicState extends State<StepAcademic> {
     selectedCourse = courseOptions.contains(widget.data.currentCourse)
         ? widget.data.currentCourse
         : null;
-    selectedProgramId = widget.data.programId.isNotEmpty
-        ? widget.data.programId
-        : null;
     selectedFinancialSupport = widget.data.financialSupport.isNotEmpty
         ? widget.data.financialSupport
         : supportOptions[0];
@@ -295,7 +337,6 @@ class _StepAcademicState extends State<StepAcademic> {
     _bind(currentSectionController, (v) => widget.data.currentSection = v);
     _bind(studentNumberController, (v) => widget.data.studentNumber = v);
     _bind(lrnController, (v) => widget.data.lrn = v);
-
     _bind(
       scholarshipDetailsController,
       (v) => widget.data.scholarshipDetails = v,
@@ -308,36 +349,6 @@ class _StepAcademicState extends State<StepAcademic> {
       disciplinaryExplanationController,
       (v) => widget.data.disciplinaryExplanation = v,
     );
-
-    _loadScholarshipPrograms();
-  }
-
-  Future<void> _loadScholarshipPrograms() async {
-    setState(() => isLoadingPrograms = true);
-    try {
-      final response = await http.get(
-        Uri.parse('$BASE_URL/api/scholarship-programs'),
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> decoded =
-            jsonDecode(response.body) as List<dynamic>;
-        scholarshipPrograms = decoded
-            .whereType<Map<String, dynamic>>()
-            .map(
-              (program) => _ProgramOption(
-                id: program['program_id']?.toString() ?? '',
-                name: program['program_name']?.toString() ?? 'Unnamed Program',
-              ),
-            )
-            .where((program) => program.id.isNotEmpty)
-            .toList();
-      }
-    } catch (_) {
-      scholarshipPrograms = const [];
-    }
-
-    if (!mounted) return;
-    setState(() => isLoadingPrograms = false);
   }
 
   @override
@@ -347,39 +358,35 @@ class _StepAcademicState extends State<StepAcademic> {
     collegeHonorsController.dispose();
     collegeClubController.dispose();
     collegeYearController.dispose();
-
     highSchoolSchoolController.dispose();
     highSchoolAddressController.dispose();
     highSchoolHonorsController.dispose();
     highSchoolClubController.dispose();
     highSchoolYearController.dispose();
-
     seniorHighSchoolController.dispose();
     seniorHighAddressController.dispose();
     seniorHighHonorsController.dispose();
     seniorHighClubController.dispose();
     seniorHighYearController.dispose();
-
     elementarySchoolController.dispose();
     elementaryAddressController.dispose();
     elementaryHonorsController.dispose();
     elementaryClubController.dispose();
     elementaryYearController.dispose();
-
     currentYearLevelController.dispose();
     currentSectionController.dispose();
     studentNumberController.dispose();
     lrnController.dispose();
-
     scholarshipDetailsController.dispose();
     scholarshipOthersSpecifyController.dispose();
     disciplinaryExplanationController.dispose();
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isOtherSupport = selectedFinancialSupport == 'Other';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -425,38 +432,10 @@ class _StepAcademicState extends State<StepAcademic> {
           const SizedBox(height: 16),
           _row([
             _field(
-              'Scholarship Program',
-              isLoadingPrograms
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: LinearProgressIndicator(),
-                    )
-                  : DropdownButtonFormField<String>(
-                      value: selectedProgramId,
-                      decoration: _dec('Select Program'),
-                      items: scholarshipPrograms
-                          .map(
-                            (program) => DropdownMenuItem<String>(
-                              value: program.id,
-                              child: Text(program.name),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() => selectedProgramId = value);
-                        widget.data.programId = value ?? '';
-                        widget.onChanged();
-                      },
-                    ),
-            ),
-          ]),
-          const SizedBox(height: 16),
-          _row([
-            _field(
               'Course',
               DropdownButtonFormField<String>(
                 value: selectedCourse,
-                decoration: _dec('Course'),
+                decoration: _dec('Course').copyWith(errorText: _courseError()),
                 items: courseOptions
                     .map(
                       (course) => DropdownMenuItem<String>(
@@ -477,14 +456,18 @@ class _StepAcademicState extends State<StepAcademic> {
               TextFormField(
                 controller: currentYearLevelController,
                 keyboardType: TextInputType.number,
-                decoration: _dec('Year Level'),
+                decoration: _dec(
+                  'Year Level',
+                ).copyWith(errorText: _yearLevelError()),
               ),
             ),
             _field(
               'Section',
               TextFormField(
                 controller: currentSectionController,
-                decoration: _dec('Section'),
+                decoration: _dec(
+                  'Section',
+                ).copyWith(errorText: _sectionError()),
               ),
             ),
           ]),
@@ -495,7 +478,9 @@ class _StepAcademicState extends State<StepAcademic> {
               TextFormField(
                 controller: studentNumberController,
                 readOnly: widget.data.accountStudentId.isNotEmpty,
-                decoration: _dec('Student Number'),
+                decoration: _dec(
+                  'Student Number',
+                ).copyWith(errorText: _studentNumberError()),
               ),
             ),
             _field(
@@ -505,27 +490,45 @@ class _StepAcademicState extends State<StepAcademic> {
           ]),
           const SizedBox(height: 24),
           const Text('FINANCIAL SUPPORT', style: sectionTitle),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            children: supportOptions
-                .map(
-                  (option) => ChoiceChip(
-                    label: Text(option),
-                    selected: selectedFinancialSupport == option,
-                    onSelected: (isSelected) {
-                      if (isSelected) {
-                        setState(() {
-                          selectedFinancialSupport = option;
-                          widget.data.financialSupport = option;
-                        });
-                        widget.onChanged();
-                      }
-                    },
-                  ),
-                )
-                .toList(),
+          const SizedBox(height: 8),
+          ...supportOptions.map(
+            (option) => CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: selectedFinancialSupport == option,
+              title: Text(option),
+              controlAffinity: ListTileControlAffinity.leading,
+              onChanged: (checked) {
+                setState(() {
+                  if (checked ?? false) {
+                    selectedFinancialSupport = option;
+                    widget.data.financialSupport = option;
+                  } else if (selectedFinancialSupport == option) {
+                    selectedFinancialSupport = '';
+                    widget.data.financialSupport = '';
+                  }
+
+                  if (option != 'Other' &&
+                      selectedFinancialSupport != 'Other') {
+                    scholarshipOthersSpecifyController.clear();
+                    widget.data.scholarshipOthersSpecify = '';
+                  }
+                });
+                widget.onChanged();
+              },
+            ),
           ),
+          if (isOtherSupport) ...[
+            const SizedBox(height: 12),
+            _field(
+              'Specify:',
+              TextFormField(
+                controller: scholarshipOthersSpecifyController,
+                decoration: _dec(
+                  'Specify...',
+                ).copyWith(errorText: _otherSupportError()),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           const Text('SCHOLARSHIP HISTORY', style: sectionTitle),
           buildBooleanRow('Have you ever been a scholar?', scholarshipHistory, (
@@ -740,13 +743,6 @@ class _StepAcademicState extends State<StepAcademic> {
       ],
     );
   }
-}
-
-class _ProgramOption {
-  final String id;
-  final String name;
-
-  const _ProgramOption({required this.id, required this.name});
 }
 
 const TextStyle sectionTitle = TextStyle(

@@ -1,12 +1,12 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/services/profile_service.dart';
+import 'package:smartpdm_mobileapp/services/session_service.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
@@ -20,6 +20,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final ProfileService _profileService = ProfileService();
+  final SessionService _sessionService = const SessionService();
   static const List<String> _courseOptions = [
     'BSTM',
     'BSOAD',
@@ -111,28 +113,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isUploading = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final email = prefs.getString('user_email') ?? '';
-
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://192.168.22.2:3000/api/auth/upload-avatar'),
+      final session = await _sessionService.getCurrentUser();
+      final newImageUrl = await _profileService.uploadAvatar(
+        email: session.email,
+        filePath: pickedFile.path,
       );
-      request.fields['email'] = email;
-      request.files.add(
-        await http.MultipartFile.fromPath('image', pickedFile.path),
-      );
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode != 200) {
-        throw Exception('Upload failed');
-      }
-
-      final responseData = jsonDecode(response.body);
-      final newImageUrl = responseData['avatarUrl'];
-      await prefs.setString('user_profile_image', newImageUrl);
 
       if (!mounted) return;
 
@@ -140,11 +125,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Profile photo updated!')));
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to upload image to server.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);
@@ -235,14 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleLogout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('jwt_token');
-    await prefs.remove('user_id');
-    await prefs.remove('user_email');
-    await prefs.remove('user_student_id');
-    await prefs.remove('user_first_name');
-    await prefs.remove('user_last_name');
-    await prefs.remove('user_profile_image');
+    await _sessionService.clearSession();
 
     if (context.mounted) {
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
@@ -327,6 +305,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'FAQs',
               subtitle: 'View common scholarship questions',
               onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
+            ),
+            _profileRowCard(
+              icon: Icons.logout,
+              title: 'Log out',
+              subtitle: 'End your current session on this device',
+              onTap: () => _confirmLogout(context),
             ),
             const SizedBox(height: 8),
           ],

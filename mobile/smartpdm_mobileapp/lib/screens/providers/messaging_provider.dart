@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/config/app_config.dart';
 
 // A simple model to represent a message
 class ChatMessage {
@@ -23,7 +23,7 @@ class ChatMessage {
 class MessagingProvider extends ChangeNotifier {
   final List<ChatMessage> _messages = [];
   int _unreadCount = 0;
-  IO.Socket? _socket;
+  io.Socket? _socket;
   String? _currentRoom;
   String? _currentUserId;
 
@@ -36,18 +36,18 @@ class MessagingProvider extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     final studentId = prefs.getString('user_student_id');
-    
+
     if (studentId != null) {
       _currentRoom = studentId;
       _currentUserId = studentId;
-      
+
       await loadChatHistory(studentId, studentId);
       _connectSocket();
     }
   }
 
   void _connectSocket() {
-    _socket = IO.io(BASE_URL, <String, dynamic>{
+    _socket = io.io(AppConfig.apiBaseUrl, <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
     });
@@ -68,22 +68,24 @@ class MessagingProvider extends ChangeNotifier {
   // Fetch chat history from the backend REST API
   Future<void> loadChatHistory(String room, String currentUserId) async {
     try {
-      final url = Uri.parse('$BASE_URL/api/messages/$room');
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/api/messages/$room');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         _messages.clear();
-        
+
         for (var msg in data) {
-          _messages.add(ChatMessage(
-            id: msg['id']?.toString() ?? DateTime.now().toString(),
-            text: msg['text'] ?? '',
-            isMe: msg['sender_id'] == currentUserId,
-            timestamp: msg['created_at'] != null 
-                ? DateTime.parse(msg['created_at']) 
-                : DateTime.now(),
-          ));
+          _messages.add(
+            ChatMessage(
+              id: msg['id']?.toString() ?? DateTime.now().toString(),
+              text: msg['text'] ?? '',
+              isMe: msg['sender_id'] == currentUserId,
+              timestamp: msg['created_at'] != null
+                  ? DateTime.parse(msg['created_at'])
+                  : DateTime.now(),
+            ),
+          );
         }
         notifyListeners();
       }
@@ -95,13 +97,16 @@ class MessagingProvider extends ChangeNotifier {
   void sendMessage(String text) {
     if (_currentRoom == null) return;
 
-    _messages.insert(0, ChatMessage(
-      id: DateTime.now().toString(),
-      text: text,
-      isMe: true,
-      timestamp: DateTime.now(),
-    ));
-    
+    _messages.insert(
+      0,
+      ChatMessage(
+        id: DateTime.now().toString(),
+        text: text,
+        isMe: true,
+        timestamp: DateTime.now(),
+      ),
+    );
+
     _socket?.emit('send_message', {
       'room': _currentRoom,
       'sender_id': _currentUserId,
@@ -115,15 +120,18 @@ class MessagingProvider extends ChangeNotifier {
     _unreadCount = 0;
     notifyListeners();
   }
-  
+
   void receiveMessage(String text) {
-    _messages.insert(0, ChatMessage(
-      id: DateTime.now().toString(),
-      text: text,
-      isMe: false,
-      timestamp: DateTime.now(),
-    ));
-    
+    _messages.insert(
+      0,
+      ChatMessage(
+        id: DateTime.now().toString(),
+        text: text,
+        isMe: false,
+        timestamp: DateTime.now(),
+      ),
+    );
+
     _unreadCount++;
     notifyListeners();
   }

@@ -23,6 +23,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   final _data = ApplicationData();
   final _scrollCtrl = ScrollController();
   bool _isBootstrapping = true;
+  bool _showValidationErrors = false;
 
   static const _stepLabels = [
     'Personal',
@@ -56,6 +57,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   void _next() {
+    final validationError = _validateCurrentForm();
+    if (validationError != null) {
+      setState(() => _showValidationErrors = true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationError)));
+      return;
+    }
+
     if (_step < 4) {
       setState(() => _step++);
       _scrollCtrl.animateTo(
@@ -79,9 +89,22 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
   Future<void> _submitApplication() async {
     if (!_data.agree) {
+      setState(() => _showValidationErrors = true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please check the certification checkbox to proceed.'),
+          content: Text(
+            'Please complete the required certification and legal agreement checkboxes.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!_data.certificationRead) {
+      setState(() => _showValidationErrors = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please confirm the certification statement.'),
         ),
       );
       return;
@@ -98,14 +121,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    if (_data.programId.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please select a scholarship program before submitting.',
-          ),
-        ),
-      );
+    final validationError = _validateCurrentForm();
+    if (validationError != null) {
+      setState(() => _showValidationErrors = true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
@@ -115,7 +136,25 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     if (!mounted) return;
 
     if (success) {
-      Navigator.pushReplacementNamed(context, '/success');
+      final successMessage =
+          provider.successMessage ??
+          'Profile details saved successfully. Scholarship program selection is temporarily unavailable.';
+      final isProfileOnly = successMessage.toLowerCase().contains(
+        'profile details saved successfully',
+      );
+      Navigator.pushReplacementNamed(
+        context,
+        '/success',
+        arguments: {
+          'appBarTitle': isProfileOnly
+              ? 'Profile Details Saved'
+              : 'Application Submitted',
+          'title': isProfileOnly
+              ? 'Profile Details Saved Successfully!'
+              : 'Application Submitted Successfully!',
+          'message': successMessage,
+        },
+      );
       return;
     }
 
@@ -128,18 +167,143 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
+  String? _validateCurrentForm() {
+    String? validatePersonalAndContact() {
+      final requiredFields = <String, String>{
+        'Last name': _data.lastName,
+        'First name': _data.firstName,
+        'Age': _data.age,
+        'Date of birth': _data.dateOfBirth,
+        'Sex': _data.sex,
+        'Place of birth': _data.placeOfBirth,
+        'Citizenship': _data.citizenship,
+        'Civil status': _data.civilStatus,
+        'Religion': _data.religion,
+        'Mobile number': _data.mobileNumber,
+      };
+
+      for (final entry in requiredFields.entries) {
+        if (entry.value.trim().isEmpty) {
+          return '${entry.key} is required.';
+        }
+      }
+
+      final birthDate = ApplicationData.parseInputDate(_data.dateOfBirth);
+      if (birthDate == null || birthDate.isAfter(DateTime.now())) {
+        return 'Date of birth must be a valid past date.';
+      }
+
+      final inputAge = ApplicationData.parseAgeValue(_data.age);
+      final computedAge = ApplicationData.calculateAge(birthDate);
+      if (inputAge == null) {
+        return 'Age must be a valid number.';
+      }
+      if (inputAge < 0) {
+        return 'Age cannot be negative.';
+      }
+      if (inputAge < 16) {
+        return 'Age must be at least 16.';
+      }
+      if (computedAge == null || inputAge != computedAge) {
+        return 'Age must match the selected date of birth.';
+      }
+
+      final rawMobile = _data.mobileNumber.trim();
+      final normalizedMobile = ApplicationData.normalizeMobileNumber(rawMobile);
+      if (normalizedMobile.isEmpty) {
+        return 'Mobile number is required.';
+      }
+      if (!RegExp(
+        r'^\+?\d+$',
+      ).hasMatch(rawMobile.replaceAll(RegExp(r'[\s-]+'), ''))) {
+        return 'Mobile number must contain digits only.';
+      }
+      if (!normalizedMobile.startsWith('09')) {
+        return 'Mobile number must start with 09 or +639.';
+      }
+      if (normalizedMobile.length < 11) {
+        return 'Mobile number is too short.';
+      }
+      if (normalizedMobile.length > 11) {
+        return 'Mobile number is too long.';
+      }
+
+      return null;
+    }
+
+    String? validateAcademic() {
+      if (_data.currentCourse.trim().isEmpty) {
+        return 'Course is required.';
+      }
+      if (_data.currentYearLevel.trim().isEmpty) {
+        return 'Year level is required.';
+      }
+
+      final yearLevel = int.tryParse(_data.currentYearLevel.trim());
+      if (yearLevel == null) {
+        return 'Year level must be a valid number.';
+      }
+      if (yearLevel < 1) {
+        return 'Year level must be at least 1.';
+      }
+      if (yearLevel > 6) {
+        return 'Year level cannot be above 6.';
+      }
+
+      if (_data.currentSection.trim().isEmpty) {
+        return 'Section is required.';
+      }
+      if (_data.studentNumber.trim().isEmpty) {
+        return 'Student number is required.';
+      }
+      if (_data.accountStudentId.isNotEmpty &&
+          _data.studentNumber.trim() != _data.accountStudentId.trim()) {
+        return 'Student number must match your logged-in account.';
+      }
+      if (_data.financialSupport == 'Other' &&
+          _data.scholarshipOthersSpecify.trim().isEmpty) {
+        return 'Please specify the other financial support.';
+      }
+
+      return null;
+    }
+
+    switch (_step) {
+      case 0:
+        return validatePersonalAndContact();
+      case 2:
+        return validateAcademic();
+      case 4:
+        return validatePersonalAndContact() ?? validateAcademic();
+      default:
+        return null;
+    }
+  }
+
   Widget _buildStep() {
     switch (_step) {
       case 0:
-        return StepPersonal(data: _data, onChanged: () => setState(() {}));
+        return StepPersonal(
+          data: _data,
+          onChanged: () => setState(() {}),
+          showErrors: _showValidationErrors,
+        );
       case 1:
         return StepFamily(data: _data, onChanged: () => setState(() {}));
       case 2:
-        return StepAcademic(data: _data, onChanged: () => setState(() {}));
+        return StepAcademic(
+          data: _data,
+          onChanged: () => setState(() {}),
+          showErrors: _showValidationErrors,
+        );
       case 3:
         return StepEssay(data: _data, onChanged: () => setState(() {}));
       case 4:
-        return StepSubmit(data: _data, onChanged: () => setState(() {}));
+        return StepSubmit(
+          data: _data,
+          onChanged: () => setState(() {}),
+          showErrors: _showValidationErrors,
+        );
       default:
         return const SizedBox.shrink();
     }
@@ -174,7 +338,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
-                    const AppHeader(subtitle: 'New Scholar Application Form'),
+                    const AppHeader(subtitle: 'Student Profile Intake Form'),
                     Expanded(
                       child: SingleChildScrollView(
                         controller: _scrollCtrl,
@@ -226,7 +390,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                           ),
                                         )
                                       : GoldButton(
-                                          label: 'Submit Application',
+                                          label: 'Save Profile Details',
                                           onTap: _submitApplication,
                                         ),
                                 ),

@@ -1,13 +1,5 @@
 import 'package:flutter/material.dart';
 
-// Base URL for your backend API
-// IMPORTANT: Replace '192.168.22.2' with the actual IP address of your machine
-// running the Node.js server.
-// For Android Emulator, you might use '10.0.2.2'.
-// For iOS Simulator, you might use 'http://localhost:3000' or 'http://127.0.0.1:3000'.
-// For physical devices, use your machine's actual local IP (e.g., 192.168.1.X).
-const String BASE_URL = 'http://192.168.22.2:3000';
-
 // PRIMARY COLORS
 const Color pdmYellow = Color(0xFFFFE300);
 const Color pdmGold = Color(0xFFF5B80A);

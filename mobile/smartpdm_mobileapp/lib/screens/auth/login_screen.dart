@@ -1,10 +1,6 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:io'; // Import for SocketException
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/constants.dart'; // Assuming you have your colors here based on main.dart
+import 'package:smartpdm_mobileapp/services/auth_service.dart';
 import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,6 +11,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
   final _studentIdController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -33,47 +30,13 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       try {
-        // Note: 10.0.2.2 points to localhost on the Android Emulator.
-        // Use your PC's local IP address if testing on a physical device.
-        final url = Uri.parse('$BASE_URL/api/auth/login');
+        await _authService.login(
+          studentId: _studentIdController.text,
+          password: _passwordController.text,
+        );
 
-        final response = await http
-            .post(
-              url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'student_id': _studentIdController.text.trim(),
-                'password': _passwordController.text,
-              }),
-            )
-            .timeout(const Duration(seconds: 15));
-
-        if (response.statusCode == 200) {
-          final responseData =
-              jsonDecode(response.body) as Map<String, dynamic>;
-          final user = (responseData['user'] as Map<String, dynamic>?) ?? {};
-          final prefs = await SharedPreferences.getInstance();
-
-          await prefs.setString(
-            'jwt_token',
-            responseData['token']?.toString() ?? '',
-          );
-          await prefs.setString('user_id', user['user_id']?.toString() ?? '');
-          await prefs.setString('user_email', user['email']?.toString() ?? '');
-          await prefs.setString(
-            'user_student_id',
-            user['student_id']?.toString() ?? '',
-          );
-
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/home');
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Login failed: ${response.body}')),
-            );
-          }
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
         }
       } on TimeoutException {
         if (mounted) {
@@ -85,39 +48,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         }
-      } on SocketException catch (e) {
-        if (mounted) {
-          print('Login Socket Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Network connection error. Please check your internet connection.',
-              ),
-            ),
-          );
-        }
-      } on http.ClientException catch (e) {
-        // Catch specific HTTP client errors (e.g., connection refused)
-        if (mounted) {
-          print('Login HTTP Client Error: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Connection error. Please ensure your backend is running and accessible.',
-              ),
-            ),
-          );
-        }
       } catch (e) {
         if (mounted) {
-          print(
-            'Login Unexpected Error: $e',
-          ); // Catch all other unexpected errors (like routing errors)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('An unexpected error occurred: ${e.toString()}'),
-            ),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.toString())));
         }
       } finally {
         if (mounted) {

@@ -1,13 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:async';
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
+import 'package:smartpdm_mobileapp/services/application_service.dart';
 
 class NewScholarProvider extends ChangeNotifier {
+  final ApplicationService _applicationService = ApplicationService();
   // Add your state variables here
   String? _scholarName;
   String? _email;
@@ -44,11 +42,13 @@ class NewScholarProvider extends ChangeNotifier {
   int _currentStep = 0;
   bool _isLoading = false;
   String? _submissionError;
+  String? _successMessage;
 
   // Getters
   int get currentStep => _currentStep;
   bool get isLoading => _isLoading;
   String? get submissionError => _submissionError;
+  String? get successMessage => _successMessage;
 
   // Navigation Methods
   void goToNextStep() {
@@ -69,6 +69,7 @@ class NewScholarProvider extends ChangeNotifier {
     _currentStep = 0;
     _isLoading = false;
     _submissionError = null;
+    _successMessage = null;
     // TODO: Clear any saved form data here
     notifyListeners();
   }
@@ -77,30 +78,14 @@ class NewScholarProvider extends ChangeNotifier {
   Future<bool> submitApplication(ApplicationData applicationData) async {
     _isLoading = true;
     _submissionError = null;
+    _successMessage = null;
     notifyListeners();
 
     try {
-      final response = await http
-          .post(
-            Uri.parse('$BASE_URL/api/applications'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(applicationData.toSubmissionPayload()),
-          )
-          .timeout(const Duration(seconds: 20));
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final responseBody = response.body.isNotEmpty
-            ? jsonDecode(response.body)
-            : null;
-        _submissionError =
-            responseBody is Map<String, dynamic> &&
-                responseBody['error'] is String
-            ? responseBody['error'] as String
-            : 'Failed to submit application.';
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
+      final response = await _applicationService.submitApplication(
+        applicationData,
+      );
+      _successMessage = response['message']?.toString();
 
       _isLoading = false;
       notifyListeners();
@@ -111,16 +96,9 @@ class NewScholarProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
-    } on SocketException {
-      _submissionError =
-          'Network connection error. Please check your internet connection.';
-      _isLoading = false;
-      notifyListeners();
-      return false;
     } catch (e) {
       _isLoading = false;
-      _submissionError =
-          'Failed to submit application. Please check your connection and try again.';
+      _submissionError = e.toString();
       notifyListeners();
       return false;
     }

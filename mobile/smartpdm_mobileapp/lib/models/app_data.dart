@@ -1,7 +1,6 @@
 class ApplicationData {
   String userId = '';
   String accountStudentId = '';
-  String programId = '';
 
   // Step 1: Personal Data
   String firstName = '';
@@ -17,9 +16,8 @@ class ApplicationData {
   String religion = '';
 
   // Permanent Address
-  String block = '';
-  String lot = '';
-  String phase = '';
+  String unitBldgNo = '';
+  String houseLotBlockNo = '';
   String street = '';
   String subdivision = '';
   String barangay = '';
@@ -119,13 +117,33 @@ class ApplicationData {
   bool certificationRead = false;
   bool agree = false;
 
-  int? _parseInt(String value) {
+  static String normalizeEmail(String value) {
+    return value.trim().toLowerCase();
+  }
+
+  static String normalizeMobileNumber(String value) {
+    final trimmed = value.trim().replaceAll(RegExp(r'\s+|-'), '');
+    if (trimmed.startsWith('+63') && trimmed.length == 13) {
+      return '0${trimmed.substring(3)}';
+    }
+    if (trimmed.startsWith('63') && trimmed.length == 12) {
+      return '0${trimmed.substring(2)}';
+    }
+    return trimmed;
+  }
+
+  static bool isValidPhilippineMobile(String value) {
+    final normalized = normalizeMobileNumber(value);
+    return RegExp(r'^09\d{9}$').hasMatch(normalized);
+  }
+
+  static int? parseAgeValue(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return null;
     return int.tryParse(trimmed);
   }
 
-  String? _toIsoDate(String value) {
+  static DateTime? parseInputDate(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return null;
 
@@ -135,118 +153,159 @@ class ApplicationData {
       final day = int.tryParse(parts[1]);
       final year = int.tryParse(parts[2]);
       if (month != null && day != null && year != null) {
-        return '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+        return DateTime.tryParse(
+          '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}',
+        );
       }
     }
 
-    final parsed = DateTime.tryParse(trimmed);
+    return DateTime.tryParse(trimmed);
+  }
+
+  static int? calculateAge(DateTime? birthDate) {
+    if (birthDate == null) return null;
+
+    final today = DateTime.now();
+    var years = today.year - birthDate.year;
+    final hasBirthdayPassed =
+        today.month > birthDate.month ||
+        (today.month == birthDate.month && today.day >= birthDate.day);
+    if (!hasBirthdayPassed) {
+      years -= 1;
+    }
+    return years;
+  }
+
+  static String toTitleCase(String value) {
+    final collapsed = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (collapsed.isEmpty) return '';
+
+    return collapsed
+        .split(' ')
+        .map((word) {
+          return word
+              .split('-')
+              .map((part) {
+                if (part.isEmpty) return part;
+                final lower = part.toLowerCase();
+                return '${lower[0].toUpperCase()}${lower.substring(1)}';
+              })
+              .join('-');
+        })
+        .join(' ');
+  }
+
+  int? _parseInt(String value) => parseAgeValue(value);
+
+  String? _toIsoDate(String value) {
+    final parsed = parseInputDate(value);
     return parsed?.toIso8601String().split('T').first;
   }
 
+  String _title(String value) => toTitleCase(value);
+
   Map<String, dynamic> toSubmissionPayload() {
+    final normalizedMobile = normalizeMobileNumber(mobileNumber);
     return {
       'account': {
-        'user_id': userId,
-        'student_id': accountStudentId,
-        'email': email.trim(),
+        'user_id': userId.trim(),
+        'student_id': accountStudentId.trim(),
+        'email': normalizeEmail(email),
       },
-      'application': {
-        'program_id': programId,
-        'application_status': 'Pending Review',
-      },
+      'application': {'application_status': 'Pending Review'},
       'personal': {
-        'first_name': firstName.trim(),
-        'middle_name': middleName.trim(),
-        'last_name': lastName.trim(),
-        'maiden_name': maidenName.trim(),
+        'first_name': _title(firstName),
+        'middle_name': _title(middleName),
+        'last_name': _title(lastName),
+        'maiden_name': _title(maidenName),
         'age': _parseInt(age),
         'date_of_birth': _toIsoDate(dateOfBirth),
-        'sex': sex.trim(),
-        'place_of_birth': placeOfBirth.trim(),
-        'citizenship': citizenship.trim(),
-        'civil_status': civilStatus.trim(),
-        'religion': religion.trim(),
+        'sex': _title(sex),
+        'place_of_birth': _title(placeOfBirth),
+        'citizenship': _title(citizenship),
+        'civil_status': _title(civilStatus),
+        'religion': _title(religion),
       },
       'address': {
-        'block': block.trim(),
-        'lot': lot.trim(),
-        'phase': phase.trim(),
-        'street': street.trim(),
-        'subdivision': subdivision.trim(),
-        'barangay': barangay.trim(),
-        'city_municipality': city.trim(),
-        'province': province.trim(),
+        'unit_bldg_no': _title(unitBldgNo),
+        'house_lot_block_no': _title(houseLotBlockNo),
+        'street': _title(street),
+        'subdivision': _title(subdivision),
+        'barangay': _title(barangay),
+        'city_municipality': _title(city),
+        'province': _title(province),
         'zip_code': zipCode.trim(),
       },
       'contact': {
         'landline': landline.trim(),
-        'mobile_number': mobileNumber.trim(),
-        'email': email.trim(),
+        'mobile_number': normalizedMobile,
+        'email': normalizeEmail(email),
       },
       'family': {
-        'parent_guardian_address': parentGuardianAddress.trim(),
+        'parent_guardian_address': _title(parentGuardianAddress),
         'father': {
-          'last_name': fatherLastName.trim(),
-          'first_name': fatherFirstName.trim(),
-          'middle_name': fatherMiddleName.trim(),
-          'mobile': fatherMobile.trim(),
+          'last_name': _title(fatherLastName),
+          'first_name': _title(fatherFirstName),
+          'middle_name': _title(fatherMiddleName),
+          'mobile': normalizeMobileNumber(fatherMobile),
           'educational_attainment': fatherEducationalAttainment.trim(),
-          'occupation': fatherOccupation.trim(),
-          'company_name_and_address': fatherCompanyNameAndAddress.trim(),
+          'occupation': _title(fatherOccupation),
+          'company_name_and_address': _title(fatherCompanyNameAndAddress),
         },
         'mother': {
-          'last_name': motherLastName.trim(),
-          'first_name': motherFirstName.trim(),
-          'middle_name': motherMiddleName.trim(),
-          'mobile': motherMobile.trim(),
+          'last_name': _title(motherLastName),
+          'first_name': _title(motherFirstName),
+          'middle_name': _title(motherMiddleName),
+          'mobile': normalizeMobileNumber(motherMobile),
           'educational_attainment': motherEducationalAttainment.trim(),
-          'occupation': motherOccupation.trim(),
-          'company_name_and_address': motherCompanyNameAndAddress.trim(),
+          'occupation': _title(motherOccupation),
+          'company_name_and_address': _title(motherCompanyNameAndAddress),
         },
         'sibling': {
-          'last_name': siblingLastName.trim(),
-          'first_name': siblingFirstName.trim(),
-          'middle_name': siblingMiddleName.trim(),
-          'mobile': siblingMobile.trim(),
+          'last_name': _title(siblingLastName),
+          'first_name': _title(siblingFirstName),
+          'middle_name': _title(siblingMiddleName),
+          'mobile': normalizeMobileNumber(siblingMobile),
         },
         'guardian': {
-          'last_name': guardianLastName.trim(),
-          'first_name': guardianFirstName.trim(),
-          'middle_name': guardianMiddleName.trim(),
-          'mobile': guardianMobile.trim(),
+          'last_name': _title(guardianLastName),
+          'first_name': _title(guardianFirstName),
+          'middle_name': _title(guardianMiddleName),
+          'mobile': normalizeMobileNumber(guardianMobile),
           'educational_attainment': guardianEducationalAttainment.trim(),
-          'occupation': guardianOccupation.trim(),
-          'company_name_and_address': guardianCompanyNameAndAddress.trim(),
+          'occupation': _title(guardianOccupation),
+          'company_name_and_address': _title(guardianCompanyNameAndAddress),
         },
         'parent_native_status': parentNativeStatus.trim(),
-        'parent_marilao_residency_duration': parentMarilaoResidencyDuration
-            .trim(),
-        'parent_previous_town_province': parentPreviousTownProvince.trim(),
+        'parent_marilao_residency_duration': _title(
+          parentMarilaoResidencyDuration,
+        ),
+        'parent_previous_town_province': _title(parentPreviousTownProvince),
       },
       'academic': {
-        'college_school': collegeSchool.trim(),
-        'college_address': collegeAddress.trim(),
-        'college_honors': collegeHonors.trim(),
-        'college_club': collegeClub.trim(),
+        'college_school': _title(collegeSchool),
+        'college_address': _title(collegeAddress),
+        'college_honors': _title(collegeHonors),
+        'college_club': _title(collegeClub),
         'college_year_graduated': collegeYearGraduated.trim(),
-        'high_school_school': highSchoolSchool.trim(),
-        'high_school_address': highSchoolAddress.trim(),
-        'high_school_honors': highSchoolHonors.trim(),
-        'high_school_club': highSchoolClub.trim(),
+        'high_school_school': _title(highSchoolSchool),
+        'high_school_address': _title(highSchoolAddress),
+        'high_school_honors': _title(highSchoolHonors),
+        'high_school_club': _title(highSchoolClub),
         'high_school_year_graduated': highSchoolYearGraduated.trim(),
-        'senior_high_school': seniorHighSchool.trim(),
-        'senior_high_address': seniorHighAddress.trim(),
-        'senior_high_honors': seniorHighHonors.trim(),
-        'senior_high_club': seniorHighClub.trim(),
+        'senior_high_school': _title(seniorHighSchool),
+        'senior_high_address': _title(seniorHighAddress),
+        'senior_high_honors': _title(seniorHighHonors),
+        'senior_high_club': _title(seniorHighClub),
         'senior_high_year_graduated': seniorHighYearGraduated.trim(),
-        'elementary_school': elementarySchool.trim(),
-        'elementary_address': elementaryAddress.trim(),
-        'elementary_honors': elementaryHonors.trim(),
-        'elementary_club': elementaryClub.trim(),
+        'elementary_school': _title(elementarySchool),
+        'elementary_address': _title(elementaryAddress),
+        'elementary_honors': _title(elementaryHonors),
+        'elementary_club': _title(elementaryClub),
         'elementary_year_graduated': elementaryYearGraduated.trim(),
         'current_course_code': currentCourse.trim(),
         'current_year_level': _parseInt(currentYearLevel),
-        'current_section': currentSection.trim(),
+        'current_section': _title(currentSection),
         'student_number': studentNumber.trim(),
         'lrn': lrn.trim(),
       },
@@ -257,24 +316,22 @@ class ApplicationData {
         'scholarship_high_school': scholarshipHighSchool,
         'scholarship_college': scholarshipCollege,
         'scholarship_others': scholarshipOthers,
-        'scholarship_others_specify': scholarshipOthersSpecify.trim(),
-        'scholarship_details': scholarshipDetails.trim(),
+        'scholarship_others_specify': _title(scholarshipOthersSpecify),
+        'scholarship_details': _title(scholarshipDetails),
       },
       'discipline': {
         'disciplinary_action': disciplinaryAction,
-        'disciplinary_explanation': disciplinaryExplanation.trim(),
+        'disciplinary_explanation': _title(disciplinaryExplanation),
       },
       'essays': {
-        'describe_yourself_essay': describeYourselfEssay.trim(),
-        'aims_and_ambition_essay': aimsAndAmbitionEssay.trim(),
+        'describe_yourself_essay': _title(describeYourselfEssay),
+        'aims_and_ambition_essay': _title(aimsAndAmbitionEssay),
       },
       'certification': {
         'certification_read': certificationRead,
         'agree': agree,
       },
-      'documents': {
-        'records': <Map<String, dynamic>>[],
-      },
+      'documents': {'records': <Map<String, dynamic>>[]},
     };
   }
 }

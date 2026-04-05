@@ -3,12 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import AdminLayout from './components/layout/AdminLayout';
 // --- PAGES ---
 import AdminLogin from './pages/AdminLogin';
-import ForgotPassword from './pages/ForgotPassword'; // <--- Added this
+import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import ApplicationReview from './pages/ApplicationReview';
 import DocumentVerification from './pages/DocumentVerification';
 import ReportGeneration from './pages/ReportGeneration';
 import ScholarMonitoring from './pages/ScholarMonitoring';
+import ScholarshipOpenings from './pages/ScholarshipOpenings';
 import ROAdmin from './pages/ROAdmin';
 import PayoutManagement from './pages/PayoutManagement';
 import AnnouncementsManagement from './pages/AnnouncementsManagement';
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="applications" element={<ApplicationReview />} />
           <Route path="applications/:id/documents" element={<DocumentVerification />} />
           <Route path="scholars" element={<ScholarMonitoring />} />
+          <Route path="openings" element={<ScholarshipOpenings />} />
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />

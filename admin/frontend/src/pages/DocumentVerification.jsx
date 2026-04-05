@@ -111,9 +111,7 @@ function buildExtractedData(activeDoc, application) {
         { label: 'Document Type', value: 'Letter of Intent', verified: true },
         {
           label: 'Intent Statement',
-          value: activeDoc.url
-            ? 'Detected and ready for admin review'
-            : 'No uploaded file detected',
+          value: activeDoc.url ? 'Detected and ready for admin review' : 'No uploaded file detected',
           verified: !!activeDoc.url,
         },
         {
@@ -409,18 +407,24 @@ export default function DocumentVerification() {
   const verifiedCount = docs.filter((d) => d.status === 'verified').length;
   const flaggedCount = docs.filter((d) => d.status === 'flagged').length;
   const reuploadCount = docs.filter((d) => d.status === 'rejected').length;
+  const reviewedCount = docs.filter((d) => !!d.url && d.status !== 'pending').length;
 
   const requiredDocs = docs.slice(0, REQUIRED_DOC_COUNT);
   const allRequiredDocsUploaded = requiredDocs.every((d) => !!d.url);
   const allRequiredDocsReviewed = requiredDocs.every((d) => !!d.url && d.status !== 'pending');
+  const allRequiredDocsVerified = requiredDocs.every((d) => !!d.url && d.status === 'verified');
 
   const canCompleteVerification =
     allRequiredDocsUploaded &&
     allRequiredDocsReviewed;
 
-  const progress = docs.length ? Math.round((verifiedCount / docs.length) * 100) : 0;
+  const finalVerificationStatus =
+    allRequiredDocsVerified ? 'verified' : 'rejected';
+
+  const progress = docs.length ? Math.round((reviewedCount / docs.length) * 100) : 0;
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
   const hasUploadedDocument = !!activeDoc?.url;
+
   const extractedData = useMemo(
     () => buildExtractedData(activeDoc, application),
     [activeDoc, application]
@@ -466,6 +470,7 @@ export default function DocumentVerification() {
 
       const payload = {
         application_id: id,
+        verification_status: finalVerificationStatus,
         document_reviews: docs.map((d) => ({
           document_id: d.id,
           name: d.name,
@@ -511,7 +516,11 @@ export default function DocumentVerification() {
         throw new Error(payload.error || 'Verification saved, but application review status was not updated');
       }
 
-      alert('Verification saved successfully.');
+      alert(
+        finalVerificationStatus === 'verified'
+          ? 'Verification completed successfully.'
+          : 'Verification completed. Application marked as requiring re-upload or further review.'
+      );
       navigate('/admin/applications');
     } catch (err) {
       console.error('COMPLETE VERIFICATION ERROR:', err);
@@ -622,8 +631,8 @@ export default function DocumentVerification() {
                     key={d.id}
                     onClick={() => setDoc(d.id)}
                     className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
-                      ? 'border-blue-800 bg-blue-50 shadow-sm'
-                      : 'border-stone-100 bg-white hover:border-stone-200'
+                        ? 'border-blue-800 bg-blue-50 shadow-sm'
+                        : 'border-stone-100 bg-white hover:border-stone-200'
                       }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -693,9 +702,13 @@ export default function DocumentVerification() {
                     <p className="text-xs font-semibold mt-1 text-orange-700">
                       All 5 documents are uploaded, but admin review actions are still pending.
                     </p>
-                  ) : (
+                  ) : allRequiredDocsVerified ? (
                     <p className="text-xs font-semibold mt-1 text-green-700">
-                      All 5 required documents are uploaded and reviewed.
+                      All 5 required documents are uploaded and verified.
+                    </p>
+                  ) : (
+                    <p className="text-xs font-semibold mt-1 text-orange-700">
+                      Review is complete, but one or more required documents need re-upload or follow-up.
                     </p>
                   )}
                 </div>
@@ -712,8 +725,8 @@ export default function DocumentVerification() {
                   key={d.id}
                   onClick={() => setDoc(d.id)}
                   className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${doc === d.id
-                    ? 'border-blue-800 text-blue-900 bg-white'
-                    : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
+                      ? 'border-blue-800 text-blue-900 bg-white'
+                      : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
                     }`}
                 >
                   {d.name}
@@ -726,8 +739,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('preview')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
-                    ? 'bg-white text-blue-900 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   Document Preview
@@ -736,8 +749,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('ocr')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
-                    ? 'bg-white text-blue-900 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   OCR Validation Hub
@@ -746,8 +759,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('split')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
-                    ? 'bg-white text-blue-900 shadow-sm'
-                    : 'text-stone-500 hover:text-stone-700'
+                      ? 'bg-white text-blue-900 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -857,6 +870,12 @@ export default function DocumentVerification() {
                 </p>
               )}
 
+              {hasCompleteRequirements && allRequiredDocsReviewed && !allRequiredDocsVerified && (
+                <p className="text-xs text-orange-600">
+                  Verification can be completed, but the application will be marked as needing re-upload or further review.
+                </p>
+              )}
+
               <Button
                 onClick={handleCompleteVerification}
                 disabled={submitting || !canCompleteVerification}
@@ -874,8 +893,10 @@ export default function DocumentVerification() {
                   `Upload All ${REQUIRED_DOC_COUNT} Documents First`
                 ) : !allRequiredDocsReviewed ? (
                   'Review All Documents First'
-                ) : (
+                ) : finalVerificationStatus === 'verified' ? (
                   'Complete Verification & Next'
+                ) : (
+                  'Save Verification as Needs Re-upload'
                 )}
               </Button>
             </div>

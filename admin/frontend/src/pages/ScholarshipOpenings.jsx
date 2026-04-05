@@ -48,6 +48,30 @@ function fmtMoney(v) {
     return `₱${n.toLocaleString()}`;
 }
 
+function getTodayLocalISO() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const local = new Date(now.getTime() - offset * 60 * 1000);
+    return local.toISOString().split('T')[0];
+}
+
+function isWeekend(dateStr) {
+    if (!dateStr) return false;
+    const date = new Date(`${dateStr}T00:00:00`);
+    const day = date.getDay();
+    return day === 0 || day === 6;
+}
+
+function isPastDate(dateStr) {
+    if (!dateStr) return false;
+    const today = getTodayLocalISO();
+    return dateStr < today;
+}
+
+function isInvalidSelectableDate(dateStr) {
+    return isPastDate(dateStr) || isWeekend(dateStr);
+}
+
 function StatCard({ label, value, icon: Icon, accent, soft }) {
     return (
         <Card className="border-stone-200 shadow-none">
@@ -83,6 +107,34 @@ function OpeningModal({
 
     const isEdit = mode === 'edit';
     const title = isEdit ? 'Edit Scholarship Opening' : 'Open Program for New Batch';
+    const today = getTodayLocalISO();
+
+    const handleDateChange = (field, value) => {
+        if (!value) {
+            setForm((prev) => ({ ...prev, [field]: '' }));
+            return;
+        }
+
+        if (isInvalidSelectableDate(value)) {
+            alert('Past dates and weekends are not allowed.');
+            return;
+        }
+
+        setForm((prev) => {
+            const next = { ...prev, [field]: value };
+
+            // keep date order valid
+            if (field === 'application_start' && next.application_end && next.application_end < value) {
+                next.application_end = '';
+            }
+
+            if (field === 'screening_start' && next.screening_end && next.screening_end < value) {
+                next.screening_end = '';
+            }
+
+            return next;
+        });
+    };
 
     return (
         <div
@@ -186,10 +238,12 @@ function OpeningModal({
                             </label>
                             <Input
                                 type="date"
+                                min={today}
                                 value={form.application_start}
-                                onChange={(e) => setForm((prev) => ({ ...prev, application_start: e.target.value }))}
+                                onChange={(e) => handleDateChange('application_start', e.target.value)}
                                 className="h-10 rounded-lg border-stone-200 text-sm"
                             />
+                            <p className="text-[10px] text-stone-400">Weekdays only. No past dates.</p>
                         </div>
 
                         <div className="space-y-1.5">
@@ -198,10 +252,12 @@ function OpeningModal({
                             </label>
                             <Input
                                 type="date"
+                                min={form.application_start || today}
                                 value={form.application_end}
-                                onChange={(e) => setForm((prev) => ({ ...prev, application_end: e.target.value }))}
+                                onChange={(e) => handleDateChange('application_end', e.target.value)}
                                 className="h-10 rounded-lg border-stone-200 text-sm"
                             />
+                            <p className="text-[10px] text-stone-400">Must be on or after application start. Weekdays only.</p>
                         </div>
 
                         <div className="space-y-1.5">
@@ -210,10 +266,12 @@ function OpeningModal({
                             </label>
                             <Input
                                 type="date"
+                                min={form.application_end || today}
                                 value={form.screening_start}
-                                onChange={(e) => setForm((prev) => ({ ...prev, screening_start: e.target.value }))}
+                                onChange={(e) => handleDateChange('screening_start', e.target.value)}
                                 className="h-10 rounded-lg border-stone-200 text-sm"
                             />
+                            <p className="text-[10px] text-stone-400">Weekdays only. Should not be before application end.</p>
                         </div>
 
                         <div className="space-y-1.5">
@@ -222,10 +280,12 @@ function OpeningModal({
                             </label>
                             <Input
                                 type="date"
+                                min={form.screening_start || form.application_end || today}
                                 value={form.screening_end}
-                                onChange={(e) => setForm((prev) => ({ ...prev, screening_end: e.target.value }))}
+                                onChange={(e) => handleDateChange('screening_end', e.target.value)}
                                 className="h-10 rounded-lg border-stone-200 text-sm"
                             />
+                            <p className="text-[10px] text-stone-400">Must be on or after screening start. Weekdays only.</p>
                         </div>
 
                         <div className="space-y-1.5">
@@ -457,6 +517,41 @@ export default function ScholarshipOpenings() {
     const openCreateFromTemplate = (template) => {
         const currentYear = new Date().getFullYear();
 
+        const existingDraft = openings.find(
+            (o) =>
+                o.program_id === template.program_id &&
+                String(o.posting_status || '').toLowerCase() === 'draft'
+        );
+
+        if (existingDraft) {
+            setModalMode('edit');
+            setEditingOpeningId(existingDraft.opening_id);
+            setActiveTemplate(template);
+            setForm({
+                program_id: existingDraft.program_id || template.program_id,
+                opening_title:
+                    existingDraft.opening_title || `${template.program_name} AY ${currentYear}-${currentYear + 1}`,
+                application_start: existingDraft.application_start
+                    ? String(existingDraft.application_start).slice(0, 10)
+                    : '',
+                application_end: existingDraft.application_end
+                    ? String(existingDraft.application_end).slice(0, 10)
+                    : '',
+                screening_start: existingDraft.screening_start
+                    ? String(existingDraft.screening_start).slice(0, 10)
+                    : '',
+                screening_end: existingDraft.screening_end
+                    ? String(existingDraft.screening_end).slice(0, 10)
+                    : '',
+                allocated_slots: existingDraft.allocated_slots ?? '',
+                financial_allocation: existingDraft.financial_allocation ?? '',
+                posting_status: String(existingDraft.posting_status || 'draft').toLowerCase(),
+                announcement_text: existingDraft.announcement_text ?? template.description ?? '',
+            });
+            setModalOpen(true);
+            return;
+        }
+
         setModalMode('create');
         setEditingOpeningId(null);
         setActiveTemplate(template);
@@ -496,6 +591,36 @@ export default function ScholarshipOpenings() {
 
     const handleSaveOpening = async () => {
         try {
+            const datesToCheck = [
+                { key: 'application_start', label: 'Application Start' },
+                { key: 'application_end', label: 'Application End' },
+                { key: 'screening_start', label: 'Screening Start' },
+                { key: 'screening_end', label: 'Screening End' },
+            ];
+
+            for (const item of datesToCheck) {
+                const value = form[item.key];
+                if (value && isInvalidSelectableDate(value)) {
+                    alert(`${item.label} cannot be a past date or weekend.`);
+                    return;
+                }
+            }
+
+            if (form.application_start && form.application_end && form.application_end < form.application_start) {
+                alert('Application End cannot be earlier than Application Start.');
+                return;
+            }
+
+            if (form.screening_start && form.screening_end && form.screening_end < form.screening_start) {
+                alert('Screening End cannot be earlier than Screening Start.');
+                return;
+            }
+
+            if (form.application_end && form.screening_start && form.screening_start < form.application_end) {
+                alert('Screening Start cannot be earlier than Application End.');
+                return;
+            }
+
             setSaving(true);
 
             const payload = {
@@ -711,7 +836,7 @@ export default function ScholarshipOpenings() {
                                             onClick={() => openCreateFromTemplate(template)}
                                         >
                                             <Plus className="w-3.5 h-3.5 mr-1.5" />
-                                            Open for Batch
+                                            {hasDraft ? 'Continue Draft' : 'Open for Batch'}
                                         </Button>
                                     </div>
 

@@ -702,7 +702,7 @@ app.post('/api/auth/login', async (req, res) => {
   res.status(200).json(buildAuthResponse(data));
 });
 
-app.get('/api/scholarship-programs', async (req, res) => {
+app.get('/api/benefactors', async (req, res) => {
   const { data, error } = await supabase
     .from('scholarship_programs')
     .select('program_id, program_name')

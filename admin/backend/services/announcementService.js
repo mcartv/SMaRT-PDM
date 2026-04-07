@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const notificationService = require('./notificationService');
 
 const AUDIENCE_LABEL = {
     all: 'All Students',
@@ -22,57 +23,18 @@ function mapAnnouncementRow(row) {
     };
 }
 
-async function getTargetUsersForAudience(audience) {
-    let usersQuery = supabase
-        .from('users')
-        .select('user_id, role');
-
-    if (audience === 'applicants') {
-        usersQuery = usersQuery.eq('role', 'Applicant');
-    } else if (['scholars', 'tes', 'tdp'].includes(audience)) {
-        usersQuery = usersQuery.eq('role', 'Student');
-    }
-
-    const { data, error } = await usersQuery;
-
-    if (error) {
-        console.error('SUPABASE USERS FETCH ERROR:', error);
-        throw new Error(error.message);
-    }
-
-    return data || [];
-}
-
 async function createAnnouncementNotifications(announcementRow) {
-    const targetUsers = await getTargetUsersForAudience(announcementRow.target_audience);
-
-    if (!targetUsers.length) {
-        return 0;
-    }
-
-    const notificationRows = targetUsers.map((user) => ({
-        user_id: user.user_id,
-        type: 'Announcement',
+    const rows = await notificationService.createNotificationsForAudience({
+        audience: announcementRow.target_audience,
         title: announcementRow.subject,
         message: announcementRow.content,
-        reference_id: announcementRow.announcement_id,
-        reference_type: 'announcement',
-        is_read: false,
-        push_sent: false,
-        created_at: announcementRow.published_at || new Date().toISOString(),
-    }));
+        referenceId: announcementRow.announcement_id,
+        referenceType: 'announcement',
+        type: 'Announcement',
+        createdAt: announcementRow.published_at || new Date().toISOString(),
+    });
 
-    const { data, error } = await supabase
-        .from('notifications')
-        .insert(notificationRows)
-        .select('notification_id');
-
-    if (error) {
-        console.error('SUPABASE ANNOUNCEMENT NOTIFICATION INSERT ERROR:', error);
-        throw new Error(error.message);
-    }
-
-    return data?.length || 0;
+    return rows.length;
 }
 
 async function publishAnnouncementInternal(announcementId) {

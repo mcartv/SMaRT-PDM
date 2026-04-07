@@ -7,6 +7,10 @@ router.get('/sdo/stats', protect, authorizeRoles('sdo'), scholarController.getSd
 router.get('/stats', protect, scholarController.getStats);
 router.get('/', protect, scholarController.getAllScholars);
 router.patch('/:id/sdo-status', protect, authorizeRoles('sdo'), scholarController.updateSdoStatus);
+
+// NEW: renewal documents route
+router.get('/:id/renewal-documents', protect, scholarController.getScholarRenewalDocuments);
+
 router.get('/:id', protect, scholarController.getScholarById);
 
 module.exports = router;

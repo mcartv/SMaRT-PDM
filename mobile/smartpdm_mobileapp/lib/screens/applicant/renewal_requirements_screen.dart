@@ -498,7 +498,6 @@ class _RenewalDocument {
     required this.status,
     required this.icon,
     this.fileName,
-    this.filePath,
     this.updatedAt,
   });
 

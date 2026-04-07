@@ -220,12 +220,15 @@ class _StepFamilyState extends State<StepFamily> {
         : educationalOptions[0];
 
     String initialParentNativeStatus = widget.data.parentNativeStatus;
-    if (initialParentNativeStatus == 'Father only')
+    if (initialParentNativeStatus == 'Father only') {
       initialParentNativeStatus = 'Yes, father only';
-    if (initialParentNativeStatus == 'Mother only')
+    }
+    if (initialParentNativeStatus == 'Mother only') {
       initialParentNativeStatus = 'Yes, mother only';
-    if (initialParentNativeStatus == 'Both parents')
+    }
+    if (initialParentNativeStatus == 'Both parents') {
       initialParentNativeStatus = 'Yes, both parents';
+    }
 
     selectedParentNative =
         parentNativeOptions.contains(initialParentNativeStatus)

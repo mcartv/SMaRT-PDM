@@ -434,7 +434,7 @@ class _StepAcademicState extends State<StepAcademic> {
             _field(
               'Course',
               DropdownButtonFormField<String>(
-                value: selectedCourse,
+                initialValue: selectedCourse,
                 decoration: _dec('Course').copyWith(errorText: _courseError()),
                 items: courseOptions
                     .map(

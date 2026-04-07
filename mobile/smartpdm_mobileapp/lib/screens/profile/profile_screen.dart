@@ -646,7 +646,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
-                  value: _courseOptions.contains(_courseController.text)
+                  initialValue: _courseOptions.contains(_courseController.text)
                       ? _courseController.text
                       : null,
                   items: _courseOptions

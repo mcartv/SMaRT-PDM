@@ -15,14 +15,18 @@ import PayoutManagement from './pages/PayoutManagement';
 import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/Maintenance';
+import SDOLogin from './pages/SDOLogin';
+import SDODashboard from './pages/SDODashboard';
+import SDOScholarList from './pages/SDOScholarList';
+import SDOLayout from './components/layout/SDOLayout';
 
 /**
  * PROTECTED ROUTE WRAPPER
  * This prevents users from accessing the dashboard if they aren't logged in.
  */
-const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem('adminToken');
-  if (!token) return <Navigate to="/admin/login" replace />;
+const ProtectedRoute = ({ children, storageKey, redirectTo }) => {
+  const token = localStorage.getItem(storageKey);
+  if (!token) return <Navigate to={redirectTo} replace />;
   return children;
 };
 
@@ -36,12 +40,13 @@ export default function App() {
         {/* Public Auth Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/forgot-password" element={<ForgotPassword />} /> {/* <--- Added this */}
+        <Route path="/sdo/login" element={<SDOLogin />} />
 
         {/* --- PROTECTED ADMIN PANEL --- */}
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute storageKey="adminToken" redirectTo="/admin/login">
               <AdminLayout />
             </ProtectedRoute>
           }
@@ -61,6 +66,19 @@ export default function App() {
           <Route path="announcements" element={<AnnouncementsManagement />} />
           <Route path="adminprofile" element={<AdminProfile />} />
           <Route path="maintenance" element={<Maintenance />} />
+        </Route>
+
+        <Route
+          path="/sdo"
+          element={
+            <ProtectedRoute storageKey="sdoToken" redirectTo="/sdo/login">
+              <SDOLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<SDODashboard />} />
+          <Route path="scholars" element={<SDOScholarList />} />
         </Route>
 
         {/* Fallback 404 */}

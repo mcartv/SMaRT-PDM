@@ -712,6 +712,7 @@ app.post('/api/auth/login', async (req, res) => {
   res.status(200).json(buildAuthResponse(data));
 });
 
+<<<<<<< HEAD
 app.get('/api/notifications', protect, async (req, res) => {
   try {
     const payload = await notificationService.listUserNotifications(req.user.user_id, {
@@ -800,6 +801,9 @@ app.post('/api/notifications/device-token', protect, async (req, res) => {
 });
 
 app.get('/api/scholarship-programs', async (req, res) => {
+=======
+app.get('/api/benefactors', async (req, res) => {
+>>>>>>> 567d41ff (fixed)
   const { data, error } = await supabase
     .from('scholarship_programs')
     .select('program_id, program_name')

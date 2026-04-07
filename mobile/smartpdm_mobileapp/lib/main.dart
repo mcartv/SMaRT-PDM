@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/screens/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/screens/messaging/messaging_screen.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/screens/providers/theme_provider.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/interview_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/announcements_screen.dart';
@@ -28,6 +29,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => NewScholarProvider()),
         ChangeNotifierProvider(create: (_) => MessagingProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const MyApp(),

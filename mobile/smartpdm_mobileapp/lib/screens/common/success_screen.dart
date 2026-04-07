@@ -1,8 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/services/printable_application_service.dart';
 
-class SuccessScreen extends StatelessWidget {
+class SuccessScreen extends StatefulWidget {
   const SuccessScreen({super.key});
+
+  @override
+  State<SuccessScreen> createState() => _SuccessScreenState();
+}
+
+class _SuccessScreenState extends State<SuccessScreen> {
+  final PrintableApplicationService _printableApplicationService =
+      PrintableApplicationService();
+  bool _isGeneratingPdf = false;
+
+  Future<void> _handleGeneratePdf(String applicationId) async {
+    setState(() => _isGeneratingPdf = true);
+
+    try {
+      await _printableApplicationService.generateOpenFromApplicationId(
+        applicationId,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to generate printable PDF: $error'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingPdf = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +46,8 @@ class SuccessScreen extends StatelessWidget {
         'Please check your email for a confirmation and a reminder of documentary requirements.';
     final appBarTitle =
         payload['appBarTitle']?.toString() ?? 'Application Submitted';
+    final applicationId = payload['applicationId']?.toString() ?? '';
+    final canGeneratePdf = applicationId.trim().isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -45,6 +78,26 @@ class SuccessScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 16),
               ),
+              if (canGeneratePdf) ...[
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: _isGeneratingPdf
+                      ? null
+                      : () => _handleGeneratePdf(applicationId),
+                  icon: _isGeneratingPdf
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.picture_as_pdf_outlined),
+                  label: Text(
+                    _isGeneratingPdf
+                        ? 'Generating PDF...'
+                        : 'Download Printable PDF',
+                  ),
+                ),
+              ],
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: () {

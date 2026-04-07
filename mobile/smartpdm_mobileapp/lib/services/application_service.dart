@@ -24,4 +24,10 @@ class ApplicationService {
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
+
+  Future<Map<String, dynamic>> fetchApplicationDetails(
+    String applicationId,
+  ) async {
+    return await _apiClient.getObject('/api/applications/$applicationId');
+  }
 }

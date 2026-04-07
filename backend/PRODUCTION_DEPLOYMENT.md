@@ -11,8 +11,13 @@ Create `backend/.env` locally from `backend/.env.example`.
 Required variables:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `JWT_SECRET`
 - `GMAIL_APP_PASSWORD`
 - `PORT`
+
+Optional variables:
+- `JWT_EXPIRES_IN`
+- `FCM_SERVER_KEY`
 
 Notes:
 - `PORT` now falls back to `3000` when unset.
@@ -50,6 +55,25 @@ Production:
 
 ### `POST /api/auth/login`
 - Reads: `users`
+- Signs: JWT auth token
+
+### `GET /api/notifications`
+- Reads: `notifications`
+
+### `GET /api/notifications/unread-count`
+- Reads: `notifications`
+
+### `PATCH /api/notifications/:id/read`
+- Updates: `notifications.is_read`
+
+### `PATCH /api/notifications/read-all`
+- Updates: `notifications.is_read`
+
+### `DELETE /api/notifications/:id`
+- Deletes: `notifications`
+
+### `POST /api/notifications/device-token`
+- Reads/Writes: `user_device_tokens`
 
 ### `GET /api/scholarship-programs`
 - Reads: `scholarship_programs`
@@ -82,6 +106,10 @@ Production:
 ### Socket `send_message`
 - Writes: `messages`
 
+### Socket authenticated connect
+- Reads: JWT auth token
+- Emits: `notification:new`, `notification:updated`, `notification:deleted`
+
 ## Render deployment
 1. Push the repo to GitHub.
 2. Create a new Render Web Service.
@@ -92,6 +120,7 @@ Production:
 5. Add environment variables:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   - `JWT_SECRET`
    - `GMAIL_APP_PASSWORD`
    - `PORT` (optional if Render provides one)
 6. Deploy and copy the public HTTPS URL.

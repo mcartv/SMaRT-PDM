@@ -139,6 +139,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       final successMessage =
           provider.successMessage ??
           'Profile details saved successfully. Scholarship program selection is temporarily unavailable.';
+      final application =
+          provider.lastSubmissionResponse?['application']
+              as Map<String, dynamic>?;
+      final applicationId = application?['application_id']?.toString() ?? '';
       final isProfileOnly = successMessage.toLowerCase().contains(
         'profile details saved successfully',
       );
@@ -153,6 +157,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
               ? 'Profile Details Saved Successfully!'
               : 'Application Submitted Successfully!',
           'message': successMessage,
+          'applicationId': applicationId,
         },
       );
       return;

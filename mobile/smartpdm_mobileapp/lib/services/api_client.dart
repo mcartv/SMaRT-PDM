@@ -5,14 +5,33 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:smartpdm_mobileapp/config/app_config.dart';
 import 'package:smartpdm_mobileapp/services/api_exception.dart';
+import 'package:smartpdm_mobileapp/services/session_service.dart';
 
 class ApiClient {
   ApiClient({http.Client? httpClient})
     : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
+  final SessionService _sessionService = const SessionService();
 
   Uri buildUri(String path) => Uri.parse('${AppConfig.apiBaseUrl}$path');
+
+  Future<Map<String, String>> _buildHeaders({
+    String? contentType,
+    Map<String, String> extra = const {},
+  }) async {
+    final headers = <String, String>{...extra};
+    if (contentType != null) {
+      headers['Content-Type'] = contentType;
+    }
+
+    final session = await _sessionService.getCurrentUser();
+    if (session.token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer ${session.token}';
+    }
+
+    return headers;
+  }
 
   Future<Map<String, dynamic>> postJson(
     String path, {
@@ -23,7 +42,7 @@ class ApiClient {
       final response = await _httpClient
           .post(
             buildUri(path),
-            headers: {'Content-Type': 'application/json'},
+            headers: await _buildHeaders(contentType: 'application/json'),
             body: jsonEncode(body),
           )
           .timeout(timeout);
@@ -49,7 +68,9 @@ class ApiClient {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     try {
-      final response = await _httpClient.get(buildUri(path)).timeout(timeout);
+      final response = await _httpClient
+          .get(buildUri(path), headers: await _buildHeaders())
+          .timeout(timeout);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _buildApiException(response);
@@ -80,6 +101,86 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> getObject(
+    String path, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    try {
+      final response = await _httpClient
+          .get(buildUri(path), headers: await _buildHeaders())
+          .timeout(timeout);
+
+      return _decodeObjectResponse(response);
+    } on TimeoutException {
+      throw const ApiException(
+        'Request timed out. Please check your connection and try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Network connection error. Please check your internet connection.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'Connection error. Please ensure your backend is running and accessible.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> patchJson(
+    String path, {
+    Map<String, dynamic> body = const {},
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    try {
+      final response = await _httpClient
+          .patch(
+            buildUri(path),
+            headers: await _buildHeaders(contentType: 'application/json'),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+
+      return _decodeObjectResponse(response);
+    } on TimeoutException {
+      throw const ApiException(
+        'Request timed out. Please check your connection and try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Network connection error. Please check your internet connection.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'Connection error. Please ensure your backend is running and accessible.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteJson(
+    String path, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    try {
+      final response = await _httpClient
+          .delete(buildUri(path), headers: await _buildHeaders())
+          .timeout(timeout);
+
+      return _decodeObjectResponse(response);
+    } on TimeoutException {
+      throw const ApiException(
+        'Request timed out. Please check your connection and try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Network connection error. Please check your internet connection.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'Connection error. Please ensure your backend is running and accessible.',
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> uploadFile(
     String path, {
     required String fieldName,
@@ -90,6 +191,7 @@ class ApiClient {
     try {
       final request = http.MultipartRequest('POST', buildUri(path));
       request.fields.addAll(fields);
+      request.headers.addAll(await _buildHeaders());
       request.files.add(await http.MultipartFile.fromPath(fieldName, filePath));
 
       final streamedResponse = await request.send().timeout(timeout);

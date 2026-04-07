@@ -7,6 +7,12 @@ const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
+const {
+  buildAuthToken,
+  protect,
+  authenticateSocket,
+} = require('./middleware/authMiddleware');
+const notificationService = require('./services/notificationService');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,6 +34,8 @@ const supabaseUrl = process.env.SUPABASE_URL;
 // CRITICAL: Use your `service_role` secret key here, NOT the `anon` / publishable key.
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+notificationService.configureNotificationService({ io, supabase });
+io.use(authenticateSocket);
 
 // Temporary in-memory store for OTPs (e.g., { "user@email.com": { otp: "123456", expiresAt: 171146... } })
 // In production, you could also save this to a 'otps' table in Supabase.
@@ -53,13 +61,15 @@ function buildAuthUser(user) {
     email: user.email,
     student_id: user.username,
     avatar_url: user.profile_image_url ?? null,
+    role: user.role ?? null,
+    is_verified: !!user.is_otp_verified,
   };
 }
 
 function buildAuthResponse(user) {
   return {
     message: 'Login successful',
-    token: `mock_jwt_token_${user.user_id}`,
+    token: buildAuthToken(user),
     user: buildAuthUser(user),
   };
 }
@@ -702,6 +712,93 @@ app.post('/api/auth/login', async (req, res) => {
   res.status(200).json(buildAuthResponse(data));
 });
 
+app.get('/api/notifications', protect, async (req, res) => {
+  try {
+    const payload = await notificationService.listUserNotifications(req.user.user_id, {
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('NOTIFICATION LIST ROUTE ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to load notifications.' });
+  }
+});
+
+app.get('/api/notifications/unread-count', protect, async (req, res) => {
+  try {
+    const unreadCount = await notificationService.getUnreadCount(req.user.user_id);
+    res.status(200).json({ unreadCount });
+  } catch (error) {
+    console.error('NOTIFICATION UNREAD COUNT ROUTE ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to load unread notification count.' });
+  }
+});
+
+app.patch('/api/notifications/read-all', protect, async (req, res) => {
+  try {
+    const payload = await notificationService.markAllNotificationsRead(req.user.user_id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('NOTIFICATION MARK ALL READ ROUTE ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to mark notifications as read.' });
+  }
+});
+
+app.patch('/api/notifications/:id/read', protect, async (req, res) => {
+  try {
+    const payload = await notificationService.markNotificationRead(
+      req.user.user_id,
+      req.params.id
+    );
+
+    if (!payload) {
+      return res.status(404).json({ error: 'Notification not found.' });
+    }
+
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('NOTIFICATION MARK READ ROUTE ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to mark notification as read.' });
+  }
+});
+
+app.delete('/api/notifications/:id', protect, async (req, res) => {
+  try {
+    const deleted = await notificationService.deleteNotification(req.user.user_id, req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Notification not found.' });
+    }
+
+    res.status(200).json({ deleted: true, notificationId: req.params.id });
+  } catch (error) {
+    console.error('NOTIFICATION DELETE ROUTE ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete notification.' });
+  }
+});
+
+app.post('/api/notifications/device-token', protect, async (req, res) => {
+  const { deviceToken, platform } = req.body ?? {};
+
+  if (!deviceToken || !platform) {
+    return res.status(400).json({ error: 'deviceToken and platform are required.' });
+  }
+
+  try {
+    const payload = await notificationService.registerDeviceToken(req.user.user_id, {
+      deviceToken,
+      platform,
+    });
+
+    res.status(201).json(payload);
+  } catch (error) {
+    console.error('NOTIFICATION DEVICE TOKEN ROUTE ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to register device token.' });
+  }
+});
+
 app.get('/api/scholarship-programs', async (req, res) => {
   const { data, error } = await supabase
     .from('scholarship_programs')
@@ -1262,6 +1359,9 @@ app.get('/api/messages/:room', async (req, res) => {
 // --- SOCKET.IO REAL-TIME CHAT LOGIC ---
 io.on('connection', (socket) => {
   console.log(`User connected via Socket.io: ${socket.id}`);
+  if (socket.user?.user_id) {
+    socket.join(`user:${socket.user.user_id}`);
+  }
 
   // Allow a user to join a specific room (e.g., their student_id to chat with admin)
   socket.on('join_room', (room) => {

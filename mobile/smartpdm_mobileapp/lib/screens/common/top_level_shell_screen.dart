@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/notifications_screen.dart';
 import 'package:smartpdm_mobileapp/screens/common/dashboard_screen.dart';
 import 'package:smartpdm_mobileapp/screens/profile/profile_screen.dart';
+import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/screens/scholar/payout_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_bottom_nav.dart';
 
@@ -37,6 +39,10 @@ class _TopLevelShellScreenState extends State<TopLevelShellScreen> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<NotificationProvider>().initialize();
+    });
   }
 
   @override
@@ -78,11 +84,16 @@ class _TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: SmartPdmBottomNav(
-          selectedIndex: _currentIndex,
-        ),
+      bottomNavigationBar: Consumer<NotificationProvider>(
+        builder: (context, notificationProvider, child) {
+          return SafeArea(
+            top: false,
+            child: SmartPdmBottomNav(
+              selectedIndex: _currentIndex,
+              unreadNotifications: notificationProvider.unreadCount,
+            ),
+          );
+        },
       ),
       body: PageView(
         controller: _pageController,

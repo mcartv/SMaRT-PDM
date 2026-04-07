@@ -165,6 +165,37 @@ function OpeningModal({
     const today = getTodayLocalISO();
     const previewStatus = deriveOpeningStatus(form);
 
+    // Calculate per-scholar financial amount
+    const allocatedSlots = Number(form.allocated_slots) || 0;
+    const totalFinancial = Number(form.total_financial_allocation) || 0;
+    const perScholarFinancial = allocatedSlots > 0 && totalFinancial > 0 
+        ? Math.floor(totalFinancial / allocatedSlots) 
+        : 0;
+
+    // Update per-scholar amount when slots or total changes
+    const handleAllocatedSlotsChange = (value) => {
+        const slots = Number(value) || 0;
+        setForm((prev) => ({ 
+            ...prev, 
+            allocated_slots: value,
+            financial_allocation: slots > 0 && prev.total_financial_allocation 
+                ? Math.floor(Number(prev.total_financial_allocation) / slots)
+                : prev.financial_allocation
+        }));
+    };
+
+    const handleTotalFinancialChange = (value) => {
+        const total = Number(value) || 0;
+        const slots = Number(form.allocated_slots) || 0;
+        setForm((prev) => ({ 
+            ...prev, 
+            total_financial_allocation: value,
+            financial_allocation: slots > 0 && total > 0 
+                ? Math.floor(total / slots)
+                : prev.financial_allocation
+        }));
+    };
+
     const handleDateChange = (field, value) => {
         if (!value) {
             setForm((prev) => ({ ...prev, [field]: '' }));
@@ -197,10 +228,10 @@ function OpeningModal({
             onClick={onClose}
         >
             <Card
-                className="w-full max-w-4xl border-stone-200 shadow-xl overflow-hidden"
+                className="w-full max-w-4xl max-h-[90vh] flex flex-col border-stone-200 shadow-xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+                <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between shrink-0">
                     <div>
                         <h3 className="text-base font-semibold text-stone-800">{title}</h3>
                         <p className="text-xs text-stone-500 mt-0.5">
@@ -218,7 +249,7 @@ function OpeningModal({
                     </button>
                 </div>
 
-                <CardContent className="p-5 space-y-5">
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
                     {template && (
                         <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                             <div className="flex items-start gap-3">
@@ -279,7 +310,9 @@ function OpeningModal({
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Opening Title Section */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Opening Information</h4>
                         <div className="space-y-1.5">
                             <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                 Opening Title
@@ -290,93 +323,142 @@ function OpeningModal({
                                 placeholder="e.g. AY 2026–2027 First Semester Intake"
                                 className="h-10 rounded-lg border-stone-200 text-sm"
                             />
+                            <p className="text-[10px] text-stone-400">A descriptive title for this scholarship opening batch.</p>
+                        </div>
+                    </div>
+
+                    {/* Application Dates Section */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Application Period</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Application Start
+                                </label>
+                                <Input
+                                    type="date"
+                                    min={today}
+                                    value={form.application_start}
+                                    onChange={(e) => handleDateChange('application_start', e.target.value)}
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                                <p className="text-[10px] text-stone-400">Weekdays only. Past dates are blocked.</p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Application End
+                                </label>
+                                <Input
+                                    type="date"
+                                    min={form.application_start || today}
+                                    value={form.application_end}
+                                    onChange={(e) => handleDateChange('application_end', e.target.value)}
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                                <p className="text-[10px] text-stone-400">Must be on or after application start.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Screening Dates Section */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Screening Period</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Screening Start
+                                </label>
+                                <Input
+                                    type="date"
+                                    min={form.application_end || today}
+                                    value={form.screening_start}
+                                    onChange={(e) => handleDateChange('screening_start', e.target.value)}
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                                <p className="text-[10px] text-stone-400">Should not be earlier than application end.</p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Screening End
+                                </label>
+                                <Input
+                                    type="date"
+                                    min={form.screening_start || form.application_end || today}
+                                    value={form.screening_end}
+                                    onChange={(e) => handleDateChange('screening_end', e.target.value)}
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                                <p className="text-[10px] text-stone-400">Must be on or after screening start.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Financial Section */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Financial Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Total Financial Allocation (₱)
+                                </label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="1000"
+                                    value={form.total_financial_allocation}
+                                    onChange={(e) => handleTotalFinancialChange(e.target.value)}
+                                    placeholder="0.00"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                                <p className="text-[10px] text-stone-400">Total budget for this opening.</p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Allocated Slots
+                                </label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={form.allocated_slots}
+                                    onChange={(e) => handleAllocatedSlotsChange(e.target.value)}
+                                    placeholder="0"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                                <p className="text-[10px] text-stone-400">Number of scholars to be funded.</p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Per Scholar Amount (₱)
+                                </label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    value={form.financial_allocation}
+                                    readOnly
+                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
+                                    style={{ color: C.brownMid }}
+                                />
+                                <p className="text-[10px] text-stone-400">Auto-calculated: Total ÷ Slots</p>
+                            </div>
                         </div>
 
+                        {allocatedSlots > 0 && totalFinancial > 0 && (
+                            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+                                <p className="text-xs text-emerald-700">
+                                    <span className="font-semibold">Summary:</span> ₱{totalFinancial.toLocaleString()} total budget for {allocatedSlots} slots = ₱{perScholarFinancial.toLocaleString()} per scholar.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Notes Section */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Opening Notes</h4>
                         <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Application Start
-                            </label>
-                            <Input
-                                type="date"
-                                min={today}
-                                value={form.application_start}
-                                onChange={(e) => handleDateChange('application_start', e.target.value)}
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                            <p className="text-[10px] text-stone-400">Weekdays only. Past dates are blocked.</p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Application End
-                            </label>
-                            <Input
-                                type="date"
-                                min={form.application_start || today}
-                                value={form.application_end}
-                                onChange={(e) => handleDateChange('application_end', e.target.value)}
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                            <p className="text-[10px] text-stone-400">Must be on or after application start.</p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Screening Start
-                            </label>
-                            <Input
-                                type="date"
-                                min={form.application_end || today}
-                                value={form.screening_start}
-                                onChange={(e) => handleDateChange('screening_start', e.target.value)}
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                            <p className="text-[10px] text-stone-400">Should not be earlier than application end.</p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Screening End
-                            </label>
-                            <Input
-                                type="date"
-                                min={form.screening_start || form.application_end || today}
-                                value={form.screening_end}
-                                onChange={(e) => handleDateChange('screening_end', e.target.value)}
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                            <p className="text-[10px] text-stone-400">Must be on or after screening start.</p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Allocated Slots
-                            </label>
-                            <Input
-                                type="number"
-                                min="0"
-                                value={form.allocated_slots}
-                                onChange={(e) => setForm((prev) => ({ ...prev, allocated_slots: e.target.value }))}
-                                placeholder="0"
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Financial Allocation
-                            </label>
-                            <Input
-                                type="number"
-                                min="0"
-                                value={form.financial_allocation}
-                                onChange={(e) => setForm((prev) => ({ ...prev, financial_allocation: e.target.value }))}
-                                placeholder="0.00"
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5 md:col-span-2">
                             <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                 Opening Notes / Instructions
                             </label>
@@ -388,26 +470,26 @@ function OpeningModal({
                             />
                         </div>
                     </div>
+                </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                        <Button
-                            variant="outline"
-                            onClick={onClose}
-                            className="h-9 rounded-lg border-stone-200 text-xs"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={onSave}
-                            disabled={saving || !form.opening_title || !form.application_start || !form.application_end}
-                            className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
-                            style={{ background: C.brownMid }}
-                        >
-                            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                            {isEdit ? 'Save Changes' : 'Create Opening'}
-                        </Button>
-                    </div>
-                </CardContent>
+                <div className="px-5 py-4 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2 shrink-0">
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                        className="h-9 rounded-lg border-stone-200 text-xs"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={onSave}
+                        disabled={saving || !form.opening_title || !form.application_start || !form.application_end}
+                        className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+                        style={{ background: C.brownMid }}
+                    >
+                        {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                        {isEdit ? 'Save Changes' : 'Create Opening'}
+                    </Button>
+                </div>
             </Card>
         </div>
     );
@@ -493,6 +575,7 @@ export default function ScholarshipOpenings() {
         screening_start: '',
         screening_end: '',
         allocated_slots: '',
+        total_financial_allocation: '',
         financial_allocation: '',
         announcement_text: '',
     };
@@ -626,13 +709,13 @@ export default function ScholarshipOpenings() {
             setActiveTemplate(template);
             setForm({
                 program_id: existingDraft.program_id || template.program_id,
-                opening_title:
-                    existingDraft.opening_title || `${template.program_name} AY ${currentYear}-${currentYear + 1}`,
+                opening_title: existingDraft.opening_title || `${template.program_name} AY ${currentYear}-${currentYear + 1}`,
                 application_start: existingDraft.application_start ? String(existingDraft.application_start).slice(0, 10) : '',
                 application_end: existingDraft.application_end ? String(existingDraft.application_end).slice(0, 10) : '',
                 screening_start: existingDraft.screening_start ? String(existingDraft.screening_start).slice(0, 10) : '',
                 screening_end: existingDraft.screening_end ? String(existingDraft.screening_end).slice(0, 10) : '',
                 allocated_slots: existingDraft.allocated_slots ?? '',
+                total_financial_allocation: '',
                 financial_allocation: existingDraft.financial_allocation ?? '',
                 announcement_text: existingDraft.announcement_text ?? template.description ?? '',
             });
@@ -651,6 +734,7 @@ export default function ScholarshipOpenings() {
             screening_start: '',
             screening_end: '',
             allocated_slots: '',
+            total_financial_allocation: '',
             financial_allocation: '',
             announcement_text: template.description || '',
         });
@@ -658,6 +742,8 @@ export default function ScholarshipOpenings() {
     };
 
     const openEditModal = (opening) => {
+        const totalFromPerScholar = Number(opening.allocated_slots || 0) * Number(opening.financial_allocation || 0);
+        
         setModalMode('edit');
         setEditingOpeningId(opening.opening_id);
         setActiveTemplate(
@@ -672,6 +758,7 @@ export default function ScholarshipOpenings() {
             screening_start: opening.screening_start ? String(opening.screening_start).slice(0, 10) : '',
             screening_end: opening.screening_end ? String(opening.screening_end).slice(0, 10) : '',
             allocated_slots: opening.allocated_slots ?? '',
+            total_financial_allocation: totalFromPerScholar || '',
             financial_allocation: opening.financial_allocation ?? '',
             announcement_text: opening.announcement_text || '',
         });
@@ -1130,7 +1217,7 @@ export default function ScholarshipOpenings() {
                                             <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
                                                 <div className="flex items-center gap-2 text-stone-500">
                                                     <CalendarDays className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Application Start</span>
+                                                    <span className="text-[10px] uppercase tracking-wide">App Start</span>
                                                 </div>
                                                 <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.application_start)}</p>
                                             </div>
@@ -1138,15 +1225,43 @@ export default function ScholarshipOpenings() {
                                             <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
                                                 <div className="flex items-center gap-2 text-stone-500">
                                                     <CalendarDays className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Application End</span>
+                                                    <span className="text-[10px] uppercase tracking-wide">App End</span>
                                                 </div>
                                                 <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.application_end)}</p>
                                             </div>
 
                                             <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
                                                 <div className="flex items-center gap-2 text-stone-500">
+                                                    <CalendarDays className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Screen Start</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.screening_start)}</p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
+                                                    <CalendarDays className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Screen End</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.screening_end)}</p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    <span className="text-[10px] uppercase tracking-wide">Per Scholar</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">
+                                                    {fmtMoney(opening.financial_allocation)}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3 grid grid-cols-2 gap-3">
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <div className="flex items-center gap-2 text-stone-500">
                                                     <Users className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Allocated Slots</span>
+                                                    <span className="text-[10px] uppercase tracking-wide">Slots</span>
                                                 </div>
                                                 <p className="text-sm font-medium text-stone-800 mt-1">{opening.allocated_slots ?? 0}</p>
                                             </div>
@@ -1157,16 +1272,6 @@ export default function ScholarshipOpenings() {
                                                     <span className="text-[10px] uppercase tracking-wide">Applicants</span>
                                                 </div>
                                                 <p className="text-sm font-medium text-stone-800 mt-1">{opening.applicant_count ?? 0}</p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <Sparkles className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Allocation</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">
-                                                    {fmtMoney(opening.financial_allocation)}
-                                                </p>
                                             </div>
                                         </div>
 

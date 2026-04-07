@@ -20,6 +20,25 @@ const STATUS_OPTIONS = [
   { value: 'major', label: 'Major' },
 ];
 
+// ─── Theme (matching Admin Dashboard) ───────────────────────────────────────
+const C = {
+  brown: '#5c2d0e',
+  brownMid: '#7c4a2e',
+  brownLight: '#92500f',
+  amber: '#d97706',
+  amberSoft: '#FFF7ED',
+  yellow: '#fbbf24',
+  sand: '#fdf6ec',
+  green: '#16a34a',
+  greenSoft: '#F0FDF4',
+  red: '#dc2626',
+  redSoft: '#FEF2F2',
+  border: '#e8d5b7',
+  muted: '#78716c',
+  text: '#1c1917',
+  bg: '#faf7f2',
+};
+
 function getToken() {
   return localStorage.getItem('sdoToken');
 }
@@ -147,78 +166,92 @@ export default function SDOScholarList() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center gap-3 text-sm text-stone-500">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading scholar list...
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <Loader2 className="w-7 h-7 animate-spin" style={{ color: C.muted }} />
+        <p className="text-xs uppercase tracking-widest" style={{ color: C.muted }}>
+          Loading scholar list...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-6 py-2" style={{ background: C.bg }}>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-semibold text-stone-900">Scholar List</h2>
-          <p className="mt-1 text-sm text-stone-500">
+          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
+            Scholar List
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: C.muted }}>
             Update probation status, add comments, and keep admin monitoring in sync.
           </p>
         </div>
       </div>
 
-      <Card className="rounded-3xl border-stone-200 shadow-none">
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search scholar name, PDM ID, or program"
-                className="h-11 rounded-2xl border-stone-200 pl-10"
-              />
+      {/* Main Card */}
+      <Card className="border-stone-200 shadow-none overflow-hidden">
+        <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-4 px-5">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.muted }} />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search scholar name, PDM ID, or program"
+                  className="h-10 rounded-lg border-stone-200 pl-9 text-sm bg-white"
+                />
+              </div>
+              <Select value={filter} onValueChange={setFilter}>
+                <SelectTrigger className="h-10 w-full rounded-lg border-stone-200 bg-white md:w-[140px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className="text-sm">
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="h-11 w-full rounded-2xl border-stone-200 md:w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FILTER_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {feedback && (
+              <div
+                className="rounded-lg px-4 py-3 text-sm"
+                style={{ background: C.greenSoft, color: C.green, border: `1px solid #bbf7d0` }}
+              >
+                {feedback}
+              </div>
+            )}
+
+            {error && (
+              <div
+                className="rounded-lg px-4 py-3 text-sm"
+                style={{ background: C.redSoft, color: C.red, border: `1px solid #fecaca` }}
+              >
+                {error}
+              </div>
+            )}
           </div>
-
-          {feedback && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {feedback}
-            </div>
-          )}
-
-          {error && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Scholar</TableHead>
-                <TableHead>Program</TableHead>
-                <TableHead className="w-[180px]">Probation Status</TableHead>
-                <TableHead>Comment</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+            <TableHeader className="bg-stone-50/80">
+              <TableRow className="border-stone-100 hover:bg-transparent">
+                <TableHead className="text-xs font-medium py-3 px-5" style={{ color: C.muted }}>Scholar</TableHead>
+                <TableHead className="text-xs font-medium py-3" style={{ color: C.muted }}>Program</TableHead>
+                <TableHead className="text-xs font-medium py-3 w-[160px]" style={{ color: C.muted }}>Probation Status</TableHead>
+                <TableHead className="text-xs font-medium py-3" style={{ color: C.muted }}>Comment</TableHead>
+                <TableHead className="text-xs font-medium py-3 text-right pr-5" style={{ color: C.muted }}>Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredScholars.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-sm text-stone-500">
+                  <TableCell colSpan={5} className="py-12 text-center text-sm" style={{ color: C.muted }}>
                     No scholars match the current filter.
                   </TableCell>
                 </TableRow>
@@ -230,56 +263,60 @@ export default function SDOScholarList() {
                   };
 
                   return (
-                    <TableRow key={scholar.scholar_id}>
-                      <TableCell className="align-top">
-                        <p className="font-medium text-stone-900">{scholar.student_name}</p>
-                        <p className="text-xs text-stone-500">{scholar.student_number}</p>
+                    <TableRow
+                      key={scholar.scholar_id}
+                      className="border-stone-100 hover:bg-amber-50/20 transition-colors"
+                    >
+                      <TableCell className="align-top py-3.5 px-5">
+                        <p className="font-medium text-sm" style={{ color: C.text }}>{scholar.student_name}</p>
+                        <p className="text-xs mt-0.5" style={{ color: C.muted }}>{scholar.student_number}</p>
                       </TableCell>
-                      <TableCell className="align-top text-sm text-stone-600">
+                      <TableCell className="align-top py-3.5 text-sm" style={{ color: C.muted }}>
                         {scholar.program_name}
                       </TableCell>
-                      <TableCell className="align-top">
+                      <TableCell className="align-top py-3.5">
                         <Select
                           value={draft.status}
                           onValueChange={(value) => handleDraftChange(scholar.scholar_id, 'status', value, scholar)}
                         >
-                          <SelectTrigger className="h-10 rounded-xl border-stone-200">
+                          <SelectTrigger className="h-9 rounded-lg border-stone-200 bg-white text-sm w-[110px]">
                             <SelectValue>{normalizeStatus(draft.status)}</SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             {STATUS_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
+                              <SelectItem key={option.value} value={option.value} className="text-sm">
                                 {option.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="align-top">
+                      <TableCell className="align-top py-3.5">
                         <textarea
                           value={draft.comment}
                           onChange={(e) =>
                             handleDraftChange(scholar.scholar_id, 'comment', e.target.value, scholar)
                           }
                           rows={3}
-                          className="min-h-[92px] w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-900/30 focus:ring-2 focus:ring-emerald-900/10"
+                          className="min-h-[88px] w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-amber-800/30 focus:ring-2 focus:ring-amber-800/10"
                           placeholder="Add disciplinary note or probation comment"
                         />
                       </TableCell>
-                      <TableCell className="align-top text-right">
+                      <TableCell className="align-top py-3.5 pr-5 text-right">
                         <Button
                           onClick={() => handleSave(scholar)}
                           disabled={savingId === scholar.scholar_id}
-                          className="rounded-xl bg-[#2e4b43] text-white hover:bg-[#274038]"
+                          className="h-8 rounded-lg text-white text-xs px-4"
+                          style={{ background: C.brownMid, hover: { background: '#5c2d0e' } }}
                         >
                           {savingId === scholar.scholar_id ? (
                             <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
                               Saving
                             </>
                           ) : (
                             <>
-                              <Save className="mr-2 h-4 w-4" />
+                              <Save className="mr-2 h-3.5 w-3.5" />
                               Save
                             </>
                           )}
@@ -293,6 +330,12 @@ export default function SDOScholarList() {
           </Table>
         </CardContent>
       </Card>
+
+      <footer className="pt-6 pb-2 border-t border-stone-100">
+        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
+          SDO PDM · Scholar Management Portal
+        </p>
+      </footer>
     </div>
   );
 }

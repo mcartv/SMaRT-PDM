@@ -8,19 +8,7 @@ const AUDIENCE_TO_ROLE_FILTER = {
     tdp: 'Student',
 };
 
-exports.createAnnouncementNotifications = async (payload, user) => {
-    const {
-        title,
-        content,
-        audience,
-        schedDate,
-    } = payload || {};
-
-    if (!title || !content || !audience) {
-        throw new Error('Title, content, and audience are required');
-    }
-
-    // Base query: all users
+async function getAudienceUsers(audience) {
     let usersQuery = supabase
         .from('users')
         .select('user_id, role');
@@ -31,55 +19,55 @@ exports.createAnnouncementNotifications = async (payload, user) => {
         usersQuery = usersQuery.eq('role', roleFilter);
     }
 
-    const { data: users, error: usersError } = await usersQuery;
+    const { data: users, error } = await usersQuery;
 
-    if (usersError) {
-        console.error('SUPABASE USERS FETCH ERROR:', usersError);
-        throw new Error(usersError.message);
+    if (error) {
+        console.error('SUPABASE USERS FETCH ERROR:', error);
+        throw new Error(error.message);
     }
 
     let filteredUsers = users || [];
 
-    // Optional audience refinement hooks
-    // Adjust these later if you have exact tables/flags for TES/TDP/applicants
     if (audience === 'applicants') {
-        filteredUsers = filteredUsers.filter((u) => u.role === 'Applicant');
+        filteredUsers = filteredUsers.filter((user) => user.role === 'Applicant');
     }
 
-    if (audience === 'scholars') {
-        filteredUsers = filteredUsers.filter((u) => u.role === 'Student');
+    if (['scholars', 'tes', 'tdp'].includes(audience)) {
+        filteredUsers = filteredUsers.filter((user) => user.role === 'Student');
     }
 
-    if (audience === 'tes') {
-        // Placeholder logic: currently same as student role filter
-        filteredUsers = filteredUsers.filter((u) => u.role === 'Student');
+    return filteredUsers;
+}
+
+async function createNotificationsForAudience({
+    audience,
+    title,
+    message,
+    referenceId = null,
+    referenceType = 'announcement',
+    type = 'Announcement',
+    createdAt = null,
+}) {
+    if (!title || !message || !audience) {
+        throw new Error('Title, message, and audience are required');
     }
 
-    if (audience === 'tdp') {
-        // Placeholder logic: currently same as student role filter
-        filteredUsers = filteredUsers.filter((u) => u.role === 'Student');
+    const users = await getAudienceUsers(audience);
+
+    if (!users.length) {
+        return [];
     }
 
-    if (!filteredUsers.length) {
-        return {
-            inserted: 0,
-            audience,
-            title,
-        };
-    }
-
-    const createdAt = schedDate ? new Date(schedDate).toISOString() : new Date().toISOString();
-
-    const rows = filteredUsers.map((targetUser) => ({
+    const rows = users.map((targetUser) => ({
         user_id: targetUser.user_id,
-        type: 'Announcement',
+        type,
         title,
-        message: content,
-        reference_id: null,
-        reference_type: 'announcement',
+        message,
+        reference_id: referenceId,
+        reference_type: referenceType,
         is_read: false,
         push_sent: false,
-        created_at: createdAt,
+        created_at: createdAt || new Date().toISOString(),
     }));
 
     const { data, error } = await supabase
@@ -92,9 +80,31 @@ exports.createAnnouncementNotifications = async (payload, user) => {
         throw new Error(error.message);
     }
 
+    return data || [];
+}
+
+exports.createAnnouncementNotifications = async (payload) => {
+    const {
+        title,
+        content,
+        audience,
+        schedDate,
+    } = payload || {};
+
+    const createdRows = await createNotificationsForAudience({
+        audience,
+        title,
+        message: content,
+        referenceType: 'announcement',
+        type: 'Announcement',
+        createdAt: schedDate ? new Date(schedDate).toISOString() : new Date().toISOString(),
+    });
+
     return {
-        inserted: data?.length || 0,
+        inserted: createdRows.length,
         audience,
         title,
     };
 };
+
+exports.createNotificationsForAudience = createNotificationsForAudience;

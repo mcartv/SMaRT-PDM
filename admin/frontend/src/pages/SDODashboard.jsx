@@ -5,20 +5,37 @@ import { Badge } from '@/components/ui/badge';
 
 const API_BASE = 'http://localhost:5000/api';
 
+// ─── Theme (matching Admin Dashboard) ───────────────────────────────────────
+const C = {
+  brown: '#5c2d0e',
+  brownMid: '#7c4a2e',
+  brownLight: '#92500f',
+  amber: '#d97706',
+  amberSoft: '#FFF7ED',
+  yellow: '#fbbf24',
+  sand: '#fdf6ec',
+  green: '#16a34a',
+  greenSoft: '#F0FDF4',
+  red: '#dc2626',
+  redSoft: '#FEF2F2',
+  border: '#e8d5b7',
+  muted: '#78716c',
+  text: '#1c1917',
+  bg: '#faf7f2',
+};
+
 function getSdoToken() {
   return localStorage.getItem('sdoToken');
 }
 
 function getDisciplinaryTone(level) {
   if (level === 'major') {
-    return 'bg-red-50 text-red-700 border-red-200';
+    return { bg: C.redSoft, color: C.red, border: '#fecaca' };
   }
-
   if (level === 'minor') {
-    return 'bg-amber-50 text-amber-700 border-amber-200';
+    return { bg: C.amberSoft, color: C.amber, border: '#fed7aa' };
   }
-
-  return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  return { bg: C.greenSoft, color: C.green, border: '#bbf7d0' };
 }
 
 export default function SDODashboard() {
@@ -77,11 +94,24 @@ export default function SDODashboard() {
   }, [scholars]);
 
   if (loading) {
-    return <div className="py-16 text-center text-sm text-stone-500">Loading SDO analytics...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+        <div className="w-7 h-7 border-2 border-stone-300 border-t-stone-600 rounded-full animate-spin" />
+        <p className="text-xs text-stone-400 uppercase tracking-widest">
+          Loading SDO analytics...
+        </p>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">{error}</div>;
+    return (
+      <div className="p-8 rounded-xl text-center" style={{ background: C.redSoft, border: `1px solid #fecaca` }}>
+        <AlertTriangle className="w-7 h-7 mx-auto mb-3" style={{ color: C.red }} />
+        <p className="text-sm font-semibold" style={{ color: C.red }}>Failed to load dashboard</p>
+        <p className="text-xs mt-1" style={{ color: C.red }}>{error}</p>
+      </div>
+    );
   }
 
   const cards = [
@@ -89,88 +119,131 @@ export default function SDODashboard() {
       label: 'Total Scholars',
       value: Number(stats?.total || 0),
       icon: Users,
-      tone: 'bg-stone-100 text-stone-800',
+      accent: C.brown,
+      soft: C.amberSoft,
     },
     {
       label: 'Clear Record',
       value: Number(stats?.clear_count || 0),
       icon: CheckCircle2,
-      tone: 'bg-emerald-100 text-emerald-800',
+      accent: C.green,
+      soft: C.greenSoft,
     },
     {
       label: 'Minor Offense',
       value: Number(stats?.minor_count || 0),
       icon: ShieldAlert,
-      tone: 'bg-amber-100 text-amber-800',
+      accent: C.amber,
+      soft: C.amberSoft,
     },
     {
       label: 'Major Offense',
       value: Number(stats?.major_count || 0),
       icon: AlertTriangle,
-      tone: 'bg-red-100 text-red-800',
+      accent: C.red,
+      soft: C.redSoft,
     },
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-semibold text-stone-900">Dashboard Analytics</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Real-time disciplinary view of scholars with probation-linked records.
-        </p>
+    <div className="space-y-6 py-2" style={{ background: C.bg }}>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
+            Dashboard Analytics
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: C.muted }}>
+            Real-time disciplinary view of scholars with probation-linked records.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {cards.map((card) => (
-          <Card key={card.label} className="rounded-3xl border-stone-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div className={`rounded-2xl p-3 ${card.tone}`}>
-                <card.icon className="h-5 w-5" />
+          <Card key={card.label} className="border-stone-200 shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{ background: card.soft }}
+              >
+                <card.icon className="w-4 h-4" style={{ color: card.accent }} />
               </div>
             </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold text-stone-900">{card.value}</p>
-              <p className="mt-1 text-sm text-stone-500">{card.label}</p>
+            <CardContent className="px-4 pb-4">
+              <div className="text-2xl font-semibold" style={{ color: C.text }}>
+                {card.value}
+              </div>
+              <p className="text-xs text-stone-500 mt-0.5">{card.label}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card className="rounded-3xl border-stone-200 shadow-none">
-        <CardHeader>
-          <h3 className="text-lg font-semibold text-stone-900">Priority Scholar Watchlist</h3>
-          <p className="text-sm text-stone-500">Highest-risk disciplinary records requiring SDO attention.</p>
+      {/* Priority Scholar Watchlist */}
+      <Card className="border-stone-200 shadow-none overflow-hidden">
+        <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-4 px-5">
+          <div>
+            <h3 className="text-sm font-semibold" style={{ color: C.text }}>
+              Priority Scholar Watchlist
+            </h3>
+            <p className="text-xs mt-0.5" style={{ color: C.muted }}>
+              Highest-risk disciplinary records requiring SDO attention.
+            </p>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="p-5 space-y-3">
           {highlightedScholars.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-stone-500">
-              No minor or major offense records are currently flagged.
+            <div
+              className="rounded-xl border border-dashed px-5 py-6 text-center"
+              style={{ borderColor: C.border, background: '#fefce8' }}
+            >
+              <p className="text-sm" style={{ color: C.muted }}>
+                No minor or major offense records are currently flagged.
+              </p>
             </div>
           ) : (
-            highlightedScholars.map((scholar) => (
-              <div
-                key={scholar.scholar_id}
-                className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 md:flex-row md:items-center md:justify-between"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-stone-900">{scholar.student_name}</p>
-                  <p className="text-xs text-stone-500">
-                    {scholar.student_number} • {scholar.program_name}
-                  </p>
+            highlightedScholars.map((scholar) => {
+              const tone = getDisciplinaryTone(scholar.sdu_level);
+              return (
+                <div
+                  key={scholar.scholar_id}
+                  className="flex flex-col gap-3 rounded-xl border bg-white p-4 md:flex-row md:items-center md:justify-between"
+                  style={{ borderColor: C.border }}
+                >
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: C.text }}>
+                      {scholar.student_name}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: C.muted }}>
+                      {scholar.student_number} • {scholar.program_name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-medium px-2.5 py-1 rounded-full border-none"
+                      style={{ background: tone.bg, color: tone.color }}
+                    >
+                      {(scholar.sdu_level || 'clear').toUpperCase()}
+                    </Badge>
+                    <span className="text-xs" style={{ color: C.muted }}>
+                      {scholar.sdo_comment ? 'Latest comment available' : 'No comment yet'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={getDisciplinaryTone(scholar.sdu_level)}>
-                    {(scholar.sdu_level || 'clear').toUpperCase()}
-                  </Badge>
-                  <span className="text-xs text-stone-500">
-                    {scholar.sdo_comment ? 'Latest comment available' : 'No comment yet'}
-                  </span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>
+
+      <footer className="pt-6 pb-2 border-t border-stone-100">
+        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
+          SDO PDM · Student Disciplinary Office Portal
+        </p>
+      </footer>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/config/app_config.dart';
+import 'package:smartpdm_mobileapp/services/session_service.dart';
 
 // A simple model to represent a message
 class ChatMessage {
@@ -26,6 +27,7 @@ class MessagingProvider extends ChangeNotifier {
   io.Socket? _socket;
   String? _currentRoom;
   String? _currentUserId;
+  final SessionService _sessionService = const SessionService();
 
   List<ChatMessage> get messages => _messages;
   int get unreadCount => _unreadCount;
@@ -47,21 +49,24 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void _connectSocket() {
-    _socket = io.io(AppConfig.apiBaseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-    });
+    _sessionService.getCurrentUser().then((session) {
+      _socket = io.io(AppConfig.apiBaseUrl, <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+        'auth': {'token': session.token},
+      });
 
-    _socket!.connect();
+      _socket!.connect();
 
-    _socket!.onConnect((_) {
-      debugPrint('Socket connected for user $_currentUserId');
-      _socket!.emit('join_room', _currentRoom);
-    });
+      _socket!.onConnect((_) {
+        debugPrint('Socket connected for user $_currentUserId');
+        _socket!.emit('join_room', _currentRoom);
+      });
 
-    // Listen for incoming messages from the backend
-    _socket!.on('receive_message', (data) {
-      receiveMessage(data['text'] ?? '');
+      // Listen for incoming messages from the backend
+      _socket!.on('receive_message', (data) {
+        receiveMessage(data['text'] ?? '');
+      });
     });
   }
 

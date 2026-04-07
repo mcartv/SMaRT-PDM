@@ -43,12 +43,14 @@ class NewScholarProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _submissionError;
   String? _successMessage;
+  Map<String, dynamic>? _lastSubmissionResponse;
 
   // Getters
   int get currentStep => _currentStep;
   bool get isLoading => _isLoading;
   String? get submissionError => _submissionError;
   String? get successMessage => _successMessage;
+  Map<String, dynamic>? get lastSubmissionResponse => _lastSubmissionResponse;
 
   // Navigation Methods
   void goToNextStep() {
@@ -70,6 +72,7 @@ class NewScholarProvider extends ChangeNotifier {
     _isLoading = false;
     _submissionError = null;
     _successMessage = null;
+    _lastSubmissionResponse = null;
     // TODO: Clear any saved form data here
     notifyListeners();
   }
@@ -79,12 +82,14 @@ class NewScholarProvider extends ChangeNotifier {
     _isLoading = true;
     _submissionError = null;
     _successMessage = null;
+    _lastSubmissionResponse = null;
     notifyListeners();
 
     try {
       final response = await _applicationService.submitApplication(
         applicationData,
       );
+      _lastSubmissionResponse = response;
       _successMessage = response['message']?.toString();
 
       _isLoading = false;

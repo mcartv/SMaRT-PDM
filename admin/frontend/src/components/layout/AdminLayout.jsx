@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard, FileText, Users, CheckSquare, BarChart3,
-  Megaphone, User, Settings, Bell, ChevronLeft, ChevronRight,
+  Megaphone, Settings, Bell, ChevronLeft, ChevronRight,
   LogOut, Wallet, Briefcase
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
@@ -21,7 +21,6 @@ const navItems = [
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
-  { path: '/admin/adminprofile', icon: User, label: 'Admin Profile' },
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
 ];
 
@@ -75,6 +74,10 @@ export default function AdminLayout() {
     const names = adminData.name.split(' ').filter(Boolean);
     if (names.length === 1) return names[0][0].toUpperCase();
     return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+  };
+
+  const handleProfileClick = () => {
+    navigate('/admin/adminprofile');
   };
 
   return (
@@ -201,12 +204,16 @@ export default function AdminLayout() {
             </div>
 
             {/* Profile Chip */}
-            <div className="flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full border border-stone-200 bg-stone-50/80">
+            <button
+              onClick={handleProfileClick}
+              className="flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full border border-stone-200 bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer"
+              title="Open Profile"
+            >
               <div className="w-8 h-8 rounded-full bg-stone-800 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
                 {getInitials()}
               </div>
 
-              <div className="hidden sm:block leading-tight truncate max-w-[140px]">
+              <div className="hidden sm:block leading-tight truncate max-w-[140px] text-left">
                 <p className="text-[12px] font-semibold text-stone-800 truncate">
                   {adminData?.name || 'Admin'}
                 </p>
@@ -214,7 +221,7 @@ export default function AdminLayout() {
                   {adminData?.position || 'Staff'}
                 </p>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 

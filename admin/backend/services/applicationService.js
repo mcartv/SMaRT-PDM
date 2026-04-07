@@ -70,17 +70,9 @@ function deriveAggregateDocumentStatus(summary = {}) {
     const flaggedCount = Number(summary?.flagged || 0);
     const reuploadCount = Number(summary?.reupload || 0);
 
-    if (uploadedCount === 0) {
-        return 'Missing Docs';
-    }
-
-    if (reuploadCount > 0 || flaggedCount > 0) {
-        return 'Under Review';
-    }
-
-    if (verifiedCount > 0 && verifiedCount === uploadedCount) {
-        return 'Documents Ready';
-    }
+    if (uploadedCount === 0) return 'Missing Docs';
+    if (reuploadCount > 0 || flaggedCount > 0) return 'Under Review';
+    if (verifiedCount > 0 && verifiedCount === uploadedCount) return 'Documents Ready';
 
     return 'Under Review';
 }
@@ -133,8 +125,9 @@ async function buildApplicationDetails(applicationId) {
                 course_id,
                 barangay
             ),
-            scholarship_programs (
+            scholarship_program (
                 program_id,
+                organization_name,
                 program_name
             )
         `)
@@ -211,6 +204,7 @@ async function buildApplicationDetails(applicationId) {
 
     const student = applicationRecord.students || {};
     let userContact = { email: 'N/A', phone_number: 'N/A' };
+
     if (student.user_id) {
         const { data: userData, error: userError } = await supabase
             .from('users')
@@ -223,9 +217,7 @@ async function buildApplicationDetails(applicationId) {
             throw new Error(userError.message);
         }
 
-        if (userData) {
-            userContact = userData;
-        }
+        if (userData) userContact = userData;
     }
 
     let courseCode = 'N/A';
@@ -241,9 +233,7 @@ async function buildApplicationDetails(applicationId) {
             throw new Error(courseError.message);
         }
 
-        if (courseData) {
-            courseCode = courseData.course_code;
-        }
+        if (courseData) courseCode = courseData.course_code;
     }
 
     const reviewByKey = new Map(
@@ -253,9 +243,7 @@ async function buildApplicationDetails(applicationId) {
     const normalizedDocuments = (documentsResult.data || []).map((document) => {
         const documentKey = inferDocumentKey(document);
         const review = reviewByKey.get(documentKey) || null;
-        const requirementName =
-            document.document_type ||
-            'Document';
+        const requirementName = document.document_type || 'Document';
 
         return {
             id: documentKey,
@@ -302,7 +290,8 @@ async function buildApplicationDetails(applicationId) {
                 ? `${student.year_level}${getOrdinalSuffix(student.year_level)} Year`
                 : 'N/A',
             gwa: student.gwa ?? 'N/A',
-            program: applicationRecord.scholarship_programs?.program_name || 'General',
+            program: applicationRecord.scholarship_program?.program_name || 'General',
+            organization_name: applicationRecord.scholarship_program?.organization_name || 'N/A',
             course: courseCode,
         },
         student_profile: profileResult.data || null,
@@ -318,13 +307,18 @@ exports.fetchApplications = async () => {
         .select(`
             application_id,
             student_id,
+            program_id,
             application_status,
             submission_date,
             document_status,
             is_disqualified,
             disqualification_reason,
             students ( first_name, last_name, pdm_id, gwa, sdo_status ),
-            scholarship_programs ( program_name )
+            scholarship_program (
+                program_id,
+                organization_name,
+                program_name
+            )
         `);
 
     if (appError) {
@@ -354,22 +348,25 @@ exports.fetchApplications = async () => {
     const processed = _.map(filteredApplications, (app) => ({
         id: app.application_id,
         student_id: app.student_id,
+        program_id: app.program_id,
         name: `${_.get(app, 'students.last_name', 'Unknown')}, ${_.get(app, 'students.first_name', 'Student')}`,
         student_number: _.get(app, 'students.pdm_id', 'N/A'),
-        program: _.get(app, 'scholarship_programs.program_name', 'General'),
+        program: _.get(app, 'scholarship_program.program_name', 'General'),
+        organization_name: _.get(app, 'scholarship_program.organization_name', 'N/A'),
         submitted: app.submission_date,
-        status: _.toLower(app.application_status || ''),
+        application_status: _.toLower(app.application_status || 'pending'),
+        status: _.toLower(app.application_status || 'pending'),
         document_status: _.toLower(app.document_status || 'missing docs'),
         disqualified: !!app.is_disqualified,
         disqReason: app.disqualification_reason || null,
         gwa: _.get(app, 'students.gwa', 0),
+        sdo_status: _.get(app, 'students.sdo_status', 'clear'),
     }));
 
     return _.orderBy(processed, ['submitted'], ['desc']);
 };
 
 exports.fetchApplicationDetailsById = async (id) => buildApplicationDetails(id);
-
 exports.fetchApplicationDocumentsById = async (id) => buildApplicationDetails(id);
 
 exports.markApplicationDisqualified = async (id, reason) => {
@@ -432,9 +429,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
     for (const doc of document_reviews) {
         const documentType = doc.document_type || doc.name;
-        if (!documentType) {
-            continue;
-        }
+        if (!documentType) continue;
 
         const { error: submittedDocumentError } = await supabase
             .from('application_documents')
@@ -486,7 +481,7 @@ exports.markApplicationReviewed = async (applicationId) => {
     const { data, error } = await supabase
         .from('applications')
         .update({
-            application_status: 'Interview',
+            application_status: 'Review',
         })
         .eq('application_id', applicationId)
         .select()

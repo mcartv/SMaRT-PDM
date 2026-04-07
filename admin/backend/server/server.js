@@ -12,8 +12,8 @@ const announcementRoutes = require('../routes/announcementRoutes');
 const { runAnnouncementScheduler } = require('../services/schedulerService');
 const roRoutes = require('../routes/roRoutes');
 const scholarshipProgramRoutes = require('../routes/scholarshipProgramRoutes');
-const benefactorRoutes = require('../routes/benefactorRoutes');
 const programOpeningRoutes = require('../routes/programOpeningRoutes');
+const courseRoutes = require('../routes/courseRoutes');
 
 const app = express();
 
@@ -26,9 +26,9 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/ro', roRoutes);
-app.use('/api/scholarship-programs', scholarshipProgramRoutes);
-app.use('/api/benefactors', benefactorRoutes);
+app.use('/api/scholarship-program', scholarshipProgramRoutes);
 app.use('/api/program-openings', programOpeningRoutes);
+app.use('/api/courses', courseRoutes);
 
 app.use((err, req, res, next) => {
     console.error(err.stack);

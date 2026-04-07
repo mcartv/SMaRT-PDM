@@ -44,3 +44,43 @@ exports.getScholarById = async (req, res) => {
         });
     }
 };
+
+exports.getSdoStats = async (req, res) => {
+    try {
+        const stats = await scholarService.fetchSdoStats();
+        res.json(stats);
+    } catch (err) {
+        console.error('SDO STATS CONTROLLER ERROR:', err.message);
+        res.status(500).json({
+            message: 'Failed to fetch SDO analytics',
+            error: err.message,
+        });
+    }
+};
+
+exports.updateSdoStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updated = await scholarService.updateScholarSdoStatus(id, req.body, req.user);
+
+        if (!updated) {
+            return res.status(404).json({ message: 'Scholar not found' });
+        }
+
+        res.json({
+            message: 'Scholar probation status updated successfully',
+            scholar: updated,
+        });
+    } catch (err) {
+        console.error('SDO UPDATE CONTROLLER ERROR:', err.message);
+
+        if (err.message === 'Invalid SDO status value') {
+            return res.status(400).json({ message: err.message });
+        }
+
+        res.status(500).json({
+            message: 'Failed to update scholar probation status',
+            error: err.message,
+        });
+    }
+};

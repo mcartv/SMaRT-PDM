@@ -135,12 +135,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _handleGoogleSignUp() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Google Sign-In coming soon!')),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -334,29 +328,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           )
                         : GoldButton(label: 'Sign Up', onTap: _handleRegister),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text(
-                          'OR',
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: GhostButton(
-                      label: 'Sign up with Google',
-                      icon: Image.asset('assets/images/google.png', height: 20),
-                      onTap: _handleGoogleSignUp,
-                    ),
                   ),
                   const SizedBox(height: 24),
                   Row(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
 import 'smart_pdm_bottom_nav.dart';
 import 'smart_pdm_drawer.dart';
 
@@ -60,12 +62,18 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold> {
           ? SmartPdmDrawer(isScholar: _isScholar, userName: _userName)
           : null,
       bottomNavigationBar: widget.showBottomNav
-          ? SafeArea(
-              top: false,
-              child: SmartPdmBottomNav(
-                selectedIndex: widget.selectedIndex,
-                unreadNotifications: widget.unreadNotifications,
-              ),
+          ? Consumer<NotificationProvider>(
+              builder: (context, notificationProvider, child) {
+                return SafeArea(
+                  top: false,
+                  child: SmartPdmBottomNav(
+                    selectedIndex: widget.selectedIndex,
+                    unreadNotifications: widget.unreadNotifications > 0
+                        ? widget.unreadNotifications
+                        : notificationProvider.unreadCount,
+                  ),
+                );
+              },
             )
           : null,
       body: SafeArea(

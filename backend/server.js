@@ -713,6 +713,11 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+app.get('/api/benefactors', async (req, res) => {
+=======
+>>>>>>> 57c5c7debab1a3c3ca63fa03dc989a49f713cd11
 app.get('/api/notifications', protect, async (req, res) => {
   try {
     const payload = await notificationService.listUserNotifications(req.user.user_id, {
@@ -801,9 +806,13 @@ app.post('/api/notifications/device-token', protect, async (req, res) => {
 });
 
 app.get('/api/scholarship-programs', async (req, res) => {
+<<<<<<< HEAD
 =======
 app.get('/api/benefactors', async (req, res) => {
 >>>>>>> 567d41ff (fixed)
+=======
+>>>>>>> ad108ed3d1f33af68bd48179113950f8ff0f5b75
+>>>>>>> 57c5c7debab1a3c3ca63fa03dc989a49f713cd11
   const { data, error } = await supabase
     .from('scholarship_programs')
     .select('program_id, program_name')

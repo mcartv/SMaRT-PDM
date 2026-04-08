@@ -15,7 +15,7 @@ import {
     Activity, Globe, Database, RefreshCw, Save,
     X, Calendar, Settings, Loader2, Check,
     ToggleLeft, ToggleRight, Search, Archive, ShieldCheck, Briefcase,
-    User, Mail, Phone
+    User, Mail, Phone, Users as UsersIcon
 } from 'lucide-react';
 
 const C = {
@@ -77,7 +77,7 @@ function EmptyState({ icon: Icon = Building2, title, subtitle }) {
     );
 }
 
-function BenefactorTemplateModal({
+function BenefactorModal({
     open,
     mode,
     form,
@@ -102,10 +102,10 @@ function BenefactorTemplateModal({
                 <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
                     <div>
                         <h3 className="text-base font-semibold text-stone-800">
-                            {isEdit ? 'Edit Scholarship Program Template' : 'Add Scholarship Program Template'}
+                            {isEdit ? 'Edit Benefactor' : 'Add Benefactor'}
                         </h3>
                         <p className="text-xs text-stone-500 mt-0.5">
-                            Configure the reusable scholarship program definition used by Scholarship Openings
+                            {isEdit ? 'Update benefactor information' : 'Create a new benefactor organization and scholarship program'}
                         </p>
                     </div>
 
@@ -118,11 +118,11 @@ function BenefactorTemplateModal({
                     </button>
                 </div>
 
-                <CardContent className="p-5 space-y-5">
+                <CardContent className="p-5 max-h-[calc(90vh-180px)] overflow-y-auto space-y-5">
                     <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-                        <p className="text-sm font-medium text-stone-800">Template publication behavior</p>
+                        <p className="text-sm font-medium text-stone-800">Benefactor Publication Behavior</p>
                         <p className="text-xs text-stone-500 mt-1">
-                            Published templates appear in Scholarship Openings. Draft templates stay in maintenance until finished.
+                            Published benefactors appear in Scholarship Openings. Draft benefactors stay in maintenance until finished.
                         </p>
                     </div>
 
@@ -173,6 +173,27 @@ function BenefactorTemplateModal({
                             />
                         </div>
 
+                        {/* Target Audience Dropdown */}
+                        <div className="space-y-1.5">
+                            <FieldLabel>Target Audience</FieldLabel>
+                            <Select
+                                value={form.target_audience}
+                                onValueChange={(value) => setForm((prev) => ({ ...prev, target_audience: value }))}
+                            >
+                                <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                                    <SelectValue placeholder="Select target audience" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Applicants">Applicants Only</SelectItem>
+                                    <SelectItem value="Scholars">Scholars Only</SelectItem>
+                                    <SelectItem value="Both">Both (Scholars & Applicants)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-[10px] text-stone-400">
+                                Who can view and apply to this scholarship program.
+                            </p>
+                        </div>
+
                         <div className="space-y-1.5">
                             <FieldLabel>GWA Threshold</FieldLabel>
                             <Input
@@ -203,7 +224,7 @@ function BenefactorTemplateModal({
                         </div>
 
                         <div className="space-y-1.5">
-                            <FieldLabel>Template Status</FieldLabel>
+                            <FieldLabel>Benefactor Status</FieldLabel>
                             <Select
                                 value={form.visibility_status}
                                 onValueChange={(value) => setForm((prev) => ({ ...prev, visibility_status: value }))}
@@ -217,7 +238,7 @@ function BenefactorTemplateModal({
                                 </SelectContent>
                             </Select>
                             <p className="text-[10px] text-stone-400">
-                                Published = usable in openings. Draft = keep unfinished template private.
+                                Published = usable in openings. Draft = keep unfinished benefactor private.
                             </p>
                         </div>
 
@@ -232,27 +253,27 @@ function BenefactorTemplateModal({
                             </div>
                         </div>
                     </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                        <Button
-                            variant="outline"
-                            onClick={onClose}
-                            className="h-9 rounded-lg border-stone-200 text-xs"
-                        >
-                            Cancel
-                        </Button>
-
-                        <Button
-                            onClick={onSave}
-                            disabled={saving || !form.organization_name || !form.program_name || !form.benefactor_type}
-                            className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
-                            style={{ background: C.brownMid }}
-                        >
-                            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                            {isEdit ? 'Save Changes' : 'Create Template'}
-                        </Button>
-                    </div>
                 </CardContent>
+
+                <div className="px-5 py-4 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                        className="h-9 rounded-lg border-stone-200 text-xs"
+                    >
+                        Cancel
+                    </Button>
+
+                    <Button
+                        onClick={onSave}
+                        disabled={saving || !form.organization_name || !form.program_name || !form.benefactor_type}
+                        className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+                        style={{ background: C.brownMid }}
+                    >
+                        {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                        {isEdit ? 'Save Changes' : 'Create Benefactor'}
+                    </Button>
+                </div>
             </Card>
         </div>
     );
@@ -400,8 +421,6 @@ function GeneralPanel() {
     const [appOpen, setAppOpen] = useState(true);
     const [saved, setSaved] = useState(false);
 
-    // mock admin account data for now
-    // later, replace with fetch from backend
     const [adminAccount, setAdminAccount] = useState({
         first_name: 'Carmelita',
         last_name: 'Dela Cruz',
@@ -427,11 +446,6 @@ function GeneralPanel() {
 
     const handleSaveAdminAccount = async () => {
         try {
-            // TODO:
-            // replace with your actual backend endpoint for updating admin profile/account
-            // example:
-            // await fetch('http://localhost:5000/api/admin/account', { ... })
-
             alert('Admin account changes are ready to be connected to backend.');
         } catch (err) {
             console.error('ADMIN ACCOUNT SAVE ERROR:', err);
@@ -508,7 +522,6 @@ function GeneralPanel() {
                 </GroupCard>
             </div>
 
-            {/* NEW: ADMIN ACCOUNT MANAGEMENT */}
             <GroupCard title="Admin Account Management" icon={User}>
                 <div className="space-y-5">
                     <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
@@ -638,7 +651,7 @@ function GeneralPanel() {
     );
 }
 
-function BenefactorTemplatesPanel() {
+function BenefactorsPanel() {
     const [benefactors, setBenefactors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -647,6 +660,7 @@ function BenefactorTemplatesPanel() {
     const [statusFilter, setStatusFilter] = useState('All');
     const [archiveFilter, setArchiveFilter] = useState('Active');
     const [sponsorTypeFilter, setSponsorTypeFilter] = useState('All');
+    const [audienceFilter, setAudienceFilter] = useState('All');
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -657,6 +671,7 @@ function BenefactorTemplatesPanel() {
         organization_name: '',
         program_name: '',
         description: '',
+        target_audience: 'Applicants',
         gwa_threshold: '',
         requires_ro: false,
         renewal_cycle: 'Semester',
@@ -719,14 +734,18 @@ function BenefactorTemplatesPanel() {
                 sponsorTypeFilter === 'All' ||
                 (b.benefactor_type || '').toLowerCase() === sponsorTypeFilter.toLowerCase();
 
+            const matchAudience =
+                audienceFilter === 'All' ||
+                (b.target_audience || '').toLowerCase() === audienceFilter.toLowerCase();
+
             const matchArchive =
                 archiveFilter === 'All' ||
                 (archiveFilter === 'Active' && !b.is_archived) ||
                 (archiveFilter === 'Archived' && !!b.is_archived);
 
-            return matchSearch && matchStatus && matchSponsorType && matchArchive;
+            return matchSearch && matchStatus && matchSponsorType && matchAudience && matchArchive;
         });
-    }, [benefactors, search, statusFilter, sponsorTypeFilter, archiveFilter]);
+    }, [benefactors, search, statusFilter, sponsorTypeFilter, audienceFilter, archiveFilter]);
 
     const openCreateModal = () => {
         setModalMode('create');
@@ -743,6 +762,7 @@ function BenefactorTemplatesPanel() {
             organization_name: benefactor.organization_name || '',
             program_name: benefactor.program_name || '',
             description: benefactor.description || '',
+            target_audience: benefactor.target_audience || 'Applicants',
             gwa_threshold: benefactor.gwa_threshold ?? '',
             requires_ro: !!benefactor.requires_ro,
             renewal_cycle: benefactor.renewal_cycle || 'Semester',
@@ -761,6 +781,7 @@ function BenefactorTemplatesPanel() {
                 organization_name: form.organization_name,
                 program_name: form.program_name,
                 description: form.description || null,
+                target_audience: form.target_audience || 'Applicants',
                 gwa_threshold: Number(form.gwa_threshold || 0),
                 requires_ro: !!form.requires_ro,
                 renewal_cycle: form.renewal_cycle || 'Semester',
@@ -828,9 +849,15 @@ function BenefactorTemplatesPanel() {
         }
     };
 
+    function getAudienceLabel(audience) {
+        if (audience === 'Both') return 'Scholars & Applicants';
+        if (audience === 'Scholars') return 'Scholars Only';
+        return 'Applicants Only';
+    }
+
     return (
         <div className="space-y-5">
-            <BenefactorTemplateModal
+            <BenefactorModal
                 open={modalOpen}
                 mode={modalMode}
                 form={form}
@@ -845,9 +872,9 @@ function BenefactorTemplatesPanel() {
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold text-stone-900">Benefactor Templates</h2>
+                    <h2 className="text-lg font-semibold text-stone-900">Benefactors</h2>
                     <p className="text-sm text-stone-500">
-                        Reusable benefactor + program definitions used by the Scholarship Openings page
+                        Manage benefactor organizations and their scholarship programs
                     </p>
                 </div>
 
@@ -891,7 +918,7 @@ function BenefactorTemplatesPanel() {
                             <ShieldCheck className="w-4 h-4 text-green-700" />
                         </div>
                         <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.published}</div>
-                        <p className="text-xs text-stone-500 mt-0.5">Published Templates</p>
+                        <p className="text-xs text-stone-500 mt-0.5">Published</p>
                     </CardContent>
                 </Card>
 
@@ -901,7 +928,7 @@ function BenefactorTemplatesPanel() {
                             <Briefcase className="w-4 h-4 text-blue-700" />
                         </div>
                         <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.drafts}</div>
-                        <p className="text-xs text-stone-500 mt-0.5">Draft Templates</p>
+                        <p className="text-xs text-stone-500 mt-0.5">Drafts</p>
                     </CardContent>
                 </Card>
 
@@ -938,6 +965,18 @@ function BenefactorTemplatesPanel() {
                     </SelectContent>
                 </Select>
 
+                <Select value={audienceFilter} onValueChange={setAudienceFilter}>
+                    <SelectTrigger className="w-[180px] h-9 rounded-lg border-stone-200 text-sm">
+                        <SelectValue placeholder="Target Audience" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Audiences</SelectItem>
+                        <SelectItem value="applicants">Applicants Only</SelectItem>
+                        <SelectItem value="scholars">Scholars Only</SelectItem>
+                        <SelectItem value="both">Both</SelectItem>
+                    </SelectContent>
+                </Select>
+
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
                         <SelectValue />
@@ -960,13 +999,14 @@ function BenefactorTemplatesPanel() {
                     </SelectContent>
                 </Select>
 
-                {(search || sponsorTypeFilter !== 'All' || statusFilter !== 'All' || archiveFilter !== 'Active') && (
+                {(search || sponsorTypeFilter !== 'All' || audienceFilter !== 'All' || statusFilter !== 'All' || archiveFilter !== 'Active') && (
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
                             setSearch('');
                             setSponsorTypeFilter('All');
+                            setAudienceFilter('All');
                             setStatusFilter('All');
                             setArchiveFilter('Active');
                         }}
@@ -980,9 +1020,9 @@ function BenefactorTemplatesPanel() {
             <Card className="border-stone-200 shadow-none overflow-hidden">
                 <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
                     <div>
-                        <CardTitle className="text-sm font-semibold text-stone-800">Benefactor Template Registry</CardTitle>
+                        <CardTitle className="text-sm font-semibold text-stone-800">Benefactor Registry</CardTitle>
                         <CardDescription className="text-xs">
-                            Published templates are available in Scholarship Openings. Drafts stay here until ready.
+                            Published benefactors are available in Scholarship Openings. Drafts stay here until ready.
                         </CardDescription>
                     </div>
                 </CardHeader>
@@ -992,20 +1032,21 @@ function BenefactorTemplatesPanel() {
                         <div className="flex flex-col items-center justify-center min-h-[240px] gap-3">
                             <Loader2 className="w-6 h-6 animate-spin text-stone-300" />
                             <p className="text-xs text-stone-400 uppercase tracking-widest">
-                                Loading benefactor templates...
+                                Loading benefactors...
                             </p>
                         </div>
                     ) : filteredBenefactors.length === 0 ? (
                         <EmptyState
                             icon={Building2}
-                            title="No benefactor templates found"
-                            subtitle="Create a reusable benefactor record here first, then use it in Scholarship Openings."
+                            title="No benefactors found"
+                            subtitle="Click 'Add Benefactor' to create a new benefactor organization and scholarship program."
                         />
                     ) : (
                         <div className="space-y-3">
                             {filteredBenefactors.map((b) => {
                                 const isPublished = (b.visibility_status || '').toLowerCase() === 'published';
                                 const isPublic = (b.benefactor_type || '').toLowerCase() === 'public';
+                                const audience = b.target_audience || 'Applicants';
 
                                 return (
                                     <div
@@ -1033,6 +1074,18 @@ function BenefactorTemplatesPanel() {
                                                             }`}
                                                     >
                                                         {isPublic ? 'Public Sponsor' : 'Private Sponsor'}
+                                                    </span>
+
+                                                    <span
+                                                        className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${audience === 'Both'
+                                                                ? 'bg-purple-50 text-purple-700'
+                                                                : audience === 'Scholars'
+                                                                    ? 'bg-indigo-50 text-indigo-700'
+                                                                    : 'bg-sky-50 text-sky-700'
+                                                            }`}
+                                                    >
+                                                        <UsersIcon className="w-3 h-3 inline mr-1" />
+                                                        {getAudienceLabel(audience)}
                                                     </span>
 
                                                     <span
@@ -1091,15 +1144,20 @@ function BenefactorTemplatesPanel() {
                                             </div>
                                         </div>
 
-                                        <div className="mt-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+                                        <div className="mt-4 grid grid-cols-2 lg:grid-cols-6 gap-3">
                                             <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <p className="text-[10px] uppercase tracking-wide text-stone-400">Benefactor Type</p>
+                                                <p className="text-[10px] uppercase tracking-wide text-stone-400">Sponsor Type</p>
                                                 <p className="text-sm font-medium text-stone-800 mt-1">{b.benefactor_type || 'N/A'}</p>
                                             </div>
 
                                             <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
                                                 <p className="text-[10px] uppercase tracking-wide text-stone-400">Program</p>
                                                 <p className="text-sm font-medium text-stone-800 mt-1">{b.program_name || 'N/A'}</p>
+                                            </div>
+
+                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                                                <p className="text-[10px] uppercase tracking-wide text-stone-400">Target Audience</p>
+                                                <p className="text-sm font-medium text-stone-800 mt-1">{getAudienceLabel(audience)}</p>
                                             </div>
 
                                             <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
@@ -1631,7 +1689,7 @@ export default function SettingsMaintenance() {
 
                 <div className="p-5">
                     {tab === 'general' && <GeneralPanel />}
-                    {tab === 'benefactors' && <BenefactorTemplatesPanel />}
+                    {tab === 'benefactors' && <BenefactorsPanel />}
                     {tab === 'courses' && <CoursesPanel />}
                     {tab === 'system' && <SystemPanel />}
                     {tab === 'audit' && (

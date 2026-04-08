@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Settings,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 
@@ -19,6 +20,7 @@ const MAIN_BG = '#f6f8f7';
 const navItems = [
   { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
+  { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
 ];
 
 export default function SDOLayout() {
@@ -157,9 +159,7 @@ export default function SDOLayout() {
                 `flex items-center ${
                   collapsed ? 'justify-center' : 'gap-3'
                 } px-3 py-2.5 rounded-xl text-sm transition-all group ${
-                  isActive
-                    ? 'text-white shadow-sm'
-                    : 'hover:bg-white/10'
+                  isActive ? 'text-white shadow-sm' : 'hover:bg-white/10'
                 }`
               }
               style={({ isActive }) => ({
@@ -184,11 +184,7 @@ export default function SDOLayout() {
             style={{ color: SB_TEXT }}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
-            {collapsed ? (
-              <ChevronRight className="w-4 h-4" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
-            )}
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             {!collapsed && <span className="font-medium">Collapse</span>}
           </button>
 

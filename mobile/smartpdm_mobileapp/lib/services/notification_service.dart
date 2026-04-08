@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:smartpdm_mobileapp/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/services/api_client.dart';
 import 'package:smartpdm_mobileapp/services/session_service.dart';
@@ -82,7 +81,8 @@ class NotificationService {
   Future<void> registerStoredDeviceToken() async {
     final stored = await _sessionService.getPushDeviceToken();
     final token = stored['token'];
-    final platform = stored['platform'] ?? Platform.operatingSystem;
+    final platform =
+        stored['platform'] ?? (kIsWeb ? 'web' : defaultTargetPlatform.name);
 
     if (token == null || token.trim().isEmpty) {
       return;

@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const notificationService = require('./notificationService');
 
 function getTodayLocalISO() {
     const now = new Date();
@@ -27,6 +28,42 @@ function deriveOpeningStatus(payload, existingStatus = '') {
     if (payload.application_end < today) return 'closed';
 
     return 'open';
+}
+
+async function createOpeningNotifications(openingRow) {
+    if (!openingRow?.opening_id) {
+        return 0;
+    }
+
+    const { data: existingNotification, error: lookupError } = await supabase
+        .from('notifications')
+        .select('notification_id')
+        .eq('reference_id', openingRow.opening_id)
+        .eq('reference_type', 'program_opening')
+        .limit(1)
+        .maybeSingle();
+
+    if (lookupError) {
+        throw new Error(lookupError.message);
+    }
+
+    if (existingNotification?.notification_id) {
+        return 0;
+    }
+
+    const rows = await notificationService.createNotificationsForAudience({
+        audience: 'all',
+        title: openingRow.opening_title,
+        message:
+            openingRow.announcement_text ||
+            `${openingRow.opening_title} is now open for scholarship applications.`,
+        referenceId: openingRow.opening_id,
+        referenceType: 'program_opening',
+        type: 'Opening',
+        createdAt: openingRow.updated_at || openingRow.created_at || new Date().toISOString(),
+    });
+
+    return rows.length;
 }
 
 exports.getProgramOpenings = async () => {
@@ -174,6 +211,10 @@ exports.createProgramOpening = async (payload) => {
 
     if (error) throw new Error(error.message);
 
+    if ((data.posting_status || '').toLowerCase() === 'open') {
+        await createOpeningNotifications(data);
+    }
+
     return data;
 };
 
@@ -243,6 +284,13 @@ exports.updateProgramOpening = async (openingId, payload) => {
         .single();
 
     if (error) throw new Error(error.message);
+
+    if (
+        (data.posting_status || '').toLowerCase() === 'open' &&
+        (existingOpening.posting_status || '').toLowerCase() !== 'open'
+    ) {
+        await createOpeningNotifications(data);
+    }
 
     return data;
 };

@@ -14,6 +14,7 @@ const roRoutes = require('../routes/roRoutes');
 const scholarshipProgramRoutes = require('../routes/scholarshipProgramRoutes');
 const programOpeningRoutes = require('../routes/programOpeningRoutes');
 const courseRoutes = require('../routes/courseRoutes');
+const renewalRoutes = require('../routes/renewalRoutes');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/ro', roRoutes);
 app.use('/api/scholarship-program', scholarshipProgramRoutes);
 app.use('/api/program-openings', programOpeningRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/renewals', renewalRoutes);
 
 app.use((err, req, res, next) => {
     console.error(err.stack);

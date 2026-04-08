@@ -86,35 +86,57 @@ function deriveOpeningStatus(payload, existingStatus = '') {
         !!payload.application_end;
 
     if (!hasRequiredFields) return 'draft';
-
     if (payload.application_end < today) return 'closed';
 
     return 'open';
 }
 
-function isMeaninglessDraft(opening) {
-    const isDraft = String(opening?.posting_status || '').toLowerCase() === 'draft';
+function normalizeAudience(value) {
+    if (!value) return '';
+    const raw = String(value).trim();
 
-    if (!isDraft) return false;
+    if (raw === 'Applicants') return 'Applicants';
+    if (raw === 'Scholars') return 'Scholars';
+    if (
+        raw === 'Both' ||
+        raw === 'Applicants,Scholars' ||
+        raw === 'Scholars,Applicants'
+    ) {
+        return 'Both';
+    }
 
-    const noDates =
-        !opening?.application_start &&
-        !opening?.application_end &&
-        !opening?.screening_start &&
-        !opening?.screening_end;
+    return raw;
+}
 
-    const noNumbers =
-        Number(opening?.allocated_slots || 0) === 0 &&
-        Number(opening?.financial_allocation || 0) === 0;
+function deriveTargetAudience(source) {
+    const normalized = normalizeAudience(source?.target_audience);
 
-    const noProgramLink =
-        !opening?.program_id ||
-        !opening?.benefactor_name ||
-        opening?.benefactor_name === 'Benefactor N/A' ||
-        opening?.benefactor_name === 'Organization N/A' ||
-        opening?.benefactor_name === 'Unknown Organization';
+    if (normalized) {
+        return normalized;
+    }
 
-    return noDates && noNumbers && noProgramLink;
+    // Fallback: check if it's a TES program
+    const joined = [
+        source?.program_name,
+        source?.organization_name,
+        source?.benefactor_name,
+        source?.opening_title,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+    const isTES = /\btes\b|tertiary education subsidy/.test(joined);
+    return isTES ? 'Both' : 'Applicants';
+}
+
+function targetAudienceLabel(value) {
+    const normalized = normalizeAudience(value);
+
+    if (normalized === 'Both') return 'Scholars & Applicants';
+    if (normalized === 'Applicants') return 'Applicants';
+    if (normalized === 'Scholars') return 'Scholars';
+    return normalized || 'Applicants';
 }
 
 function StatCard({ label, value, icon: Icon, accent, soft }) {
@@ -165,34 +187,34 @@ function OpeningModal({
     const today = getTodayLocalISO();
     const previewStatus = deriveOpeningStatus(form);
 
-    // Calculate per-scholar financial amount
     const allocatedSlots = Number(form.allocated_slots) || 0;
     const totalFinancial = Number(form.total_financial_allocation) || 0;
-    const perScholarFinancial = allocatedSlots > 0 && totalFinancial > 0 
-        ? Math.floor(totalFinancial / allocatedSlots) 
+    const perScholarFinancial = allocatedSlots > 0 && totalFinancial > 0
+        ? Math.floor(totalFinancial / allocatedSlots)
         : 0;
 
-    // Update per-scholar amount when slots or total changes
     const handleAllocatedSlotsChange = (value) => {
         const slots = Number(value) || 0;
-        setForm((prev) => ({ 
-            ...prev, 
+        setForm((prev) => ({
+            ...prev,
             allocated_slots: value,
-            financial_allocation: slots > 0 && prev.total_financial_allocation 
-                ? Math.floor(Number(prev.total_financial_allocation) / slots)
-                : prev.financial_allocation
+            financial_allocation:
+                slots > 0 && prev.total_financial_allocation
+                    ? Math.floor(Number(prev.total_financial_allocation) / slots)
+                    : prev.financial_allocation,
         }));
     };
 
     const handleTotalFinancialChange = (value) => {
         const total = Number(value) || 0;
         const slots = Number(form.allocated_slots) || 0;
-        setForm((prev) => ({ 
-            ...prev, 
+        setForm((prev) => ({
+            ...prev,
             total_financial_allocation: value,
-            financial_allocation: slots > 0 && total > 0 
-                ? Math.floor(total / slots)
-                : prev.financial_allocation
+            financial_allocation:
+                slots > 0 && total > 0
+                    ? Math.floor(total / slots)
+                    : prev.financial_allocation,
         }));
     };
 
@@ -221,6 +243,14 @@ function OpeningModal({
             return next;
         });
     };
+
+    // Get audience display label
+    const audienceLabel = targetAudienceLabel(form.target_audience);
+    const audienceTooltip = audienceLabel === 'Scholars & Applicants'
+        ? 'Visible to both scholars and applicants'
+        : audienceLabel === 'Scholars'
+            ? 'Visible only to existing scholars'
+            : 'Visible only to new applicants';
 
     return (
         <div
@@ -272,14 +302,24 @@ function OpeningModal({
 
                                         <Badge
                                             variant="outline"
-                                            className={`text-[10px] ${previewStatus === 'open'
+                                            className={`text-[10px] ${
+                                                previewStatus === 'open'
                                                     ? 'border-green-200 bg-green-50 text-green-700'
                                                     : previewStatus === 'closed'
                                                         ? 'border-red-200 bg-red-50 text-red-700'
                                                         : 'border-amber-200 bg-amber-50 text-amber-700'
-                                                }`}
+                                            }`}
                                         >
                                             Auto Status: {STATUS_META[previewStatus]?.label || 'Draft'}
+                                        </Badge>
+
+                                        <Badge 
+                                            variant="outline" 
+                                            className="text-[10px] border-purple-200 bg-purple-50 text-purple-700"
+                                            title={audienceTooltip}
+                                        >
+                                            <Users className="w-3 h-3 mr-1" />
+                                            Audience: {audienceLabel}
                                         </Badge>
                                     </div>
 
@@ -310,24 +350,42 @@ function OpeningModal({
                         </p>
                     </div>
 
-                    {/* Opening Title Section */}
                     <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Opening Information</h4>
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Opening Title
-                            </label>
-                            <Input
-                                value={form.opening_title}
-                                onChange={(e) => setForm((prev) => ({ ...prev, opening_title: e.target.value }))}
-                                placeholder="e.g. AY 2026–2027 First Semester Intake"
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                            <p className="text-[10px] text-stone-400">A descriptive title for this scholarship opening batch.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Opening Title
+                                </label>
+                                <Input
+                                    value={form.opening_title}
+                                    onChange={(e) => setForm((prev) => ({ ...prev, opening_title: e.target.value }))}
+                                    placeholder="e.g. AY 2026–2027 First Semester Intake"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                                <p className="text-[10px] text-stone-400">A descriptive title for this scholarship opening batch.</p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Target Audience
+                                </label>
+                                <div className="relative">
+                                    <Input
+                                        value={audienceLabel}
+                                        readOnly
+                                        className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium pr-8"
+                                        style={{ color: C.brownMid }}
+                                    />
+                                    <Users className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                                </div>
+                                <p className="text-[10px] text-stone-400">
+                                    Inherited from the benefactor template. {audienceTooltip.toLowerCase()}.
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Application Dates Section */}
                     <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Application Period</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -361,7 +419,6 @@ function OpeningModal({
                         </div>
                     </div>
 
-                    {/* Screening Dates Section */}
                     <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Screening Period</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -395,7 +452,6 @@ function OpeningModal({
                         </div>
                     </div>
 
-                    {/* Financial Section */}
                     <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Financial Information</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -455,7 +511,6 @@ function OpeningModal({
                         )}
                     </div>
 
-                    {/* Notes Section */}
                     <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Opening Notes</h4>
                         <div className="space-y-1.5">
@@ -558,6 +613,7 @@ export default function ScholarshipOpenings() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All Statuses');
     const [programFilter, setProgramFilter] = useState('All Programs');
+    const [audienceFilter, setAudienceFilter] = useState('All Audiences'); // NEW: audience filter
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -578,6 +634,7 @@ export default function ScholarshipOpenings() {
         total_financial_allocation: '',
         financial_allocation: '',
         announcement_text: '',
+        target_audience: 'Applicants',
     };
 
     const [form, setForm] = useState(emptyForm);
@@ -663,6 +720,8 @@ export default function ScholarshipOpenings() {
         return ['All Programs', ...new Set(visibleOpenings.map((o) => o.program_name).filter(Boolean))];
     }, [visibleOpenings]);
 
+    const audienceOptions = ['All Audiences', 'Applicants', 'Scholars', 'Both'];
+
     const filteredOpenings = useMemo(() => {
         const q = search.trim().toLowerCase();
 
@@ -681,9 +740,14 @@ export default function ScholarshipOpenings() {
                 programFilter === 'All Programs' ||
                 (o.program_name || '') === programFilter;
 
-            return matchSearch && matchStatus && matchProgram;
+            const openingAudience = normalizeAudience(o.target_audience) || 'Applicants';
+            const matchAudience =
+                audienceFilter === 'All Audiences' ||
+                openingAudience === audienceFilter;
+
+            return matchSearch && matchStatus && matchProgram && matchAudience;
         });
-    }, [visibleOpenings, search, statusFilter, programFilter]);
+    }, [visibleOpenings, search, statusFilter, programFilter, audienceFilter]);
 
     const stats = useMemo(() => {
         return {
@@ -696,6 +760,7 @@ export default function ScholarshipOpenings() {
 
     const openCreateFromTemplate = (template) => {
         const currentYear = new Date().getFullYear();
+        const computedAudience = deriveTargetAudience(template);
 
         const existingDraft = openings.find(
             (o) =>
@@ -715,9 +780,11 @@ export default function ScholarshipOpenings() {
                 screening_start: existingDraft.screening_start ? String(existingDraft.screening_start).slice(0, 10) : '',
                 screening_end: existingDraft.screening_end ? String(existingDraft.screening_end).slice(0, 10) : '',
                 allocated_slots: existingDraft.allocated_slots ?? '',
-                total_financial_allocation: '',
+                total_financial_allocation:
+                    Number(existingDraft.allocated_slots || 0) * Number(existingDraft.financial_allocation || 0) || '',
                 financial_allocation: existingDraft.financial_allocation ?? '',
                 announcement_text: existingDraft.announcement_text ?? template.description ?? '',
+                target_audience: deriveTargetAudience(existingDraft),
             });
             setModalOpen(true);
             return;
@@ -737,13 +804,14 @@ export default function ScholarshipOpenings() {
             total_financial_allocation: '',
             financial_allocation: '',
             announcement_text: template.description || '',
+            target_audience: computedAudience,
         });
         setModalOpen(true);
     };
 
     const openEditModal = (opening) => {
         const totalFromPerScholar = Number(opening.allocated_slots || 0) * Number(opening.financial_allocation || 0);
-        
+
         setModalMode('edit');
         setEditingOpeningId(opening.opening_id);
         setActiveTemplate(
@@ -761,6 +829,7 @@ export default function ScholarshipOpenings() {
             total_financial_allocation: totalFromPerScholar || '',
             financial_allocation: opening.financial_allocation ?? '',
             announcement_text: opening.announcement_text || '',
+            target_audience: deriveTargetAudience(opening),
         });
         setModalOpen(true);
     };
@@ -809,6 +878,7 @@ export default function ScholarshipOpenings() {
                 allocated_slots: Number(form.allocated_slots || 0),
                 financial_allocation: Number(form.financial_allocation || 0),
                 announcement_text: form.announcement_text || null,
+                target_audience: normalizeAudience(form.target_audience) || 'Applicants',
             };
 
             payload.posting_status = deriveOpeningStatus(payload);
@@ -842,7 +912,10 @@ export default function ScholarshipOpenings() {
             await fetchData();
 
             if (!isEdit && String(payload.posting_status).toLowerCase() === 'open') {
-                setNewOpeningForPrompt(data || payload);
+                setNewOpeningForPrompt({
+                    ...(data || payload),
+                    target_audience: payload.target_audience,
+                });
                 setPostCreateOpen(true);
             }
         } catch (err) {
@@ -886,6 +959,7 @@ export default function ScholarshipOpenings() {
             posting_status: newOpeningForPrompt.posting_status || '',
             opening_id: newOpeningForPrompt.opening_id || '',
             program_id: newOpeningForPrompt.program_id || '',
+            target_audience: normalizeAudience(newOpeningForPrompt.target_audience) || deriveTargetAudience(newOpeningForPrompt),
         });
 
         navigate(`/admin/announcements?prefill=opening&${params.toString()}`);
@@ -896,7 +970,7 @@ export default function ScholarshipOpenings() {
             <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
                 <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
                 <p className="text-xs text-stone-400 uppercase tracking-widest">
-                    Loading scholarship openings...
+                    Loading scholarship openings.
                 </p>
             </div>
         );
@@ -914,6 +988,7 @@ export default function ScholarshipOpenings() {
                     setModalOpen(false);
                     setActiveTemplate(null);
                     setEditingOpeningId(null);
+                    setForm(emptyForm);
                 }}
                 onSave={handleSaveOpening}
                 saving={saving}
@@ -929,185 +1004,190 @@ export default function ScholarshipOpenings() {
                 onCreateAnnouncement={handleCreateAnnouncementRedirect}
             />
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
-                        Scholarship Openings
-                    </h1>
-                    <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-                        Create and manage batch-specific scholarship application cycles
+                    <h1 className="text-xl font-semibold text-stone-900">Scholarship Openings</h1>
+                    <p className="text-sm text-stone-500">
+                        Open scholarship programs for a new application cycle and manage their status.
                     </p>
                 </div>
 
-                <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={fetchData}
-                    className="rounded-lg text-xs border-stone-200 text-stone-600"
-                >
-                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={fetchData}
+                        className="rounded-lg text-xs border-stone-200 text-stone-600"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                        Refresh
+                    </Button>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard label="Program Templates" value={stats.templates} icon={Layers3} accent={C.brown} soft={C.amberSoft} />
-                <StatCard label="Total Openings" value={stats.total} icon={FolderOpen} accent={C.blueMid} soft={C.blueSoft} />
-                <StatCard label="Currently Open" value={stats.open} icon={CheckCircle2} accent={C.green} soft={C.greenSoft} />
-                <StatCard label="Draft Openings" value={stats.draft} icon={Clock3} accent={C.amber} soft={C.amberSoft} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <StatCard
+                    label="Available Templates"
+                    value={stats.templates}
+                    icon={FolderOpen}
+                    accent={C.blueMid}
+                    soft={C.blueSoft}
+                />
+                <StatCard
+                    label="Total Openings"
+                    value={stats.total}
+                    icon={CalendarDays}
+                    accent={C.brownMid}
+                    soft={C.amberSoft}
+                />
+                <StatCard
+                    label="Open"
+                    value={stats.open}
+                    icon={CheckCircle2}
+                    accent={C.green}
+                    soft={C.greenSoft}
+                />
+                <StatCard
+                    label="Draft"
+                    value={stats.draft}
+                    icon={Clock3}
+                    accent={C.amber}
+                    soft={C.amberSoft}
+                />
             </div>
 
             <Card className="border-stone-200 shadow-none overflow-hidden">
-                <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-                    <div>
-                        <CardTitle className="text-sm font-semibold text-stone-800">Scholarship Program Templates</CardTitle>
-                        <CardDescription className="text-xs">
-                            Select a scholarship program template and finalize its active opening cycle
-                        </CardDescription>
-                    </div>
+                <CardHeader className="bg-stone-50/60 border-b border-stone-100">
+                    <CardTitle className="text-sm font-semibold text-stone-800">Published Scholarship Program Templates</CardTitle>
+                    <CardDescription className="text-xs">
+                        Choose a published template below to create a scholarship opening.
+                    </CardDescription>
                 </CardHeader>
-
                 <CardContent className="p-4">
                     {templates.length === 0 ? (
                         <EmptyState
-                            icon={Building2}
-                            title="No scholarship program templates found"
-                            subtitle="Create scholarship program templates first in Maintenance."
+                            icon={FolderOpen}
+                            title="No published templates found"
+                            subtitle="Create and publish benefactor templates in Maintenance first."
                         />
                     ) : (
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                            {templates.map((template) => {
-                                const hasDraft = openings.some(
-                                    (o) =>
-                                        o.program_id === template.program_id &&
-                                        String(o.posting_status || '').toLowerCase() === 'draft'
-                                );
-
-                                return (
-                                    <div
-                                        key={template.program_id}
-                                        className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h3 className="text-sm font-semibold text-stone-900">
-                                                        {template.program_name || 'Untitled Program'}
-                                                    </h3>
-
-                                                    <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                                        {template.organization_name || 'No Organization'}
-                                                    </Badge>
-
-                                                    {(template.visibility_status || '').toLowerCase() === 'draft' ? (
-                                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-500">
-                                                            <EyeOff className="w-3 h-3 mr-1" />
-                                                            Draft
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className="text-[10px] border-green-200 bg-green-50 text-green-700">
-                                                            Published
-                                                        </Badge>
-                                                    )}
-                                                </div>
-
-                                                <p className="text-xs text-stone-500 mt-1 line-clamp-2">
-                                                    {template.description || 'No description set.'}
-                                                </p>
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            {templates.map((template) => (
+                                <div
+                                    key={template.program_id}
+                                    className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
+                                >
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h3 className="text-sm font-semibold text-stone-900">
+                                                    {template.program_name || 'Untitled Program'}
+                                                </h3>
+                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                                    {template.organization_name || 'No Organization'}
+                                                </Badge>
+                                                <Badge 
+                                                    variant="outline" 
+                                                    className="text-[10px] border-purple-200 bg-purple-50 text-purple-700"
+                                                >
+                                                    <Users className="w-3 h-3 mr-1" />
+                                                    {targetAudienceLabel(template.target_audience || deriveTargetAudience(template))}
+                                                </Badge>
                                             </div>
 
-                                            <Button
-                                                size="sm"
-                                                className="rounded-lg text-white text-xs border-none shrink-0"
-                                                style={{ background: C.brownMid }}
-                                                onClick={() => openCreateFromTemplate(template)}
-                                            >
-                                                <Plus className="w-3.5 h-3.5 mr-1.5" />
-                                                {hasDraft ? 'Continue Draft' : 'Open for Batch'}
-                                            </Button>
-                                        </div>
+                                            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                                                {template.description || 'No description available.'}
+                                            </p>
 
-                                        <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <p className="text-[10px] uppercase tracking-wide text-stone-400">Organization</p>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">
-                                                    {template.organization_name || 'N/A'}
-                                                </p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <p className="text-[10px] uppercase tracking-wide text-stone-400">GWA Threshold</p>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">
-                                                    {template.gwa_threshold ?? 'N/A'}
-                                                </p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <p className="text-[10px] uppercase tracking-wide text-stone-400">RO</p>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">
-                                                    {template.requires_ro ? 'Required' : 'Not Required'}
-                                                </p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <p className="text-[10px] uppercase tracking-wide text-stone-400">Renewal Cycle</p>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">
-                                                    {template.renewal_cycle || 'N/A'}
-                                                </p>
+                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                                    GWA ≤ {template.gwa_threshold ?? 'N/A'}
+                                                </Badge>
+                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                                    RO: {template.requires_ro ? 'Required' : 'Not Required'}
+                                                </Badge>
+                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                                    {template.renewal_cycle || 'No Renewal'}
+                                                </Badge>
                                             </div>
                                         </div>
+
+                                        <Button
+                                            size="sm"
+                                            className="rounded-lg text-white text-xs border-none shrink-0"
+                                            style={{ background: C.brownMid }}
+                                            onClick={() => openCreateFromTemplate(template)}
+                                        >
+                                            <Plus className="w-3.5 h-3.5 mr-1.5" />
+                                            Open
+                                        </Button>
                                     </div>
-                                );
-                            })}
+                                </div>
+                            ))}
                         </div>
                     )}
                 </CardContent>
             </Card>
 
             <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[260px]">
+                <div className="relative flex-1 min-w-[240px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
                     <Input
-                        placeholder="Search by title, program, or organization..."
+                        placeholder="Search by opening title, program, or benefactor..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
                     />
                 </div>
 
-                <Select value={programFilter} onValueChange={setProgramFilter}>
-                    <SelectTrigger className="w-[190px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {programOptions.map((item) => (
-                            <SelectItem key={item} value={item} className="text-sm">
-                                {item}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[160px] h-9 rounded-lg border-stone-200 text-sm">
+                    <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="All Statuses">All Statuses</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
                         <SelectItem value="open">Open</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
                         <SelectItem value="closed">Closed</SelectItem>
                         <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>
                 </Select>
 
-                {(search || statusFilter !== 'All Statuses' || programFilter !== 'All Programs') && (
+                {/* NEW: Audience Filter */}
+                <Select value={audienceFilter} onValueChange={setAudienceFilter}>
+                    <SelectTrigger className="w-[170px] h-9 rounded-lg border-stone-200 text-sm">
+                        <SelectValue placeholder="Target Audience" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {audienceOptions.map((option) => (
+                            <SelectItem key={option} value={option}>
+                                {option === 'Both' ? 'Scholars & Applicants' : option}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={programFilter} onValueChange={setProgramFilter}>
+                    <SelectTrigger className="w-[170px] h-9 rounded-lg border-stone-200 text-sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {programOptions.map((option) => (
+                            <SelectItem key={option} value={option}>
+                                {option}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                {(search || statusFilter !== 'All Statuses' || audienceFilter !== 'All Audiences' || programFilter !== 'All Programs') && (
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
                             setSearch('');
                             setStatusFilter('All Statuses');
+                            setAudienceFilter('All Audiences');
                             setProgramFilter('All Programs');
                         }}
                         className="h-9 rounded-lg text-xs border-stone-200"
@@ -1122,7 +1202,7 @@ export default function ScholarshipOpenings() {
                     <div>
                         <CardTitle className="text-sm font-semibold text-stone-800">Opening Registry</CardTitle>
                         <CardDescription className="text-xs">
-                            Batch-specific openings created from the saved scholarship program templates
+                            Active, draft, closed, and archived scholarship openings.
                         </CardDescription>
                     </div>
                 </CardHeader>
@@ -1130,14 +1210,17 @@ export default function ScholarshipOpenings() {
                 <CardContent className="p-4">
                     {filteredOpenings.length === 0 ? (
                         <EmptyState
-                            icon={FileText}
+                            icon={EyeOff}
                             title="No scholarship openings found"
-                            subtitle="Create a new opening from a scholarship program template above."
+                            subtitle="Open a scholarship program from a published template to create one."
                         />
                     ) : (
                         <div className="space-y-3">
                             {filteredOpenings.map((opening) => {
-                                const meta = STATUS_META[(opening.posting_status || 'draft').toLowerCase()] || STATUS_META.draft;
+                                const status = String(opening.posting_status || 'draft').toLowerCase();
+                                const meta = STATUS_META[status] || STATUS_META.draft;
+                                const audience = normalizeAudience(opening.target_audience) || 'Applicants';
+                                const audienceLabelValue = targetAudienceLabel(audience);
 
                                 return (
                                     <div
@@ -1148,63 +1231,98 @@ export default function ScholarshipOpenings() {
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <h3 className="text-sm font-semibold text-stone-900">
-                                                        {opening.opening_title}
+                                                        {opening.opening_title || 'Untitled Opening'}
                                                     </h3>
 
                                                     <span
                                                         className="text-[10px] font-medium px-2.5 py-1 rounded-full"
-                                                        style={{ background: meta.bg, color: meta.color }}
+                                                        style={{ color: meta.color, background: meta.bg }}
                                                     >
                                                         {meta.label}
                                                     </span>
 
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="text-[10px] border-stone-200 text-stone-500 bg-white"
+                                                    <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                                        {opening.program_name || 'No Program'}
+                                                    </Badge>
+
+                                                    <Badge 
+                                                        variant="outline" 
+                                                        className={`text-[10px] ${
+                                                            audience === 'Both'
+                                                                ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                                                : audience === 'Scholars'
+                                                                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                                                    : 'border-sky-200 bg-sky-50 text-sky-700'
+                                                        }`}
                                                     >
-                                                        {opening.program_name || 'Program'}
+                                                        <Users className="w-3 h-3 mr-1" />
+                                                        {audienceLabelValue}
                                                     </Badge>
                                                 </div>
 
-                                                <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-stone-400">
-                                                    <span>{opening.benefactor_name || 'Organization N/A'}</span>
-                                                    <span>•</span>
-                                                    <span>{opening.opening_id}</span>
+                                                <p className="text-xs text-stone-500 mt-1">
+                                                    {opening.benefactor_name || 'No Benefactor'}
+                                                </p>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Application Period</p>
+                                                        <p className="text-xs font-medium text-stone-800 mt-1">
+                                                            {fmtDate(opening.application_start)} - {fmtDate(opening.application_end)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Screening Period</p>
+                                                        <p className="text-xs font-medium text-stone-800 mt-1">
+                                                            {fmtDate(opening.screening_start)} - {fmtDate(opening.screening_end)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Allocated Slots</p>
+                                                        <p className="text-xs font-medium text-stone-800 mt-1">
+                                                            {Number(opening.allocated_slots || 0).toLocaleString()}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Per Scholar</p>
+                                                        <p className="text-xs font-medium text-stone-800 mt-1">
+                                                            {fmtMoney(opening.financial_allocation)}
+                                                        </p>
+                                                    </div>
                                                 </div>
+
+                                                {opening.announcement_text && (
+                                                    <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Notes</p>
+                                                        <p className="text-xs text-stone-700 mt-1 leading-relaxed">
+                                                            {opening.announcement_text}
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                                                    onClick={() => {
-                                                        const query = new URLSearchParams();
-                                                        if (opening.program_id) query.set('program_id', opening.program_id);
-                                                        if (opening.opening_id) query.set('opening_id', opening.opening_id);
-                                                        navigate(`/admin/applications?${query.toString()}`);
-                                                    }}
-                                                >
-                                                    <Users className="w-3.5 h-3.5 mr-1.5" />
-                                                    View Applicants
-                                                </Button>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {status !== 'archived' && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => openEditModal(opening)}
+                                                        className="rounded-lg text-xs border-stone-200"
+                                                    >
+                                                        <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                                                        Edit
+                                                    </Button>
+                                                )}
 
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                                                    onClick={() => openEditModal(opening)}
-                                                >
-                                                    <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                                                    Edit
-                                                </Button>
-
-                                                {(opening.posting_status || '').toLowerCase() !== 'archived' && (
+                                                {status !== 'archived' && (
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
                                                         onClick={() => handleArchiveOpening(opening.opening_id)}
+                                                        className="rounded-lg text-xs border-red-200 text-red-700 hover:bg-red-50"
                                                     >
                                                         <Archive className="w-3.5 h-3.5 mr-1.5" />
                                                         Archive
@@ -1212,79 +1330,6 @@ export default function ScholarshipOpenings() {
                                                 )}
                                             </div>
                                         </div>
-
-                                        <div className="mt-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <CalendarDays className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">App Start</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.application_start)}</p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <CalendarDays className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">App End</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.application_end)}</p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <CalendarDays className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Screen Start</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.screening_start)}</p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <CalendarDays className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Screen End</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">{fmtDate(opening.screening_end)}</p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <Sparkles className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Per Scholar</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">
-                                                    {fmtMoney(opening.financial_allocation)}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-3 grid grid-cols-2 gap-3">
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <Users className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Slots</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">{opening.allocated_slots ?? 0}</p>
-                                            </div>
-
-                                            <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-                                                <div className="flex items-center gap-2 text-stone-500">
-                                                    <FolderOpen className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] uppercase tracking-wide">Applicants</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-stone-800 mt-1">{opening.applicant_count ?? 0}</p>
-                                            </div>
-                                        </div>
-
-                                        {opening.announcement_text && (
-                                            <div className="mt-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 px-3 py-3">
-                                                <p className="text-[10px] uppercase tracking-wide text-stone-400 mb-1">
-                                                    Opening Notes
-                                                </p>
-                                                <p className="text-xs text-stone-600 leading-relaxed">
-                                                    {opening.announcement_text}
-                                                </p>
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })}
@@ -1292,12 +1337,6 @@ export default function ScholarshipOpenings() {
                     )}
                 </CardContent>
             </Card>
-
-            <footer className="pt-6 pb-2 border-t border-stone-100">
-                <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-                    SMaRT PDM · Scholarship Opening Management
-                </p>
-            </footer>
         </div>
     );
 }

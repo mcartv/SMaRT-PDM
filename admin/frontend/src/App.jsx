@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+
 // --- LAYOUTS ---
 import AdminLayout from './components/layout/AdminLayout';
+import SDOLayout from './components/layout/SDOLayout';
+
 // --- PAGES ---
 import AdminLogin from './pages/AdminLogin';
 import ForgotPassword from './pages/ForgotPassword';
@@ -17,10 +20,12 @@ import PayoutManagement from './pages/PayoutManagement';
 import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/Maintenance';
+
 import SDOLogin from './pages/SDOLogin';
 import SDODashboard from './pages/SDODashboard';
 import SDOScholarList from './pages/SDOScholarList';
-import SDOLayout from './components/layout/SDOLayout';
+import SDOProfile from './pages/SDOProfile';
+import SDOMaintenance from './pages/SDOMaintenance';
 
 /**
  * PROTECTED ROUTE WRAPPER
@@ -41,7 +46,7 @@ export default function App() {
 
         {/* Public Auth Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/forgot-password" element={<ForgotPassword />} /> {/* <--- Added this */}
+        <Route path="/admin/forgot-password" element={<ForgotPassword />} />
         <Route path="/sdo/login" element={<SDOLogin />} />
 
         {/* --- PROTECTED ADMIN PANEL --- */}
@@ -53,10 +58,7 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          {/* Send /admin directly to dashboard */}
           <Route index element={<Navigate to="dashboard" replace />} />
-
-          {/* Admin Sub-pages */}
           <Route path="dashboard" element={<AdminDashboard />} />
           <Route path="applications" element={<ApplicationReview />} />
           <Route path="applications/:id/documents" element={<DocumentVerification />} />
@@ -72,6 +74,7 @@ export default function App() {
           <Route path="maintenance" element={<Maintenance />} />
         </Route>
 
+        {/* --- PROTECTED SDO PANEL --- */}
         <Route
           path="/sdo"
           element={
@@ -83,6 +86,8 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SDODashboard />} />
           <Route path="scholars" element={<SDOScholarList />} />
+          <Route path="profile" element={<SDOProfile />} />
+          <Route path="maintenance" element={<SDOMaintenance />} />
         </Route>
 
         {/* Fallback 404 */}

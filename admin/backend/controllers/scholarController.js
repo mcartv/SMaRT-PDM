@@ -45,6 +45,20 @@ exports.getScholarById = async (req, res) => {
     }
 };
 
+exports.getScholarRenewalDocuments = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const documents = await scholarService.fetchScholarRenewalDocuments(id);
+        res.json(documents);
+    } catch (err) {
+        console.error('SCHOLAR RENEWAL DOCUMENTS CONTROLLER ERROR:', err.message);
+        res.status(500).json({
+            message: 'Failed to fetch scholar renewal documents',
+            error: err.message,
+        });
+    }
+};
+
 exports.getSdoStats = async (req, res) => {
     try {
         const stats = await scholarService.fetchSdoStats();

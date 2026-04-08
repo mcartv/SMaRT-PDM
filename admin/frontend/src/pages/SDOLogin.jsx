@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router';
 import { Eye, EyeOff, ShieldCheck, Scale, Users } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
 
-// ─── Theme matching Admin Login ────────────────────────────────────────────
-const PANEL_BASE = '#7c4a2e';
-const PANEL_TEXT = '#f0d9c8';
-const PANEL_SUB = '#d4a98a';
-const ACCENT = '#92500f';
+// ─── GREEN SDO THEME ────────────────────────────────────────────
+const PANEL_BASE = '#2e4b43';     // main green
+const PANEL_TEXT = '#ecfdf5';     // light green text
+const PANEL_SUB = '#a7f3d0';      // soft green
+const ACCENT = '#16a34a';         // strong green accent
 
 export default function SDOLogin() {
   const navigate = useNavigate();
@@ -47,125 +47,145 @@ export default function SDOLogin() {
 
   return (
     <div className="min-h-screen flex bg-white" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* LEFT PANEL: BRANDING & INFO (Hidden on mobile) */}
+      
+      {/* ── LEFT PANEL ── */}
       <div
         className="hidden lg:flex lg:w-[52%] flex-col justify-between relative overflow-hidden"
         style={{ background: PANEL_BASE }}
       >
-        {/* Background Pattern */}
+        {/* subtle pattern */}
         <div
           className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '28px 28px' }}
+          style={{
+            backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
+            backgroundSize: '28px 28px'
+          }}
         />
 
-        {/* Top Header Logo */}
+        {/* header */}
         <div className="relative z-10 p-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
             <img src={pdmLogo} alt="Logo" className="w-16 h-16 object-contain block mx-auto" />
           </div>
           <div>
             <p className="text-white text-xs font-bold tracking-wide uppercase">PDM · SDO</p>
-            <p className="text-[10px]" style={{ color: PANEL_SUB }}>Student Disciplinary Office</p>
+            <p className="text-[10px]" style={{ color: PANEL_SUB }}>
+              Student Disciplinary Office
+            </p>
           </div>
         </div>
 
-        {/* Center Welcome Text & Features */}
+        {/* content */}
         <div className="relative z-10 px-12">
           <h2 className="text-4xl font-bold leading-tight mb-10 text-white" style={{ fontFamily: "serif" }}>
             Student Disciplinary <br />
-            <span className="text-yellow-400">Office Portal</span>
+            <span style={{ color: ACCENT }}>Office Portal</span>
           </h2>
 
-          {/* Feature List */}
           <div className="space-y-3 max-w-xs">
             {[
               { icon: Scale, label: 'Disciplinary analytics and case overview' },
               { icon: Users, label: 'Scholar probation updates connected to admin records' },
             ].map(({ icon: Icon, label }) => (
-              <div key={label} className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10">
-                <div className="w-8 h-8 rounded-lg bg-yellow-400/20 flex items-center justify-center">
-                  <Icon className="w-4 h-4 text-yellow-400" />
+              <div
+                key={label}
+                className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10"
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: `${ACCENT}30` }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: ACCENT }} />
                 </div>
-                <p className="text-sm font-medium text-stone-200">{label}</p>
+                <p className="text-sm font-medium text-emerald-50">{label}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Footer Copyright */}
+        {/* footer */}
         <div className="relative z-10 p-10 text-[10px] text-white/30 uppercase tracking-widest">
           Separate credentials required for Student Disciplinary Office accounts
         </div>
       </div>
 
-      {/* RIGHT PANEL: LOGIN FORM */}
+      {/* ── RIGHT PANEL ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-[380px]">
-          {/* Form Header */}
+
+          {/* header */}
           <div className="mb-8">
-            <div className="flex items-center gap-2 mb-2 text-orange-800">
+            <div className="flex items-center gap-2 mb-2" style={{ color: PANEL_BASE }}>
               <ShieldCheck size={18} />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Authorized SDO Access</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">
+                Authorized SDO Access
+              </span>
             </div>
             <h1 className="text-3xl font-bold text-stone-900">SDO Panel</h1>
-            <p className="text-stone-500 text-sm mt-1">Use your Student Disciplinary Office credentials to continue.</p>
+            <p className="text-stone-500 text-sm mt-1">
+              Use your Student Disciplinary Office credentials to continue.
+            </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
-            {/* Error Message Display */}
+
+            {/* error */}
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium animate-pulse">
+              <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium">
                 {error}
               </div>
             )}
 
-            {/* INPUT: Email Address */}
+            {/* email */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-stone-700 ml-1">Email Address</label>
+              <label className="text-xs font-semibold text-stone-700 ml-1">
+                Email Address
+              </label>
               <input
                 type="email"
                 required
-                autoComplete="email"
                 placeholder="sdo@pdm.edu.ph"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-11 px-4 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all"
+                className="w-full h-11 px-4 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-700/20 focus:border-green-700 transition-all"
               />
             </div>
 
-            {/* INPUT: Password */}
+            {/* password */}
             <div className="space-y-1.5">
-              <div className="flex justify-between items-center px-1">
-                <label className="text-xs font-semibold text-stone-700">Password</label>
-              </div>
+              <label className="text-xs font-semibold text-stone-700">
+                Password
+              </label>
+
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
-                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-11 px-4 pr-12 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all"
+                  className="w-full h-11 px-4 pr-12 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-700/20 focus:border-green-700 transition-all"
                 />
 
-                {/* Toggle Password Visibility Button */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 focus:outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            {/* ACTION: Submit Button */}
+            {/* submit */}
             <button
               type="submit"
               disabled={isLoading}
               className="w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2"
-              style={{ background: PANEL_BASE, boxShadow: isLoading ? 'none' : `0 8px 20px -6px ${PANEL_BASE}80` }}
+              style={{
+                background: PANEL_BASE,
+                boxShadow: isLoading ? 'none' : `0 8px 20px -6px ${PANEL_BASE}80`
+              }}
             >
               {isLoading ? (
                 <>
@@ -176,7 +196,7 @@ export default function SDOLogin() {
             </button>
           </form>
 
-          {/* Support Info Footer */}
+          {/* footer */}
           <p className="mt-8 text-center text-xs text-stone-400 font-medium">
             Contact <span className="text-stone-600">IT Support</span> for account issues.
           </p>

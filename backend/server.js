@@ -23,6 +23,7 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
+
 app.use(cors());
 app.use(express.json());
 
@@ -34,10 +35,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 // CRITICAL: Use your `service_role` secret key here, NOT the `anon` / publishable key.
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
-const APPLICATION_UPLOADS_BUCKET =
-  process.env.APPLICATION_UPLOADS_BUCKET || 'application-documents';
-const RENEWAL_UPLOADS_BUCKET =
-  process.env.RENEWAL_UPLOADS_BUCKET || 'renewal-documents';
+
 notificationService.configureNotificationService({ io, supabase });
 io.use(authenticateSocket);
 
@@ -50,7 +48,7 @@ const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: 'pelimavenice.pdm@gmail.com',
-    pass: process.env.GMAIL_APP_PASSWORD 
+    pass: process.env.GMAIL_APP_PASSWORD
   }
 });
 
@@ -121,38 +119,6 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
   },
 ];
 
-function normalizeApplicationDocumentDefinition(value) {
-  const normalized = normalizeLookupValue(value);
-  if (!normalized) return null;
-
-  return (
-    APPLICATION_DOCUMENT_DEFINITIONS.find((definition) => {
-      const candidates = [
-        definition.id,
-        definition.name,
-        ...definition.aliases,
-      ].map((candidate) => normalizeLookupValue(candidate));
-
-      return candidates.includes(normalized);
-    }) || null
-  );
-}
-
-const RENEWAL_DOCUMENT_DEFINITIONS = [
-  {
-    id: 'certificate_of_registration',
-    routeParam: 'certificate-of-registration',
-    name: 'Certificate of Registration',
-    aliases: ['certificate of registration', 'cor', 'registration'],
-  },
-  {
-    id: 'grade_form_transcript',
-    routeParam: 'grade-form-transcript',
-    name: 'Grade Form / Transcript',
-    aliases: ['grade form', 'transcript', 'grade form transcript', 'grades'],
-  },
-];
-
 function normalizeLookupValue(value) {
   return (value ?? '')
     .toString()
@@ -219,505 +185,6 @@ function deriveApplicationDocumentStatus(documents = []) {
   }
 
   return 'Under Review';
-}
-
-function deriveScholarRenewalDocumentReviewStatus(document = {}) {
-  const preferredStatus = normalizeLookupValue(document.review_status);
-
-  if (preferredStatus === 'verified') return 'verified';
-  if (preferredStatus === 'rejected' || preferredStatus === 're upload') {
-    return 'rejected';
-  }
-  if (document.is_submitted && document.file_url) return 'uploaded';
-  return 'pending';
-}
-
-function deriveScholarRenewalDocumentStatus(documents = [], renewalStatus = 'Draft') {
-  const normalizedRenewalStatus = normalizeLookupValue(renewalStatus);
-  const uploadedCount = documents.filter(
-    (document) => document.is_submitted || !!document.file_url
-  ).length;
-  const rejectedCount = documents.filter(
-    (document) => deriveScholarRenewalDocumentReviewStatus(document) === 'rejected'
-  ).length;
-
-  if (rejectedCount > 0 || normalizedRenewalStatus === 'failed') {
-    return 'Needs Reupload';
-  }
-
-  if (
-    normalizedRenewalStatus === 'submitted' ||
-    normalizedRenewalStatus === 'under review'
-  ) {
-    return 'Under Review';
-  }
-
-  if (normalizedRenewalStatus === 'approved') {
-    return 'Documents Ready';
-  }
-
-  if (uploadedCount >= RENEWAL_DOCUMENT_DEFINITIONS.length) {
-    return 'Documents Ready';
-  }
-
-  return 'Missing Docs';
-}
-
-function normalizeRenewalDocumentType(value) {
-  const normalizedValue = normalizeLookupValue(value);
-
-  for (const definition of RENEWAL_DOCUMENT_DEFINITIONS) {
-    if (
-      normalizedValue === normalizeLookupValue(definition.routeParam) ||
-      normalizedValue === normalizeLookupValue(definition.name) ||
-      definition.aliases.some((alias) => normalizedValue.includes(alias))
-    ) {
-      return definition;
-    }
-  }
-
-  return null;
-}
-
-async function fetchActiveAcademicPeriod() {
-  const { data, error } = await supabase
-    .from('academic_period')
-    .select(
-      'period_id, current_academic_year, current_semester, is_active, activated_at'
-    )
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? null;
-}
-
-function ensureScholarRenewalDocumentCoverage(documents = []) {
-  const documentMap = new Map(
-    documents.map((document) => [
-      normalizeLookupValue(document.document_type),
-      document,
-    ])
-  );
-
-  return RENEWAL_DOCUMENT_DEFINITIONS.map((definition) => {
-    const existingDocument =
-      documentMap.get(normalizeLookupValue(definition.name)) || null;
-
-    return (
-      existingDocument || {
-        renewal_document_id: null,
-        document_type: definition.name,
-        is_submitted: false,
-        file_url: null,
-        review_status: 'pending',
-        admin_comment: null,
-        submitted_at: null,
-        reviewed_at: null,
-        remarks: null,
-      }
-    );
-  });
-}
-
-function getTodayLocalISO() {
-  const now = new Date();
-  const offsetMinutes = now.getTimezoneOffset();
-  const local = new Date(now.getTime() - offsetMinutes * 60 * 1000);
-  return local.toISOString().split('T')[0];
-}
-
-function isTesProgramName(programName) {
-  return /(^|\b)tes(\b|$)/i.test((programName || '').toString());
-}
-
-async function fetchOpeningWithProgram(openingId) {
-  const { data, error } = await supabase
-    .from('program_openings')
-    .select(`
-      opening_id,
-      program_id,
-      opening_title,
-      application_start,
-      application_end,
-      posting_status,
-      announcement_text,
-      allocated_slots,
-      financial_allocation,
-      scholarship_program (
-        program_id,
-        organization_name,
-        program_name
-      )
-    `)
-    .eq('opening_id', openingId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? null;
-}
-
-function validateOpeningAvailability(opening) {
-  if (!opening) {
-    return 'Selected scholarship opening does not exist.';
-  }
-
-  if ((opening.posting_status || '').toLowerCase() !== 'open') {
-    return 'This scholarship opening is not currently accepting applications.';
-  }
-
-  const today = getTodayLocalISO();
-  if (opening.application_start && today < opening.application_start) {
-    return 'This scholarship opening is not yet accepting applications.';
-  }
-
-  if (opening.application_end && today > opening.application_end) {
-    return 'This scholarship opening is already closed.';
-  }
-
-  return null;
-}
-
-async function loadStudentContextByUserId(userId) {
-  const { data: studentRecord, error: studentError } = await supabase
-    .from('students')
-    .select('student_id, user_id, pdm_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (studentError) {
-    throw studentError;
-  }
-
-  if (!studentRecord?.student_id) {
-    return {
-      student: null,
-      studentProfile: null,
-    };
-  }
-
-  const { data: studentProfile, error: profileError } = await supabase
-    .from('student_profiles')
-    .select('student_id')
-    .eq('student_id', studentRecord.student_id)
-    .maybeSingle();
-
-  if (profileError) {
-    throw profileError;
-  }
-
-  return {
-    student: studentRecord,
-    studentProfile: studentProfile ?? null,
-  };
-}
-
-async function loadScholarContextByUserId(userId) {
-  const { data: studentRecord, error: studentError } = await supabase
-    .from('students')
-    .select('student_id, user_id, pdm_id, first_name, last_name')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (studentError) {
-    throw studentError;
-  }
-
-  if (!studentRecord?.student_id) {
-    return {
-      student: null,
-      scholar: null,
-    };
-  }
-
-  const { data: scholarRecord, error: scholarError } = await supabase
-    .from('scholars')
-    .select(`
-      scholar_id,
-      student_id,
-      program_id,
-      status,
-      batch_year,
-      date_awarded
-    `)
-    .eq('student_id', studentRecord.student_id)
-    .eq('status', 'Active')
-    .maybeSingle();
-
-  if (scholarError) {
-    throw scholarError;
-  }
-
-  let scholarshipProgram = null;
-  if (scholarRecord?.program_id) {
-    const { data: programRecord, error: programError } = await supabase
-      .from('scholarship_programs')
-      .select('program_id, program_name, organization_name')
-      .eq('program_id', scholarRecord.program_id)
-      .maybeSingle();
-
-    if (programError) {
-      throw programError;
-    }
-
-    scholarshipProgram = programRecord ?? null;
-  }
-
-  return {
-    student: studentRecord,
-    scholar: scholarRecord
-      ? {
-          ...scholarRecord,
-          scholarship_programs: scholarshipProgram,
-        }
-      : null,
-  };
-}
-
-async function ensureCurrentScholarRenewalForUser(userId) {
-  const { student, scholar } = await loadScholarContextByUserId(userId);
-  const period = await fetchActiveAcademicPeriod();
-
-  if (!student?.student_id || !scholar?.scholar_id) {
-    return {
-      student,
-      scholar,
-      renewal: null,
-      documents: [],
-      period,
-    };
-  }
-
-  if (!period?.period_id) {
-    return {
-      student,
-      scholar,
-      renewal: null,
-      documents: [],
-      period: null,
-    };
-  }
-
-  const { data: existingRenewal, error: renewalLookupError } = await supabase
-    .from('renewals')
-    .select('*')
-    .eq('scholar_id', scholar.scholar_id)
-    .eq('period_id', period.period_id)
-    .maybeSingle();
-
-  if (renewalLookupError) {
-    throw renewalLookupError;
-  }
-
-  let renewal = existingRenewal;
-  if (!renewal) {
-    const { data: insertedRenewal, error: insertError } = await supabase
-      .from('renewals')
-      .insert({
-        scholar_id: scholar.scholar_id,
-        period_id: period.period_id,
-        status: 'Pending Submission',
-        deadline_date: null,
-        submitted_on: null,
-      })
-      .select('*')
-      .single();
-
-    if (insertError) {
-      throw insertError;
-    }
-
-    renewal = insertedRenewal;
-  }
-
-  const placeholderDocuments = RENEWAL_DOCUMENT_DEFINITIONS.map((definition) => ({
-    renewal_id: renewal.renewal_id,
-    document_type: definition.name,
-    is_submitted: false,
-    file_url: null,
-    review_status: 'pending',
-    admin_comment: null,
-    submitted_at: null,
-    reviewed_at: null,
-    remarks: null,
-  }));
-
-  const { error: documentUpsertError } = await supabase
-    .from('renewal_documents')
-    .upsert(placeholderDocuments, { onConflict: 'renewal_id,document_type' });
-
-  if (documentUpsertError) {
-    throw documentUpsertError;
-  }
-
-  const { data: savedDocuments, error: savedDocumentsError } = await supabase
-    .from('renewal_documents')
-    .select('*')
-    .eq('renewal_id', renewal.renewal_id)
-    .order('document_type', { ascending: true });
-
-  if (savedDocumentsError) {
-    throw savedDocumentsError;
-  }
-
-  const documents = ensureScholarRenewalDocumentCoverage(savedDocuments || []);
-  const nextDocumentStatus = deriveScholarRenewalDocumentStatus(
-    documents,
-    renewal.status
-  );
-
-  return {
-    student,
-    scholar,
-    renewal,
-    documents,
-    period,
-    documentStatus: nextDocumentStatus,
-  };
-}
-
-function buildScholarRenewalPayload({
-  student,
-  scholar,
-  renewal,
-  documents,
-  period,
-  documentStatus = 'Missing Docs',
-}) {
-  const normalizedDocuments = ensureScholarRenewalDocumentCoverage(documents).map(
-    (document) => {
-      const definition = normalizeRenewalDocumentType(document.document_type);
-      const status = deriveScholarRenewalDocumentReviewStatus(document);
-
-      return {
-        renewal_document_id: document.renewal_document_id ?? null,
-        id: definition?.id ?? normalizeLookupValue(document.document_type),
-        route_param: definition?.routeParam ?? null,
-        document_type: document.document_type,
-        name: document.document_type,
-        is_submitted: !!document.is_submitted,
-        file_url: document.file_url ?? null,
-        status,
-        review_status: document.review_status ?? 'pending',
-        admin_comment: document.admin_comment ?? '',
-        submitted_at: document.submitted_at ?? null,
-        reviewed_at: document.reviewed_at ?? null,
-        remarks: document.remarks ?? null,
-      };
-    }
-  );
-
-  return {
-    renewal: renewal
-      ? {
-          renewal_id: renewal.renewal_id,
-          scholar_id: renewal.scholar_id,
-          student_id: student?.student_id ?? null,
-          program_id: scholar?.program_id ?? null,
-          period_id: renewal.period_id,
-          semester_label: period?.current_semester ?? '',
-          school_year_label: period?.current_academic_year ?? '',
-          renewal_status: renewal.status,
-          document_status: documentStatus,
-          admin_comment: null,
-          submitted_at: renewal.submitted_on ?? null,
-          reviewed_at: null,
-        }
-      : null,
-    scholar: scholar
-      ? {
-          scholar_id: scholar.scholar_id,
-          student_id: scholar.student_id,
-          program_id: scholar.program_id,
-          program_name: scholar.scholarship_programs?.program_name ?? 'Scholarship',
-          benefactor_name:
-            scholar.scholarship_programs?.organization_name ?? null,
-          status: scholar.status ?? 'Active',
-          batch_year: scholar.batch_year ?? null,
-          date_awarded: scholar.date_awarded ?? null,
-        }
-      : null,
-    student: student
-      ? {
-          student_id: student.student_id,
-          pdm_id: student.pdm_id ?? null,
-          name:
-            `${student.first_name ?? ''} ${student.last_name ?? ''}`.trim() ||
-            'Unknown Student',
-        }
-      : null,
-    cycle: {
-      period_id: period?.period_id ?? null,
-      semester_label: period?.current_semester ?? '',
-      school_year_label: period?.current_academic_year ?? '',
-    },
-    documents: normalizedDocuments,
-  };
-}
-
-function buildOpeningCard(opening, applicationByOpeningId = new Map()) {
-  const appliedApplication = applicationByOpeningId.get(opening.opening_id) || null;
-  const programName = opening.scholarship_program?.program_name || 'Unknown Program';
-  const isTes = isTesProgramName(programName);
-  const hasApplied = !!appliedApplication;
-  const needsRequirements =
-    hasApplied && appliedApplication?.document_status !== 'Documents Ready';
-  const canReapply = isTes && hasApplied && !needsRequirements;
-  const canApply = !hasApplied || canReapply || needsRequirements;
-
-  return {
-    opening_id: opening.opening_id,
-    program_id: opening.program_id,
-    opening_title: opening.opening_title,
-    program_name: programName,
-    benefactor_name: opening.scholarship_program?.organization_name || null,
-    application_start: opening.application_start,
-    application_end: opening.application_end,
-    posting_status: opening.posting_status,
-    announcement_text: opening.announcement_text,
-    allocated_slots: opening.allocated_slots ?? 0,
-    financial_allocation: opening.financial_allocation ?? null,
-    is_tes: isTes,
-    has_applied: hasApplied,
-    can_reapply: canReapply,
-    can_apply: canApply,
-    apply_label: needsRequirements
-      ? 'Upload Requirements'
-      : hasApplied && canReapply
-        ? 'Re-apply'
-        : hasApplied
-          ? 'Already Applied'
-          : 'Apply Now',
-    existing_application_id: appliedApplication?.application_id ?? null,
-  };
-}
-
-async function ensureApplicationDocumentPlaceholders(applicationId, studentId) {
-  const placeholderDocuments = APPLICATION_DOCUMENT_DEFINITIONS.map(
-    (documentDefinition) => ({
-      application_id: applicationId,
-      student_id: studentId,
-      document_type: documentDefinition.name,
-      is_submitted: false,
-      file_url: null,
-      submitted_at: null,
-      remarks: null,
-    })
-  );
-
-  const { error } = await supabase
-    .from('application_documents')
-    .upsert(placeholderDocuments, { onConflict: 'application_id,document_type' });
-
-  if (error) {
-    throw error;
-  }
 }
 
 function ensureDocumentCoverage(normalizedDocuments = []) {
@@ -852,7 +319,6 @@ async function buildApplicationDetails(applicationId) {
     .select(`
       application_id,
       student_id,
-      opening_id,
       program_id,
       application_status,
       document_status,
@@ -993,7 +459,6 @@ async function buildApplicationDetails(applicationId) {
     application: {
       application_id: applicationRecord.application_id,
       student_id: applicationRecord.student_id,
-      opening_id: applicationRecord.opening_id ?? null,
       program_id: applicationRecord.program_id,
       application_status: applicationRecord.application_status,
       document_status: applicationRecord.document_status,
@@ -1048,19 +513,15 @@ app.post('/api/auth/register', async (req, res) => {
 
   console.log('DEBUG (Backend): Received registration request body:', req.body);
 
-  // 1. Initial required fields check
-  // Validate required fields: email, password, and student_id
   if (!email || !password || !student_id) {
     return res.status(400).json({ error: 'Email, password, and Student ID are required' });
   }
 
-  // 2. Server-side validation for student_id format (e.g., PDM-YYYY-NNNNNN)
   const studentIdRegex = /^PDM-\d{4}-\d{6}$/;
   if (!studentIdRegex.test(student_id)) {
     return res.status(400).json({ error: 'Student ID must be in the format PDM-YYYY-NNNNNN (e.g., PDM-2023-000001)' });
   }
 
-  // 3. Check student_id uniqueness
   const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
     .from('users')
     .select('username')
@@ -1075,7 +536,6 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(409).json({ error: 'Student ID already registered' });
   }
 
-  // 4. Check email uniqueness (if not already handled by DB constraint)
   const { data: existingUserByEmail, error: emailCheckError } = await supabase
     .from('users')
     .select('email')
@@ -1090,10 +550,8 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(409).json({ error: 'Email already registered' });
   }
 
-  // Hash the password securely
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Save the user credentials to Supabase
   const { data, error } = await supabase
     .from('users')
     .insert([{
@@ -1112,15 +570,12 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const otp = generateOTP();
-  // Store OTP with a 10-minute expiration
   otpStore.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
 
-  // Send email in the background (DO NOT use 'await' here so we don't hold up the Flutter app)
   sendOTPEmail(email, otp)
     .then(() => console.log(`OTP sent to ${email}`))
     .catch(err => console.error('Error sending email:', err));
 
-  // Respond immediately so Flutter transitions to the OTP screen instantly
   res.status(200).json({
     message: 'Registration successful. OTP sent.',
     user: buildAuthUser(data),
@@ -1139,10 +594,8 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   }
   if (record.otp !== otp) return res.status(400).json({ error: 'Invalid OTP' });
 
-  // OTP is correct - clear it from store
   otpStore.delete(email);
-  
-  // Update user's OTP verification status in Supabase
+
   const { error } = await supabase
     .from('users')
     .update({ is_otp_verified: true })
@@ -1170,10 +623,10 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 app.post('/api/auth/resend-otp', (req, res) => {
   const { email } = req.body;
   const otp = generateOTP();
-  
+
   otpStore.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
   sendOTPEmail(email, otp).catch(err => console.error('Error resending email:', err));
-  
+
   res.status(200).json({ message: 'OTP resent successfully' });
 });
 
@@ -1187,19 +640,16 @@ app.post('/api/auth/upload-avatar', upload.single('image'), async (req, res) => 
   }
 
   try {
-    // 1. Upload file to Supabase Storage
     const fileName = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
-    const { data: storageData, error: storageError } = await supabase.storage
+    const { error: storageError } = await supabase.storage
       .from('avatars')
       .upload(fileName, file.buffer, { contentType: file.mimetype, upsert: true });
 
     if (storageError) throw storageError;
 
-    // 2. Get the public URL of the uploaded image
     const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
     const avatarUrl = publicUrlData.publicUrl;
 
-    // 3. Save URL to users table if the column exists in your schema.
     const { error: updateError } = await supabase
       .from('users')
       .update({ profile_image_url: avatarUrl })
@@ -1218,13 +668,12 @@ app.post('/api/auth/upload-avatar', upload.single('image'), async (req, res) => 
 
 // 5. Login Route
 app.post('/api/auth/login', async (req, res) => {
-  const { student_id, password } = req.body; // Expect student_id for login
+  const { student_id, password } = req.body;
 
   if (!student_id || !password) {
     return res.status(400).json({ error: 'Student ID and password are required' });
   }
 
-  // Fetch the user from Supabase using student_id
   const { data, error } = await supabase
     .from('users')
     .select('*')
@@ -1235,7 +684,6 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid Student ID or password' });
   }
 
-  // Compare the provided password with the hashed password in the database
   const isMatch = await bcrypt.compare(password, data.password_hash);
   if (!isMatch) {
     return res.status(401).json({ error: 'Invalid Student ID or password' });
@@ -1245,16 +693,9 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(403).json({ error: 'Please verify your email first' });
   }
 
-  // Generate a real JWT token here in production
   res.status(200).json(buildAuthResponse(data));
 });
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-app.get('/api/benefactors', async (req, res) => {
-=======
->>>>>>> 57c5c7debab1a3c3ca63fa03dc989a49f713cd11
 app.get('/api/notifications', protect, async (req, res) => {
   try {
     const payload = await notificationService.listUserNotifications(req.user.user_id, {
@@ -1342,737 +783,7 @@ app.post('/api/notifications/device-token', protect, async (req, res) => {
   }
 });
 
-app.get('/api/renewals/me/current', protect, async (req, res) => {
-  try {
-    const payload = await ensureCurrentScholarRenewalForUser(req.user.user_id);
-
-    if (!payload.student?.student_id || !payload.scholar?.scholar_id) {
-      return res.status(403).json({
-        error: 'Only approved scholars can access renewal uploads.',
-      });
-    }
-
-    if (!payload.period?.period_id) {
-      return res.status(400).json({
-        error: 'No active academic period is configured for renewals.',
-      });
-    }
-
-    res.status(200).json(buildScholarRenewalPayload(payload));
-  } catch (error) {
-    console.error('RENEWAL CURRENT ROUTE ERROR:', error);
-    res.status(500).json({
-      error: error.message || 'Failed to load current renewal package.',
-    });
-  }
-});
-
-app.post(
-  '/api/renewals/me/documents/:documentType/upload',
-  protect,
-  upload.single('document'),
-  async (req, res) => {
-    try {
-      const file = req.file;
-      if (!file) {
-        return res.status(400).json({ error: 'A renewal document file is required.' });
-      }
-
-      const documentDefinition = normalizeRenewalDocumentType(
-        req.params.documentType
-      );
-      if (!documentDefinition) {
-        return res.status(400).json({ error: 'Invalid renewal document type.' });
-      }
-
-      const payload = await ensureCurrentScholarRenewalForUser(req.user.user_id);
-      if (!payload.student?.student_id || !payload.scholar?.scholar_id || !payload.renewal) {
-        return res.status(403).json({
-          error: 'Only approved scholars can access renewal uploads.',
-        });
-      }
-
-      if (
-        ['under review', 'approved'].includes(
-          normalizeLookupValue(payload.renewal.status)
-        )
-      ) {
-        return res.status(409).json({
-          error: 'This renewal package is currently locked while awaiting admin review.',
-        });
-      }
-
-      const sanitizedOriginalName = file.originalname.replace(/\s+/g, '_');
-      const fileName = `${payload.scholar.scholar_id}/${payload.renewal.renewal_id}/${documentDefinition.id}_${Date.now()}_${sanitizedOriginalName}`;
-      const { error: storageError } = await supabase.storage
-        .from(RENEWAL_UPLOADS_BUCKET)
-        .upload(fileName, file.buffer, {
-          contentType: file.mimetype,
-          upsert: true,
-        });
-
-      if (storageError) {
-        console.error('RENEWAL DOCUMENT UPLOAD ERROR:', storageError);
-        return res.status(500).json({
-          error:
-            storageError.message ||
-            `Failed to upload the renewal document to ${RENEWAL_UPLOADS_BUCKET}.`,
-        });
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(RENEWAL_UPLOADS_BUCKET)
-        .getPublicUrl(fileName);
-      const fileUrl = publicUrlData?.publicUrl ?? null;
-
-      const uploadTimestamp = new Date().toISOString();
-      const { error: documentUpdateError } = await supabase
-        .from('renewal_documents')
-        .update({
-          is_submitted: true,
-          file_url: fileUrl,
-          review_status: 'uploaded',
-          admin_comment: null,
-          submitted_at: uploadTimestamp,
-          reviewed_at: null,
-          remarks: `Uploaded from scholar renewal module on ${uploadTimestamp}.`,
-        })
-        .eq('renewal_id', payload.renewal.renewal_id)
-        .eq('document_type', documentDefinition.name);
-
-      if (documentUpdateError) {
-        console.error('RENEWAL DOCUMENT SAVE ERROR:', documentUpdateError);
-        return res.status(500).json({
-          error: documentUpdateError.message || 'Failed to save renewal document.',
-        });
-      }
-
-      const { data: refreshedDocuments, error: refreshedDocumentsError } = await supabase
-        .from('renewal_documents')
-        .select('*')
-        .eq('renewal_id', payload.renewal.renewal_id);
-
-      if (refreshedDocumentsError) {
-        throw refreshedDocumentsError;
-      }
-
-      const nextDocumentStatus = deriveScholarRenewalDocumentStatus(
-        refreshedDocuments || [],
-        'Pending Submission'
-      );
-
-      res.status(200).json(
-        buildScholarRenewalPayload({
-          ...payload,
-          renewal: payload.renewal,
-          documents: refreshedDocuments || [],
-          documentStatus: nextDocumentStatus,
-        })
-      );
-    } catch (error) {
-      console.error('RENEWAL DOCUMENT ROUTE ERROR:', error);
-      res.status(500).json({
-        error: error.message || 'Failed to upload renewal document.',
-      });
-    }
-  }
-);
-
-app.post('/api/renewals/me/submit', protect, async (req, res) => {
-  try {
-    const payload = await ensureCurrentScholarRenewalForUser(req.user.user_id);
-
-    if (!payload.student?.student_id || !payload.scholar?.scholar_id || !payload.renewal) {
-      return res.status(403).json({
-        error: 'Only approved scholars can access renewal uploads.',
-      });
-    }
-
-    const normalizedStatus = normalizeLookupValue(payload.renewal.status);
-    if (['under review', 'approved'].includes(normalizedStatus)) {
-      return res.status(409).json({
-        error: 'This renewal package has already been submitted for review.',
-      });
-    }
-
-    const documents = ensureScholarRenewalDocumentCoverage(payload.documents);
-    const missingDocuments = documents.filter(
-      (document) => !document.is_submitted || !document.file_url
-    );
-
-    if (missingDocuments.length > 0) {
-      return res.status(400).json({
-        error: `Please upload all required renewal documents first. Missing: ${missingDocuments
-          .map((document) => document.document_type)
-          .join(', ')}.`,
-      });
-    }
-
-    const submittedAt = new Date().toISOString();
-    const { data: updatedRenewal, error: renewalUpdateError } = await supabase
-      .from('renewals')
-      .update({
-        status: 'Under Review',
-        submitted_on: submittedAt,
-      })
-      .eq('renewal_id', payload.renewal.renewal_id)
-      .select('*')
-      .single();
-
-    if (renewalUpdateError) {
-      throw renewalUpdateError;
-    }
-
-    res.status(200).json({
-      message: 'Renewal requirements submitted successfully.',
-      ...buildScholarRenewalPayload({
-        ...payload,
-        renewal: updatedRenewal,
-        documentStatus: 'Under Review',
-      }),
-    });
-  } catch (error) {
-    console.error('RENEWAL SUBMIT ROUTE ERROR:', error);
-    res.status(500).json({
-      error: error.message || 'Failed to submit renewal requirements.',
-    });
-  }
-});
-
-app.get('/api/openings', protect, async (req, res) => {
-  try {
-    const openingResult = await supabase
-      .from('program_openings')
-      .select(`
-        opening_id,
-        program_id,
-        opening_title,
-        application_start,
-        application_end,
-        posting_status,
-        announcement_text,
-        allocated_slots,
-        financial_allocation,
-        created_at,
-        scholarship_program (
-          program_id,
-          organization_name,
-          program_name
-        )
-      `)
-      .eq('posting_status', 'open')
-      .order('created_at', { ascending: false });
-
-    if (openingResult.error) {
-      console.error('Openings fetch error:', openingResult.error);
-      return res.status(500).json({ error: 'Failed to fetch scholarship openings.' });
-    }
-
-    const today = getTodayLocalISO();
-    const visibleOpenings = (openingResult.data || []).filter(
-      (opening) =>
-        (!opening.application_start || opening.application_start <= today) &&
-        (!opening.application_end || opening.application_end >= today)
-    );
-
-    const { student, studentProfile } = await loadStudentContextByUserId(req.user.user_id);
-
-    let applicationByOpeningId = new Map();
-    if (student?.student_id && visibleOpenings.length > 0) {
-      const openingIds = visibleOpenings.map((opening) => opening.opening_id);
-      const { data: existingApplications, error: applicationError } = await supabase
-        .from('applications')
-        .select(
-          'application_id, opening_id, application_status, document_status, is_disqualified'
-        )
-        .eq('student_id', student.student_id)
-        .in('opening_id', openingIds)
-        .eq('is_disqualified', false);
-
-      if (applicationError) {
-        console.error('Opening applications fetch error:', applicationError);
-        return res.status(500).json({ error: 'Failed to load your application history.' });
-      }
-
-      applicationByOpeningId = new Map(
-        (existingApplications || []).map((application) => [application.opening_id, application])
-      );
-    }
-
-    res.status(200).json({
-      hasBaseApplicationProfile: !!student?.student_id && !!studentProfile?.student_id,
-      items: visibleOpenings.map((opening) => buildOpeningCard(opening, applicationByOpeningId)),
-    });
-  } catch (error) {
-    console.error('Openings route error:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch scholarship openings.' });
-  }
-});
-
-app.post('/api/openings/:openingId/apply', protect, upload.single('indigency'), async (req, res) => {
-  try {
-    const { openingId } = req.params;
-    const file = req.file;
-
-    if (!file) {
-      return res.status(400).json({ error: 'Certificate of Indigency file is required.' });
-    }
-
-    const { student, studentProfile } = await loadStudentContextByUserId(req.user.user_id);
-    if (!student?.student_id || !studentProfile?.student_id) {
-      return res.status(400).json({
-        error: 'Please complete your application form first before applying to an opening.',
-      });
-    }
-
-    const opening = await fetchOpeningWithProgram(openingId);
-    const openingAvailabilityError = validateOpeningAvailability(opening);
-    if (openingAvailabilityError) {
-      return res.status(400).json({ error: openingAvailabilityError });
-    }
-
-    const programName = opening.scholarship_program?.program_name || '';
-    const isTesOpening = isTesProgramName(programName);
-
-    const { data: existingApplication, error: existingApplicationError } = await supabase
-      .from('applications')
-      .select('application_id, opening_id, program_id, application_status, document_status')
-      .eq('student_id', student.student_id)
-      .eq('opening_id', openingId)
-      .eq('is_disqualified', false)
-      .maybeSingle();
-
-    if (existingApplicationError) {
-      console.error('Opening application lookup error:', existingApplicationError);
-      return res.status(500).json({ error: 'Failed to check existing application.' });
-    }
-
-    if (existingApplication && !isTesOpening) {
-      return res.status(409).json({
-        error: 'You have already applied to this scholarship opening.',
-        code: 'ALREADY_APPLIED',
-      });
-    }
-
-    let savedApplication = existingApplication;
-    if (existingApplication && isTesOpening) {
-      const { data: updatedApplication, error: updateError } = await supabase
-        .from('applications')
-        .update({
-          program_id: opening.program_id,
-          opening_id: openingId,
-          application_status: 'Pending Review',
-          submission_date: new Date().toISOString(),
-        })
-        .eq('application_id', existingApplication.application_id)
-        .select('application_id, opening_id, program_id, application_status, document_status')
-        .single();
-
-      if (updateError) {
-        console.error('TES application update error:', updateError);
-        return res.status(500).json({ error: updateError.message || 'Failed to re-apply to opening.' });
-      }
-
-      savedApplication = updatedApplication;
-    } else if (!existingApplication) {
-      const { data: insertedApplication, error: insertError } = await supabase
-        .from('applications')
-        .insert([
-          {
-            student_id: student.student_id,
-            opening_id: openingId,
-            program_id: opening.program_id,
-            application_status: 'Pending Review',
-            submission_date: new Date().toISOString(),
-            document_status: 'Missing Docs',
-          },
-        ])
-        .select('application_id, opening_id, program_id, application_status, document_status')
-        .single();
-
-      if (insertError) {
-        console.error('Opening application insert error:', insertError);
-        return res.status(500).json({ error: insertError.message || 'Failed to apply to opening.' });
-      }
-
-      savedApplication = insertedApplication;
-    }
-
-    const applicationId = savedApplication.application_id;
-
-    try {
-      await ensureApplicationDocumentPlaceholders(
-        applicationId,
-        student.student_id
-      );
-    } catch (placeholderDocumentError) {
-      console.error(
-        'Opening placeholder document error:',
-        placeholderDocumentError
-      );
-      return res.status(500).json({ error: 'Failed to prepare application documents.' });
-    }
-
-    const sanitizedOriginalName = file.originalname.replace(/\s+/g, '_');
-    const fileName = `${student.student_id}/${applicationId}/certificate_of_indigency_${Date.now()}_${sanitizedOriginalName}`;
-    const { error: storageError } = await supabase.storage
-      .from(APPLICATION_UPLOADS_BUCKET)
-      .upload(fileName, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true,
-      });
-
-    if (storageError) {
-      console.error('Opening document upload error:', storageError);
-      return res.status(500).json({
-        error:
-          storageError.message ||
-          `Failed to upload the certificate of indigency to ${APPLICATION_UPLOADS_BUCKET}.`,
-      });
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from(APPLICATION_UPLOADS_BUCKET)
-      .getPublicUrl(fileName);
-    const fileUrl = publicUrlData?.publicUrl ?? null;
-
-    const { error: documentUpdateError } = await supabase
-      .from('application_documents')
-      .update({
-        is_submitted: true,
-        file_url: fileUrl,
-        submitted_at: new Date().toISOString(),
-        remarks: 'Submitted from opening apply flow.',
-      })
-      .eq('application_id', applicationId)
-      .eq('document_type', 'Certificate of Indigency');
-
-    if (documentUpdateError) {
-      console.error('Opening document save error:', documentUpdateError);
-      return res.status(500).json({ error: 'Failed to save indigency document.' });
-    }
-
-    const { data: savedDocuments, error: savedDocumentsError } = await supabase
-      .from('application_documents')
-      .select('*')
-      .eq('application_id', applicationId);
-
-    if (savedDocumentsError) {
-      console.error('Opening documents refresh error:', savedDocumentsError);
-      return res.status(500).json({ error: 'Failed to refresh application documents.' });
-    }
-
-    const nextDocumentStatus = deriveApplicationDocumentStatus(savedDocuments || []);
-    const { error: applicationStatusError } = await supabase
-      .from('applications')
-      .update({ document_status: nextDocumentStatus })
-      .eq('application_id', applicationId);
-
-    if (applicationStatusError) {
-      console.error('Opening application status error:', applicationStatusError);
-      return res.status(500).json({ error: 'Failed to update application status.' });
-    }
-
-    const detailedApplication = await buildApplicationDetails(applicationId);
-
-    res.status(200).json({
-      message: existingApplication && isTesOpening
-        ? 'TES application re-submitted successfully.'
-        : 'Application submitted successfully.',
-      is_reapply: !!existingApplication && isTesOpening,
-      opening: buildOpeningCard(opening, new Map([[opening.opening_id, { application_id: applicationId }]])),
-      application: detailedApplication.application,
-      student: detailedApplication.student,
-      student_profile: detailedApplication.student_profile,
-      family_members: detailedApplication.family_members,
-      education_records: detailedApplication.education_records,
-      documents: detailedApplication.documents,
-    });
-  } catch (error) {
-    console.error('Opening apply route error:', error);
-    res.status(500).json({ error: error.message || 'Failed to apply to scholarship opening.' });
-  }
-});
-
-app.get('/api/openings/:openingId/application', protect, async (req, res) => {
-  try {
-    const { openingId } = req.params;
-    const { student, studentProfile } = await loadStudentContextByUserId(
-      req.user.user_id
-    );
-
-    if (!student?.student_id || !studentProfile?.student_id) {
-      return res.status(400).json({
-        error:
-          'Please complete your application form first before continuing this opening application.',
-      });
-    }
-
-    const opening = await fetchOpeningWithProgram(openingId);
-    if (!opening) {
-      return res.status(404).json({ error: 'Scholarship opening not found.' });
-    }
-
-    const { data: application, error: applicationError } = await supabase
-      .from('applications')
-      .select(
-        'application_id, opening_id, program_id, application_status, document_status'
-      )
-      .eq('student_id', student.student_id)
-      .eq('opening_id', openingId)
-      .eq('is_disqualified', false)
-      .maybeSingle();
-
-    if (applicationError) {
-      console.error('Opening application detail lookup error:', applicationError);
-      return res.status(500).json({
-        error: 'Failed to load your scholarship opening application.',
-      });
-    }
-
-    if (!application?.application_id) {
-      return res.status(404).json({
-        error:
-          'No application was found for this scholarship opening yet. Please use Apply Now first.',
-      });
-    }
-
-    try {
-      await ensureApplicationDocumentPlaceholders(
-        application.application_id,
-        student.student_id
-      );
-    } catch (placeholderDocumentError) {
-      console.error(
-        'Opening application placeholder refresh error:',
-        placeholderDocumentError
-      );
-      return res.status(500).json({
-        error: 'Failed to prepare your scholarship requirements.',
-      });
-    }
-
-    const detailedApplication = await buildApplicationDetails(
-      application.application_id
-    );
-
-    return res.status(200).json({
-      opening: buildOpeningCard(
-        opening,
-        new Map([[opening.opening_id, application]])
-      ),
-      application: detailedApplication.application,
-      student: detailedApplication.student,
-      student_profile: detailedApplication.student_profile,
-      family_members: detailedApplication.family_members,
-      education_records: detailedApplication.education_records,
-      documents: detailedApplication.documents,
-    });
-  } catch (error) {
-    console.error('Opening application detail route error:', error);
-    return res.status(500).json({
-      error:
-        error.message || 'Failed to load the scholarship opening application.',
-    });
-  }
-});
-
-app.post(
-  '/api/openings/:openingId/documents/:documentType/upload',
-  protect,
-  upload.single('document'),
-  async (req, res) => {
-    try {
-      const { openingId, documentType } = req.params;
-      const file = req.file;
-
-      if (!file) {
-        return res.status(400).json({ error: 'A document file is required.' });
-      }
-
-      const documentDefinition =
-        normalizeApplicationDocumentDefinition(documentType);
-      if (!documentDefinition) {
-        return res
-          .status(400)
-          .json({ error: 'Unsupported scholarship requirement selected.' });
-      }
-
-      const { student, studentProfile } = await loadStudentContextByUserId(
-        req.user.user_id
-      );
-      if (!student?.student_id || !studentProfile?.student_id) {
-        return res.status(400).json({
-          error:
-            'Please complete your application form first before continuing this opening application.',
-        });
-      }
-
-      const opening = await fetchOpeningWithProgram(openingId);
-      if (!opening) {
-        return res.status(404).json({ error: 'Scholarship opening not found.' });
-      }
-
-      const { data: application, error: applicationError } = await supabase
-        .from('applications')
-        .select(
-          'application_id, opening_id, program_id, application_status, document_status'
-        )
-        .eq('student_id', student.student_id)
-        .eq('opening_id', openingId)
-        .eq('is_disqualified', false)
-        .maybeSingle();
-
-      if (applicationError) {
-        console.error('Opening document upload lookup error:', applicationError);
-        return res.status(500).json({
-          error: 'Failed to load the target opening application.',
-        });
-      }
-
-      if (!application?.application_id) {
-        return res.status(404).json({
-          error:
-            'No application was found for this scholarship opening yet. Please use Apply Now first.',
-        });
-      }
-
-      try {
-        await ensureApplicationDocumentPlaceholders(
-          application.application_id,
-          student.student_id
-        );
-      } catch (placeholderDocumentError) {
-        console.error(
-          'Opening document placeholder refresh error:',
-          placeholderDocumentError
-        );
-        return res.status(500).json({
-          error: 'Failed to prepare your scholarship requirements.',
-        });
-      }
-
-      const sanitizedOriginalName = file.originalname.replace(/\s+/g, '_');
-      const fileName = `${student.student_id}/${application.application_id}/${documentDefinition.id}_${Date.now()}_${sanitizedOriginalName}`;
-      const { error: storageError } = await supabase.storage
-        .from(APPLICATION_UPLOADS_BUCKET)
-        .upload(fileName, file.buffer, {
-          contentType: file.mimetype,
-          upsert: true,
-        });
-
-      if (storageError) {
-        console.error('Opening requirement upload error:', storageError);
-        return res.status(500).json({
-          error:
-            storageError.message ||
-            `Failed to upload the document to ${APPLICATION_UPLOADS_BUCKET}.`,
-        });
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(APPLICATION_UPLOADS_BUCKET)
-        .getPublicUrl(fileName);
-      const fileUrl = publicUrlData?.publicUrl ?? null;
-
-      const { error: documentUpdateError } = await supabase
-        .from('application_documents')
-        .update({
-          is_submitted: true,
-          file_url: fileUrl,
-          submitted_at: new Date().toISOString(),
-          remarks: 'Uploaded from scholarship opening requirements.',
-        })
-        .eq('application_id', application.application_id)
-        .eq('document_type', documentDefinition.name);
-
-      if (documentUpdateError) {
-        console.error(
-          'Opening requirement document save error:',
-          documentUpdateError
-        );
-        return res.status(500).json({
-          error: 'Failed to save the uploaded scholarship requirement.',
-        });
-      }
-
-      const { data: savedDocuments, error: savedDocumentsError } = await supabase
-        .from('application_documents')
-        .select('*')
-        .eq('application_id', application.application_id);
-
-      if (savedDocumentsError) {
-        console.error(
-          'Opening requirement documents refresh error:',
-          savedDocumentsError
-        );
-        return res.status(500).json({
-          error: 'Failed to refresh the scholarship requirements.',
-        });
-      }
-
-      const nextDocumentStatus = deriveApplicationDocumentStatus(
-        savedDocuments || []
-      );
-      const { error: applicationStatusError } = await supabase
-        .from('applications')
-        .update({ document_status: nextDocumentStatus })
-        .eq('application_id', application.application_id);
-
-      if (applicationStatusError) {
-        console.error(
-          'Opening requirement application status error:',
-          applicationStatusError
-        );
-        return res.status(500).json({
-          error: 'Failed to update your scholarship document status.',
-        });
-      }
-
-      const detailedApplication = await buildApplicationDetails(
-        application.application_id
-      );
-
-      return res.status(200).json({
-        message: `${documentDefinition.name} uploaded successfully.`,
-        opening: buildOpeningCard(
-          opening,
-          new Map([
-            [
-              opening.opening_id,
-              {
-                ...application,
-                document_status: nextDocumentStatus,
-              },
-            ],
-          ])
-        ),
-        application: detailedApplication.application,
-        student: detailedApplication.student,
-        student_profile: detailedApplication.student_profile,
-        family_members: detailedApplication.family_members,
-        education_records: detailedApplication.education_records,
-        documents: detailedApplication.documents,
-      });
-    } catch (error) {
-      console.error('Opening requirement upload route error:', error);
-      return res.status(500).json({
-        error:
-          error.message ||
-          'Failed to upload the scholarship opening requirement.',
-      });
-    }
-  }
-);
-
 app.get('/api/scholarship-programs', async (req, res) => {
-<<<<<<< HEAD
-=======
-app.get('/api/benefactors', async (req, res) => {
->>>>>>> 567d41ff (fixed)
-=======
->>>>>>> ad108ed3d1f33af68bd48179113950f8ff0f5b75
->>>>>>> 57c5c7debab1a3c3ca63fa03dc989a49f713cd11
   const { data, error } = await supabase
     .from('scholarship_programs')
     .select('program_id, program_name')
@@ -2220,74 +931,62 @@ app.post('/api/applications', async (req, res) => {
 
   let savedApplication = null;
   let applicationId = null;
-  const isProgramSpecificSubmission = !!application.program_id;
-
-  let existingApplicationQuery = supabase
-    .from('applications')
-    .select('application_id, application_status, document_status, evaluator_id')
-    .eq('student_id', studentRecord.student_id)
-    .in('application_status', ['Pending Review', 'Interview', 'Review'])
-    .eq('is_disqualified', false);
-
-  if (isProgramSpecificSubmission) {
-    existingApplicationQuery = existingApplicationQuery.eq(
-      'program_id',
-      application.program_id
-    );
-  } else {
-    existingApplicationQuery = existingApplicationQuery
-      .is('program_id', null)
-      .is('opening_id', null);
-  }
-
-  const { data: existingApplication, error: existingApplicationError } =
-    await existingApplicationQuery.maybeSingle();
-
-  if (existingApplicationError) {
-    console.error('Existing application lookup error:', existingApplicationError);
-    return res.status(500).json({ error: 'Failed to load existing application.' });
-  }
-
-  if (existingApplication) {
-    const { data: updatedApplication, error: updateError } = await supabase
+  if (application.program_id) {
+    const { data: existingApplication, error: existingApplicationError } = await supabase
       .from('applications')
-      .update({
-        student_id: studentRecord.student_id,
-        program_id: application.program_id ?? null,
-        submission_date: new Date().toISOString(),
-      })
-      .eq('application_id', existingApplication.application_id)
-      .select('application_id, application_status, submission_date, document_status')
-      .single();
+      .select('application_id, application_status, document_status, evaluator_id')
+      .eq('student_id', studentRecord.student_id)
+      .eq('program_id', application.program_id)
+      .in('application_status', ['Pending Review', 'Interview'])
+      .eq('is_disqualified', false)
+      .maybeSingle();
 
-    if (updateError) {
-      console.error('Application update error:', updateError);
-      return res.status(500).json({ error: updateError.message || 'Failed to update application.' });
+    if (existingApplicationError) {
+      console.error('Existing application lookup error:', existingApplicationError);
+      return res.status(500).json({ error: 'Failed to load existing application.' });
     }
 
-    savedApplication = updatedApplication;
-  } else {
-    const { data: insertedApplication, error: insertError } = await supabase
-      .from('applications')
-      .insert([{ 
-        student_id: studentRecord.student_id,
-        program_id: application.program_id ?? null,
-        application_status: 'Pending Review',
-        submission_date: new Date().toISOString(),
-        document_status: 'Missing Docs',
-      }])
-      .select('application_id, application_status, submission_date, document_status')
-      .single();
+    if (existingApplication) {
+      const { data: updatedApplication, error: updateError } = await supabase
+        .from('applications')
+        .update({
+          student_id: studentRecord.student_id,
+          program_id: application.program_id,
+          submission_date: new Date().toISOString(),
+        })
+        .eq('application_id', existingApplication.application_id)
+        .select('application_id, application_status, submission_date, document_status')
+        .single();
 
-    if (insertError) {
-      console.error('Application insert error:', insertError);
-      return res.status(500).json({ error: insertError.message || 'Failed to submit application.' });
+      if (updateError) {
+        console.error('Application update error:', updateError);
+        return res.status(500).json({ error: updateError.message || 'Failed to update application.' });
+      }
+
+      savedApplication = updatedApplication;
+    } else {
+      const { data: insertedApplication, error: insertError } = await supabase
+        .from('applications')
+        .insert([{
+          student_id: studentRecord.student_id,
+          program_id: application.program_id,
+          application_status: 'Pending Review',
+          submission_date: new Date().toISOString(),
+          document_status: 'Missing Docs',
+        }])
+        .select('application_id, application_status, submission_date, document_status')
+        .single();
+
+      if (insertError) {
+        console.error('Application insert error:', insertError);
+        return res.status(500).json({ error: insertError.message || 'Failed to submit application.' });
+      }
+
+      savedApplication = insertedApplication;
     }
 
-    savedApplication = insertedApplication;
+    applicationId = savedApplication.application_id;
   }
-
-  applicationId = savedApplication.application_id;
 
   const buildStreetAddress = [
     address.unit_bldg_no ?? address.block,
@@ -2591,7 +1290,9 @@ app.post('/api/applications', async (req, res) => {
   }
 
   res.status(200).json({
-    message: 'Application submitted successfully.',
+    message: applicationId
+      ? 'Application submitted successfully.'
+      : 'Profile details saved successfully. Scholarship program selection is temporarily unavailable.',
     application: detailedApplication?.application ?? null,
     student: detailedApplication?.student ?? {
       id: studentRecord.student_id,
@@ -2623,19 +1324,19 @@ app.get('/api/applications/:id', async (req, res) => {
 // 6. Get Chat History Route
 app.get('/api/messages/:room', async (req, res) => {
   const { room } = req.params;
-  
+
   const { data, error } = await supabase
     .from('messages')
     .select('*')
     .eq('room', room)
-    .order('created_at', { ascending: false }) // Fetches newest first to match Flutter's reverse ListView
+    .order('created_at', { ascending: false })
     .limit(50);
 
   if (error) {
     console.error('Error fetching messages from Supabase:', error);
     return res.status(500).json({ error: 'Failed to fetch messages' });
   }
-  
+
   res.status(200).json(data);
 });
 
@@ -2646,23 +1347,19 @@ io.on('connection', (socket) => {
     socket.join(`user:${socket.user.user_id}`);
   }
 
-  // Allow a user to join a specific room (e.g., their student_id to chat with admin)
   socket.on('join_room', (room) => {
     socket.join(room);
     console.log(`Socket ${socket.id} joined room: ${room}`);
   });
 
-  // Listen for messages from the client
   socket.on('send_message', async (data) => {
     console.log('Message received on backend:', data);
-    
-    // Broadcast the message to everyone else in that specific room
+
     socket.to(data.room).emit('receive_message', data);
-    
-    // Save the message into Supabase
+
     const { error } = await supabase.from('messages').insert([{
       room: data.room,
-      sender_id: data.sender_id, // Needs to be sent by the client (e.g., student ID)
+      sender_id: data.sender_id,
       text: data.text
     }]);
     if (error) console.error('Error saving message to Supabase:', error);

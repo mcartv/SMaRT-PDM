@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
+import 'package:smartpdm_mobileapp/services/application_service.dart';
 import 'package:smartpdm_mobileapp/screens/forms/step_academic.dart';
 import 'package:smartpdm_mobileapp/screens/forms/step_essay.dart';
 import 'package:smartpdm_mobileapp/screens/forms/step_family.dart';
@@ -19,6 +20,7 @@ class NewApplicantScreen extends StatefulWidget {
 }
 
 class _NewApplicantScreenState extends State<NewApplicantScreen> {
+  final ApplicationService _applicationService = ApplicationService();
   int _step = 0;
   final _data = ApplicationData();
   final _scrollCtrl = ScrollController();
@@ -52,8 +54,237 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.currentCourse = prefs.getString('user_course') ?? '';
     _data.currentSection = prefs.getString('user_section') ?? '';
 
+    try {
+      final savedFormData = await _applicationService.fetchMySavedFormData();
+      if (savedFormData['has_saved_form'] == true) {
+        _hydrateFromSavedForm(savedFormData);
+      }
+    } catch (_) {
+      // If the backend has no saved form yet, keep the local bootstrap values.
+    }
+
     if (!mounted) return;
     setState(() => _isBootstrapping = false);
+  }
+
+  String _savedString(dynamic value) => value?.toString() ?? '';
+
+  String _formatSavedDate(dynamic value) {
+    final raw = _savedString(value).trim();
+    if (raw.isEmpty) return '';
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) {
+      return raw;
+    }
+
+    final month = parsed.month.toString().padLeft(2, '0');
+    final day = parsed.day.toString().padLeft(2, '0');
+    final year = parsed.year.toString().padLeft(4, '0');
+    return '$month/$day/$year';
+  }
+
+  void _hydrateFromSavedForm(Map<String, dynamic> payload) {
+    final account = Map<String, dynamic>.from(
+      payload['account'] as Map? ?? const {},
+    );
+    final personal = Map<String, dynamic>.from(
+      payload['personal'] as Map? ?? const {},
+    );
+    final address = Map<String, dynamic>.from(
+      payload['address'] as Map? ?? const {},
+    );
+    final contact = Map<String, dynamic>.from(
+      payload['contact'] as Map? ?? const {},
+    );
+    final family = Map<String, dynamic>.from(
+      payload['family'] as Map? ?? const {},
+    );
+    final academic = Map<String, dynamic>.from(
+      payload['academic'] as Map? ?? const {},
+    );
+    final support = Map<String, dynamic>.from(
+      payload['support'] as Map? ?? const {},
+    );
+    final discipline = Map<String, dynamic>.from(
+      payload['discipline'] as Map? ?? const {},
+    );
+    final essays = Map<String, dynamic>.from(
+      payload['essays'] as Map? ?? const {},
+    );
+
+    final father = Map<String, dynamic>.from(
+      family['father'] as Map? ?? const {},
+    );
+    final mother = Map<String, dynamic>.from(
+      family['mother'] as Map? ?? const {},
+    );
+    final sibling = Map<String, dynamic>.from(
+      family['sibling'] as Map? ?? const {},
+    );
+    final guardian = Map<String, dynamic>.from(
+      family['guardian'] as Map? ?? const {},
+    );
+
+    _data.userId = _savedString(account['user_id']).isNotEmpty
+        ? _savedString(account['user_id'])
+        : _data.userId;
+    _data.accountStudentId = _savedString(account['student_id']).isNotEmpty
+        ? _savedString(account['student_id'])
+        : _data.accountStudentId;
+    _data.studentNumber = _savedString(academic['student_number']).isNotEmpty
+        ? _savedString(academic['student_number'])
+        : _data.accountStudentId;
+    _data.email = _savedString(contact['email']).isNotEmpty
+        ? _savedString(contact['email'])
+        : _data.email;
+
+    _data.firstName = _savedString(personal['first_name']);
+    _data.middleName = _savedString(personal['middle_name']);
+    _data.lastName = _savedString(personal['last_name']);
+    _data.maidenName = _savedString(personal['maiden_name']);
+    _data.age = _savedString(personal['age']);
+    _data.dateOfBirth = _formatSavedDate(personal['date_of_birth']);
+    _data.sex = _savedString(personal['sex']).isNotEmpty
+        ? _savedString(personal['sex'])
+        : _data.sex;
+    _data.placeOfBirth = _savedString(personal['place_of_birth']);
+    _data.citizenship = _savedString(personal['citizenship']).isNotEmpty
+        ? _savedString(personal['citizenship'])
+        : _data.citizenship;
+    _data.civilStatus = _savedString(personal['civil_status']).isNotEmpty
+        ? _savedString(personal['civil_status'])
+        : _data.civilStatus;
+    _data.religion = _savedString(personal['religion']);
+
+    _data.street = _savedString(address['street']);
+    _data.subdivision = _savedString(address['subdivision']);
+    _data.barangay = _savedString(address['barangay']);
+    _data.city = _savedString(address['city_municipality']).isNotEmpty
+        ? _savedString(address['city_municipality'])
+        : _data.city;
+    _data.province = _savedString(address['province']).isNotEmpty
+        ? _savedString(address['province'])
+        : _data.province;
+    _data.zipCode = _savedString(address['zip_code']).isNotEmpty
+        ? _savedString(address['zip_code'])
+        : _data.zipCode;
+
+    _data.landline = _savedString(contact['landline']);
+    _data.mobileNumber = _savedString(contact['mobile_number']).isNotEmpty
+        ? _savedString(contact['mobile_number'])
+        : _data.mobileNumber;
+
+    _data.parentGuardianAddress = _savedString(
+      family['parent_guardian_address'],
+    );
+    _data.fatherLastName = _savedString(father['last_name']);
+    _data.fatherFirstName = _savedString(father['first_name']);
+    _data.fatherMiddleName = _savedString(father['middle_name']);
+    _data.fatherMobile = _savedString(father['mobile']);
+    _data.fatherEducationalAttainment = _savedString(
+      father['educational_attainment'],
+    );
+    _data.fatherOccupation = _savedString(father['occupation']);
+    _data.fatherCompanyNameAndAddress = _savedString(
+      father['company_name_and_address'],
+    );
+    _data.motherLastName = _savedString(mother['last_name']);
+    _data.motherFirstName = _savedString(mother['first_name']);
+    _data.motherMiddleName = _savedString(mother['middle_name']);
+    _data.motherMobile = _savedString(mother['mobile']);
+    _data.motherEducationalAttainment = _savedString(
+      mother['educational_attainment'],
+    );
+    _data.motherOccupation = _savedString(mother['occupation']);
+    _data.motherCompanyNameAndAddress = _savedString(
+      mother['company_name_and_address'],
+    );
+    _data.siblingLastName = _savedString(sibling['last_name']);
+    _data.siblingFirstName = _savedString(sibling['first_name']);
+    _data.siblingMiddleName = _savedString(sibling['middle_name']);
+    _data.siblingMobile = _savedString(sibling['mobile']);
+    _data.guardianLastName = _savedString(guardian['last_name']);
+    _data.guardianFirstName = _savedString(guardian['first_name']);
+    _data.guardianMiddleName = _savedString(guardian['middle_name']);
+    _data.guardianMobile = _savedString(guardian['mobile']);
+    _data.guardianEducationalAttainment = _savedString(
+      guardian['educational_attainment'],
+    );
+    _data.guardianOccupation = _savedString(guardian['occupation']);
+    _data.guardianCompanyNameAndAddress = _savedString(
+      guardian['company_name_and_address'],
+    );
+    _data.parentNativeStatus =
+        _savedString(family['parent_native_status']).isNotEmpty
+        ? _savedString(family['parent_native_status'])
+        : _data.parentNativeStatus;
+    _data.parentMarilaoResidencyDuration = _savedString(
+      family['parent_marilao_residency_duration'],
+    );
+    _data.parentPreviousTownProvince = _savedString(
+      family['parent_previous_town_province'],
+    );
+
+    _data.collegeSchool = _savedString(academic['college_school']);
+    _data.collegeAddress = _savedString(academic['college_address']);
+    _data.collegeHonors = _savedString(academic['college_honors']);
+    _data.collegeClub = _savedString(academic['college_club']);
+    _data.collegeYearGraduated = _savedString(
+      academic['college_year_graduated'],
+    );
+    _data.highSchoolSchool = _savedString(academic['high_school_school']);
+    _data.highSchoolAddress = _savedString(academic['high_school_address']);
+    _data.highSchoolHonors = _savedString(academic['high_school_honors']);
+    _data.highSchoolClub = _savedString(academic['high_school_club']);
+    _data.highSchoolYearGraduated = _savedString(
+      academic['high_school_year_graduated'],
+    );
+    _data.seniorHighSchool = _savedString(academic['senior_high_school']);
+    _data.seniorHighAddress = _savedString(academic['senior_high_address']);
+    _data.seniorHighHonors = _savedString(academic['senior_high_honors']);
+    _data.seniorHighClub = _savedString(academic['senior_high_club']);
+    _data.seniorHighYearGraduated = _savedString(
+      academic['senior_high_year_graduated'],
+    );
+    _data.elementarySchool = _savedString(academic['elementary_school']);
+    _data.elementaryAddress = _savedString(academic['elementary_address']);
+    _data.elementaryHonors = _savedString(academic['elementary_honors']);
+    _data.elementaryClub = _savedString(academic['elementary_club']);
+    _data.elementaryYearGraduated = _savedString(
+      academic['elementary_year_graduated'],
+    );
+    _data.currentCourse =
+        _savedString(academic['current_course_code']).isNotEmpty
+        ? _savedString(academic['current_course_code'])
+        : _data.currentCourse;
+    _data.currentYearLevel = _savedString(academic['current_year_level']);
+    _data.currentSection = _savedString(academic['current_section']).isNotEmpty
+        ? _savedString(academic['current_section'])
+        : _data.currentSection;
+    _data.lrn = _savedString(academic['lrn']);
+
+    _data.financialSupport =
+        _savedString(support['financial_support']).isNotEmpty
+        ? _savedString(support['financial_support'])
+        : _data.financialSupport;
+    _data.scholarshipHistory = support['scholarship_history'] == true;
+    _data.scholarshipDetails = _savedString(support['scholarship_details']);
+    _data.scholarshipOthersSpecify = _savedString(
+      support['scholarship_others_specify'],
+    );
+
+    _data.disciplinaryAction = discipline['disciplinary_action'] == true;
+    _data.disciplinaryExplanation = _savedString(
+      discipline['disciplinary_explanation'],
+    );
+
+    _data.describeYourselfEssay = _savedString(
+      essays['describe_yourself_essay'],
+    );
+    _data.aimsAndAmbitionEssay = _savedString(
+      essays['aims_and_ambition_essay'],
+    );
   }
 
   void _next() {
@@ -110,11 +341,22 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    if (_data.userId.isEmpty || _data.accountStudentId.isEmpty) {
+    final missingAccountFields = <String>[];
+    if (_data.userId.trim().isEmpty) {
+      missingAccountFields.add('user ID');
+    }
+    if (_data.accountStudentId.trim().isEmpty) {
+      missingAccountFields.add('student ID');
+    }
+    if (_data.email.trim().isEmpty) {
+      missingAccountFields.add('email');
+    }
+
+    if (missingAccountFields.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Your account details are missing. Please log in again.',
+            'Missing required account details: ${missingAccountFields.join(', ')}. Please log in again.',
           ),
         ),
       );
@@ -137,25 +379,17 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
     if (success) {
       final successMessage =
-          provider.successMessage ??
-          'Profile details saved successfully. Scholarship program selection is temporarily unavailable.';
+          provider.successMessage ?? 'Application submitted successfully.';
       final application =
           provider.lastSubmissionResponse?['application']
               as Map<String, dynamic>?;
       final applicationId = application?['application_id']?.toString() ?? '';
-      final isProfileOnly = successMessage.toLowerCase().contains(
-        'profile details saved successfully',
-      );
       Navigator.pushReplacementNamed(
         context,
         '/success',
         arguments: {
-          'appBarTitle': isProfileOnly
-              ? 'Profile Details Saved'
-              : 'Application Submitted',
-          'title': isProfileOnly
-              ? 'Profile Details Saved Successfully!'
-              : 'Application Submitted Successfully!',
+          'appBarTitle': 'Application Submitted',
+          'title': 'Application Submitted Successfully!',
           'message': successMessage,
           'applicationId': applicationId,
         },

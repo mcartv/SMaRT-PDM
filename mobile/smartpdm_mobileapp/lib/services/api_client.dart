@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:smartpdm_mobileapp/config/app_config.dart';
@@ -193,6 +194,40 @@ class ApiClient {
       request.fields.addAll(fields);
       request.headers.addAll(await _buildHeaders());
       request.files.add(await http.MultipartFile.fromPath(fieldName, filePath));
+
+      final streamedResponse = await request.send().timeout(timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      return _decodeObjectResponse(response);
+    } on TimeoutException {
+      throw const ApiException(
+        'Upload timed out. Please check your connection and try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Network connection error. Please check your internet connection.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'Connection error. Please ensure your backend is running and accessible.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadBytes(
+    String path, {
+    required String fieldName,
+    required Uint8List bytes,
+    required String fileName,
+    Map<String, String> fields = const {},
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    try {
+      final request = http.MultipartRequest('POST', buildUri(path));
+      request.fields.addAll(fields);
+      request.headers.addAll(await _buildHeaders());
+      request.files.add(
+        http.MultipartFile.fromBytes(fieldName, bytes, filename: fileName),
+      );
 
       final streamedResponse = await request.send().timeout(timeout);
       final response = await http.Response.fromStream(streamedResponse);

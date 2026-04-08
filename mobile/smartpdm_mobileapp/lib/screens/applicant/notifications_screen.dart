@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+
+enum _NotificationViewFilter { officeUpdates, notifications }
 
 class NotificationsScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -15,6 +19,9 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  _NotificationViewFilter _selectedFilter =
+      _NotificationViewFilter.officeUpdates;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +39,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (!mounted) return;
 
+    if (notification.isOfficeUpdate) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OfficeUpdateArticleScreen(
+            notification: notification,
+            showBottomNav: false,
+          ),
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet<void>(
       context: context,
       builder: (context) =>
@@ -46,8 +66,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Consumer<NotificationProvider>(
       builder: (context, notificationProvider, child) {
-        final notifications = notificationProvider.notifications;
+        final officeUpdates = notificationProvider.officeUpdatesItems;
+        final generalNotifications =
+            notificationProvider.generalNotificationItems;
         final unreadCount = notificationProvider.unreadCount;
+        final activeItems =
+            _selectedFilter == _NotificationViewFilter.officeUpdates
+            ? officeUpdates
+            : generalNotifications;
 
         return SmartPdmPageScaffold(
           appBar: AppBar(
@@ -56,7 +82,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
             elevation: 0,
             actions: [
-              if (unreadCount > 0)
+              if (_selectedFilter == _NotificationViewFilter.notifications &&
+                  unreadCount > 0)
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Center(
@@ -77,32 +104,62 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           showDrawer: false,
           child: RefreshIndicator(
             onRefresh: notificationProvider.refresh,
-            child: Builder(
-              builder: (context) {
-                if (notificationProvider.isLoading && notifications.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (notificationProvider.errorMessage != null &&
-                    notifications.isEmpty) {
-                  return _NotificationsErrorState(
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(top: 12, bottom: 12),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _NotificationFilterChips(
+                    selectedFilter: _selectedFilter,
+                    onChanged: (value) {
+                      setState(() => _selectedFilter = value);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (notificationProvider.isLoading && activeItems.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 48),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (notificationProvider.errorMessage != null &&
+                    activeItems.isEmpty)
+                  _NotificationsErrorState(
                     message: notificationProvider.errorMessage!,
                     onRetry: notificationProvider.refresh,
-                  );
-                }
-
-                if (notifications.isEmpty) {
-                  return _NotificationsEmptyState(isDark: isDark);
-                }
-
-                return ListView.builder(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: notifications.length,
-                  itemBuilder: (context, index) {
-                    final notification = notifications[index];
-                    return Dismissible(
+                  )
+                else if (activeItems.isEmpty)
+                  _NotificationsEmptyState(
+                    isDark: isDark,
+                    label:
+                        _selectedFilter == _NotificationViewFilter.officeUpdates
+                        ? 'No office updates'
+                        : 'No notifications',
+                  )
+                else if (_selectedFilter ==
+                    _NotificationViewFilter.officeUpdates)
+                  ...officeUpdates.map(
+                    (notification) => Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: _OfficeUpdatePreviewCard(
+                        notification: notification,
+                        onTap: () => _openNotification(notification),
+                      ),
+                    ),
+                  )
+                else
+                  ...generalNotifications.map(
+                    (notification) => Dismissible(
                       key: Key(notification.notificationId),
                       background: Container(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
                         color: Colors.red,
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 16),
@@ -114,9 +171,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         );
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Notification deleted'),
-                          ),
+                          const SnackBar(content: Text('Notification deleted')),
                         );
                       },
                       child: _NotificationTile(
@@ -130,17 +185,176 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         onMarkRead: notification.isRead
                             ? null
                             : () => notificationProvider.markAsRead(
-                                  notification.notificationId,
-                                ),
+                                notification.notificationId,
+                              ),
                       ),
-                    );
-                  },
-                );
-              },
+                    ),
+                  ),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _NotificationFilterChips extends StatelessWidget {
+  const _NotificationFilterChips({
+    required this.selectedFilter,
+    required this.onChanged,
+  });
+
+  final _NotificationViewFilter selectedFilter;
+  final ValueChanged<_NotificationViewFilter> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        ChoiceChip(
+          label: const Text('Office Updates'),
+          selected: selectedFilter == _NotificationViewFilter.officeUpdates,
+          onSelected: (_) => onChanged(_NotificationViewFilter.officeUpdates),
+          selectedColor: isDark ? const Color(0xFF4C3318) : AppColors.gold,
+          labelStyle: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: selectedFilter == _NotificationViewFilter.officeUpdates
+                ? AppColors.darkBrown
+                : (isDark ? Colors.white70 : Colors.black87),
+          ),
+        ),
+        ChoiceChip(
+          label: const Text('Notifications'),
+          selected: selectedFilter == _NotificationViewFilter.notifications,
+          onSelected: (_) => onChanged(_NotificationViewFilter.notifications),
+          selectedColor: isDark ? const Color(0xFF4C3318) : AppColors.gold,
+          labelStyle: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: selectedFilter == _NotificationViewFilter.notifications
+                ? AppColors.darkBrown
+                : (isDark ? Colors.white70 : Colors.black87),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OfficeUpdatePreviewCard extends StatelessWidget {
+  const _OfficeUpdatePreviewCard({
+    required this.notification,
+    required this.onTap,
+  });
+
+  final AppNotification notification;
+  final VoidCallback onTap;
+
+  void _openOpenings(BuildContext context) {
+    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final bodyColor = isDark ? Colors.white70 : Colors.black87;
+    final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: notification.accentColor.withOpacity(0.28)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: notification.accentColor.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      notification.officeUpdateLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: notification.accentColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'READ MORE',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: notification.accentColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                notification.title,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: titleColor,
+                  height: 1.12,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                notification.previewText,
+                style: TextStyle(fontSize: 14, color: bodyColor, height: 1.45),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _formatTimestamp(notification.createdAt),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white54 : Colors.grey[700],
+                ),
+              ),
+              if (notification.isOpeningUpdate) ...[
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _openOpenings(context),
+                    child: const Text('Apply Now'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -185,8 +399,9 @@ class _NotificationTile extends StatelessWidget {
               child: Text(
                 notification.title,
                 style: TextStyle(
-                  fontWeight:
-                      notification.isRead ? FontWeight.normal : FontWeight.bold,
+                  fontWeight: notification.isRead
+                      ? FontWeight.normal
+                      : FontWeight.bold,
                   color: titleColor,
                 ),
               ),
@@ -236,10 +451,7 @@ class _NotificationTile extends StatelessWidget {
                 value: 'read',
                 child: Text('Mark as read'),
               ),
-            const PopupMenuItem<String>(
-              value: 'delete',
-              child: Text('Delete'),
-            ),
+            const PopupMenuItem<String>(value: 'delete', child: Text('Delete')),
           ],
         ),
       ),
@@ -312,7 +524,8 @@ class _NotificationDetailSheet extends StatelessWidget {
                   (notification.referenceId ?? '').isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
-                  'Reference: ${notification.referenceType ?? 'notification'} ${notification.referenceId ?? ''}'.trim(),
+                  'Reference: ${notification.referenceType ?? 'notification'} ${notification.referenceId ?? ''}'
+                      .trim(),
                   style: TextStyle(fontSize: 12, color: subtitleColor),
                 ),
               ],
@@ -333,9 +546,10 @@ class _NotificationDetailSheet extends StatelessWidget {
 }
 
 class _NotificationsEmptyState extends StatelessWidget {
-  const _NotificationsEmptyState({required this.isDark});
+  const _NotificationsEmptyState({required this.isDark, required this.label});
 
   final bool isDark;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -355,7 +569,7 @@ class _NotificationsEmptyState extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No notifications',
+                  label,
                   style: TextStyle(
                     fontSize: 18,
                     color: isDark ? Colors.white70 : Colors.grey[600],
@@ -393,7 +607,11 @@ class _NotificationsErrorState extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.cloud_off, size: 52, color: Colors.redAccent),
+                  const Icon(
+                    Icons.cloud_off,
+                    size: 52,
+                    color: Colors.redAccent,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Unable to load notifications',
@@ -440,8 +658,9 @@ String _formatTimestamp(DateTime timestamp) {
 
   final month = _monthLabel(local.month);
   final minute = local.minute.toString().padLeft(2, '0');
-  final hour =
-      local.hour > 12 ? local.hour - 12 : (local.hour == 0 ? 12 : local.hour);
+  final hour = local.hour > 12
+      ? local.hour - 12
+      : (local.hour == 0 ? 12 : local.hour);
   final period = local.hour >= 12 ? 'PM' : 'AM';
   return '$month ${local.day}, ${local.year} $hour:$minute $period';
 }

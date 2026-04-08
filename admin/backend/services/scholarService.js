@@ -110,6 +110,13 @@ exports.fetchScholarById = async (scholarId) => {
       st.first_name || ' ' || st.last_name AS student_name,
       st.gwa,
       st.sdo_status,
+
+      -- NEW: fallback renewal document url fields
+      st.certificate_of_registration_url,
+      st.grade_form_url,
+      st.certificate_of_indigency_url,
+      st.valid_id_url,
+
       latest_sdo.record_id AS sdo_record_id,
       latest_sdo.offense_level,
       latest_sdo.offense_description AS sdo_comment,
@@ -171,6 +178,146 @@ exports.fetchScholarById = async (scholarId) => {
         sdu_level: mapSdoLevelFromRecord(scholar.offense_level, scholar.sdo_record_status, scholar.sdo_status),
         activity_logs: logs,
     };
+};
+
+exports.fetchScholarRenewalDocuments = async (scholarId) => {
+    const scholarResult = await db.query(
+        `
+        SELECT
+          s.scholar_id,
+          st.student_id,
+          st.user_id,
+          st.pdm_id AS student_number,
+          st.first_name,
+          st.last_name,
+          st.first_name || ' ' || st.last_name AS student_name,
+          st.gwa,
+          st.sdo_status,
+
+          -- fallback direct file url columns
+          st.certificate_of_registration_url,
+          st.grade_form_url,
+          st.certificate_of_indigency_url,
+          st.valid_id_url
+
+        FROM scholars s
+        JOIN students st ON s.student_id = st.student_id
+        WHERE s.scholar_id = $1
+        LIMIT 1;
+        `,
+        [scholarId]
+    );
+
+    if (!scholarResult.rows.length) {
+        throw new Error('Scholar not found');
+    }
+
+    const scholar = scholarResult.rows[0];
+
+    // Try normalized documents table first
+    try {
+        const docsResult = await db.query(
+            `
+            SELECT
+              d.document_id AS id,
+              COALESCE(r.requirement_name, d.document_type, 'Renewal Document') AS document_type,
+              COALESCE(d.file_name, r.requirement_name, d.document_type, 'Document') AS document_name,
+              d.file_url,
+              COALESCE(d.document_status, 'Pending Review') AS status,
+              d.created_at AS uploaded_at,
+              COALESCE(d.ocr_status, 'Not Analyzed') AS ocr_status,
+              COALESCE(d.extracted_text, '') AS extracted_text,
+              COALESCE(d.ocr_fields, '{}'::jsonb) AS ocr_fields,
+              COALESCE(d.remarks, '') AS remarks,
+              d.confidence
+            FROM documents d
+            LEFT JOIN document_requirements r
+              ON d.requirement_id = r.requirement_id
+            WHERE d.student_id = $1
+              AND COALESCE(d.is_archived, false) = false
+              AND (
+                COALESCE(d.is_renewal_document, true) = true
+                OR COALESCE(r.category, '') = 'Renewal'
+              )
+            ORDER BY d.created_at DESC;
+            `,
+            [scholar.student_id]
+        );
+
+        if (docsResult.rows.length > 0) {
+            return docsResult.rows.map((doc) => ({
+                id: doc.id,
+                name: doc.document_name,
+                type: doc.document_type,
+                url: doc.file_url,
+                status: doc.status,
+                uploaded_at: doc.uploaded_at,
+                ocr_status: doc.ocr_status,
+                extracted_text: doc.extracted_text,
+                ocr_fields: doc.ocr_fields || {},
+                remarks: doc.remarks,
+                confidence: doc.confidence,
+            }));
+        }
+    } catch (err) {
+        console.warn('RENEWAL DOCUMENTS FALLBACK MODE:', err.message);
+    }
+
+    // Fallback if normalized docs table is not yet ready
+    return [
+        {
+            id: 'cor',
+            name: 'Certificate of Registration',
+            type: 'COR',
+            url: scholar.certificate_of_registration_url || '',
+            status: scholar.certificate_of_registration_url ? 'Uploaded' : 'Missing',
+            uploaded_at: null,
+            ocr_status: scholar.certificate_of_registration_url ? 'Ready for OCR' : 'Not Available',
+            extracted_text: '',
+            ocr_fields: {},
+            remarks: '',
+            confidence: null,
+        },
+        {
+            id: 'grades',
+            name: 'Grade Form',
+            type: 'Grades',
+            url: scholar.grade_form_url || '',
+            status: scholar.grade_form_url ? 'Uploaded' : 'Missing',
+            uploaded_at: null,
+            ocr_status: scholar.grade_form_url ? 'Ready for OCR' : 'Not Available',
+            extracted_text: '',
+            ocr_fields: {},
+            remarks: '',
+            confidence: null,
+        },
+        {
+            id: 'indigency',
+            name: 'Certificate of Indigency',
+            type: 'Indigency',
+            url: scholar.certificate_of_indigency_url || '',
+            status: scholar.certificate_of_indigency_url ? 'Uploaded' : 'Missing',
+            uploaded_at: null,
+            ocr_status: scholar.certificate_of_indigency_url ? 'Ready for OCR' : 'Not Available',
+            extracted_text: '',
+            ocr_fields: {},
+            remarks: '',
+            confidence: null,
+        },
+        {
+            id: 'validid',
+            name: 'Valid ID',
+            type: 'Identification',
+            url: scholar.valid_id_url || '',
+            status: scholar.valid_id_url ? 'Uploaded' : 'Missing',
+            uploaded_at: null,
+            ocr_status: scholar.valid_id_url ? 'Ready for OCR' : 'Not Available',
+            extracted_text: '',
+            ocr_fields: {},
+            remarks: '',
+            confidence: null,
+        },
+    ];
 };
 
 exports.fetchSdoStats = async () => {

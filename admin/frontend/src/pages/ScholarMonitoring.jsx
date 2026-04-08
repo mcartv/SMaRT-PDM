@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 // --- SHADCN UI COMPONENTS ---
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,8 +56,28 @@ const CONDITION_STYLE = {
   critical: { label: 'Critical', color: '#991b1b', bg: '#fee2e2' },
 };
 
+const REMOVAL_REASONS = [
+  'Failed GWA requirement',
+  'SDU / disciplinary case',
+  'Failed RO compliance',
+  'Voluntary withdrawal',
+  'Transferred out',
+  'Graduated',
+  'Duplicate / invalid record',
+  'Other',
+];
+
+const RENEWAL_STATUS_STYLE = {
+  pending_submission: { label: 'Pending Submission', color: '#78716c', bg: '#f5f5f4' },
+  submitted: { label: 'Submitted', color: C.blue, bg: C.blueSoft },
+  under_review: { label: 'Under Review', color: C.amber, bg: C.amberSoft },
+  approved: { label: 'Approved', color: C.green, bg: C.greenSoft },
+  needs_reupload: { label: 'Needs Re-upload', color: C.red, bg: C.redSoft },
+};
+
 const PAGE_SIZE = 10;
 
+// ─── Helpers ─────────────────────────────────────────────────────
 function getScholarConditionMeta(gwa, sdu) {
   const g = Number(gwa);
   const level = sdu || 'none';
@@ -79,6 +100,32 @@ function getFileTypeLabel(url = '', name = '') {
 function isImageFile(url = '', name = '') {
   const value = `${url} ${name}`.toLowerCase();
   return ['.png', '.jpg', '.jpeg', '.webp', '.gif'].some((ext) => value.includes(ext));
+}
+
+function getRenewalStatusMeta(raw) {
+  const key = String(raw || '').toLowerCase();
+  return RENEWAL_STATUS_STYLE[key] || RENEWAL_STATUS_STYLE.pending_submission;
+}
+
+function deriveRenewalStatusFromDocuments(documents = []) {
+  if (!Array.isArray(documents) || documents.length === 0) {
+    return 'pending_submission';
+  }
+
+  const uploaded = documents.filter((d) => d.url);
+  if (uploaded.length === 0) return 'pending_submission';
+
+  const hasMissing = documents.some((d) => !d.url);
+  const hasFlagged = documents.some((d) => String(d.ocrStatus || '').toLowerCase() === 'flagged');
+  const hasVerified = documents.length > 0 && documents.every((d) => {
+    if (!d.url) return false;
+    const ocr = String(d.ocrStatus || '').toLowerCase();
+    return ocr === 'verified' || ocr === 'ready for ocr' || ocr === 'not analyzed';
+  });
+
+  if (hasFlagged || hasMissing) return 'needs_reupload';
+  if (hasVerified) return 'submitted';
+  return 'under_review';
 }
 
 function normalizeRenewalDocuments(payload, scholar) {
@@ -158,6 +205,7 @@ function normalizeRenewalDocuments(payload, scholar) {
   ];
 }
 
+// ─── Scholar Profile Modal ───────────────────────────────────────
 function ScholarProfileModal({ scholar, loading, onClose }) {
   if (!scholar && !loading) return null;
 
@@ -417,6 +465,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
   );
 }
 
+// ─── Renewal Modal ───────────────────────────────────────────────
 function RenewalModal({
   open,
   scholar,
@@ -426,6 +475,8 @@ function RenewalModal({
   const [documents, setDocuments] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState(null);
   const [loadError, setLoadError] = useState('');
+  const [adminRemarks, setAdminRemarks] = useState('');
+  const [decision, setDecision] = useState('');
 
   useEffect(() => {
     if (!open || !scholar) return;
@@ -436,6 +487,8 @@ function RenewalModal({
       try {
         setLoading(true);
         setLoadError('');
+        setAdminRemarks('');
+        setDecision('');
 
         const token = localStorage.getItem('adminToken');
         const res = await fetch(`http://localhost:5000/api/scholars/${scholar.scholar_id}/renewal-documents`, {
@@ -481,7 +534,9 @@ function RenewalModal({
 
   const uploadedCount = documents.filter((doc) => doc.url).length;
   const missingCount = documents.filter((doc) => !doc.url).length;
-  const ocrReadyCount = documents.filter((doc) => doc.ocrStatus && doc.ocrStatus !== 'Not Available').length;
+  const verifiedCount = documents.filter((doc) => String(doc.ocrStatus || '').toLowerCase() === 'verified').length;
+  const renewalStatus = deriveRenewalStatusFromDocuments(documents);
+  const renewalMeta = getRenewalStatusMeta(renewalStatus);
 
   return (
     <div
@@ -494,13 +549,20 @@ function RenewalModal({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50">
           <div>
-            <h3 className="text-base font-semibold text-stone-800">Scholar Renewal Review</h3>
+            <h3 className="text-base font-semibold text-stone-800">Renewal Review Workspace</h3>
             <p className="text-xs text-stone-500 mt-0.5">
-              {scholar.student_name} · {scholar.student_number || 'No PDM ID'} · split review + OCR hub
+              {scholar.student_name} · {scholar.student_number || 'No PDM ID'} · scholar renewal validation
             </p>
           </div>
 
           <div className="flex items-center gap-2">
+            <span
+              className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+              style={{ background: renewalMeta.bg, color: renewalMeta.color }}
+            >
+              {renewalMeta.label}
+            </span>
+
             <Button
               size="sm"
               variant="outline"
@@ -511,6 +573,7 @@ function RenewalModal({
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
               Open File
             </Button>
+
             <button
               onClick={onClose}
               className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
@@ -521,21 +584,34 @@ function RenewalModal({
         </div>
 
         <div className="px-5 py-3 border-b border-stone-100 bg-white">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="rounded-xl border border-stone-200 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wider text-stone-400">Uploaded Docs</p>
               <p className="text-xl font-semibold text-stone-800 mt-1">{uploadedCount}</p>
             </div>
+
             <div className="rounded-xl border border-stone-200 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wider text-stone-400">Missing Docs</p>
               <p className="text-xl font-semibold mt-1" style={{ color: missingCount > 0 ? C.red : C.green }}>
                 {missingCount}
               </p>
             </div>
+
             <div className="rounded-xl border border-stone-200 px-4 py-3">
-              <p className="text-[11px] uppercase tracking-wider text-stone-400">OCR Ready</p>
-              <p className="text-xl font-semibold text-stone-800 mt-1">{ocrReadyCount}</p>
+              <p className="text-[11px] uppercase tracking-wider text-stone-400">Verified OCR</p>
+              <p className="text-xl font-semibold text-stone-800 mt-1">{verifiedCount}</p>
             </div>
+
+            <div className="rounded-xl border border-stone-200 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wider text-stone-400">Current GWA</p>
+              <p
+                className="text-xl font-semibold mt-1"
+                style={{ color: Number(scholar.gwa) > 2.0 ? C.red : C.green }}
+              >
+                {Number.isFinite(Number(scholar.gwa)) ? Number(scholar.gwa).toFixed(2) : '—'}
+              </p>
+            </div>
+
             <div className="rounded-xl border border-stone-200 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wider text-stone-400">Monitoring</p>
               <p className="text-sm font-semibold mt-1" style={{ color: getScholarConditionMeta(scholar.gwa, scholar.sdu_level).color }}>
@@ -551,13 +627,13 @@ function RenewalModal({
           )}
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)_360px] h-[calc(92vh-147px)]">
-          {/* LEFT SIDEBAR - DOCUMENT LIST */}
+        <div className="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)_380px] h-[calc(92vh-154px)]">
+          {/* LEFT */}
           <div className="border-r border-stone-100 bg-stone-50/60 overflow-y-auto">
             <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 sticky top-0">
               <div className="flex items-center gap-2">
                 <Files className="w-4 h-4 text-stone-500" />
-                <h4 className="text-sm font-semibold text-stone-800">Renewal Documents</h4>
+                <h4 className="text-sm font-semibold text-stone-800">Renewal Requirements</h4>
               </div>
             </div>
 
@@ -581,8 +657,8 @@ function RenewalModal({
                       key={doc.id}
                       onClick={() => setSelectedDocId(doc.id)}
                       className={`w-full text-left rounded-xl border px-3 py-3 transition-all ${selected
-                          ? 'border-amber-300 bg-amber-50 shadow-sm'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                        ? 'border-amber-300 bg-amber-50 shadow-sm'
+                        : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -625,7 +701,7 @@ function RenewalModal({
             </div>
           </div>
 
-          {/* CENTER - DOCUMENT PREVIEW */}
+          {/* CENTER */}
           <div className="bg-white overflow-hidden border-r border-stone-100">
             <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
               <div>
@@ -685,12 +761,12 @@ function RenewalModal({
             </div>
           </div>
 
-          {/* RIGHT - OCR HUB */}
+          {/* RIGHT */}
           <div className="bg-stone-50/50 overflow-y-auto">
             <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <ScanSearch className="w-4 h-4 text-stone-500" />
-                <h4 className="text-sm font-semibold text-stone-800">OCR Validation Hub</h4>
+                <h4 className="text-sm font-semibold text-stone-800">Validation Panel</h4>
               </div>
             </div>
 
@@ -783,7 +859,7 @@ function RenewalModal({
                       <h5 className="text-sm font-semibold text-stone-800">Extracted Text</h5>
                     </CardHeader>
                     <CardContent>
-                      <div className="rounded-xl border border-stone-200 bg-white p-3 min-h-[160px]">
+                      <div className="rounded-xl border border-stone-200 bg-white p-3 min-h-[120px] max-h-[220px] overflow-y-auto">
                         {selectedDoc.extractedText ? (
                           <p className="text-xs leading-relaxed text-stone-700 whitespace-pre-wrap">
                             {selectedDoc.extractedText}
@@ -799,18 +875,26 @@ function RenewalModal({
 
                   <Card className="border-stone-200 shadow-none">
                     <CardHeader className="pb-2">
-                      <h5 className="text-sm font-semibold text-stone-800">Validation Notes</h5>
+                      <h5 className="text-sm font-semibold text-stone-800">Renewal Decision</h5>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="rounded-xl border border-dashed border-stone-300 bg-white p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FileCheck2 className="w-4 h-4 text-stone-400" />
-                          <p className="text-xs font-medium text-stone-600">Admin remarks</p>
-                        </div>
-                        <p className="text-xs text-stone-600 leading-relaxed">
-                          {selectedDoc.remarks || 'No admin remarks yet for this renewal document.'}
-                        </p>
-                      </div>
+                      <Select value={decision} onValueChange={setDecision}>
+                        <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm bg-white">
+                          <SelectValue placeholder="Select renewal decision" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[100]">
+                          <SelectItem value="approved">Approve Renewal</SelectItem>
+                          <SelectItem value="under_review">Keep Under Review</SelectItem>
+                          <SelectItem value="needs_reupload">Require Re-upload</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Textarea
+                        value={adminRemarks}
+                        onChange={(e) => setAdminRemarks(e.target.value)}
+                        placeholder="Add renewal-specific remarks, deficiencies, or approval notes..."
+                        className="min-h-[100px] rounded-lg border-stone-200 text-sm resize-none bg-white"
+                      />
 
                       <div className="flex gap-2">
                         <Button
@@ -843,6 +927,22 @@ function RenewalModal({
                         <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                         Re-run OCR
                       </Button>
+
+                      <div className="pt-2 border-t border-stone-100 flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          className="h-9 rounded-lg border-stone-200 text-xs"
+                          onClick={onClose}
+                        >
+                          Close
+                        </Button>
+                        <Button
+                          className="h-9 rounded-lg text-white text-xs border-none"
+                          style={{ background: C.brownMid }}
+                        >
+                          Save Renewal Review
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </>
@@ -855,8 +955,119 @@ function RenewalModal({
   );
 }
 
+// ─── Archive Scholar Modal ───────────────────────────────────────
+function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+  const [archiveStudent, setArchiveStudent] = useState(false);
+
+  useEffect(() => {
+    if (scholar) {
+      setReason('');
+      setNotes('');
+      setArchiveStudent(false);
+    }
+  }, [scholar]);
+
+  if (!scholar) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-lg border-stone-200 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50">
+          <div>
+            <h3 className="text-base font-semibold text-stone-800">Remove Scholar Privilege</h3>
+            <p className="text-xs text-stone-500 mt-0.5">
+              {scholar.student_name} · {scholar.student_number}
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <CardContent className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Removal Reason
+            </label>
+            <Select value={reason} onValueChange={setReason}>
+              <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                <SelectValue placeholder="Select reason" />
+              </SelectTrigger>
+              <SelectContent className="z-[100]">
+                {REMOVAL_REASONS.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Notes
+            </label>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional admin note..."
+              className="min-h-[100px] rounded-lg border-stone-200 text-sm resize-none"
+            />
+          </div>
+
+          <label className="flex items-start gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={archiveStudent}
+              onChange={(e) => setArchiveStudent(e.target.checked)}
+              className="mt-0.5 accent-stone-700"
+            />
+            <div>
+              <p className="text-xs font-medium text-stone-700">Also archive student record</p>
+              <p className="text-[11px] text-stone-500 mt-0.5">
+                Enable only if the student record should also be hidden from active records.
+              </p>
+            </div>
+          </label>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="h-9 rounded-lg border-stone-200 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => onConfirm({ reason, notes, archive_student: archiveStudent })}
+              disabled={!reason || saving}
+              className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+              style={{ background: C.red }}
+            >
+              {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Confirm Removal
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────
 export default function ScholarMonitoring() {
-  // ─── STATE ───────────────────────────────────────────────────
   const [scholars, setScholars] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -882,6 +1093,12 @@ export default function ScholarMonitoring() {
 
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [renewalScholar, setRenewalScholar] = useState(null);
+
+  const [archiveModalScholar, setArchiveModalScholar] = useState(null);
+  const [archiveSaving, setArchiveSaving] = useState(false);
+
+  const [showRenewalQueue, setShowRenewalQueue] = useState(false);
+  const [renewalStatusFilter, setRenewalStatusFilter] = useState('All Renewal');
 
   // ─── FETCH ───────────────────────────────────────────────────
   useEffect(() => {
@@ -927,6 +1144,58 @@ export default function ScholarMonitoring() {
 
     fetchScholars();
   }, []);
+
+  const handleArchiveScholar = async (payload) => {
+    if (!archiveModalScholar) return;
+
+    try {
+      setArchiveSaving(true);
+
+      const res = await fetch(`http://localhost:5000/api/scholars/${archiveModalScholar.scholar_id}/archive`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to archive scholar');
+      }
+
+      setScholars((prev) =>
+        prev.filter((s) => s.scholar_id !== archiveModalScholar.scholar_id)
+      );
+
+      setStats((prev) => ({
+        ...prev,
+        total: Math.max(0, Number(prev.total || 0) - 1),
+        active:
+          archiveModalScholar.status === 'Active'
+            ? Math.max(0, Number(prev.active || 0) - 1)
+            : Number(prev.active || 0),
+        at_risk:
+          Number(archiveModalScholar.gwa || 0) >= 2.0
+            ? Math.max(0, Number(prev.at_risk || 0) - 1)
+            : Number(prev.at_risk || 0),
+      }));
+
+      if (selectedScholarId === archiveModalScholar.scholar_id) {
+        setSelectedScholarId(null);
+        setSelectedScholar(null);
+      }
+
+      setArchiveModalScholar(null);
+    } catch (err) {
+      console.error('ARCHIVE SCHOLAR ERROR:', err);
+      alert(err.message || 'Failed to archive scholar');
+    } finally {
+      setArchiveSaving(false);
+    }
+  };
 
   const handleViewScholar = async (scholarId) => {
     try {
@@ -1113,6 +1382,37 @@ export default function ScholarMonitoring() {
     'RO Lowest',
   ];
 
+  // ─── Renewal Queue ───────────────────────────────────────────
+  const scholarsWithRenewalMeta = useMemo(() => {
+    return scholars.map((s) => {
+      const fallbackDocs = normalizeRenewalDocuments(null, s);
+      const renewal_status = deriveRenewalStatusFromDocuments(fallbackDocs);
+      return {
+        ...s,
+        renewal_status,
+      };
+    });
+  }, [scholars]);
+
+  const renewalQueue = useMemo(() => {
+    let rows = scholarsWithRenewalMeta.filter((s) => s.renewal_status !== 'pending_submission');
+
+    if (renewalStatusFilter !== 'All Renewal') {
+      rows = rows.filter((s) => s.renewal_status === renewalStatusFilter);
+    }
+
+    return rows;
+  }, [scholarsWithRenewalMeta, renewalStatusFilter]);
+
+  const renewalQueueStats = useMemo(() => {
+    return {
+      submitted: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'submitted').length,
+      under_review: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'under_review').length,
+      approved: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'approved').length,
+      needs_reupload: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'needs_reupload').length,
+    };
+  }, [scholarsWithRenewalMeta]);
+
   const statCards = useMemo(() => {
     return [
       {
@@ -1198,6 +1498,13 @@ export default function ScholarMonitoring() {
         }}
       />
 
+      <ArchiveScholarModal
+        scholar={archiveModalScholar}
+        onClose={() => setArchiveModalScholar(null)}
+        onConfirm={handleArchiveScholar}
+        saving={archiveSaving}
+      />
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
@@ -1208,14 +1515,26 @@ export default function ScholarMonitoring() {
           </p>
         </div>
 
-        <Button
-          size="sm"
-          className="rounded-lg text-white text-xs border-none"
-          style={{ background: C.brownMid }}
-        >
-          <Download className="mr-1.5 h-3.5 w-3.5" />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowRenewalQueue((prev) => !prev)}
+            className="rounded-lg text-xs border-stone-200 text-stone-600"
+          >
+            <Files className="mr-1.5 h-3.5 w-3.5" />
+            {showRenewalQueue ? 'Hide Renewal Queue' : 'Show Renewal Queue'}
+          </Button>
+
+          <Button
+            size="sm"
+            className="rounded-lg text-white text-xs border-none"
+            style={{ background: C.brownMid }}
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1369,6 +1688,113 @@ export default function ScholarMonitoring() {
           )}
       </div>
 
+      {showRenewalQueue && (
+        <Card className="border-stone-200 shadow-none overflow-hidden">
+          <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-stone-800">Renewal Queue</h2>
+                <p className="text-xs text-stone-400">
+                  Existing scholars who have renewal activity requiring admin review
+                </p>
+              </div>
+
+              <Select value={renewalStatusFilter} onValueChange={setRenewalStatusFilter}>
+                <SelectTrigger className="w-[180px] h-9 rounded-lg border-stone-200 text-sm bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All Renewal">All Renewal</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="needs_reupload">Needs Re-upload</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
+                <p className="text-[11px] uppercase tracking-wider text-stone-400">Submitted</p>
+                <p className="text-xl font-semibold text-stone-800 mt-1">{renewalQueueStats.submitted}</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
+                <p className="text-[11px] uppercase tracking-wider text-stone-400">Under Review</p>
+                <p className="text-xl font-semibold text-stone-800 mt-1">{renewalQueueStats.under_review}</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
+                <p className="text-[11px] uppercase tracking-wider text-stone-400">Approved</p>
+                <p className="text-xl font-semibold text-stone-800 mt-1">{renewalQueueStats.approved}</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
+                <p className="text-[11px] uppercase tracking-wider text-stone-400">Needs Re-upload</p>
+                <p className="text-xl font-semibold mt-1" style={{ color: renewalQueueStats.needs_reupload > 0 ? C.red : C.green }}>
+                  {renewalQueueStats.needs_reupload}
+                </p>
+              </div>
+            </div>
+
+            {renewalQueue.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center">
+                <p className="text-sm font-medium text-stone-600">No scholars in the renewal queue</p>
+                <p className="text-xs text-stone-400 mt-1">Renewal submissions will appear here for admin review.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {renewalQueue.map((s) => {
+                  const renewalMeta = getRenewalStatusMeta(s.renewal_status);
+
+                  return (
+                    <div
+                      key={`renewal-${s.scholar_id}`}
+                      className="rounded-xl border border-stone-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-stone-800">{s.student_name}</p>
+                        <p className="text-xs text-stone-400 mt-0.5">
+                          {s.student_number} · {s.program_name} · Batch {s.batch_year}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className="text-[10px] font-medium px-2.5 py-1 rounded-full"
+                          style={{ background: renewalMeta.bg, color: renewalMeta.color }}
+                        >
+                          {renewalMeta.label}
+                        </span>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-3 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs shadow-none"
+                          onClick={() => handleOpenRenewal(s)}
+                        >
+                          <Files className="w-3 h-3 mr-1" />
+                          Open Renewal
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+                          onClick={() => handleViewScholar(s.scholar_id)}
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          View Profile
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="border-stone-200 shadow-none overflow-hidden">
         <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
           <div>
@@ -1517,6 +1943,16 @@ export default function ScholarMonitoring() {
                         >
                           <Eye className="w-3 h-3 mr-1" />
                           View
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-3 rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs shadow-none"
+                          onClick={() => setArchiveModalScholar(s)}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Remove
                         </Button>
                       </div>
                     </TableCell>

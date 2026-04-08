@@ -72,7 +72,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
       child: SwitchListTile(
         value: value,
         onChanged: onChanged,
-        activeColor: accentColor,
+        activeThumbColor: accentColor,
         title: Text(
           title,
           style: const TextStyle(

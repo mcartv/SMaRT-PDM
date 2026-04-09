@@ -1,72 +1,82 @@
 const supabase = require('../config/supabase');
-const notificationService = require('./notificationService');
 
-function getTodayLocalISO() {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    const local = new Date(now.getTime() - offset * 60 * 1000);
-    return local.toISOString().split('T')[0];
+function normalizeStatus(value) {
+    return (value || '').toString().trim().toLowerCase();
 }
 
-function deriveOpeningStatus(payload, existingStatus = '') {
-    const normalizedExisting = String(existingStatus || '').toLowerCase();
+function mapOpening(opening, counts = {}) {
+    const postingStatus = normalizeStatus(opening.posting_status || 'draft');
+    const allocatedSlot = Number(opening.allocated_slots || 0);
+    const qualifiedCount = Number(counts.qualified_count || 0);
 
-    // archived stays manual
-    if (normalizedExisting === 'archived') {
-        return 'archived';
+    let derivedStatus = postingStatus;
+    if (allocatedSlot > 0 && qualifiedCount >= allocatedSlot && postingStatus === 'open') {
+        derivedStatus = 'filled';
     }
 
-    const today = getTodayLocalISO();
+    return {
+        opening_id: opening.opening_id,
+        title: opening.opening_title || 'Untitled Opening',
+        opening_title: opening.opening_title || 'Untitled Opening',
 
-    const hasRequiredFields =
-        !!payload.opening_title &&
-        !!payload.application_start &&
-        !!payload.application_end;
+        program_id: opening.program_id || null,
+        program_name: 'Program',
+        benefactor_name: null,
 
-    if (!hasRequiredFields) return 'draft';
+        application_start: opening.application_start || null,
+        application_end: opening.application_end || null,
+        screening_start: opening.screening_start || null,
+        screening_end: opening.screening_end || null,
 
-    if (payload.application_end < today) return 'closed';
+        allocated_slots: allocatedSlot,
+        financial_allocation: opening.financial_allocation ?? null,
+        per_scholar_amount: opening.per_scholar_amount ?? null,
+        posting_status: opening.posting_status || 'draft',
+        announcement_text: opening.announcement_text || '',
+        created_at: opening.created_at || null,
+        updated_at: opening.updated_at || null,
 
-    return 'open';
+        application_count: Number(counts.application_count || 0),
+        pending_count: Number(counts.pending_count || 0),
+        review_count: Number(counts.review_count || 0),
+        qualified_count: qualifiedCount,
+        waiting_count: Number(counts.waiting_count || 0),
+        disqualified_count: Number(counts.disqualified_count || 0),
+
+        // frontend compatibility
+        slot_count: allocatedSlot,
+        start_date: opening.application_start || null,
+        end_date: opening.application_end || null,
+        status: derivedStatus,
+    };
 }
 
-async function createOpeningNotifications(openingRow) {
-    if (!openingRow?.opening_id) {
-        return 0;
-    }
+function buildCounts(opening, applications = []) {
+    const related = applications.filter(
+        (app) => app.opening_id === opening.opening_id && app.is_archived !== true
+    );
 
-    const { data: existingNotification, error: lookupError } = await supabase
-        .from('notifications')
-        .select('notification_id')
-        .eq('reference_id', openingRow.opening_id)
-        .eq('reference_type', 'program_opening')
-        .limit(1)
-        .maybeSingle();
-
-    if (lookupError) {
-        throw new Error(lookupError.message);
-    }
-
-    if (existingNotification?.notification_id) {
-        return 0;
-    }
-
-    const rows = await notificationService.createNotificationsForAudience({
-        audience: 'all',
-        title: openingRow.opening_title,
-        message:
-            openingRow.announcement_text ||
-            `${openingRow.opening_title} is now open for scholarship applications.`,
-        referenceId: openingRow.opening_id,
-        referenceType: 'program_opening',
-        type: 'Opening',
-        createdAt: openingRow.updated_at || openingRow.created_at || new Date().toISOString(),
-    });
-
-    return rows.length;
+    return {
+        application_count: related.length,
+        pending_count: related.filter((app) =>
+            ['pending', 'submitted'].includes(normalizeStatus(app.application_status))
+        ).length,
+        review_count: related.filter(
+            (app) => normalizeStatus(app.application_status) === 'review'
+        ).length,
+        qualified_count: related.filter(
+            (app) => normalizeStatus(app.application_status) === 'qualified'
+        ).length,
+        waiting_count: related.filter(
+            (app) => normalizeStatus(app.application_status) === 'waiting'
+        ).length,
+        disqualified_count: related.filter(
+            (app) => normalizeStatus(app.application_status) === 'disqualified'
+        ).length,
+    };
 }
 
-exports.getProgramOpenings = async () => {
+exports.fetchAllProgramOpenings = async () => {
     const { data, error } = await supabase
         .from('program_openings')
         .select(`
@@ -79,38 +89,208 @@ exports.getProgramOpenings = async () => {
             screening_end,
             allocated_slots,
             financial_allocation,
+            per_scholar_amount,
             posting_status,
             announcement_text,
             created_at,
-            updated_at,
-            scholarship_program (
-                program_id,
-                organization_name,
-                program_name
-            )
+            updated_at
         `)
         .order('created_at', { ascending: false });
 
-    if (error) throw new Error(error.message);
+    if (error) {
+        console.error('SUPABASE FETCH ALL PROGRAM OPENINGS ERROR:', error);
+        throw new Error(error.message);
+    }
 
-    return (data || []).map((row) => ({
-        opening_id: row.opening_id,
-        program_id: row.program_id,
-        benefactor_name: row.scholarship_program?.organization_name || 'Unknown Organization',
-        program_name: row.scholarship_program?.program_name || 'Unknown Program',
-        opening_title: row.opening_title,
-        application_start: row.application_start,
-        application_end: row.application_end,
-        screening_start: row.screening_start,
-        screening_end: row.screening_end,
-        allocated_slots: row.allocated_slots,
-        financial_allocation: row.financial_allocation,
-        posting_status: row.posting_status,
-        announcement_text: row.announcement_text,
-        applicant_count: 0,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-    }));
+    return (data || []).map((opening) => mapOpening(opening));
+};
+
+exports.fetchMobileOpenings = async () => {
+    const now = new Date().toISOString();
+
+    const { data, error } = await supabase
+        .from('program_openings')
+        .select(`
+            opening_id,
+            program_id,
+            opening_title,
+            application_start,
+            application_end,
+            screening_start,
+            screening_end,
+            allocated_slots,
+            financial_allocation,
+            per_scholar_amount,
+            posting_status,
+            announcement_text,
+            created_at,
+            updated_at
+        `)
+        .eq('posting_status', 'open')
+        .lte('application_start', now)
+        .gte('application_end', now)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('SUPABASE FETCH MOBILE OPENINGS ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return (data || []).map((opening) => mapOpening(opening));
+};
+
+exports.fetchOpeningsApplicationSummary = async () => {
+    const { data: openings, error: openingsError } = await supabase
+        .from('program_openings')
+        .select(`
+            opening_id,
+            program_id,
+            opening_title,
+            application_start,
+            application_end,
+            screening_start,
+            screening_end,
+            allocated_slots,
+            financial_allocation,
+            per_scholar_amount,
+            posting_status,
+            announcement_text,
+            created_at,
+            updated_at
+        `)
+        .order('created_at', { ascending: false });
+
+    if (openingsError) {
+        console.error('PROGRAM OPENING SUMMARY - OPENINGS ERROR:', openingsError);
+        throw new Error(openingsError.message);
+    }
+
+    const { data: applications, error: applicationsError } = await supabase
+        .from('applications')
+        .select(`
+            application_id,
+            opening_id,
+            application_status,
+            is_archived
+        `);
+
+    if (applicationsError) {
+        console.error('PROGRAM OPENING SUMMARY - APPLICATIONS ERROR:', applicationsError);
+        throw new Error(applicationsError.message);
+    }
+
+    return (openings || []).map((opening) => {
+        const counts = buildCounts(opening, applications || []);
+        return mapOpening(opening, counts);
+    });
+};
+
+exports.fetchProgramOpeningById = async (openingId) => {
+    const { data: opening, error: openingError } = await supabase
+        .from('program_openings')
+        .select(`
+            opening_id,
+            program_id,
+            opening_title,
+            application_start,
+            application_end,
+            screening_start,
+            screening_end,
+            allocated_slots,
+            financial_allocation,
+            per_scholar_amount,
+            posting_status,
+            announcement_text,
+            created_at,
+            updated_at
+        `)
+        .eq('opening_id', openingId)
+        .maybeSingle();
+
+    if (openingError) {
+        console.error('PROGRAM OPENING BY ID ERROR:', openingError);
+        throw new Error(openingError.message);
+    }
+
+    if (!opening) return null;
+
+    const { data: applications, error: applicationsError } = await supabase
+        .from('applications')
+        .select(`
+            application_id,
+            opening_id,
+            application_status,
+            is_archived
+        `)
+        .eq('opening_id', openingId);
+
+    if (applicationsError) {
+        console.error('PROGRAM OPENING BY ID APPLICATIONS ERROR:', applicationsError);
+        throw new Error(applicationsError.message);
+    }
+
+    const counts = buildCounts(opening, applications || []);
+    return mapOpening(opening, counts);
+};
+
+exports.fetchApplicationsByOpeningId = async (openingId) => {
+    const { data, error } = await supabase
+        .from('applications')
+        .select(`
+            application_id,
+            student_id,
+            opening_id,
+            application_status,
+            document_status,
+            verification_status,
+            ocr_status,
+            remarks,
+            submission_date,
+            is_reconsideration_candidate,
+            is_disqualified,
+            disqualification_reason,
+            is_archived,
+            students (
+                first_name,
+                middle_name,
+                last_name,
+                pdm_id,
+                gwa,
+                sdo_status,
+                is_archived
+            )
+        `)
+        .eq('opening_id', openingId)
+        .order('submission_date', { ascending: true });
+
+    if (error) {
+        console.error('SUPABASE FETCH APPLICATIONS BY OPENING ID ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return (data || [])
+        .filter((app) => app.is_archived !== true)
+        .filter((app) => app.students && app.students.is_archived !== true)
+        .map((app) => ({
+            id: app.application_id,
+            student_id: app.student_id,
+            opening_id: app.opening_id,
+            name: `${app.students?.last_name || 'Unknown'}, ${app.students?.first_name || 'Student'}${app.students?.middle_name ? ` ${app.students.middle_name}` : ''}`,
+            student_number: app.students?.pdm_id || 'N/A',
+            gwa: app.students?.gwa ?? null,
+            sdo_status: app.students?.sdo_status || 'clear',
+            application_status: normalizeStatus(app.application_status || 'pending'),
+            document_status: normalizeStatus(app.document_status || 'missing docs'),
+            verification_status: normalizeStatus(app.verification_status || 'pending'),
+            ocr_status: normalizeStatus(app.ocr_status || ''),
+            remarks: app.remarks || '',
+            submitted: app.submission_date || null,
+            submission_date: app.submission_date || null,
+            is_reconsideration_candidate: !!app.is_reconsideration_candidate,
+            disqualified: !!app.is_disqualified,
+            disqReason: app.disqualification_reason || null,
+            is_scholar: false,
+        }));
 };
 
 exports.createProgramOpening = async (payload) => {
@@ -123,151 +303,57 @@ exports.createProgramOpening = async (payload) => {
         screening_end,
         allocated_slots,
         financial_allocation,
+        per_scholar_amount,
+        posting_status = 'draft',
         announcement_text,
-    } = payload || {};
-
-    if (!program_id) throw new Error('Program is required');
-
-    const normalizedPayload = {
-        program_id,
-        opening_title: opening_title?.trim() || '',
-        application_start: application_start || null,
-        application_end: application_end || null,
-        screening_start: screening_start || null,
-        screening_end: screening_end || null,
-        allocated_slots: Number(allocated_slots || 0),
-        financial_allocation: Number(financial_allocation || 0),
-        announcement_text: announcement_text || null,
-    };
-
-    const derivedStatus = deriveOpeningStatus(normalizedPayload);
-
-    const finalPayload = {
-        ...normalizedPayload,
-        posting_status: derivedStatus,
-    };
-
-    // only dedupe/update when it's still a draft
-    if (derivedStatus === 'draft') {
-        const { data: existingDraft, error: existingDraftError } = await supabase
-            .from('program_openings')
-            .select('opening_id')
-            .eq('program_id', program_id)
-            .eq('posting_status', 'draft')
-            .limit(1)
-            .maybeSingle();
-
-        if (existingDraftError) throw new Error(existingDraftError.message);
-
-        if (existingDraft?.opening_id) {
-            const { data: updatedDraft, error: updateError } = await supabase
-                .from('program_openings')
-                .update({
-                    ...finalPayload,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('opening_id', existingDraft.opening_id)
-                .select(`
-                    opening_id,
-                    program_id,
-                    opening_title,
-                    application_start,
-                    application_end,
-                    screening_start,
-                    screening_end,
-                    allocated_slots,
-                    financial_allocation,
-                    posting_status,
-                    announcement_text,
-                    created_at,
-                    updated_at
-                `)
-                .single();
-
-            if (updateError) throw new Error(updateError.message);
-            return updatedDraft;
-        }
-    }
+    } = payload;
 
     const { data, error } = await supabase
         .from('program_openings')
-        .insert([finalPayload])
-        .select(`
-            opening_id,
-            program_id,
-            opening_title,
-            application_start,
-            application_end,
-            screening_start,
-            screening_end,
-            allocated_slots,
-            financial_allocation,
-            posting_status,
-            announcement_text,
-            created_at,
-            updated_at
-        `)
+        .insert([
+            {
+                program_id,
+                opening_title,
+                application_start,
+                application_end,
+                screening_start,
+                screening_end,
+                allocated_slots,
+                financial_allocation: financial_allocation ?? null,
+                per_scholar_amount: per_scholar_amount ?? null,
+                posting_status,
+                announcement_text: announcement_text || null,
+            },
+        ])
+        .select()
         .single();
 
-    if (error) throw new Error(error.message);
-
-    if ((data.posting_status || '').toLowerCase() === 'open') {
-        await createOpeningNotifications(data);
+    if (error) {
+        console.error('SUPABASE CREATE PROGRAM OPENING ERROR:', error);
+        throw new Error(error.message);
     }
 
     return data;
 };
 
 exports.updateProgramOpening = async (openingId, payload) => {
-    if (!openingId) throw new Error('Opening ID is required');
-
-    const { data: existingOpening, error: existingError } = await supabase
-        .from('program_openings')
-        .select(`
-            opening_id,
-            program_id,
-            opening_title,
-            application_start,
-            application_end,
-            screening_start,
-            screening_end,
-            allocated_slots,
-            financial_allocation,
-            posting_status,
-            announcement_text
-        `)
-        .eq('opening_id', openingId)
-        .single();
-
-    if (existingError) throw new Error(existingError.message);
-
-    const updateData = {
-        program_id: 'program_id' in payload ? payload.program_id : existingOpening.program_id,
-        opening_title: 'opening_title' in payload ? (payload.opening_title?.trim() || '') : existingOpening.opening_title,
-        application_start: 'application_start' in payload ? (payload.application_start || null) : existingOpening.application_start,
-        application_end: 'application_end' in payload ? (payload.application_end || null) : existingOpening.application_end,
-        screening_start: 'screening_start' in payload ? (payload.screening_start || null) : existingOpening.screening_start,
-        screening_end: 'screening_end' in payload ? (payload.screening_end || null) : existingOpening.screening_end,
-        allocated_slots: 'allocated_slots' in payload ? Number(payload.allocated_slots || 0) : Number(existingOpening.allocated_slots || 0),
-        financial_allocation: 'financial_allocation' in payload ? Number(payload.financial_allocation || 0) : Number(existingOpening.financial_allocation || 0),
-        announcement_text: 'announcement_text' in payload ? (payload.announcement_text || null) : existingOpening.announcement_text,
-    };
-
-    // only archive manually
-    if ('posting_status' in payload && String(payload.posting_status).toLowerCase() === 'archived') {
-        updateData.posting_status = 'archived';
-    } else {
-        updateData.posting_status = deriveOpeningStatus(updateData, existingOpening.posting_status);
-    }
-
-    updateData.updated_at = new Date().toISOString();
+    const {
+        program_id,
+        opening_title,
+        application_start,
+        application_end,
+        screening_start,
+        screening_end,
+        allocated_slots,
+        financial_allocation,
+        per_scholar_amount,
+        posting_status,
+        announcement_text,
+    } = payload;
 
     const { data, error } = await supabase
         .from('program_openings')
-        .update(updateData)
-        .eq('opening_id', openingId)
-        .select(`
-            opening_id,
+        .update({
             program_id,
             opening_title,
             application_start,
@@ -275,22 +361,39 @@ exports.updateProgramOpening = async (openingId, payload) => {
             screening_start,
             screening_end,
             allocated_slots,
-            financial_allocation,
+            financial_allocation: financial_allocation ?? null,
+            per_scholar_amount: per_scholar_amount ?? null,
             posting_status,
-            announcement_text,
-            created_at,
-            updated_at
-        `)
-        .single();
+            announcement_text: announcement_text || null,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('opening_id', openingId)
+        .select()
+        .maybeSingle();
 
-    if (error) throw new Error(error.message);
-
-    if (
-        (data.posting_status || '').toLowerCase() === 'open' &&
-        (existingOpening.posting_status || '').toLowerCase() !== 'open'
-    ) {
-        await createOpeningNotifications(data);
+    if (error) {
+        console.error('SUPABASE UPDATE PROGRAM OPENING ERROR:', error);
+        throw new Error(error.message);
     }
 
-    return data;
+    return data || null;
+};
+
+exports.closeProgramOpening = async (openingId) => {
+    const { data, error } = await supabase
+        .from('program_openings')
+        .update({
+            posting_status: 'closed',
+            updated_at: new Date().toISOString(),
+        })
+        .eq('opening_id', openingId)
+        .select()
+        .maybeSingle();
+
+    if (error) {
+        console.error('SUPABASE CLOSE PROGRAM OPENING ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return data || null;
 };

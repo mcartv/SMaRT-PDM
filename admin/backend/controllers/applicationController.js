@@ -45,6 +45,27 @@ exports.getApplicationDetails = async (req, res) => {
     }
 };
 
+exports.uploadStudentDocument = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = await applicationService.uploadStudentApplicationDocument({
+            applicationId: id,
+            documentType: req.body.documentType,
+            file: req.file,
+            user: req.user,
+        });
+
+        res.status(200).json({
+            message: 'Document uploaded successfully',
+            data: result,
+        });
+    } catch (err) {
+        console.error('UPLOAD STUDENT DOCUMENT CONTROLLER ERROR:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.saveApplicationVerification = async (req, res) => {
     const { id } = req.params;
 
@@ -82,10 +103,15 @@ exports.markApplicationReviewed = async (req, res) => {
 
 exports.disqualifyApplication = async (req, res) => {
     const { id } = req.params;
-    const { reason } = req.body;
+    const { reason, is_reconsideration_candidate = false } = req.body;
 
     try {
-        const data = await applicationService.markApplicationDisqualified(id, reason);
+        const data = await applicationService.markApplicationDisqualified(
+            id,
+            reason,
+            is_reconsideration_candidate
+        );
+
         res.status(200).json({
             message: 'Application disqualified successfully',
             data,

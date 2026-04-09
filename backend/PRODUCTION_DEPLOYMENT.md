@@ -79,10 +79,10 @@ Production:
 - Reads/Writes: `user_device_tokens`
 
 ### `GET /api/scholarship-programs`
-- Reads: `scholarship_programs`
+- Reads: `scholarship_program`
 
 ### `POST /api/applications`
-- Reads: `scholarship_programs` when `program_id` is present
+- Reads: `scholarship_program` when `program_id` is present
 - Reads: `academic_course`
 - Reads/Writes: `students`
 - Writes: `users` contact fields

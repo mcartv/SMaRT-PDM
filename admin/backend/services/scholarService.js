@@ -69,6 +69,7 @@ exports.fetchAllScholars = async () => {
       latest_sdo.status AS sdo_record_status,
       u.email,
       u.phone_number,
+      st.profile_photo_url,
       ac.course_code AS program_name
     FROM scholars s
     JOIN students st ON s.student_id = st.student_id
@@ -124,10 +125,23 @@ exports.fetchScholarById = async (scholarId) => {
       latest_sdo.status AS sdo_record_status,
       u.email,
       u.phone_number,
+      st.profile_photo_url,
+      sp.street_address,
+      sp.subdivision,
+      sp.city,
+      sp.province,
+      sp.zip_code,
+      sp.date_of_birth,
+      sp.place_of_birth,
+      sp.sex,
+      sp.civil_status,
+      sp.religion,
+      sp.citizenship,
       ac.course_code AS program_name
     FROM scholars s
     JOIN students st ON s.student_id = st.student_id
     LEFT JOIN users u ON st.user_id = u.user_id
+    LEFT JOIN student_profiles sp ON st.student_id = sp.student_id
     LEFT JOIN LATERAL (
       SELECT record_id, offense_level, offense_description, date_reported, status
       FROM sdo_records
@@ -175,6 +189,26 @@ exports.fetchScholarById = async (scholarId) => {
 
     return {
         ...scholar,
+        avatar_url: scholar.profile_photo_url || null,
+        address_summary: [
+            scholar.street_address,
+            scholar.subdivision,
+            scholar.city,
+            scholar.province,
+        ].filter(Boolean).join(', ') || null,
+        student_profile: {
+            street_address: scholar.street_address || null,
+            subdivision: scholar.subdivision || null,
+            city: scholar.city || null,
+            province: scholar.province || null,
+            zip_code: scholar.zip_code || null,
+            date_of_birth: scholar.date_of_birth || null,
+            place_of_birth: scholar.place_of_birth || null,
+            sex: scholar.sex || null,
+            civil_status: scholar.civil_status || null,
+            religion: scholar.religion || null,
+            citizenship: scholar.citizenship || null,
+        },
         sdu_level: mapSdoLevelFromRecord(scholar.offense_level, scholar.sdo_record_status, scholar.sdo_status),
         activity_logs: logs,
     };

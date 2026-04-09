@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -76,6 +77,15 @@ const RENEWAL_STATUS_STYLE = {
 };
 
 const PAGE_SIZE = 10;
+
+function getInitials(name = '') {
+  return (name || 'NA')
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────
 function getScholarConditionMeta(gwa, sdu) {
@@ -257,17 +267,19 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
               <Card className="border-stone-200 shadow-none lg:col-span-1">
                 <CardContent className="p-5 space-y-4">
                   <div className="flex items-start gap-3">
-                    <div
-                      className="w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold"
+                    <Avatar
+                      className="w-12 h-12 rounded-2xl border border-stone-200"
                       style={{ background: C.amberSoft, color: C.brown }}
                     >
-                      {(s.student_name || 'NA')
-                        .split(' ')
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join('')
-                        .toUpperCase()}
-                    </div>
+                      <AvatarImage
+                        src={s.avatar_url || undefined}
+                        alt={`${s.student_name || 'Scholar'} profile`}
+                        className="rounded-2xl"
+                      />
+                      <AvatarFallback className="rounded-2xl text-sm font-bold bg-transparent">
+                        {getInitials(s.student_name)}
+                      </AvatarFallback>
+                    </Avatar>
 
                     <div>
                       <h4 className="text-base font-semibold text-stone-800">
@@ -365,7 +377,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
               <div className="lg:col-span-2 space-y-5">
                 <Card className="border-stone-200 shadow-none">
                   <CardHeader className="pb-2">
-                    <h4 className="text-sm font-semibold text-stone-800">Admin Information</h4>
+                    <h4 className="text-sm font-semibold text-stone-800">Profile Information</h4>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div className="rounded-lg border border-stone-200 px-3 py-3">
@@ -398,6 +410,58 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                         <span>Monitoring Flag</span>
                       </div>
                       <p className="font-medium text-stone-800">{condition.label}</p>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <CalendarDays size={13} />
+                        <span>Course</span>
+                      </div>
+                      <p className="font-medium text-stone-800">{s.program_name || 'Not available'}</p>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <Phone size={13} />
+                        <span>Address</span>
+                      </div>
+                      <p className="font-medium text-stone-800">{s.address_summary || 'Not available'}</p>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <CalendarDays size={13} />
+                        <span>Date of Birth</span>
+                      </div>
+                      <p className="font-medium text-stone-800">
+                        {s.student_profile?.date_of_birth
+                          ? new Date(s.student_profile.date_of_birth).toLocaleDateString()
+                          : 'Not available'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <ShieldAlert size={13} />
+                        <span>Sex / Civil Status</span>
+                      </div>
+                      <p className="font-medium text-stone-800">
+                        {[s.student_profile?.sex, s.student_profile?.civil_status]
+                          .filter(Boolean)
+                          .join(' • ') || 'Not available'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-stone-200 px-3 py-3">
+                      <div className="flex items-center gap-2 text-stone-500 mb-1">
+                        <ShieldAlert size={13} />
+                        <span>Citizenship / Religion</span>
+                      </div>
+                      <p className="font-medium text-stone-800">
+                        {[s.student_profile?.citizenship, s.student_profile?.religion]
+                          .filter(Boolean)
+                          .join(' • ') || 'Not available'}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>

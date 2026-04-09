@@ -7,12 +7,16 @@ class AuthResult {
   final String userId;
   final String email;
   final String studentId;
+  final String firstName;
+  final String lastName;
 
   const AuthResult({
     required this.token,
     required this.userId,
     required this.email,
     required this.studentId,
+    this.firstName = '',
+    this.lastName = '',
   });
 }
 
@@ -99,6 +103,8 @@ class AuthService {
       userId: user['user_id']?.toString() ?? '',
       email: user['email']?.toString() ?? '',
       studentId: user['student_id']?.toString() ?? '',
+      firstName: user['first_name']?.toString() ?? '',
+      lastName: user['last_name']?.toString() ?? '',
     );
 
     await _sessionService.saveAuthSession(
@@ -106,6 +112,8 @@ class AuthService {
       userId: result.userId,
       email: result.email,
       studentId: result.studentId,
+      firstName: result.firstName,
+      lastName: result.lastName,
       isVerified: user['is_verified'] == true,
       role: user['role']?.toString(),
     );

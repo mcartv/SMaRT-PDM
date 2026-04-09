@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,8 +33,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'BTLED',
   ];
 
-  String _userName = 'SCHOLAR';
+  String _userName = 'Institutional Scholar';
+  String _accountHolderName = 'Pending Applicant';
   String? _imagePath;
+  bool _isProfileLoading = true;
   bool _isUploading = false;
   bool _isEditing = false;
   bool _isSaving = false;
@@ -62,7 +65,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
-  Future<void> _loadUserData() async {
+  String _buildDisplayName({
+    required String firstName,
+    required String lastName,
+  }) {
+    final fullName = [
+      firstName.trim(),
+      lastName.trim(),
+    ].where((value) => value.isNotEmpty).join(' ');
+
+    return fullName.isNotEmpty ? fullName : 'Institutional Scholar';
+  }
+
+  void _applyProfileValues({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String course,
+    required String section,
+    required String phone,
+    required String address,
+    required String studentId,
+    required String? imagePath,
+    required bool isApprovedScholar,
+  }) {
+    setState(() {
+      _imagePath = imagePath != null && imagePath.isNotEmpty ? imagePath : null;
+      _firstNameController.text = firstName;
+      _lastNameController.text = lastName;
+      _emailController.text = email;
+      _courseController.text = course;
+      _sectionController.text = section;
+      _phoneController.text = phone;
+      _addressController.text = address;
+      _studentIdController.text = studentId;
+      _userName = _buildDisplayName(firstName: firstName, lastName: lastName);
+      _accountHolderName = isApprovedScholar
+          ? 'Approved Scholar'
+          : 'Pending Applicant';
+      _isEmailInvalid = email.isNotEmpty && _isInvalidEmail(email);
+    });
+  }
+
+  String _composeAddress(Map<String, dynamic> profile) {
+    final values = [
+      profile['street_address']?.toString().trim(),
+      profile['subdivision']?.toString().trim(),
+      profile['city']?.toString().trim(),
+      profile['province']?.toString().trim(),
+    ];
+
+    return values
+        .where((value) => value != null && value.isNotEmpty)
+        .cast<String>()
+        .join(', ');
+  }
+
+  Future<void> _loadUserData({bool refreshRemote = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final firstName = prefs.getString('user_first_name') ?? '';
     final lastName = prefs.getString('user_last_name') ?? '';
@@ -73,34 +132,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final address = prefs.getString('user_address') ?? '';
     final studentId = prefs.getString('user_student_id') ?? '';
     final imagePath = prefs.getString('user_profile_image');
+    final isApprovedScholar = prefs.getBool('user_is_verified') ?? false;
 
     if (!mounted) return;
 
-    setState(() {
-      _imagePath = imagePath;
-      _firstNameController.text = firstName;
-      _lastNameController.text = lastName;
-      _emailController.text = email;
-      _courseController.text = course;
-      _sectionController.text = section;
-      _phoneController.text = phone;
-      _addressController.text = address;
-      _studentIdController.text = studentId;
-    });
+    _applyProfileValues(
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      course: course,
+      section: section,
+      phone: phone,
+      address: address,
+      studentId: studentId,
+      imagePath: imagePath,
+      isApprovedScholar: isApprovedScholar,
+    );
 
-    if (firstName.isNotEmpty && lastName.isNotEmpty) {
-      setState(() {
-        _userName = '${firstName.toUpperCase()} ${lastName.toUpperCase()}';
-      });
+    if (!refreshRemote) {
+      if (mounted) {
+        setState(() => _isProfileLoading = false);
+      }
       return;
     }
 
-    if (email.isNotEmpty) {
-      String name = email.split('@').first.replaceAll('.', ' ');
-      name = name.split(' ').map((word) => word.toUpperCase()).join(' ');
-      setState(() {
-        _userName = name;
-      });
+    try {
+      final session = await _sessionService.getCurrentUser();
+      if (session.token.isEmpty) {
+        return;
+      }
+
+      final profile = await _profileService.fetchMyProfile();
+      final latestPrefs = await SharedPreferences.getInstance();
+      final cachedSection = latestPrefs.getString('user_section') ?? section;
+      final latestApprovalState =
+          latestPrefs.getBool('user_is_verified') ?? isApprovedScholar;
+
+      if (!mounted) return;
+
+      _applyProfileValues(
+        firstName: profile['first_name']?.toString() ?? '',
+        lastName: profile['last_name']?.toString() ?? '',
+        email: profile['email']?.toString() ?? '',
+        course: profile['course_code']?.toString() ?? '',
+        section: cachedSection,
+        phone: profile['phone_number']?.toString() ?? '',
+        address: _composeAddress(profile),
+        studentId: profile['student_id']?.toString() ?? studentId,
+        imagePath: profile['avatar_url']?.toString(),
+        isApprovedScholar: latestApprovalState,
+      );
+    } catch (_) {
+      // Keep cached values when the profile endpoint is unavailable.
+    } finally {
+      if (mounted) {
+        setState(() => _isProfileLoading = false);
+      }
     }
   }
 
@@ -113,19 +200,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isUploading = true);
 
     try {
-      final session = await _sessionService.getCurrentUser();
-      final newImageUrl = await _profileService.uploadAvatar(
-        email: session.email,
-        filePath: pickedFile.path,
-      );
-
+      if (kIsWeb) {
+        final bytes = await pickedFile.readAsBytes();
+        await _profileService.uploadAvatar(
+          bytes: bytes,
+          fileName: pickedFile.name,
+        );
+      } else {
+        await _profileService.uploadAvatar(filePath: pickedFile.path);
+      }
+      final profile = await _profileService.fetchMyProfile();
+      final prefs = await SharedPreferences.getInstance();
+      final isApprovedScholar = prefs.getBool('user_is_verified') ?? false;
       if (!mounted) return;
 
-      setState(() => _imagePath = newImageUrl);
+      _applyProfileValues(
+        firstName:
+            profile['first_name']?.toString() ?? _firstNameController.text,
+        lastName: profile['last_name']?.toString() ?? _lastNameController.text,
+        email: profile['email']?.toString() ?? _emailController.text,
+        course: profile['course_code']?.toString() ?? _courseController.text,
+        section: _sectionController.text,
+        phone: profile['phone_number']?.toString() ?? _phoneController.text,
+        address: _composeAddress(profile),
+        studentId:
+            profile['student_id']?.toString() ?? _studentIdController.text,
+        imagePath: profile['avatar_url']?.toString(),
+        isApprovedScholar: isApprovedScholar,
+      );
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Profile photo updated!')));
     } catch (e) {
+      debugPrint('Avatar upload/profile refresh error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -140,13 +247,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveProfile() async {
     final email = _emailController.text.trim();
 
-    if (_firstNameController.text.isEmpty || _lastNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('First name and last name are required')),
-      );
-      return;
-    }
-
     if (_isInvalidEmail(email)) {
       setState(() => _isEmailInvalid = true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -159,21 +259,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_first_name', _firstNameController.text);
-      await prefs.setString('user_last_name', _lastNameController.text);
-      await prefs.setString('user_email', email);
-      await prefs.setString('user_course', _courseController.text.trim());
       await prefs.setString('user_section', _sectionController.text.trim());
-      await prefs.setString('user_phone', _phoneController.text);
-      await prefs.setString('user_address', _addressController.text);
+
+      final profile = await _profileService.updateMyProfile(
+        payload: {
+          'email': email,
+          'phone_number': _phoneController.text.trim(),
+          'course_code': _courseController.text.trim(),
+          'street_address': _addressController.text.trim(),
+        },
+      );
+
+      await prefs.setString('user_section', _sectionController.text.trim());
 
       if (!mounted) return;
 
-      setState(() {
-        _userName =
-            '${_firstNameController.text.toUpperCase()} ${_lastNameController.text.toUpperCase()}';
-        _isEditing = false;
-      });
+      _applyProfileValues(
+        firstName:
+            profile['first_name']?.toString() ?? _firstNameController.text,
+        lastName: profile['last_name']?.toString() ?? _lastNameController.text,
+        email: profile['email']?.toString() ?? email,
+        course: profile['course_code']?.toString() ?? _courseController.text,
+        section: _sectionController.text.trim(),
+        phone: profile['phone_number']?.toString() ?? _phoneController.text,
+        address: _composeAddress(profile),
+        studentId:
+            profile['student_id']?.toString() ?? _studentIdController.text,
+        imagePath: profile['avatar_url']?.toString() ?? _imagePath,
+        isApprovedScholar: prefs.getBool('user_is_verified') ?? false,
+      );
+      setState(() => _isEditing = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -277,45 +392,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
       selectedIndex: 3,
       showBottomNav: widget.showBottomNav,
       showDrawer: true,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildProfileHeader(),
-            const SizedBox(height: 24),
-            _buildSectionLabel('Account'),
-            if (_isEditing) _buildEditSection() else _buildOverviewSection(),
-            const SizedBox(height: 24),
-            _buildSectionLabel('Account Links'),
-            _profileRowCard(
-              icon: Icons.alternate_email,
-              title: 'Change Email',
-              subtitle: 'Send a link to update your email address',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.changeEmail),
+      child: _isProfileLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildProfileHeader(),
+                  const SizedBox(height: 24),
+                  _buildSectionLabel('Account'),
+                  if (_isEditing)
+                    _buildEditSection()
+                  else
+                    _buildOverviewSection(),
+                  const SizedBox(height: 24),
+                  _buildSectionLabel('Account Links'),
+                  _profileRowCard(
+                    icon: Icons.alternate_email,
+                    title: 'Change Email',
+                    subtitle: 'Send a link to update your email address',
+                    onTap: () =>
+                        Navigator.pushNamed(context, AppRoutes.changeEmail),
+                  ),
+                  _profileRowCard(
+                    icon: Icons.lock_outline,
+                    title: 'Change Password',
+                    subtitle: 'Manage your sign-in credentials',
+                    onTap: () =>
+                        Navigator.pushNamed(context, AppRoutes.forgotPassword),
+                  ),
+                  _profileRowCard(
+                    icon: Icons.help_outline,
+                    title: 'FAQs',
+                    subtitle: 'View common scholarship questions',
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
+                  ),
+                  _profileRowCard(
+                    icon: Icons.logout,
+                    title: 'Log out',
+                    subtitle: 'End your current session on this device',
+                    onTap: () => _confirmLogout(context),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
-            _profileRowCard(
-              icon: Icons.lock_outline,
-              title: 'Change Password',
-              subtitle: 'Manage your sign-in credentials',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.forgotPassword),
-            ),
-            _profileRowCard(
-              icon: Icons.help_outline,
-              title: 'FAQs',
-              subtitle: 'View common scholarship questions',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
-            ),
-            _profileRowCard(
-              icon: Icons.logout,
-              title: 'Log out',
-              subtitle: 'End your current session on this device',
-              onTap: () => _confirmLogout(context),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
     );
   }
 
@@ -428,7 +549,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Institutional Scholar',
+                      _accountHolderName,
                       style: TextStyle(
                         fontSize: 13,
                         color: subtitleColor,
@@ -702,7 +823,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    _loadUserData();
+                    _loadUserData(refreshRemote: false);
                     setState(() => _isEditing = false);
                   },
                   icon: const Icon(Icons.close),

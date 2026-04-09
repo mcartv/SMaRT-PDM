@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/opening_application_documents_screen.dart';
 import 'package:smartpdm_mobileapp/services/printable_application_service.dart';
 
 class SuccessScreen extends StatefulWidget {
@@ -24,9 +25,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to generate printable PDF: $error'),
-        ),
+        SnackBar(content: Text('Failed to generate printable PDF: $error')),
       );
     } finally {
       if (mounted) {
@@ -47,7 +46,12 @@ class _SuccessScreenState extends State<SuccessScreen> {
     final appBarTitle =
         payload['appBarTitle']?.toString() ?? 'Application Submitted';
     final applicationId = payload['applicationId']?.toString() ?? '';
+    final openingId = payload['openingId']?.toString() ?? '';
+    final openingTitle = payload['openingTitle']?.toString();
+    final programName = payload['programName']?.toString();
     final canGeneratePdf = applicationId.trim().isNotEmpty;
+    final canUploadOpeningRequirements =
+        applicationId.trim().isNotEmpty && openingId.trim().isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -96,6 +100,26 @@ class _SuccessScreenState extends State<SuccessScreen> {
                         ? 'Generating PDF...'
                         : 'Download Printable PDF',
                   ),
+                ),
+              ],
+              if (canUploadOpeningRequirements) ...[
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OpeningApplicationDocumentsScreen(
+                          openingId: openingId,
+                          initialApplicationId: applicationId,
+                          initialOpeningTitle: openingTitle,
+                          initialProgramName: programName,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Upload Remaining Requirements'),
                 ),
               ],
               const SizedBox(height: 30),

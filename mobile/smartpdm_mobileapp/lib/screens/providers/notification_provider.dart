@@ -23,6 +23,12 @@ class NotificationProvider extends ChangeNotifier {
   io.Socket? _socket;
 
   List<AppNotification> get notifications => _notifications;
+  List<AppNotification> get officeUpdatesItems =>
+      _notifications.where((item) => item.isOfficeUpdate).toList();
+  List<AppNotification> get generalNotificationItems =>
+      _notifications.where((item) => !item.isOfficeUpdate).toList();
+  List<AppNotification> get homeOfficeUpdatesItems =>
+      officeUpdatesItems.take(2).toList();
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   int get unreadCount => _unreadCount;
@@ -98,7 +104,9 @@ class NotificationProvider extends ChangeNotifier {
     try {
       await _notificationService.deleteNotification(notificationId);
       _notifications = _notifications
-          .where((notification) => notification.notificationId != notificationId)
+          .where(
+            (notification) => notification.notificationId != notificationId,
+          )
           .toList();
       _recalculateUnreadCount();
       notifyListeners();
@@ -167,7 +175,9 @@ class NotificationProvider extends ChangeNotifier {
       }
 
       _notifications = _notifications
-          .where((notification) => notification.notificationId != notificationId)
+          .where(
+            (notification) => notification.notificationId != notificationId,
+          )
           .toList();
       _recalculateUnreadCount();
       notifyListeners();
@@ -180,9 +190,7 @@ class NotificationProvider extends ChangeNotifier {
     }
 
     if (value is Map) {
-      return value.map(
-        (key, mapValue) => MapEntry(key.toString(), mapValue),
-      );
+      return value.map((key, mapValue) => MapEntry(key.toString(), mapValue));
     }
 
     return null;

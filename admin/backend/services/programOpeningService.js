@@ -28,7 +28,7 @@ function mapOpening(opening, counts = {}) {
         screening_start: opening.screening_start || null,
         screening_end: opening.screening_end || null,
 
-        allocated_slots: allocatedSlot,
+        allocated_slotss: allocatedSlot,
         financial_allocation: opening.financial_allocation ?? null,
         per_scholar_amount: opening.per_scholar_amount ?? null,
         posting_status: opening.posting_status || 'draft',
@@ -233,6 +233,12 @@ exports.fetchProgramOpeningById = async (openingId) => {
     return mapOpening(opening, counts);
 };
 
+const supabase = require('../config/supabase');
+
+function normalizeStatus(value) {
+    return (value || '').toString().trim().toLowerCase();
+}
+
 exports.fetchApplicationsByOpeningId = async (openingId) => {
     const { data, error } = await supabase
         .from('applications')
@@ -243,7 +249,6 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             application_status,
             document_status,
             verification_status,
-            ocr_status,
             remarks,
             submission_date,
             is_reconsideration_candidate,
@@ -282,7 +287,7 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             application_status: normalizeStatus(app.application_status || 'pending'),
             document_status: normalizeStatus(app.document_status || 'missing docs'),
             verification_status: normalizeStatus(app.verification_status || 'pending'),
-            ocr_status: normalizeStatus(app.ocr_status || ''),
+            ocr_status: '',
             remarks: app.remarks || '',
             submitted: app.submission_date || null,
             submission_date: app.submission_date || null,

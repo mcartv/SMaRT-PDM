@@ -69,10 +69,10 @@ exports.getApplicationsByOpeningId = async (req, res) => {
         const rows = await programOpeningService.fetchApplicationsByOpeningId(openingId);
         res.status(200).json(rows);
     } catch (err) {
-        console.error('GET APPLICATIONS BY OPENING ID CONTROLLER ERROR:', err.message);
+        console.error('GET APPLICATIONS BY OPENING ID CONTROLLER ERROR:', err);
         res.status(500).json({
-            message: 'Failed to fetch opening applicants',
-            error: err.message,
+            message: err.message || 'Failed to fetch opening applicants',
+            error: err.message || 'Unknown backend error',
         });
     }
 };

@@ -5,6 +5,7 @@ import 'package:smartpdm_mobileapp/screens/auth/otp_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/change_email_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/splash_screen.dart';
+import 'package:smartpdm_mobileapp/screens/common/faqs_screen.dart';
 import 'package:smartpdm_mobileapp/screens/common/status_tracking_screen.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/applicant_documents_screen.dart';
@@ -64,17 +65,17 @@ class MyApp extends StatelessWidget {
         secondary: accentColor,
         brightness: Brightness.light,
       ),
-      primarySwatch: MaterialColor(primaryColor.value, <int, Color>{
-        50: primaryColor.withOpacity(0.1),
-        100: primaryColor.withOpacity(0.2),
-        200: primaryColor.withOpacity(0.3),
-        300: primaryColor.withOpacity(0.4),
-        400: primaryColor.withOpacity(0.5),
-        500: primaryColor.withOpacity(0.6),
-        600: primaryColor.withOpacity(0.7),
-        700: primaryColor.withOpacity(0.8),
-        800: primaryColor.withOpacity(0.9),
-        900: primaryColor.withOpacity(1.0),
+      primarySwatch: MaterialColor(primaryColor.toARGB32(), <int, Color>{
+        50: primaryColor.withValues(alpha: 0.1),
+        100: primaryColor.withValues(alpha: 0.2),
+        200: primaryColor.withValues(alpha: 0.3),
+        300: primaryColor.withValues(alpha: 0.4),
+        400: primaryColor.withValues(alpha: 0.5),
+        500: primaryColor.withValues(alpha: 0.6),
+        600: primaryColor.withValues(alpha: 0.7),
+        700: primaryColor.withValues(alpha: 0.8),
+        800: primaryColor.withValues(alpha: 0.9),
+        900: primaryColor.withValues(alpha: 1.0),
       }),
       scaffoldBackgroundColor: backgroundColor,
       appBarTheme: const AppBarTheme(
@@ -148,7 +149,7 @@ class MyApp extends StatelessWidget {
             AppRoutes.announcements: (context) => const AnnouncementsScreen(),
             AppRoutes.about: (context) =>
                 const PlaceholderScreen(title: 'About PDM/OSFA'),
-            AppRoutes.faqs: (context) => const PlaceholderScreen(title: 'FAQs'),
+            AppRoutes.faqs: (context) => const FaqsScreen(),
             AppRoutes.messaging: (context) => const MessagingScreen(),
             AppRoutes.roAssignment: (context) => const ROAssignmentScreen(),
             AppRoutes.roCompletion: (context) => ROCompletionScreen(),

@@ -55,6 +55,98 @@ const DOC_STATUS = {
   },
 };
 
+const REQUIRED_DOCUMENTS = [
+  {
+    id: 'cor',
+    name: 'Certificate of Registration',
+    aliases: ['cor', 'certificate of registration', 'registration form'],
+  },
+  {
+    id: 'grades',
+    name: 'Grade Form',
+    aliases: ['grades', 'grade form', 'grade card', 'report card'],
+  },
+  {
+    id: 'loi',
+    name: 'Letter of Intent',
+    aliases: ['loi', 'letter of intent'],
+  },
+  {
+    id: 'good_moral',
+    name: 'Good Moral',
+    aliases: ['good moral', 'good moral certificate', 'certificate of good moral'],
+  },
+  {
+    id: 'application_form',
+    name: 'Application Form',
+    aliases: ['application form', 'application', 'scholarship application form'],
+  },
+];
+
+function normalizeKey(value = '') {
+  return String(value)
+    .toLowerCase()
+    .replace(/[_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findRequiredDocConfig(rawDoc = {}) {
+  const candidates = [
+    rawDoc.id,
+    rawDoc.document_key,
+    rawDoc.name,
+    rawDoc.document_name,
+    rawDoc.document_type,
+    rawDoc.requirement_name,
+    rawDoc.label,
+    rawDoc.type,
+  ]
+    .filter(Boolean)
+    .map(normalizeKey);
+
+  return REQUIRED_DOCUMENTS.find((cfg) =>
+    cfg.aliases.some((alias) => candidates.includes(normalizeKey(alias)))
+  );
+}
+
+function normalizeRequiredDocuments(rawDocs = []) {
+  const mapped = new Map();
+
+  rawDocs.forEach((rawDoc) => {
+    const config = findRequiredDocConfig(rawDoc);
+    if (!config || mapped.has(config.id)) return;
+
+    mapped.set(config.id, {
+      id: config.id,
+      document_key: rawDoc.document_key || config.id,
+      requirement_id: rawDoc.requirement_id || null,
+      name: config.name,
+      url: rawDoc.url || rawDoc.file_url || rawDoc.document_url || '',
+      status: rawDoc.status || rawDoc.document_status || 'pending',
+      admin_comment: rawDoc.admin_comment || rawDoc.comment || '',
+      ocr: rawDoc.ocr || {},
+      ocr_confidence: rawDoc.ocr_confidence ?? rawDoc.ocr?.confidence ?? null,
+    });
+  });
+
+  return REQUIRED_DOCUMENTS.map((cfg) => {
+    if (mapped.has(cfg.id)) return mapped.get(cfg.id);
+
+    return {
+      id: cfg.id,
+      document_key: cfg.id,
+      requirement_id: null,
+      name: cfg.name,
+      url: '',
+      status: 'pending',
+      admin_comment: '',
+      ocr: {},
+      ocr_confidence: null,
+    };
+  });
+}
+
 function InfoRow({ label, value, mono }) {
   return (
     <div>
@@ -153,34 +245,34 @@ function buildExtractedData(activeDoc, application) {
         },
       ];
 
-    case 'indigency':
+    case 'good_moral':
       return [
         ...base,
-        { label: 'Document Type', value: 'Certificate of Indigency', verified: true },
+        { label: 'Document Type', value: 'Good Moral', verified: true },
         {
-          label: 'Issuing Office',
-          value: activeDoc.url ? 'Barangay / LGU Certificate' : 'Not detected',
+          label: 'Conduct Certification',
+          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
           verified: !!activeDoc.url,
         },
         {
-          label: 'Eligibility Marker',
+          label: 'School/Issuer Marker',
           value: activeDoc.url ? 'Present' : 'Missing',
           verified: !!activeDoc.url,
         },
       ];
 
-    case 'valid_id':
+    case 'application_form':
       return [
         ...base,
-        { label: 'Document Type', value: 'Valid ID', verified: true },
+        { label: 'Document Type', value: 'Application Form', verified: true },
         {
-          label: 'ID Presence',
+          label: 'Applicant Signature',
           value: activeDoc.url ? 'Detected' : 'Not detected',
           verified: !!activeDoc.url,
         },
         {
-          label: 'Readable Identity Fields',
-          value: activeDoc.url ? 'Partially readable' : 'Unavailable',
+          label: 'Form Completeness',
+          value: activeDoc.url ? 'Ready for admin review' : 'No uploaded file detected',
           verified: !!activeDoc.url,
         },
       ];
@@ -336,7 +428,7 @@ export default function DocumentVerification() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [doc, setDoc] = useState('loi');
+  const [doc, setDoc] = useState('cor');
   const [comment, setComment] = useState('');
   const [docStatuses, setDocStatuses] = useState({});
   const [docComments, setDocComments] = useState({});
@@ -362,20 +454,22 @@ export default function DocumentVerification() {
         }
 
         const data = await res.json();
-        setApplication(data);
-
-        const initialDocs = data?.documents || [];
-        const firstAvailable = initialDocs.find((d) => d.url)?.id || initialDocs[0]?.id || 'loi';
-        setDoc(firstAvailable);
+        const normalizedDocs = normalizeRequiredDocuments(data?.documents || []);
+        const firstAvailable = normalizedDocs.find((d) => d.url)?.id || normalizedDocs[0]?.id || 'cor';
 
         const initialStatuses = {};
         const initialComments = {};
 
-        initialDocs.forEach((d) => {
+        normalizedDocs.forEach((d) => {
           initialStatuses[d.id] = d.status || 'pending';
           initialComments[d.id] = d.admin_comment || '';
         });
 
+        setApplication({
+          ...data,
+          documents: normalizedDocs,
+        });
+        setDoc(firstAvailable);
         setDocStatuses(initialStatuses);
         setDocComments(initialComments);
       } catch (err) {
@@ -398,7 +492,7 @@ export default function DocumentVerification() {
     }));
   }, [application, docStatuses, docComments]);
 
-  const REQUIRED_DOC_COUNT = 5;
+  const REQUIRED_DOC_COUNT = REQUIRED_DOCUMENTS.length;
 
   const uploaded = docs.filter((d) => !!d.url).length;
   const hasAnyUpload = uploaded > 0;

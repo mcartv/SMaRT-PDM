@@ -4,7 +4,6 @@ const router = express.Router();
 const programOpeningController = require('../controllers/programOpeningController');
 const { protect } = require('../middleware/authMiddleware');
 
-// IMPORTANT: fixed/static routes first
 router.get('/admin/applications-summary', protect, programOpeningController.getOpeningsApplicationSummary);
 router.get('/mobile', programOpeningController.getMobileOpenings);
 router.get('/', protect, programOpeningController.getAllProgramOpenings);

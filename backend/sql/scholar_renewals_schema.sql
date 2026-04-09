@@ -15,7 +15,7 @@ create table if not exists public.scholar_renewals (
   constraint scholar_renewals_pkey primary key (renewal_id),
   constraint scholar_renewals_scholar_id_fkey foreign key (scholar_id) references public.scholars (scholar_id) on delete cascade,
   constraint scholar_renewals_student_id_fkey foreign key (student_id) references public.students (student_id) on delete cascade,
-  constraint scholar_renewals_program_id_fkey foreign key (program_id) references public.scholarship_programs (program_id) on delete cascade,
+  constraint scholar_renewals_program_id_fkey foreign key (program_id) references public.scholarship_program (program_id) on delete cascade,
   constraint scholar_renewals_cycle_unique unique (scholar_id, semester_label, school_year_label),
   constraint scholar_renewals_status_check check (
     renewal_status = any (

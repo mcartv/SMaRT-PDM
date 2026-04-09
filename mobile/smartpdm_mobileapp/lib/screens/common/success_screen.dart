@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/applicant_documents_screen.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/services/printable_application_service.dart';
 
 class SuccessScreen extends StatefulWidget {
@@ -107,16 +107,15 @@ class _SuccessScreenState extends State<SuccessScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.push(
+                    Navigator.pushNamed(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => ApplicantDocumentsScreen(
-                          initialTitle: openingId.trim().isNotEmpty
-                              ? openingTitle
-                              : 'Scholarship Requirements',
-                          initialProgramName: programName,
-                        ),
-                      ),
+                      AppRoutes.documents,
+                      arguments: <String, dynamic>{
+                        'initialTitle': openingId.trim().isNotEmpty
+                            ? openingTitle
+                            : 'Scholarship Requirements',
+                        'initialProgramName': programName,
+                      },
                     );
                   },
                   icon: const Icon(Icons.upload_file_outlined),
@@ -128,7 +127,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                 onPressed: () {
                   Navigator.pushNamedAndRemoveUntil(
                     context,
-                    '/home',
+                    AppRoutes.home,
                     (route) => false,
                   ); // Go back to dashboard
                 },

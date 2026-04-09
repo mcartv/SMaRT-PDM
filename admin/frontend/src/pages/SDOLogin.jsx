@@ -4,10 +4,11 @@ import { Eye, EyeOff, ShieldCheck, Scale, Users } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
 
 // ─── GREEN SDO THEME ────────────────────────────────────────────
-const PANEL_BASE = '#2e4b43';     // main green
-const PANEL_TEXT = '#ecfdf5';     // light green text
-const PANEL_SUB = '#a7f3d0';      // soft green
-const ACCENT = '#16a34a';         // strong green accent
+const PANEL_BASE = '#2e4b43';
+const PANEL_TEXT = '#ecfdf5';
+const PANEL_SUB = '#a7f3d0';
+const ACCENT = '#16a34a';
+const ALLOWED_SDO_EMAIL = 'sdo@pdm.edu.ph';
 
 export default function SDOLogin() {
   const navigate = useNavigate();
@@ -22,11 +23,19 @@ export default function SDOLogin() {
     setIsLoading(true);
     setError('');
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (normalizedEmail !== ALLOWED_SDO_EMAIL) {
+      setError('Only sdo@pdm.edu.ph can log in to the SDO portal.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('http://localhost:5000/api/auth/sdo/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
       const data = await response.json();

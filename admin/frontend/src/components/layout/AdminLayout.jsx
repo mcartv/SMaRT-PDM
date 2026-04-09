@@ -15,9 +15,9 @@ import {
   Wallet,
   Briefcase,
   LifeBuoy,
-  MessageSquareMore,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
+import AdminMessages from '../../pages/AdminMessages';
 
 // Theme Colors
 const SB_BASE = '#7c4a2e';
@@ -29,11 +29,9 @@ const navItems = [
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/replacements', icon: Settings, label: 'Replacements' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
-  { path: '/admin/renewals', icon: FileText, label: 'Renewals' },
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
-  { path: '/admin/messages', icon: MessageSquareMore, label: 'Messages' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/support-tickets', icon: LifeBuoy, label: 'Support Tickets' },
@@ -260,6 +258,18 @@ export default function AdminLayout() {
             <Outlet />
           </div>
         </main>
+      </div>
+
+      {/* Floating Messages */}
+      <div className="group">
+        <div className="pointer-events-none fixed bottom-24 right-6 z-[60] translate-y-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+          <div className="relative rounded-xl bg-stone-900 px-3 py-2 text-xs font-medium text-white shadow-lg">
+            Open messages
+            <div className="absolute right-6 top-full h-0 w-0 border-l-[6px] border-r-[6px] border-t-[7px] border-l-transparent border-r-transparent border-t-stone-900" />
+          </div>
+        </div>
+
+        <AdminMessages />
       </div>
     </div>
   );

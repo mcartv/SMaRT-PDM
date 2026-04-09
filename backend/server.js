@@ -58,24 +58,76 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function buildAuthUser(user) {
+function extractAvatarStoragePath(value) {
+  const rawValue = (value ?? '').toString().trim();
+  if (!rawValue) return null;
+
+  if (!rawValue.startsWith('http')) {
+    return rawValue.replace(/^avatars\//, '');
+  }
+
+  const markers = [
+    '/storage/v1/object/public/avatars/',
+    '/storage/v1/object/sign/avatars/',
+    '/storage/v1/object/authenticated/avatars/',
+  ];
+
+  for (const marker of markers) {
+    const markerIndex = rawValue.indexOf(marker);
+    if (markerIndex >= 0) {
+      const extracted = rawValue.slice(markerIndex + marker.length);
+      return extracted.split('?')[0];
+    }
+  }
+
+  return null;
+}
+
+async function resolveAvatarUrl(value) {
+  const rawValue = (value ?? '').toString().trim();
+  if (!rawValue) return null;
+
+  const storagePath = extractAvatarStoragePath(rawValue);
+  if (!storagePath) {
+    return rawValue;
+  }
+
+  const { data, error } = await supabase.storage
+    .from('avatars')
+    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+  if (error) {
+    console.warn('Avatar signed URL generation failed:', error.message);
+    return rawValue;
+  }
+
+  return data?.signedUrl ?? rawValue;
+}
+
+async function buildAuthUser(user, studentProfile = null) {
   return {
     id: user.user_id,
     user_id: user.user_id,
     userId: user.user_id,
     email: user.email,
     student_id: user.username,
-    avatar_url: user.profile_image_url ?? null,
+    first_name: studentProfile?.first_name ?? null,
+    last_name: studentProfile?.last_name ?? null,
+    avatar_url: await resolveAvatarUrl(studentProfile?.profile_photo_url ?? null),
     role: user.role ?? null,
     is_verified: !!user.is_otp_verified,
   };
 }
 
-function buildAuthResponse(user) {
+async function buildAuthResponse(user) {
+  const studentProfile = user?.user_id
+    ? await resolveStudentByUserId(user.user_id)
+    : null;
+
   return {
     message: 'Login successful',
     token: buildAuthToken(user),
-    user: buildAuthUser(user),
+    user: await buildAuthUser(user, studentProfile),
   };
 }
 
@@ -298,7 +350,7 @@ async function refreshApplicationDocumentStatus(applicationId, studentId) {
 async function resolveStudentByUserId(userId) {
   const { data: studentRecord, error } = await supabase
     .from('students')
-    .select('student_id, user_id, pdm_id')
+    .select('student_id, user_id, pdm_id, first_name, last_name, course_id, profile_photo_url')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -307,6 +359,115 @@ async function resolveStudentByUserId(userId) {
   }
 
   return studentRecord || null;
+}
+
+async function loadStudentProfileContextByUserId(userId) {
+  const { data: userRecord, error: userError } = await supabase
+    .from('users')
+    .select('user_id, username, email, phone_number, role, is_otp_verified')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (userError) {
+    throw userError;
+  }
+
+  if (!userRecord) {
+    return null;
+  }
+
+  const studentRecord = await resolveStudentByUserId(userId);
+  let profileRecord = null;
+  let courseRecord = null;
+
+  if (studentRecord?.student_id) {
+    const [
+      studentProfileResult,
+      courseLookupResult,
+    ] = await Promise.all([
+      supabase
+        .from('student_profiles')
+        .select(`
+          student_id,
+          date_of_birth,
+          place_of_birth,
+          sex,
+          civil_status,
+          maiden_name,
+          religion,
+          citizenship,
+          street_address,
+          subdivision,
+          city,
+          province,
+          zip_code,
+          landline_number,
+          learners_reference_number
+        `)
+        .eq('student_id', studentRecord.student_id)
+        .maybeSingle(),
+      studentRecord.course_id
+        ? supabase
+          .from('academic_course')
+          .select('course_id, course_code')
+          .eq('course_id', studentRecord.course_id)
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    if (studentProfileResult.error) {
+      throw studentProfileResult.error;
+    }
+
+    if (courseLookupResult.error) {
+      throw courseLookupResult.error;
+    }
+
+    profileRecord = studentProfileResult.data || null;
+    courseRecord = courseLookupResult.data || null;
+  }
+
+  return {
+    user: userRecord,
+    student: studentRecord,
+    student_profile: profileRecord,
+    course: courseRecord,
+  };
+}
+
+async function buildMyProfileResponse(context = {}) {
+  const user = context.user || {};
+  const student = context.student || {};
+  const profile = context.student_profile || {};
+  const course = context.course || {};
+  const avatarUrl = await resolveAvatarUrl(student.profile_photo_url ?? null);
+
+  return {
+    profile: {
+      user_id: user.user_id ?? null,
+      student_id: student.pdm_id || user.username || null,
+      first_name: student.first_name ?? null,
+      last_name: student.last_name ?? null,
+      email: user.email ?? null,
+      phone_number: user.phone_number ?? null,
+      avatar_url: avatarUrl,
+      course_code: course.course_code ?? null,
+      date_of_birth: profile.date_of_birth ?? null,
+      place_of_birth: profile.place_of_birth ?? null,
+      sex: profile.sex ?? null,
+      civil_status: profile.civil_status ?? null,
+      maiden_name: profile.maiden_name ?? null,
+      religion: profile.religion ?? null,
+      citizenship: profile.citizenship ?? null,
+      street_address: profile.street_address ?? null,
+      subdivision: profile.subdivision ?? null,
+      city: profile.city ?? null,
+      province: profile.province ?? null,
+      zip_code: profile.zip_code ?? null,
+      landline_number: profile.landline_number ?? null,
+      learners_reference_number: profile.learners_reference_number ?? null,
+    },
+  };
 }
 
 const SUPPORT_TICKET_STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
@@ -916,7 +1077,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   }
 
   res.status(200).json({
-    ...buildAuthResponse(verifiedUser),
+    ...(await buildAuthResponse(verifiedUser)),
     message: 'Email verified successfully',
   });
 });
@@ -933,12 +1094,12 @@ app.post('/api/auth/resend-otp', (req, res) => {
 });
 
 // 4. Upload Avatar Route
-app.post('/api/auth/upload-avatar', upload.single('image'), async (req, res) => {
-  const { email } = req.body;
+app.post('/api/auth/upload-avatar', protect, upload.single('image'), async (req, res) => {
   const file = req.file;
+  const userId = getRequestUserId(req);
 
-  if (!email || !file) {
-    return res.status(400).json({ error: 'Email and image file are required' });
+  if (!userId || !file) {
+    return res.status(400).json({ error: 'Authentication and image file are required' });
   }
 
   try {
@@ -949,16 +1110,15 @@ app.post('/api/auth/upload-avatar', upload.single('image'), async (req, res) => 
 
     if (storageError) throw storageError;
 
-    const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-    const avatarUrl = publicUrlData.publicUrl;
+    const avatarUrl = await resolveAvatarUrl(fileName);
 
     const { error: updateError } = await supabase
-      .from('users')
-      .update({ profile_image_url: avatarUrl })
-      .eq('email', email);
+      .from('students')
+      .update({ profile_photo_url: fileName })
+      .eq('user_id', userId);
 
     if (updateError) {
-      console.warn('Avatar URL was uploaded but not saved to users table:', updateError.message);
+      console.warn('Avatar URL was uploaded but not saved to students table:', updateError.message);
     }
 
     res.status(200).json({ message: 'Upload successful', avatarUrl });
@@ -995,7 +1155,137 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(403).json({ error: 'Please verify your email first' });
   }
 
-  res.status(200).json(buildAuthResponse(data));
+  res.status(200).json(await buildAuthResponse(data));
+});
+
+app.get('/api/profile/me', protect, async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const context = await loadStudentProfileContextByUserId(userId);
+
+    if (!context?.user) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+
+    res.status(200).json(await buildMyProfileResponse(context));
+  } catch (error) {
+    console.error('PROFILE ME FETCH ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to load profile.' });
+  }
+});
+
+app.patch('/api/profile/me', protect, async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const context = await loadStudentProfileContextByUserId(userId);
+
+    if (!context?.user) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+
+    if (!context.student?.student_id) {
+      return res.status(404).json({ error: 'No student profile is linked to this account.' });
+    }
+
+    const payload = req.body ?? {};
+    const email = (payload.email ?? '').toString().trim();
+    const phoneNumber = (payload.phone_number ?? '').toString().trim();
+    const firstName = (payload.first_name ?? '').toString().trim();
+    const lastName = (payload.last_name ?? '').toString().trim();
+    const courseCode = (payload.course_code ?? '').toString().trim();
+
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+
+    let courseId = context.student.course_id ?? null;
+    if (courseCode) {
+      const { data: courseData, error: courseError } = await supabase
+        .from('academic_course')
+        .select('course_id, course_code')
+        .eq('course_code', courseCode)
+        .maybeSingle();
+
+      if (courseError) {
+        console.error('Profile course lookup error:', courseError);
+        return res.status(500).json({ error: 'Failed to validate course.' });
+      }
+
+      if (!courseData) {
+        return res.status(400).json({ error: 'Selected course is invalid.' });
+      }
+
+      courseId = courseData.course_id;
+    }
+
+    const nextUserPayload = {};
+    if (email) nextUserPayload.email = email;
+    nextUserPayload.phone_number = phoneNumber || null;
+
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update(nextUserPayload)
+      .eq('user_id', userId);
+
+    if (userUpdateError) {
+      console.error('Profile user update error:', userUpdateError);
+      return res.status(500).json({ error: userUpdateError.message || 'Failed to update account information.' });
+    }
+
+    const nextStudentPayload = {};
+    if (firstName) nextStudentPayload.first_name = firstName;
+    if (lastName) nextStudentPayload.last_name = lastName;
+    nextStudentPayload.course_id = courseId;
+
+    const { error: studentUpdateError } = await supabase
+      .from('students')
+      .update(nextStudentPayload)
+      .eq('student_id', context.student.student_id);
+
+    if (studentUpdateError) {
+      console.error('Profile student update error:', studentUpdateError);
+      return res.status(500).json({ error: studentUpdateError.message || 'Failed to update student information.' });
+    }
+
+    const normalizedProfilePayload = {
+      student_id: context.student.student_id,
+      date_of_birth: payload.date_of_birth ?? context.student_profile?.date_of_birth ?? null,
+      place_of_birth: payload.place_of_birth ?? context.student_profile?.place_of_birth ?? null,
+      sex: payload.sex ?? context.student_profile?.sex ?? null,
+      civil_status: payload.civil_status ?? context.student_profile?.civil_status ?? null,
+      maiden_name: payload.maiden_name ?? context.student_profile?.maiden_name ?? null,
+      religion: payload.religion ?? context.student_profile?.religion ?? null,
+      citizenship: payload.citizenship ?? context.student_profile?.citizenship ?? 'Filipino',
+      street_address: payload.street_address ?? payload.address ?? context.student_profile?.street_address ?? null,
+      subdivision: payload.subdivision ?? context.student_profile?.subdivision ?? null,
+      city: payload.city ?? context.student_profile?.city ?? null,
+      province: payload.province ?? context.student_profile?.province ?? null,
+      zip_code: payload.zip_code ?? context.student_profile?.zip_code ?? null,
+      landline_number: payload.landline_number ?? context.student_profile?.landline_number ?? null,
+      learners_reference_number:
+        payload.learners_reference_number ??
+        context.student_profile?.learners_reference_number ??
+        null,
+    };
+
+    const { error: profileUpdateError } = await supabase
+      .from('student_profiles')
+      .upsert([normalizedProfilePayload], { onConflict: 'student_id' });
+
+    if (profileUpdateError) {
+      console.error('Profile student_profiles upsert error:', profileUpdateError);
+      return res.status(500).json({ error: profileUpdateError.message || 'Failed to update profile details.' });
+    }
+
+    const refreshedContext = await loadStudentProfileContextByUserId(userId);
+    res.status(200).json({
+      message: 'Profile updated successfully.',
+      ...(await buildMyProfileResponse(refreshedContext)),
+    });
+  } catch (error) {
+    console.error('PROFILE ME UPDATE ERROR:', error);
+    res.status(500).json({ error: error.message || 'Failed to update profile.' });
+  }
 });
 
 app.get('/api/notifications', protect, async (req, res) => {

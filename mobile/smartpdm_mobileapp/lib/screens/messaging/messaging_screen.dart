@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
@@ -15,19 +16,47 @@ class MessagingScreen extends StatefulWidget {
 class _MessagingScreenState extends State<MessagingScreen> {
   final TextEditingController _messageController = TextEditingController();
 
-  void _sendMessage() {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<MessagingProvider>().enterThread();
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    if (mounted) {
+      context.read<MessagingProvider>().leaveThread();
+    }
+    super.dispose();
+  }
+
+  Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
-    // Send via Provider
-    context.read<MessagingProvider>().sendMessage(
-      _messageController.text.trim(),
-    );
-    _messageController.clear();
+    final messageText = _messageController.text.trim();
+
+    try {
+      await context.read<MessagingProvider>().sendMessage(messageText);
+      _messageController.clear();
+    } catch (_) {
+      if (!mounted) return;
+      final message =
+          context.read<MessagingProvider>().errorMessage ??
+          'Failed to send message.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final messages = context.watch<MessagingProvider>().messages;
+    final provider = context.watch<MessagingProvider>();
+    final messages = provider.messages;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -45,15 +74,30 @@ class _MessagingScreenState extends State<MessagingScreen> {
       child: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              reverse: true, // Display latest messages at the bottom
-              padding: const EdgeInsets.all(16),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final msg = messages[index];
-                return _buildMessageBubble(msg);
-              },
-            ),
+            child: provider.isLoading && messages.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : provider.errorMessage != null && messages.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        provider.errorMessage!,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      return _buildMessageBubble(
+                        msg,
+                        isMe: msg.senderId == provider.currentUserId,
+                      );
+                    },
+                  ),
           ),
           _buildMessageInput(),
         ],
@@ -61,23 +105,23 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
+  Widget _buildMessageBubble(ChatMessage message, {required bool isMe}) {
     return Align(
-      alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: message.isMe ? primaryColor : Colors.grey.shade200,
+          color: isMe ? primaryColor : Colors.grey.shade200,
           borderRadius: BorderRadius.circular(20).copyWith(
-            bottomRight: message.isMe ? const Radius.circular(0) : null,
-            bottomLeft: !message.isMe ? const Radius.circular(0) : null,
+            bottomRight: isMe ? const Radius.circular(0) : null,
+            bottomLeft: !isMe ? const Radius.circular(0) : null,
           ),
         ),
         child: Text(
-          message.text,
+          message.messageBody,
           style: TextStyle(
-            color: message.isMe ? Colors.white : Colors.black87,
+            color: isMe ? Colors.white : Colors.black87,
             fontSize: 16,
           ),
         ),

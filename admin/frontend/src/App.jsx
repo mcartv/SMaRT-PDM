@@ -21,6 +21,8 @@ import PayoutManagement from './pages/PayoutManagement';
 import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/Maintenance';
+import AdminMessages from './pages/AdminMessages';
+import SupportTickets from './pages/SupportTickets';
 
 // --- SDO PAGES ---
 import SDOLogin from './pages/SDOLogin';
@@ -90,7 +92,9 @@ export default function App() {
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />
+          <Route path="messages" element={<AdminMessages />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
+          <Route path="support-tickets" element={<SupportTickets />} />
           <Route path="adminprofile" element={<AdminProfile />} />
           <Route path="maintenance" element={<Maintenance />} />
         </Route>

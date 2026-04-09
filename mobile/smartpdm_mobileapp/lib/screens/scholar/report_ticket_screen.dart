@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/models/support_ticket.dart';
+import 'package:smartpdm_mobileapp/services/api_exception.dart';
+import 'package:smartpdm_mobileapp/services/support_ticket_service.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class ReportTicketScreen extends StatefulWidget {
@@ -10,48 +13,159 @@ class ReportTicketScreen extends StatefulWidget {
 }
 
 class _ReportTicketScreenState extends State<ReportTicketScreen> {
+  static const List<String> _categories = [
+    'Account Issue',
+    'OCR Error',
+    'Document Issue',
+    'Payment Concern',
+    'Technical Problem',
+    'Scholarship Question',
+    'General Inquiry',
+    'Other',
+  ];
+
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String _selectedCategory = 'General';
-  String _selectedPriority = 'Medium';
+  final SupportTicketService _ticketService = SupportTicketService();
+
+  String _selectedCategory = _categories.first;
   bool _isSubmitting = false;
+  bool _isLoadingTickets = true;
+  String _loadError = '';
+  List<SupportTicket> _tickets = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTickets();
+  }
 
   @override
   void dispose() {
-    _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadTickets() async {
+    setState(() {
+      _isLoadingTickets = true;
+      _loadError = '';
+    });
+
+    try {
+      final tickets = await _ticketService.fetchMyTickets();
+      if (!mounted) return;
+
+      setState(() {
+        _tickets = tickets;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = 'Failed to load your support tickets.';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingTickets = false;
+      });
+    }
+  }
+
   Future<void> _submitTicket() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isSubmitting = true);
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+    setState(() => _isSubmitting = true);
 
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Ticket Submitted'),
-            content: Text(
-              'Your support ticket has been submitted successfully.\n\nTicket ID: TKT-2025-${DateTime.now().millisecond}\n\nOur support team will respond within 24-48 hours.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: const Text('OK'),
-              ),
-            ],
+    try {
+      final createdTicket = await _ticketService.createTicket(
+        issueCategory: _selectedCategory,
+        description: _descriptionController.text,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _tickets = [createdTicket, ..._tickets];
+        _descriptionController.clear();
+        _selectedCategory = _categories.first;
+      });
+
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Ticket Submitted'),
+          content: Text(
+            'Your support ticket has been submitted successfully.\n\n'
+            'Ticket ID: ${createdTicket.ticketId}\n\n'
+            'You can monitor the latest status below.',
           ),
-        );
-      }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showErrorSnackBar(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showErrorSnackBar('Failed to submit the support ticket.');
+    } finally {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _formatDate(DateTime? value) {
+    if (value == null) return 'N/A';
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    final local = value.toLocal();
+    return '${months[local.month - 1]} ${local.day}, ${local.year}';
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Resolved':
+        return Colors.green;
+      case 'Closed':
+        return Colors.blueGrey;
+      case 'In Progress':
+        return Colors.orange;
+      case 'Open':
+      default:
+        return primaryColor;
     }
   }
 
@@ -59,29 +173,28 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Submit Support Ticket'),
+        title: const Text('Support Ticket'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
       selectedIndex: 0,
       showDrawer: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: RefreshIndicator(
+        onRefresh: _loadTickets,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            // Header Info
             Card(
               color: Colors.blue[50],
-              child: Padding(
-                padding: const EdgeInsets.all(12),
+              child: const Padding(
+                padding: EdgeInsets.all(12),
                 child: Row(
-                  children: const [
+                  children: [
                     Icon(Icons.support_agent, color: Colors.blue),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Our support team will help you resolve any issues or concerns.',
+                        'Submit concerns directly to OSFA. Ticket status and handling will follow the live support_tickets table.',
                         style: TextStyle(fontSize: 12),
                       ),
                     ),
@@ -90,284 +203,277 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Form
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  // Category
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: 'Category',
-                        border: InputBorder.none,
-                      ),
-                      items:
-                          [
-                                'General',
-                                'Payment Issue',
-                                'Document Issue',
-                                'Technical Problem',
-                                'Scholarship Question',
-                                'Other',
-                              ]
-                              .map(
-                                (category) => DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category),
-                                ),
-                              )
-                              .toList(),
-                      initialValue: _selectedCategory,
-                      onChanged: (value) {
-                        setState(() => _selectedCategory = value ?? 'General');
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select a category';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Priority
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: 'Priority Level',
-                        border: InputBorder.none,
-                      ),
-                      items: ['Low', 'Medium', 'High', 'Urgent']
-                          .map(
-                            (priority) => DropdownMenuItem(
-                              value: priority,
-                              child: Text(priority),
-                            ),
-                          )
-                          .toList(),
-                      initialValue: _selectedPriority,
-                      onChanged: (value) {
-                        setState(() => _selectedPriority = value ?? 'Medium');
-                      },
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select a priority level';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Title
-                  TextFormField(
-                    controller: _titleController,
-                    decoration: InputDecoration(
-                      labelText: 'Subject / Title',
-                      hintText: 'Brief description of your issue',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      prefixIcon: const Icon(Icons.subject),
-                    ),
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return 'Subject is required';
-                      }
-                      if (value!.length < 5) {
-                        return 'Subject must be at least 5 characters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Description
-                  TextFormField(
-                    controller: _descriptionController,
-                    maxLines: 6,
-                    decoration: InputDecoration(
-                      labelText: 'Detailed Description',
-                      hintText: 'Please provide as much detail as possible...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      alignLabelWithHint: true,
-                    ),
-                    validator: (value) {
-                      if (value?.isEmpty ?? true) {
-                        return 'Description is required';
-                      }
-                      if (value!.length < 10) {
-                        return 'Please provide more details (at least 10 characters)';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Priority Color Legend
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Priority Levels:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildPriorityBadge('Low', Colors.green),
-                        const SizedBox(height: 4),
-                        _buildPriorityBadge('Medium', Colors.orange),
-                        const SizedBox(height: 4),
-                        _buildPriorityBadge('High', Colors.red),
-                        const SizedBox(height: 4),
-                        _buildPriorityBadge('Urgent', Colors.deepOrange),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Submit Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSubmitting ? null : _submitTicket,
-                      icon: _isSubmitting
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.send),
-                      label: Text(
-                        _isSubmitting ? 'Submitting...' : 'Submit Ticket',
-                        maxLines: 1,
-                        overflow: TextOverflow.visible,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 13,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Cancel Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Support Info
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.headset_mic, color: primaryColor),
-                        SizedBox(width: 8),
-                        Text(
-                          'Need Additional Help?',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Create a Ticket',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedCategory,
+                        decoration: InputDecoration(
+                          labelText: 'Issue Category',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Response Time:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const Text(
-                      '• Low: 5-7 business days\n'
-                      '• Medium: 3-5 business days\n'
-                      '• High: 1-2 business days\n'
-                      '• Urgent: Same day',
-                      style: TextStyle(fontSize: 12, height: 1.8),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'You will receive email updates on your ticket status.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                        fontStyle: FontStyle.italic,
+                        items: _categories
+                            .map(
+                              (category) => DropdownMenuItem(
+                                value: category,
+                                child: Text(category),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategory = value ?? _categories.first;
+                          });
+                        },
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 6,
+                        decoration: InputDecoration(
+                          labelText: 'Description',
+                          hintText:
+                              'Describe the issue clearly so staff can review it.',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignLabelWithHint: true,
+                        ),
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) {
+                            return 'Description is required';
+                          }
+                          if (text.length < 10) {
+                            return 'Please provide at least 10 characters.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSubmitting ? null : _submitTicket,
+                          icon: _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.send),
+                          label: Text(
+                            _isSubmitting ? 'Submitting...' : 'Submit Ticket',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'My Tickets',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                TextButton.icon(
+                  onPressed: _isLoadingTickets ? null : _loadTickets,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_isLoadingTickets)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_loadError.isNotEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Failed to load tickets',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(_loadError),
+                    ],
+                  ),
+                ),
+              )
+            else if (_tickets.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: const [
+                      Icon(Icons.inbox_outlined, size: 36, color: Colors.grey),
+                      SizedBox(height: 12),
+                      Text(
+                        'No support tickets yet.',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Submit a ticket above if you need help from OSFA.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ..._tickets.map((ticket) {
+                final statusColor = _statusColor(ticket.status);
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      ticket.issueCategory,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      ticket.ticketId,
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  ticket.status,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            ticket.description,
+                            style: const TextStyle(height: 1.4),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              _InfoChip(
+                                icon: Icons.event_outlined,
+                                label:
+                                    'Created ${_formatDate(ticket.createdAt)}',
+                              ),
+                              if (ticket.resolvedAt != null)
+                                _InfoChip(
+                                  icon: Icons.check_circle_outline,
+                                  label:
+                                      'Resolved ${_formatDate(ticket.resolvedAt)}',
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildPriorityBadge(String level, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 8),
-        Text(level, style: const TextStyle(fontSize: 12)),
-      ],
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.grey.shade700),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
     );
   }
 }

@@ -36,7 +36,6 @@ class DashboardScreen extends StatelessWidget {
                   backgroundColor: Colors.red,
                   child: IconButton(
                     onPressed: () {
-                      messagingProvider.clearUnread();
                       Navigator.pushNamed(context, AppRoutes.messaging);
                     },
                     tooltip: 'Open Messaging',
@@ -761,26 +760,6 @@ class _DashboardContentState extends State<DashboardContent> {
                     ),
                     child: Column(
                       children: [
-                        ListTile(
-                          leading: Icon(
-                            Icons.info_outline,
-                            color: _isDarkMode
-                                ? const Color(0xFFFFD54F)
-                                : primaryColor,
-                          ),
-                          title: const Text('About PDM/OSFA'),
-                          subtitle: Text(
-                            'History, Vision, Mission, Contacts',
-                            style: TextStyle(color: _subtitleColor),
-                          ),
-                          trailing: Icon(
-                            Icons.chevron_right,
-                            color: _isDarkMode ? Colors.white54 : Colors.grey,
-                          ),
-                          onTap: () =>
-                              Navigator.pushNamed(context, AppRoutes.about),
-                        ),
-                        const Divider(height: 1),
                         ListTile(
                           leading: Icon(
                             Icons.question_answer,

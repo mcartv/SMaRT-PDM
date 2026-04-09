@@ -51,7 +51,9 @@ function buildToken(profile, role) {
 
     return jwt.sign(
         {
+            sub: profile.user_id,
             userId: profile.user_id,
+            user_id: profile.user_id,
             adminId: profile.admin_id,
             role,
             name: fallbackName,

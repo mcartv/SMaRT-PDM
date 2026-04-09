@@ -3,6 +3,17 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'smart-pdm-dev-secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
+function normalizeDecodedUser(decoded = {}) {
+  const normalizedUserId = decoded.user_id || decoded.userId || decoded.sub || null;
+
+  return {
+    ...decoded,
+    sub: decoded.sub || normalizedUserId || undefined,
+    user_id: normalizedUserId,
+    userId: normalizedUserId,
+  };
+}
+
 function extractToken(value = '') {
   if (!value || typeof value !== 'string') return null;
   return value.startsWith('Bearer ') ? value.slice(7).trim() : value.trim();
@@ -10,20 +21,21 @@ function extractToken(value = '') {
 
 function buildAuthToken(user) {
   return jwt.sign(
-    {
+    normalizeDecodedUser({
       sub: user.user_id,
       user_id: user.user_id,
+      userId: user.user_id,
       email: user.email,
       student_id: user.username,
       role: user.role,
-    },
+    }),
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return normalizeDecodedUser(jwt.verify(token, JWT_SECRET));
 }
 
 function protect(req, res, next) {

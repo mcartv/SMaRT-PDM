@@ -13,6 +13,7 @@ const {
   authenticateSocket,
 } = require('./middleware/authMiddleware');
 const notificationService = require('./services/notificationService');
+const messageService = require('./services/messageService');
 
 const app = express();
 const server = http.createServer(app);
@@ -37,6 +38,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 notificationService.configureNotificationService({ io, supabase });
+messageService.configureMessageService({ io, supabase });
 io.use(authenticateSocket);
 
 // Temporary in-memory store for OTPs (e.g., { "user@email.com": { otp: "123456", expiresAt: 171146... } })
@@ -60,6 +62,7 @@ function buildAuthUser(user) {
   return {
     id: user.user_id,
     user_id: user.user_id,
+    userId: user.user_id,
     email: user.email,
     student_id: user.username,
     avatar_url: user.profile_image_url ?? null,
@@ -74,6 +77,10 @@ function buildAuthResponse(user) {
     token: buildAuthToken(user),
     user: buildAuthUser(user),
   };
+}
+
+function getRequestUserId(req) {
+  return req.user?.user_id || req.user?.userId || null;
 }
 
 const APPLICATION_DOCUMENT_DEFINITIONS = [
@@ -300,6 +307,95 @@ async function resolveStudentByUserId(userId) {
   }
 
   return studentRecord || null;
+}
+
+const SUPPORT_TICKET_STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
+
+function isSupportAdmin(req) {
+  return !!(
+    req.user?.adminId ||
+    req.user?.admin_id ||
+    ['admin', 'sdo'].includes((req.user?.role || '').toString().toLowerCase())
+  );
+}
+
+function mapSupportTicketRow(row = {}) {
+  const studentProfile = row.students || {};
+  const handlerProfile = row.admin_profiles || {};
+  const studentFirstName = studentProfile.first_name || '';
+  const studentLastName = studentProfile.last_name || '';
+  const handlerFirstName = handlerProfile.first_name || '';
+  const handlerLastName = handlerProfile.last_name || '';
+
+  return {
+    ticket_id: row.ticket_id,
+    student_id: row.student_id,
+    issue_category: row.issue_category || '',
+    description: row.description || '',
+    status: row.status || 'Open',
+    handled_by: row.handled_by || null,
+    created_at: row.created_at || null,
+    resolved_at: row.resolved_at || null,
+    student_number: studentProfile.pdm_id || null,
+    student_name: [studentFirstName, studentLastName].filter(Boolean).join(' ').trim() || null,
+    handler_name: [handlerFirstName, handlerLastName].filter(Boolean).join(' ').trim() || null,
+  };
+}
+
+async function listSupportTicketsForStudent(studentId) {
+  const { data, error } = await supabase
+    .from('support_tickets')
+    .select(`
+      ticket_id,
+      student_id,
+      issue_category,
+      description,
+      status,
+      handled_by,
+      created_at,
+      resolved_at
+    `)
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapSupportTicketRow);
+}
+
+async function listSupportTicketsForAdmin() {
+  const { data, error } = await supabase
+    .from('support_tickets')
+    .select(`
+      ticket_id,
+      student_id,
+      issue_category,
+      description,
+      status,
+      handled_by,
+      created_at,
+      resolved_at,
+      students!support_tickets_student_id_fkey (
+        student_id,
+        first_name,
+        last_name,
+        pdm_id
+      ),
+      admin_profiles!support_tickets_handled_by_fkey (
+        admin_id,
+        first_name,
+        last_name
+      )
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapSupportTicketRow);
 }
 
 async function resolveLatestBaseApplicationForUser(userId) {
@@ -989,6 +1085,315 @@ app.post('/api/notifications/device-token', protect, async (req, res) => {
   }
 });
 
+app.get('/api/support-tickets/me', protect, async (req, res) => {
+  try {
+    const studentRecord = await resolveStudentByUserId(getRequestUserId(req));
+
+    if (!studentRecord?.student_id) {
+      return res.status(404).json({
+        error: 'No student profile is linked to this account.',
+      });
+    }
+
+    const items = await listSupportTicketsForStudent(studentRecord.student_id);
+    res.status(200).json({ items });
+  } catch (error) {
+    console.error('SUPPORT TICKETS ME ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load your support tickets.',
+    });
+  }
+});
+
+app.post('/api/support-tickets', protect, async (req, res) => {
+  try {
+    const studentRecord = await resolveStudentByUserId(getRequestUserId(req));
+
+    if (!studentRecord?.student_id) {
+      return res.status(404).json({
+        error: 'No student profile is linked to this account.',
+      });
+    }
+
+    const issueCategory = (req.body?.issue_category || '').toString().trim();
+    const description = (req.body?.description || '').toString().trim();
+
+    if (!issueCategory) {
+      return res.status(400).json({ error: 'issue_category is required.' });
+    }
+
+    if (issueCategory.length > 50) {
+      return res.status(400).json({
+        error: 'issue_category must be 50 characters or fewer.',
+      });
+    }
+
+    if (!description) {
+      return res.status(400).json({ error: 'description is required.' });
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .insert({
+        student_id: studentRecord.student_id,
+        issue_category: issueCategory,
+        description,
+      })
+      .select(`
+        ticket_id,
+        student_id,
+        issue_category,
+        description,
+        status,
+        handled_by,
+        created_at,
+        resolved_at
+      `)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json({
+      message: 'Support ticket created successfully.',
+      data: mapSupportTicketRow(data),
+    });
+  } catch (error) {
+    console.error('SUPPORT TICKET CREATE ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to create support ticket.',
+    });
+  }
+});
+
+app.get('/api/support-tickets', protect, async (req, res) => {
+  try {
+    if (!isSupportAdmin(req)) {
+      return res.status(403).json({
+        error: 'Only staff accounts can access support tickets.',
+      });
+    }
+
+    const items = await listSupportTicketsForAdmin();
+    res.status(200).json({ items });
+  } catch (error) {
+    console.error('SUPPORT TICKET LIST ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load support tickets.',
+    });
+  }
+});
+
+app.patch('/api/support-tickets/:ticketId', protect, async (req, res) => {
+  try {
+    if (!isSupportAdmin(req)) {
+      return res.status(403).json({
+        error: 'Only staff accounts can update support tickets.',
+      });
+    }
+
+    const nextStatusRaw = req.body?.status;
+    const nextStatus = nextStatusRaw == null ? null : nextStatusRaw.toString().trim();
+    const assignToSelf = req.body?.assignToSelf === true;
+    const adminId = req.user?.adminId || req.user?.admin_id || null;
+
+    if (!adminId && assignToSelf) {
+      return res.status(400).json({
+        error: 'Your account is missing an admin profile link.',
+      });
+    }
+
+    if (!nextStatus && !assignToSelf) {
+      return res.status(400).json({
+        error: 'Provide a status or set assignToSelf to true.',
+      });
+    }
+
+    if (nextStatus && !SUPPORT_TICKET_STATUSES.includes(nextStatus)) {
+      return res.status(400).json({
+        error: `status must be one of: ${SUPPORT_TICKET_STATUSES.join(', ')}.`,
+      });
+    }
+
+    const updatePayload = {};
+
+    if (nextStatus) {
+      updatePayload.status = nextStatus;
+      if (nextStatus === 'Resolved' || nextStatus === 'Closed') {
+        updatePayload.resolved_at = new Date().toISOString();
+      }
+      if ((nextStatus === 'Open' || nextStatus === 'In Progress') && !assignToSelf) {
+        updatePayload.resolved_at = null;
+      }
+      if (nextStatus !== 'Open' && adminId) {
+        updatePayload.handled_by = adminId;
+      }
+    }
+
+    if (assignToSelf) {
+      updatePayload.handled_by = adminId;
+      if (!nextStatus) {
+        updatePayload.resolved_at = null;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .update(updatePayload)
+      .eq('ticket_id', req.params.ticketId)
+      .select(`
+        ticket_id,
+        student_id,
+        issue_category,
+        description,
+        status,
+        handled_by,
+        created_at,
+        resolved_at,
+        students!support_tickets_student_id_fkey (
+          student_id,
+          first_name,
+          last_name,
+          pdm_id
+        ),
+        admin_profiles!support_tickets_handled_by_fkey (
+          admin_id,
+          first_name,
+          last_name
+        )
+      `)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Support ticket not found.' });
+    }
+
+    res.status(200).json({
+      message: 'Support ticket updated successfully.',
+      data: mapSupportTicketRow(data),
+    });
+  } catch (error) {
+    console.error('SUPPORT TICKET UPDATE ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to update support ticket.',
+    });
+  }
+});
+
+app.get('/api/messages/unread-count', protect, async (req, res) => {
+  try {
+    const unreadCount = await messageService.getUnreadCount(getRequestUserId(req));
+    res.status(200).json({ unreadCount });
+  } catch (error) {
+    console.error('MESSAGE UNREAD COUNT ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load unread message count.',
+    });
+  }
+});
+
+app.get('/api/messages/thread', protect, async (req, res) => {
+  try {
+    const payload = await messageService.listFixedThread(getRequestUserId(req));
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('MESSAGE THREAD ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load messages.',
+    });
+  }
+});
+
+app.post('/api/messages/thread', protect, async (req, res) => {
+  try {
+    const payload = await messageService.sendToFixedThread(
+      getRequestUserId(req),
+      req.body?.messageBody
+    );
+    res.status(201).json(payload);
+  } catch (error) {
+    console.error('MESSAGE SEND THREAD ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to send message.',
+    });
+  }
+});
+
+app.patch('/api/messages/thread/read', protect, async (req, res) => {
+  try {
+    const payload = await messageService.markFixedThreadRead(getRequestUserId(req));
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('MESSAGE THREAD READ ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to mark messages as read.',
+    });
+  }
+});
+
+app.get('/api/messages/conversations', protect, async (req, res) => {
+  try {
+    const items = await messageService.listAdminConversations(getRequestUserId(req));
+    res.status(200).json({ items });
+  } catch (error) {
+    console.error('MESSAGE CONVERSATIONS ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load conversations.',
+    });
+  }
+});
+
+app.get('/api/messages/conversations/:counterpartyId', protect, async (req, res) => {
+  try {
+    const payload = await messageService.listAdminConversation(
+      getRequestUserId(req),
+      req.params.counterpartyId
+    );
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('MESSAGE CONVERSATION ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load the conversation.',
+    });
+  }
+});
+
+app.post('/api/messages/conversations/:counterpartyId', protect, async (req, res) => {
+  try {
+    const payload = await messageService.sendAdminConversationMessage(
+      getRequestUserId(req),
+      req.params.counterpartyId,
+      req.body?.messageBody
+    );
+    res.status(201).json(payload);
+  } catch (error) {
+    console.error('MESSAGE CONVERSATION SEND ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to send the conversation message.',
+    });
+  }
+});
+
+app.patch('/api/messages/conversations/:counterpartyId/read', protect, async (req, res) => {
+  try {
+    const payload = await messageService.markAdminConversationRead(
+      getRequestUserId(req),
+      req.params.counterpartyId
+    );
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('MESSAGE CONVERSATION READ ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to mark the conversation as read.',
+    });
+  }
+});
+
 app.get('/api/faqs', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -1638,49 +2043,12 @@ app.get('/api/applications/:id', async (req, res) => {
   }
 });
 
-// 6. Get Chat History Route
-app.get('/api/messages/:room', async (req, res) => {
-  const { room } = req.params;
-
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('room', room)
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  if (error) {
-    console.error('Error fetching messages from Supabase:', error);
-    return res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-
-  res.status(200).json(data);
-});
-
-// --- SOCKET.IO REAL-TIME CHAT LOGIC ---
+// --- SOCKET.IO USER CHANNELS ---
 io.on('connection', (socket) => {
   console.log(`User connected via Socket.io: ${socket.id}`);
   if (socket.user?.user_id) {
     socket.join(`user:${socket.user.user_id}`);
   }
-
-  socket.on('join_room', (room) => {
-    socket.join(room);
-    console.log(`Socket ${socket.id} joined room: ${room}`);
-  });
-
-  socket.on('send_message', async (data) => {
-    console.log('Message received on backend:', data);
-
-    socket.to(data.room).emit('receive_message', data);
-
-    const { error } = await supabase.from('messages').insert([{
-      room: data.room,
-      sender_id: data.sender_id,
-      text: data.text
-    }]);
-    if (error) console.error('Error saving message to Supabase:', error);
-  });
 
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);

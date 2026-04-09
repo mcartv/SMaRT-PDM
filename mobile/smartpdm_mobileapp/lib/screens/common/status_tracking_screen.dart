@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 
 class StatusTrackingScreen extends StatelessWidget {
@@ -7,6 +8,7 @@ class StatusTrackingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
+      appBar: AppBar(title: const Text('Application Status')),
       selectedIndex: 2,
       child: SingleChildScrollView(
         child: Column(
@@ -14,10 +16,7 @@ class StatusTrackingScreen extends StatelessWidget {
           children: [
             const Text(
               'Application Status - TES-2025-0123',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             Card(
@@ -42,10 +41,7 @@ class StatusTrackingScreen extends StatelessWidget {
             const SizedBox(height: 20),
             const Text(
               'Timeline',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             const TimelineItem(
@@ -101,7 +97,8 @@ class StatusTrackingScreen extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () =>
+                            Navigator.pushNamed(context, AppRoutes.documents),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                         ),
@@ -161,11 +158,7 @@ class TimelineItem extends StatelessWidget {
           children: [
             Icon(icon, color: color),
             if (step < 4)
-              Container(
-                width: 2,
-                height: 60,
-                color: Colors.grey[300],
-              ),
+              Container(width: 2, height: 60, color: Colors.grey[300]),
           ],
         ),
         const SizedBox(width: 12),
@@ -175,9 +168,7 @@ class TimelineItem extends StatelessWidget {
             children: [
               Text(
                 'Step $step: $title',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               if (date.isNotEmpty) Text(date),
               if (details.isNotEmpty) Text(details),

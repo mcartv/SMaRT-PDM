@@ -86,6 +86,22 @@ exports.saveApplicationVerification = async (req, res) => {
     }
 };
 
+exports.assignApplicationProgram = async (req, res) => {
+    const { id } = req.params;
+    const { program_id } = req.body;
+
+    try {
+        const data = await applicationService.assignApplicationProgram(id, program_id);
+        res.status(200).json({
+            message: 'Application program assigned successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('ASSIGN APPLICATION PROGRAM CONTROLLER ERROR:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.markApplicationReviewed = async (req, res) => {
     const { id } = req.params;
 

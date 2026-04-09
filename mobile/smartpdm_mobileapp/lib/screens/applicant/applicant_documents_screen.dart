@@ -3,37 +3,35 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/models/opening_application_package.dart';
-import 'package:smartpdm_mobileapp/services/opening_application_service.dart';
+import 'package:smartpdm_mobileapp/models/applicant_documents_package.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/services/api_exception.dart';
+import 'package:smartpdm_mobileapp/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class OpeningApplicationDocumentsScreen extends StatefulWidget {
-  const OpeningApplicationDocumentsScreen({
+class ApplicantDocumentsScreen extends StatefulWidget {
+  const ApplicantDocumentsScreen({
     super.key,
-    required this.openingId,
-    this.initialApplicationId,
-    this.initialOpeningTitle,
+    this.initialTitle,
     this.initialProgramName,
   });
 
-  final String openingId;
-  final String? initialApplicationId;
-  final String? initialOpeningTitle;
+  final String? initialTitle;
   final String? initialProgramName;
 
   @override
-  State<OpeningApplicationDocumentsScreen> createState() =>
-      _OpeningApplicationDocumentsScreenState();
+  State<ApplicantDocumentsScreen> createState() =>
+      _ApplicantDocumentsScreenState();
 }
 
-class _OpeningApplicationDocumentsScreenState
-    extends State<OpeningApplicationDocumentsScreen> {
-  final OpeningApplicationService _service = OpeningApplicationService();
+class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
+  final ApplicantDocumentsService _service = ApplicantDocumentsService();
 
-  OpeningApplicationPackage? _package;
+  ApplicantDocumentsPackage? _package;
   bool _isLoading = true;
+  bool _needsBaseApplication = false;
   String? _errorMessage;
   final Map<String, bool> _uploadingDocuments = <String, bool>{};
 
@@ -47,12 +45,21 @@ class _OpeningApplicationDocumentsScreenState
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _needsBaseApplication = false;
     });
 
     try {
-      final payload = await _service.fetchOpeningApplication(widget.openingId);
+      final payload = await _service.fetchMyDocuments();
       if (!mounted) return;
       setState(() => _package = payload);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _needsBaseApplication =
+            error.statusCode == 404 || error.statusCode == 409;
+        _errorMessage = error.message.trim();
+        _package = null;
+      });
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -66,7 +73,7 @@ class _OpeningApplicationDocumentsScreenState
   }
 
   Future<void> _pickAndUploadDocument(
-    OpeningApplicationDocument document,
+    ApplicantRequirementDocument document,
   ) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -102,7 +109,6 @@ class _OpeningApplicationDocumentsScreenState
 
     try {
       final payload = await _service.uploadDocument(
-        openingId: widget.openingId,
         documentRouteParam: document.routeParam,
         fileName: fileName,
         filePath: filePath,
@@ -122,7 +128,7 @@ class _OpeningApplicationDocumentsScreenState
     }
   }
 
-  Future<void> _openFile(OpeningApplicationDocument document) async {
+  Future<void> _openFile(ApplicantRequirementDocument document) async {
     final fileUrl = document.fileUrl;
     if (fileUrl == null || fileUrl.trim().isEmpty) {
       _showSnackBar('No uploaded file is available yet.');
@@ -163,7 +169,7 @@ class _OpeningApplicationDocumentsScreenState
     }
   }
 
-  String _statusLabel(OpeningApplicationDocument document) {
+  String _statusLabel(ApplicantRequirementDocument document) {
     switch (document.status) {
       case 'verified':
         return 'Verified';
@@ -178,7 +184,7 @@ class _OpeningApplicationDocumentsScreenState
     }
   }
 
-  String _summaryText(OpeningApplicationPackage package) {
+  String _summaryText(ApplicantDocumentsPackage package) {
     if (package.documentStatus == 'Documents Ready') {
       return 'All scholarship requirements are already on file and ready for review.';
     }
@@ -188,12 +194,12 @@ class _OpeningApplicationDocumentsScreenState
       return 'Continue uploading the remaining scholarship requirements so admin can finish reviewing your application.';
     }
 
-    return 'Upload the remaining scholarship requirements for this opening so your application can move toward scholar approval.';
+    return 'Upload your scholarship requirements here after completing the base application form. You do not need to apply to a scholarship opening first.';
   }
 
   String _formatTimestamp(DateTime? value) {
     if (value == null) return 'Not uploaded yet';
-    return DateFormat('MMM d, yyyy • h:mm a').format(value.toLocal());
+    return DateFormat('MMM d, yyyy - h:mm a').format(value.toLocal());
   }
 
   @override
@@ -224,9 +230,9 @@ class _OpeningApplicationDocumentsScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    package?.openingTitle ??
-                        widget.initialOpeningTitle ??
-                        'Scholarship Opening',
+                    package?.contextTitle ??
+                        widget.initialTitle ??
+                        'Scholarship Requirements',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -237,7 +243,7 @@ class _OpeningApplicationDocumentsScreenState
                   Text(
                     package?.programName ??
                         widget.initialProgramName ??
-                        'Scholarship Program',
+                        'Unassigned Application',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -247,7 +253,9 @@ class _OpeningApplicationDocumentsScreenState
                   const SizedBox(height: 12),
                   Text(
                     package == null
-                        ? 'Loading your scholarship requirements...'
+                        ? (_needsBaseApplication
+                              ? 'Submit your base application form first, then come back here to upload your scholarship requirements.'
+                              : 'Loading your scholarship requirements...')
                         : _summaryText(package),
                     style: TextStyle(
                       fontSize: 14,
@@ -261,20 +269,21 @@ class _OpeningApplicationDocumentsScreenState
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        _StatusBadge(
-                          label:
-                              '${package.uploadedCount}/${package.documents.length} Uploaded',
-                          color: accentColor,
+                        _InfoChip(
+                          label: 'Application',
+                          value: package.applicationStatus,
+                          accentColor: accentColor,
                         ),
-                        _StatusBadge(
-                          label: package.documentStatus,
-                          color: _statusColor(
-                            package.documentStatus == 'Documents Ready'
-                                ? 'verified'
-                                : package.documentStatus == 'Missing Docs'
-                                ? 'pending'
-                                : 'uploaded',
-                          ),
+                        _InfoChip(
+                          label: 'Documents',
+                          value: package.documentStatus,
+                          accentColor: accentColor,
+                        ),
+                        _InfoChip(
+                          label: 'Uploaded',
+                          value:
+                              '${package.uploadedCount}/${package.documents.length}',
+                          accentColor: accentColor,
                         ),
                       ],
                     ),
@@ -288,65 +297,83 @@ class _OpeningApplicationDocumentsScreenState
                 padding: EdgeInsets.only(top: 48),
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (_errorMessage != null)
+            else if (_needsBaseApplication)
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.08),
+                  color: isDark ? const Color(0xFF2D1E12) : Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.red.withOpacity(0.2)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Unable to load scholarship requirements',
+                      'Complete your application form first',
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
                         color: titleColor,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Text(
-                      _errorMessage!,
-                      style: TextStyle(color: subtitleColor, height: 1.4),
+                      _errorMessage ??
+                          'You need a saved base application before document upload becomes available.',
+                      style: TextStyle(color: subtitleColor, height: 1.45),
                     ),
                     const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: _loadPackage,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
+                    ElevatedButton(
+                      onPressed: () =>
+                          Navigator.pushNamed(context, AppRoutes.newApplicant),
+                      child: const Text('Open Application Form'),
                     ),
                   ],
                 ),
               )
-            else if (package == null || package.documents.isEmpty)
+            else if (_errorMessage != null && package == null)
               Padding(
                 padding: const EdgeInsets.only(top: 32),
-                child: Text(
-                  'No scholarship requirements are available for this opening yet.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: subtitleColor),
+                child: Column(
+                  children: [
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: subtitleColor),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _loadPackage,
+                      child: const Text('Try Again'),
+                    ),
+                  ],
                 ),
               )
-            else
+            else if (package != null) ...[
+              Text(
+                'Required Documents',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: titleColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Allowed files: PDF, JPG, JPEG, and PNG.',
+                style: TextStyle(color: subtitleColor, height: 1.4),
+              ),
+              const SizedBox(height: 12),
               ...package.documents.map((document) {
+                final statusColor = _statusColor(document.status);
                 final isUploading = _uploadingDocuments[document.id] == true;
 
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 14),
+                  margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF2D1E12) : Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x12000000),
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
+                    border: Border.all(color: statusColor.withOpacity(0.18)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -355,66 +382,50 @@ class _OpeningApplicationDocumentsScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: Text(
-                              document.documentType,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: titleColor,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _statusColor(
-                                document.status,
-                              ).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              _statusLabel(document),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: _statusColor(document.status),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  document.documentType,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: titleColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    _statusLabel(document),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Text(
-                        document.isSubmitted
-                            ? 'Uploaded ${_formatTimestamp(document.uploadedAt)}'
-                            : 'This requirement is still missing from your opening application.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          color: subtitleColor,
-                        ),
+                        'Uploaded: ${_formatTimestamp(document.uploadedAt)}',
+                        style: TextStyle(color: subtitleColor),
                       ),
                       if ((document.adminComment ?? '').trim().isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            document.adminComment!.trim(),
-                            style: TextStyle(
-                              color: isDark
-                                  ? Colors.orange.shade100
-                                  : Colors.orange.shade900,
-                              height: 1.35,
-                            ),
-                          ),
+                        const SizedBox(height: 8),
+                        Text(
+                          document.adminComment!,
+                          style: TextStyle(color: subtitleColor, height: 1.4),
                         ),
                       ],
                       const SizedBox(height: 14),
@@ -436,7 +447,7 @@ class _OpeningApplicationDocumentsScreenState
                                   )
                                 : Icon(
                                     document.isSubmitted
-                                        ? Icons.refresh
+                                        ? Icons.sync
                                         : Icons.upload_file,
                                   ),
                             label: Text(
@@ -459,6 +470,7 @@ class _OpeningApplicationDocumentsScreenState
                   ),
                 );
               }),
+            ],
           ],
         ),
       ),
@@ -466,27 +478,42 @@ class _OpeningApplicationDocumentsScreenState
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label, required this.color});
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.label,
+    required this.value,
+    required this.accentColor,
+  });
 
   final String label;
-  final Color color;
+  final String value;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
+        color: accentColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }

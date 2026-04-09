@@ -17,6 +17,7 @@ class AppRoutes {
   static const newApplicant = '/new_applicant';
   static const application = '/application';
   static const documents = '/documents';
+  static const renewalDocuments = '/renewal-documents';
   static const status = '/status';
   static const interviewSchedule = '/interview-schedule';
   static const announcements = '/announcements';

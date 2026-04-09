@@ -37,15 +37,12 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Renewal uploads now live in Scholar > Renewal Documents.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'Scholarship requirement uploads now live in Documents.',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'This legacy screen is no longer used for the active scholar renewal flow.',
+                  'This legacy screen is no longer used for the active applicant document flow.',
                   style: TextStyle(
                     fontSize: 13,
                     color: Colors.black54,
@@ -59,9 +56,10 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.documents),
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.documents),
               icon: const Icon(Icons.folder_open),
-              label: const Text('Open Renewal Documents'),
+              label: const Text('Open Scholarship Documents'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,

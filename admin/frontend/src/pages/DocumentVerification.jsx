@@ -65,29 +65,44 @@ const DOC_STATUS = {
 
 const REQUIRED_DOCUMENTS = [
   {
+    id: 'survey_form',
+    name: 'Survey Form',
+    aliases: ['survey form'],
+  },
+  {
+    id: 'letter_of_request',
+    name: 'Letter of Request',
+    aliases: ['letter of request', 'request letter'],
+  },
+  {
+    id: 'certificate_of_indigency',
+    name: 'Certificate of Indigency',
+    aliases: ['certificate of indigency', 'indigency'],
+  },
+  {
+    id: 'certificate_of_good_moral_character',
+    name: 'Certificate of Good Moral Character',
+    aliases: ['certificate of good moral character', 'good moral'],
+  },
+  {
+    id: 'senior_high_school_card',
+    name: 'Senior High School Card',
+    aliases: ['senior high school card', 'shs card'],
+  },
+  {
+    id: 'student_grade_forms',
+    name: 'Student Grade Forms',
+    aliases: ['student grade forms', 'grade forms', 'grade card', 'grades'],
+  },
+  {
     id: 'certificate_of_registration',
     name: 'Certificate of Registration',
     aliases: ['cor', 'certificate of registration', 'registration form', 'registration'],
   },
   {
-    id: 'student_grade_forms',
-    name: 'Grade Form',
-    aliases: ['grades', 'grade form', 'grade card', 'report card', 'student grade forms'],
-  },
-  {
-    id: 'letter_of_intent',
-    name: 'Letter of Intent',
-    aliases: ['loi', 'letter of intent'],
-  },
-  {
-    id: 'certificate_of_good_moral_character',
-    name: 'Good Moral',
-    aliases: ['good moral', 'good moral certificate', 'certificate of good moral', 'certificate of good moral character'],
-  },
-  {
-    id: 'application_form',
-    name: 'Application Form',
-    aliases: ['application form', 'application', 'scholarship application form'],
+    id: 'id_picture',
+    name: 'ID Picture',
+    aliases: ['id picture', 'picture', 'photo', '1x1'],
   },
 ];
 
@@ -214,12 +229,12 @@ function buildExtractedData(activeDoc, application) {
   ];
 
   switch (activeDoc.id) {
-    case 'letter_of_intent':
+    case 'letter_of_request':
       return [
         ...base,
-        { label: 'Document Type', value: 'Letter of Intent', verified: true },
+        { label: 'Document Type', value: 'Letter of Request', verified: true },
         {
-          label: 'Intent Statement',
+          label: 'Request Letter',
           value: activeDoc.url ? 'Detected and ready for admin review' : 'No uploaded file detected',
           verified: !!activeDoc.url,
         },
@@ -249,7 +264,7 @@ function buildExtractedData(activeDoc, application) {
     case 'student_grade_forms':
       return [
         ...base,
-        { label: 'Document Type', value: 'Grade Form', verified: true },
+        { label: 'Document Type', value: 'Student Grade Forms', verified: true },
         {
           label: 'Detected GWA',
           value: fallbackGwa,
@@ -265,7 +280,11 @@ function buildExtractedData(activeDoc, application) {
     case 'certificate_of_good_moral_character':
       return [
         ...base,
-        { label: 'Document Type', value: 'Good Moral', verified: true },
+        {
+          label: 'Document Type',
+          value: 'Certificate of Good Moral Character',
+          verified: true,
+        },
         {
           label: 'Conduct Certification',
           value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
@@ -278,18 +297,51 @@ function buildExtractedData(activeDoc, application) {
         },
       ];
 
-    case 'application_form':
+    case 'survey_form':
       return [
         ...base,
-        { label: 'Document Type', value: 'Application Form', verified: true },
+        { label: 'Document Type', value: 'Survey Form', verified: true },
         {
-          label: 'Applicant Signature',
+          label: 'Form Completeness',
           value: activeDoc.url ? 'Detected' : 'Not detected',
           verified: !!activeDoc.url,
         },
         {
-          label: 'Form Completeness',
+          label: 'Review Status',
           value: activeDoc.url ? 'Ready for admin review' : 'No uploaded file detected',
+          verified: !!activeDoc.url,
+        },
+      ];
+
+    case 'certificate_of_indigency':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'Certificate of Indigency', verified: true },
+        {
+          label: 'Barangay Certification',
+          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
+          verified: !!activeDoc.url,
+        },
+      ];
+
+    case 'senior_high_school_card':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'Senior High School Card', verified: true },
+        {
+          label: 'Academic Record',
+          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
+          verified: !!activeDoc.url,
+        },
+      ];
+
+    case 'id_picture':
+      return [
+        ...base,
+        { label: 'Document Type', value: 'ID Picture', verified: true },
+        {
+          label: 'Photo Upload',
+          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
           verified: !!activeDoc.url,
         },
       ];
@@ -626,17 +678,19 @@ export default function DocumentVerification() {
         throw new Error(data.error || 'Failed to save verification');
       }
 
-      const markReviewRes = await fetch(`${API_BASE}/api/applications/${id}/mark-reviewed`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      if (finalVerificationStatus === 'verified') {
+        const markReviewRes = await fetch(`${API_BASE}/api/applications/${id}/mark-reviewed`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (!markReviewRes.ok) {
-        const payload = await markReviewRes.json().catch(() => ({}));
-        throw new Error(payload.error || 'Verification saved, but application review status was not updated');
+        if (!markReviewRes.ok) {
+          const payload = await markReviewRes.json().catch(() => ({}));
+          throw new Error(payload.error || 'Verification saved, but application review status was not updated');
+        }
       }
 
       alert(
@@ -841,11 +895,11 @@ export default function DocumentVerification() {
                     </p>
                   ) : !allRequiredDocsReviewed ? (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
-                      All 5 documents are uploaded, but admin review actions are still pending.
+                      All {REQUIRED_DOC_COUNT} documents are uploaded, but admin review actions are still pending.
                     </p>
                   ) : allRequiredDocsVerified ? (
                     <p className="text-xs font-semibold mt-1 text-green-700">
-                      All 5 required documents are uploaded and verified.
+                      All {REQUIRED_DOC_COUNT} required documents are uploaded and verified.
                     </p>
                   ) : (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
@@ -1015,13 +1069,13 @@ export default function DocumentVerification() {
 
               {hasAnyUpload && !hasCompleteRequirements && (
                 <p className="text-xs text-orange-600">
-                  Complete verification is disabled until all 5 required documents are uploaded by the student.
+                  Complete verification is disabled until all {REQUIRED_DOC_COUNT} required documents are uploaded by the student.
                 </p>
               )}
 
               {hasCompleteRequirements && !allRequiredDocsReviewed && (
                 <p className="text-xs text-orange-600">
-                  All 5 documents are present. Apply admin feedback/actions to each document before completing verification.
+                  All {REQUIRED_DOC_COUNT} documents are present. Apply admin feedback/actions to each document before completing verification.
                 </p>
               )}
 

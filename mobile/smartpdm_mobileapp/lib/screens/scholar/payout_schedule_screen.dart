@@ -117,7 +117,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                     AppNavigator.goToTopLevel(context, AppRoutes.payouts);
                     break;
                   case 'Renewal Documents':
-                    Navigator.pushNamed(context, AppRoutes.documents);
+                    Navigator.pushNamed(context, AppRoutes.renewalDocuments);
                     break;
                   case 'RO Assignment':
                     Navigator.pushNamed(context, AppRoutes.roAssignment);

@@ -11,6 +11,7 @@ const SB_BASE = '#7c4a2e';
 const SB_TEXT = '#f0d9c8';
 const SB_SUB = '#d4a98a';
 const ACCENT = '#92500f';
+const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -33,11 +34,19 @@ export default function AdminLogin() {
     setIsLoading(true);
     setError('');
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (normalizedEmail !== ALLOWED_ADMIN_EMAIL) {
+      setError('Only admin@pdm.edu.ph can log in to the admin portal.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, rememberMe })
+        body: JSON.stringify({ email: normalizedEmail, password, rememberMe })
       });
 
       const data = await response.json();
@@ -162,7 +171,6 @@ export default function AdminLogin() {
             <div className="space-y-1.5">
               <div className="flex justify-between items-center px-1">
                 <label className="text-xs font-semibold text-stone-700">Password</label>
-                {/* --- FIX APPLIED HERE --- */}
                 <button 
                   type="button" 
                   onClick={() => navigate('/admin/forgot-password')} 

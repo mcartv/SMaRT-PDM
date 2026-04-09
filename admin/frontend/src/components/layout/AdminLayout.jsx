@@ -29,7 +29,6 @@ const navItems = [
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/replacements', icon: Settings, label: 'Replacements' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
-  { path: '/admin/renewals', icon: FileText, label: 'Renewals' },
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
@@ -131,20 +130,17 @@ export default function AdminLayout() {
               to={item.path}
               end={item.path === '/admin/applications' || item.path === '/admin/openings'}
               className={({ isActive }) =>
-                `flex items-center ${
-                  collapsed ? 'justify-center' : 'gap-3'
-                } px-3 py-2.5 rounded-xl text-sm transition-all group ${
-                  isActive
-                    ? 'bg-[#9a5d3a] text-white shadow-sm'
-                    : 'text-[#f0d9c8] hover:bg-white/7'
+                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'
+                } px-3 py-2.5 rounded-xl text-sm transition-all group ${isActive
+                  ? 'bg-[#9a5d3a] text-white shadow-sm'
+                  : 'text-[#f0d9c8] hover:bg-white/7'
                 }`
               }
               title={collapsed ? item.label : ''}
             >
               <item.icon
-                className={`w-4 h-4 shrink-0 transition-colors ${
-                  collapsed ? '' : 'group-hover:text-amber-300'
-                }`}
+                className={`w-4 h-4 shrink-0 transition-colors ${collapsed ? '' : 'group-hover:text-amber-300'
+                  }`}
               />
               {!collapsed && <span className="font-medium truncate">{item.label}</span>}
             </NavLink>
@@ -155,9 +151,8 @@ export default function AdminLayout() {
         <div className="p-3 border-t border-white/10 space-y-1.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex items-center ${
-              collapsed ? 'justify-center' : 'gap-3'
-            } w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
+              } w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? (
@@ -170,9 +165,8 @@ export default function AdminLayout() {
 
           <button
             onClick={handleLogout}
-            className={`flex items-center ${
-              collapsed ? 'justify-center' : 'gap-3'
-            } w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
+              } w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="w-4 h-4" />

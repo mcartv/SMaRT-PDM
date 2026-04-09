@@ -4,12 +4,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import AdminLayout from './components/layout/AdminLayout';
 import SDOLayout from './components/layout/SDOLayout';
 
-// --- PAGES ---
+// --- ADMIN PAGES ---
 import AdminLogin from './pages/AdminLogin';
 import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import ApplicationReview from './pages/ApplicationReview';
-import ReplacementManagement from './pages/ReplacementManagement';
+import OpeningApplications from './pages/OpeningApplications';
 import DocumentVerification from './pages/DocumentVerification';
 import ReportGeneration from './pages/ReportGeneration';
 import ScholarMonitoring from './pages/ScholarMonitoring';
@@ -22,6 +22,7 @@ import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/Maintenance';
 
+// --- SDO PAGES ---
 import SDOLogin from './pages/SDOLogin';
 import SDODashboard from './pages/SDODashboard';
 import SDOScholarList from './pages/SDOScholarList';
@@ -30,11 +31,15 @@ import SDOMaintenance from './pages/SDOMaintenance';
 
 /**
  * PROTECTED ROUTE WRAPPER
- * This prevents users from accessing the dashboard if they aren't logged in.
+ * Prevents access to protected pages without the proper token.
  */
 const ProtectedRoute = ({ children, storageKey, redirectTo }) => {
   const token = localStorage.getItem(storageKey);
-  if (!token) return <Navigate to={redirectTo} replace />;
+
+  if (!token) {
+    return <Navigate to={redirectTo} replace />;
+  }
+
   return children;
 };
 
@@ -42,10 +47,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Redirect Root to Login */}
+        {/* Root Redirect */}
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
 
-        {/* Public Auth Routes */}
+        {/* Public Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/forgot-password" element={<ForgotPassword />} />
         <Route path="/sdo/login" element={<SDOLogin />} />
@@ -60,14 +65,28 @@ export default function App() {
           }
         >
           <Route index element={<Navigate to="dashboard" replace />} />
+
           <Route path="dashboard" element={<AdminDashboard />} />
+
+          {/* Applications */}
           <Route path="applications" element={<ApplicationReview />} />
-          <Route path="applications/:id/documents" element={<DocumentVerification />} />
+          <Route
+            path="openings/:openingId/applications"
+            element={<OpeningApplications />}
+          />
+          <Route
+            path="applications/:id/documents"
+            element={<DocumentVerification />}
+          />
+
+          {/* Other Admin Pages */}
           <Route path="scholars" element={<ScholarMonitoring />} />
           <Route path="renewals" element={<RenewalReview />} />
-          <Route path="renewals/:id" element={<RenewalDocumentVerification />} />
+          <Route
+            path="renewals/:id"
+            element={<RenewalDocumentVerification />}
+          />
           <Route path="openings" element={<ScholarshipOpenings />} />
-          <Route path="replacements" element={<ReplacementManagement />} />
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />
@@ -92,7 +111,7 @@ export default function App() {
           <Route path="maintenance" element={<SDOMaintenance />} />
         </Route>
 
-        {/* Fallback 404 */}
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/admin/login" replace />} />
       </Routes>
     </BrowserRouter>

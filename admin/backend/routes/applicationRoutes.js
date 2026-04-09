@@ -12,12 +12,15 @@ const upload = multer({
     },
 });
 
+// Export / registry
 router.get('/export/excel', protect, applicationController.exportApplicationsExcel);
 router.get('/', protect, applicationController.getApplications);
+
+// Applicant details / docs
 router.get('/:id', protect, applicationController.getApplicationDetails);
 router.get('/:id/documents', protect, applicationController.getApplicationDocuments);
 
-// Student/mobile uploads here
+// Student/mobile uploads
 router.post(
     '/:id/documents/upload',
     protect,
@@ -25,9 +28,19 @@ router.post(
     applicationController.uploadStudentDocument
 );
 
-// Admin review/verification here
+// Admin review / verification
 router.post('/:id/verify', protect, applicationController.saveApplicationVerification);
 router.patch('/:id/mark-reviewed', protect, applicationController.markApplicationReviewed);
+
+// Admin remarks / decision
+router.patch('/:id/remarks', protect, applicationController.saveApplicationRemarks);
+router.patch('/:id/approve', protect, applicationController.approveApplication);
+router.patch('/:id/waitlist', protect, applicationController.moveApplicationToWaiting);
+
+// Disqualify only for actual invalid cases
 router.patch('/:id/disqualify', protect, applicationController.disqualifyApplication);
+
+// Optional compatibility route
+router.post('/:id/disqualify', protect, applicationController.disqualifyApplication);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 const path = require('path');
 const supabase = require('../config/supabase');
+const pool = require('../config/db');
 const _ = require('lodash');
 
 const STORAGE_BUCKET =
@@ -820,4 +821,174 @@ exports.markApplicationReviewed = async (applicationId) => {
     }
 
     return data;
+};
+
+exports.saveApplicationRemarks = async (applicationId, remarks) => {
+    const { data, error } = await supabase
+        .from('applications')
+        .update({
+            remarks: remarks || null,
+        })
+        .eq('application_id', applicationId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Supabase Save Remarks Error:', error);
+        throw new Error(error.message);
+    }
+
+    return data;
+};
+
+exports.moveApplicationToWaiting = async (applicationId) => {
+    const { data, error } = await supabase
+        .from('applications')
+        .update({
+            application_status: 'Waiting',
+            is_reconsideration_candidate: true,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('application_id', applicationId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Supabase Move To Waiting Error:', error);
+        throw new Error(error.message);
+    }
+
+    return data;
+};
+
+exports.approveApplicationWithSlotCheck = async (applicationId) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const applicationQuery = `
+            SELECT
+                a.application_id,
+                a.opening_id,
+                a.application_status,
+                po.slot_count,
+                po.status,
+                COUNT(a2.application_id) FILTER (
+                    WHERE LOWER(COALESCE(a2.application_status, '')) = 'qualified'
+                      AND COALESCE(a2.is_archived, FALSE) = FALSE
+                )::int AS qualified_count
+            FROM applications a
+            INNER JOIN program_openings po
+                ON po.opening_id = a.opening_id
+            LEFT JOIN applications a2
+                ON a2.opening_id = po.opening_id
+            WHERE a.application_id = $1
+            GROUP BY
+                a.application_id,
+                a.opening_id,
+                a.application_status,
+                po.slot_count,
+                po.status
+        `;
+
+        const applicationResult = await client.query(applicationQuery, [applicationId]);
+
+        if (!applicationResult.rows.length) {
+            throw new Error('Application not found');
+        }
+
+        const row = applicationResult.rows[0];
+        const slotCount = Number(row.slot_count || 0);
+        const qualifiedCount = Number(row.qualified_count || 0);
+        const openingStatus = (row.status || '').toLowerCase();
+        const currentApplicationStatus = (row.application_status || '').toLowerCase();
+
+        if (currentApplicationStatus === 'qualified') {
+            const existingResult = await client.query(
+                `SELECT * FROM applications WHERE application_id = $1`,
+                [applicationId]
+            );
+            await client.query('COMMIT');
+            return existingResult.rows[0];
+        }
+
+        if (openingStatus === 'closed' || openingStatus === 'filled') {
+            const waitingResult = await client.query(
+                `
+                UPDATE applications
+                SET application_status = 'Waiting',
+                    is_reconsideration_candidate = TRUE,
+                    updated_at = NOW()
+                WHERE application_id = $1
+                RETURNING *
+                `,
+                [applicationId]
+            );
+
+            await client.query('COMMIT');
+            return waitingResult.rows[0];
+        }
+
+        if (slotCount > 0 && qualifiedCount >= slotCount) {
+            await client.query(
+                `
+                UPDATE program_openings
+                SET status = 'filled',
+                    updated_at = NOW()
+                WHERE opening_id = $1
+                `,
+                [row.opening_id]
+            );
+
+            const waitingResult = await client.query(
+                `
+                UPDATE applications
+                SET application_status = 'Waiting',
+                    is_reconsideration_candidate = TRUE,
+                    updated_at = NOW()
+                WHERE application_id = $1
+                RETURNING *
+                `,
+                [applicationId]
+            );
+
+            await client.query('COMMIT');
+            return waitingResult.rows[0];
+        }
+
+        const updateApplicationResult = await client.query(
+            `
+            UPDATE applications
+            SET application_status = 'Qualified',
+                is_reconsideration_candidate = FALSE,
+                updated_at = NOW()
+            WHERE application_id = $1
+            RETURNING *
+            `,
+            [applicationId]
+        );
+
+        const newQualifiedCount = qualifiedCount + 1;
+
+        if (slotCount > 0 && newQualifiedCount >= slotCount) {
+            await client.query(
+                `
+                UPDATE program_openings
+                SET status = 'filled',
+                    updated_at = NOW()
+                WHERE opening_id = $1
+                `,
+                [row.opening_id]
+            );
+        }
+
+        await client.query('COMMIT');
+        return updateApplicationResult.rows[0];
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
 };

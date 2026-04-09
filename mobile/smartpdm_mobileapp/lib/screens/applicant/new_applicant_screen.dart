@@ -392,6 +392,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           'title': 'Application Submitted Successfully!',
           'message': successMessage,
           'applicationId': applicationId,
+          'programName': 'Base Application',
+          'canUploadRequirements': true,
         },
       );
       return;

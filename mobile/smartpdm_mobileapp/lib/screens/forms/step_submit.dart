@@ -69,7 +69,7 @@ class _StepSubmitState extends State<StepSubmit> {
             ),
             padding: const EdgeInsets.all(16),
             child: const Text(
-              'This will save your student profile details for now. Scholarship program selection will be added in a later step before full application filing is completed.',
+              'This will save your base application now so you can immediately start uploading scholarship requirements. Scholarship program selection can still be completed later.',
               style: TextStyle(
                 fontSize: 12,
                 color: Color(0xFF7A5C2E),

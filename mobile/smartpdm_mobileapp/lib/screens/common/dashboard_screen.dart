@@ -646,7 +646,9 @@ class _DashboardContentState extends State<DashboardContent> {
                             label: 'Upload',
                             onTap: () => Navigator.pushNamed(
                               context,
-                              AppRoutes.documents,
+                              _isApproved
+                                  ? AppRoutes.renewalDocuments
+                                  : AppRoutes.documents,
                             ),
                           ),
                         ),
@@ -872,9 +874,9 @@ class _DashboardContentState extends State<DashboardContent> {
                                 ? const Color(0xFFFFD54F)
                                 : primaryColor,
                           ),
-                          title: const Text('Upload Renewal Requirements'),
+                          title: const Text('Upload Scholarship Requirements'),
                           subtitle: Text(
-                            'Submit required documents for renewal',
+                            'Upload your scholarship requirements after submitting the base application form',
                             style: TextStyle(color: _subtitleColor),
                           ),
                           trailing: Icon(

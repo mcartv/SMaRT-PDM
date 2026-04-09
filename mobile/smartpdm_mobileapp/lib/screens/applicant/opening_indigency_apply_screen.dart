@@ -188,7 +188,7 @@ class _OpeningIndigencyApplyScreenState
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Upload your Certificate of Indigency to start this opening-based application. You can upload the remaining scholarship requirements right after submission.',
+                    'Upload your Certificate of Indigency to start this application. After submission, you can continue uploading the rest of your scholarship requirements from Documents.',
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.4,

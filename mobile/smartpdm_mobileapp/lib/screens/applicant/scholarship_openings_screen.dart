@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/opening_application_documents_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/opening_indigency_apply_screen.dart';
 import 'package:smartpdm_mobileapp/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
@@ -84,16 +83,13 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     if (opening.hasApplied &&
         opening.applyLabel == 'Upload Requirements' &&
         (opening.existingApplicationId?.isNotEmpty ?? false)) {
-      await Navigator.push(
+      await Navigator.pushNamed(
         context,
-        MaterialPageRoute(
-          builder: (_) => OpeningApplicationDocumentsScreen(
-            openingId: opening.openingId,
-            initialApplicationId: opening.existingApplicationId,
-            initialOpeningTitle: opening.openingTitle,
-            initialProgramName: opening.programName,
-          ),
-        ),
+        AppRoutes.documents,
+        arguments: <String, dynamic>{
+          'initialTitle': opening.openingTitle,
+          'initialProgramName': opening.programName,
+        },
       );
 
       if (!mounted) return;
@@ -158,7 +154,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Choose an opening, apply with your Certificate of Indigency, then upload the remaining scholarship requirements from the same opening card.',
+                    'Choose an opening when you are ready to apply, but you can upload scholarship requirements separately after completing your base application form.',
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.45,

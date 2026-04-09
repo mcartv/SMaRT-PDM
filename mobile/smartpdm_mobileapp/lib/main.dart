@@ -5,7 +5,9 @@ import 'package:smartpdm_mobileapp/screens/auth/otp_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/change_email_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/splash_screen.dart';
+import 'package:smartpdm_mobileapp/screens/common/status_tracking_screen.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/applicant_documents_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/new_applicant_screen.dart';
 import 'package:smartpdm_mobileapp/screens/common/success_screen.dart';
 import 'package:provider/provider.dart';
@@ -40,6 +42,18 @@ void main() {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  ApplicantDocumentsScreen _buildApplicantDocumentsScreen(
+    BuildContext context,
+  ) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final payload = args is Map<String, dynamic> ? args : const {};
+
+    return ApplicantDocumentsScreen(
+      initialTitle: payload['initialTitle']?.toString(),
+      initialProgramName: payload['initialProgramName']?.toString(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,9 +139,10 @@ class MyApp extends StatelessWidget {
             AppRoutes.application: (context) =>
                 const PlaceholderScreen(title: 'Application'),
             AppRoutes.documents: (context) =>
+                _buildApplicantDocumentsScreen(context),
+            AppRoutes.renewalDocuments: (context) =>
                 const ScholarRenewalRequirementsScreen(),
-            AppRoutes.status: (context) =>
-                const PlaceholderScreen(title: 'Status'),
+            AppRoutes.status: (context) => const StatusTrackingScreen(),
             AppRoutes.interviewSchedule: (context) =>
                 const InterviewScheduleScreen(),
             AppRoutes.announcements: (context) => const AnnouncementsScreen(),

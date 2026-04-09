@@ -1,38 +1,37 @@
 const programOpeningService = require('../services/programOpeningService');
 
-exports.getAllProgramOpenings = async (req, res) => {
+const getAllProgramOpenings = async (req, res) => {
     try {
         const rows = await programOpeningService.fetchAllProgramOpenings();
         res.status(200).json(rows);
     } catch (err) {
-        console.error('GET ALL PROGRAM OPENINGS CONTROLLER ERROR:', err.message);
+        console.error('GET ALL PROGRAM OPENINGS CONTROLLER ERROR:', err);
         res.status(500).json({
-            message: 'Failed to fetch program openings',
-            error: err.message,
+            message: err.message || 'Failed to fetch program openings',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
 
-exports.getMobileOpenings = async (req, res) => {
+const getMobileOpenings = async (req, res) => {
     try {
         const rows = await programOpeningService.fetchMobileOpenings();
         res.status(200).json(rows);
     } catch (err) {
-        console.error('GET MOBILE OPENINGS CONTROLLER ERROR:', err.message);
+        console.error('GET MOBILE OPENINGS CONTROLLER ERROR:', err);
         res.status(500).json({
-            message: 'Failed to fetch mobile openings',
-            error: err.message,
+            message: err.message || 'Failed to fetch mobile openings',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
 
-exports.getOpeningsApplicationSummary = async (req, res) => {
+const getOpeningsApplicationSummary = async (req, res) => {
     try {
         const rows = await programOpeningService.fetchOpeningsApplicationSummary();
         res.status(200).json(rows);
     } catch (err) {
         console.error('GET OPENINGS APPLICATION SUMMARY CONTROLLER ERROR:', err);
-
         res.status(500).json({
             message: err.message || 'Failed to fetch scholarship openings summary',
             error: err.message || 'Unknown backend error',
@@ -41,10 +40,9 @@ exports.getOpeningsApplicationSummary = async (req, res) => {
     }
 };
 
-exports.getProgramOpeningById = async (req, res) => {
+const getProgramOpeningById = async (req, res) => {
     try {
         const { openingId } = req.params;
-
         const row = await programOpeningService.fetchProgramOpeningById(openingId);
 
         if (!row) {
@@ -55,15 +53,15 @@ exports.getProgramOpeningById = async (req, res) => {
 
         res.status(200).json(row);
     } catch (err) {
-        console.error('GET PROGRAM OPENING BY ID CONTROLLER ERROR:', err.message);
+        console.error('GET PROGRAM OPENING BY ID CONTROLLER ERROR:', err);
         res.status(500).json({
-            message: 'Failed to fetch program opening',
-            error: err.message,
+            message: err.message || 'Failed to fetch program opening',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
 
-exports.getApplicationsByOpeningId = async (req, res) => {
+const getApplicationsByOpeningId = async (req, res) => {
     try {
         const { openingId } = req.params;
         const rows = await programOpeningService.fetchApplicationsByOpeningId(openingId);
@@ -77,20 +75,20 @@ exports.getApplicationsByOpeningId = async (req, res) => {
     }
 };
 
-exports.createProgramOpening = async (req, res) => {
+const createProgramOpening = async (req, res) => {
     try {
         const created = await programOpeningService.createProgramOpening(req.body);
         res.status(201).json(created);
     } catch (err) {
-        console.error('CREATE PROGRAM OPENING CONTROLLER ERROR:', err.message);
+        console.error('CREATE PROGRAM OPENING CONTROLLER ERROR:', err);
         res.status(500).json({
-            message: 'Failed to create program opening',
-            error: err.message,
+            message: err.message || 'Failed to create program opening',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
 
-exports.updateProgramOpening = async (req, res) => {
+const updateProgramOpening = async (req, res) => {
     try {
         const { openingId } = req.params;
         const updated = await programOpeningService.updateProgramOpening(openingId, req.body);
@@ -103,15 +101,15 @@ exports.updateProgramOpening = async (req, res) => {
 
         res.status(200).json(updated);
     } catch (err) {
-        console.error('UPDATE PROGRAM OPENING CONTROLLER ERROR:', err.message);
+        console.error('UPDATE PROGRAM OPENING CONTROLLER ERROR:', err);
         res.status(500).json({
-            message: 'Failed to update program opening',
-            error: err.message,
+            message: err.message || 'Failed to update program opening',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
 
-exports.closeProgramOpening = async (req, res) => {
+const closeProgramOpening = async (req, res) => {
     try {
         const { openingId } = req.params;
         const updated = await programOpeningService.closeProgramOpening(openingId);
@@ -124,10 +122,21 @@ exports.closeProgramOpening = async (req, res) => {
 
         res.status(200).json(updated);
     } catch (err) {
-        console.error('CLOSE PROGRAM OPENING CONTROLLER ERROR:', err.message);
+        console.error('CLOSE PROGRAM OPENING CONTROLLER ERROR:', err);
         res.status(500).json({
-            message: 'Failed to close program opening',
-            error: err.message,
+            message: err.message || 'Failed to close program opening',
+            error: err.message || 'Unknown backend error',
         });
     }
+};
+
+module.exports = {
+    getAllProgramOpenings,
+    getMobileOpenings,
+    getOpeningsApplicationSummary,
+    getProgramOpeningById,
+    getApplicationsByOpeningId,
+    createProgramOpening,
+    updateProgramOpening,
+    closeProgramOpening,
 };

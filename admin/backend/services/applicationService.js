@@ -8,28 +8,23 @@ const STORAGE_BUCKET =
 
 const APPLICATION_DOCUMENT_DEFINITIONS = [
     {
-        id: 'survey_form',
-        name: 'Survey Form',
-        aliases: ['survey form'],
-    },
-    {
-        id: 'letter_of_request',
-        name: 'Letter of Request',
-        aliases: ['letter of request', 'request letter'],
-    },
-    {
-        id: 'certificate_of_indigency',
-        name: 'Certificate of Indigency',
-        aliases: ['certificate of indigency', 'indigency'],
-    },
-    {
         id: 'certificate_of_registration',
         name: 'Certificate of Registration',
         aliases: ['certificate of registration', 'cor', 'registration form', 'registration'],
     },
     {
+        id: 'student_grade_forms',
+        name: 'Grade Form',
+        aliases: ['student grade forms', 'grade forms', 'grades', 'grade card', 'report card'],
+    },
+    {
+        id: 'letter_of_intent',
+        name: 'Letter of Intent',
+        aliases: ['letter of intent', 'intent letter', 'loi'],
+    },
+    {
         id: 'certificate_of_good_moral_character',
-        name: 'Certificate of Good Moral Character',
+        name: 'Good Moral',
         aliases: [
             'certificate of good moral character',
             'certificate of good moral',
@@ -38,61 +33,39 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
         ],
     },
     {
-        id: 'senior_high_school_card',
-        name: 'Senior High School Card',
-        aliases: ['senior high school card', 'shs card'],
-    },
-    {
-        id: 'student_grade_forms',
-        name: 'Student Grade Forms',
-        aliases: ['student grade forms', 'grade forms', 'grades', 'grade card', 'report card'],
-    },
-    {
-        id: 'id_picture',
-        name: 'ID Picture',
-        aliases: ['id picture', 'picture', 'photo', '1x1'],
+        id: 'application_form',
+        name: 'Application Form',
+        aliases: ['application form', 'application', 'scholarship application form'],
     },
 ];
 
 const DOCUMENT_TYPE_ALIASES = {
-    survey_form: 'survey_form',
-
-    letter_of_request: 'letter_of_request',
-    request_letter: 'letter_of_request',
-
-    certificate_of_indigency: 'certificate_of_indigency',
-    indigency: 'certificate_of_indigency',
-
     cor: 'certificate_of_registration',
     certificate_of_registration: 'certificate_of_registration',
     registration: 'certificate_of_registration',
-
-    senior_high_school_card: 'senior_high_school_card',
-    shs_card: 'senior_high_school_card',
 
     grade_card: 'student_grade_forms',
     grade_forms: 'student_grade_forms',
     grades: 'student_grade_forms',
     student_grade_forms: 'student_grade_forms',
 
+    loi: 'letter_of_intent',
+    letter_of_intent: 'letter_of_intent',
+
     good_moral: 'certificate_of_good_moral_character',
     certificate_of_good_moral_character: 'certificate_of_good_moral_character',
     certificate_of_good_moral: 'certificate_of_good_moral_character',
 
-    id_picture: 'id_picture',
-    picture: 'id_picture',
-    photo: 'id_picture',
+    application_form: 'application_form',
+    application: 'application_form',
 };
 
 const DOCUMENT_TYPE_TO_NAME = {
-    survey_form: 'Survey Form',
-    letter_of_request: 'Letter of Request',
-    certificate_of_indigency: 'Certificate of Indigency',
     certificate_of_registration: 'Certificate of Registration',
-    certificate_of_good_moral_character: 'Certificate of Good Moral Character',
-    senior_high_school_card: 'Senior High School Card',
-    student_grade_forms: 'Student Grade Forms',
-    id_picture: 'ID Picture',
+    student_grade_forms: 'Grade Form',
+    letter_of_intent: 'Letter of Intent',
+    certificate_of_good_moral_character: 'Good Moral',
+    application_form: 'Application Form',
 };
 
 function getOrdinalSuffix(n) {
@@ -466,8 +439,9 @@ async function buildApplicationDetails(applicationId) {
                 ? `${student.year_level}${getOrdinalSuffix(student.year_level)} Year`
                 : 'N/A',
             gwa: student.gwa ?? 'N/A',
-            program: applicationRecord.scholarship_program?.program_name || 'Unassigned',
-            organization_name: applicationRecord.scholarship_program?.organization_name || 'N/A',
+            program: applicationRecord.scholarship_program?.program_name || 'General',
+            organization_name:
+                applicationRecord.scholarship_program?.organization_name || 'N/A',
             course: courseCode,
         },
         student_profile: profileResult.data || null,
@@ -487,7 +461,6 @@ exports.fetchApplications = async () => {
             application_status,
             submission_date,
             document_status,
-            verification_status,
             is_disqualified,
             disqualification_reason,
             is_reconsideration_candidate,
@@ -531,13 +504,12 @@ exports.fetchApplications = async () => {
             'Student'
         )}`,
         student_number: _.get(app, 'students.pdm_id', 'N/A'),
-        program: _.get(app, 'scholarship_program.program_name', 'Unassigned'),
+        program: _.get(app, 'scholarship_program.program_name', 'General'),
         organization_name: _.get(app, 'scholarship_program.organization_name', 'N/A'),
         submitted: app.submission_date,
         application_status: _.toLower(app.application_status || 'pending'),
         status: _.toLower(app.application_status || 'pending'),
         document_status: _.toLower(app.document_status || 'missing docs'),
-        verification_status: _.toLower(app.verification_status || 'pending'),
         disqualified: !!app.is_disqualified,
         disqReason: app.disqualification_reason || null,
         is_reconsideration_candidate: !!app.is_reconsideration_candidate,
@@ -550,71 +522,6 @@ exports.fetchApplications = async () => {
 
 exports.fetchApplicationDetailsById = async (id) => buildApplicationDetails(id);
 exports.fetchApplicationDocumentsById = async (id) => buildApplicationDetails(id);
-
-exports.assignApplicationProgram = async (applicationId, programId) => {
-    if (!programId) {
-        throw new Error('program_id is required');
-    }
-
-    const { data: program, error: programError } = await supabase
-        .from('scholarship_program')
-        .select('program_id')
-        .eq('program_id', programId)
-        .maybeSingle();
-
-    if (programError) {
-        console.error('Supabase Program Fetch Error:', programError);
-        throw new Error(programError.message);
-    }
-
-    if (!program) {
-        throw new Error('Selected scholarship program is invalid.');
-    }
-
-    const { data: applicationRecord, error: applicationError } = await supabase
-        .from('applications')
-        .select('application_id, student_id, application_status')
-        .eq('application_id', applicationId)
-        .single();
-
-    if (applicationError) {
-        console.error('Supabase Application Fetch Error:', applicationError);
-        throw new Error(applicationError.message);
-    }
-
-    const { data: conflictingApplication, error: conflictError } = await supabase
-        .from('applications')
-        .select('application_id')
-        .eq('student_id', applicationRecord.student_id)
-        .eq('program_id', programId)
-        .in('application_status', ['Pending Review', 'Interview'])
-        .neq('application_id', applicationId)
-        .eq('is_disqualified', false)
-        .maybeSingle();
-
-    if (conflictError) {
-        console.error('Supabase Program Conflict Fetch Error:', conflictError);
-        throw new Error(conflictError.message);
-    }
-
-    if (conflictingApplication) {
-        throw new Error('This student already has an active application for the selected program.');
-    }
-
-    const { data, error } = await supabase
-        .from('applications')
-        .update({ program_id: programId })
-        .eq('application_id', applicationId)
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Supabase Application Program Update Error:', error);
-        throw new Error(error.message);
-    }
-
-    return data;
-};
 
 exports.uploadStudentApplicationDocument = async ({
     applicationId,
@@ -779,8 +686,7 @@ exports.markApplicationDisqualified = async (
             is_disqualified: true,
             disqualification_reason: reason,
             is_reconsideration_candidate: !!isReconsiderationCandidate,
-            application_status: 'Rejected',
-            verification_status: 'rejected',
+            application_status: 'Disqualified',
         })
         .eq('application_id', id)
         .select();
@@ -867,13 +773,10 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
     const applicationUpdatePayload = {
         document_status: nextDocumentStatus,
-        verification_status: verification_status || 'pending',
     };
 
-    if (verification_status === 'verified') {
-        applicationUpdatePayload.application_status = 'Interview';
-    } else if (verification_status === 'rejected') {
-        applicationUpdatePayload.application_status = 'Pending Review';
+    if (verification_status === 'rejected') {
+        applicationUpdatePayload.application_status = 'Requires_Reupload';
     }
 
     const { data: updatedApplication, error: applicationUpdateError } = await supabase
@@ -906,7 +809,7 @@ exports.markApplicationReviewed = async (applicationId) => {
     const { data, error } = await supabase
         .from('applications')
         .update({
-            application_status: 'Interview',
+            application_status: 'Review',
         })
         .eq('application_id', applicationId)
         .select()
@@ -919,8 +822,6 @@ exports.markApplicationReviewed = async (applicationId) => {
 
     return data;
 };
-<<<<<<< HEAD
-=======
 
 exports.saveApplicationRemarks = async (applicationId, remarks) => {
     const { data, error } = await supabase
@@ -1091,4 +992,3 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         client.release();
     }
 };
->>>>>>> 32ae8418452c712013f3762e9f8f6c40fa9d0fb7

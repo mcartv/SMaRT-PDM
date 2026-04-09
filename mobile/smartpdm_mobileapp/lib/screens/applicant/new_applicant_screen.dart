@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/models/app_data.dart';
 import 'package:smartpdm_mobileapp/services/application_service.dart';
+import 'package:smartpdm_mobileapp/services/session_service.dart';
 import 'package:smartpdm_mobileapp/screens/forms/step_academic.dart';
 import 'package:smartpdm_mobileapp/screens/forms/step_essay.dart';
 import 'package:smartpdm_mobileapp/screens/forms/step_family.dart';
@@ -21,6 +22,7 @@ class NewApplicantScreen extends StatefulWidget {
 
 class _NewApplicantScreenState extends State<NewApplicantScreen> {
   final ApplicationService _applicationService = ApplicationService();
+  final SessionService _sessionService = const SessionService();
   int _step = 0;
   final _data = ApplicationData();
   final _scrollCtrl = ScrollController();
@@ -58,6 +60,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       final savedFormData = await _applicationService.fetchMySavedFormData();
       if (savedFormData['has_saved_form'] == true) {
         _hydrateFromSavedForm(savedFormData);
+        await _syncAccountHolderCache();
       }
     } catch (_) {
       // If the backend has no saved form yet, keep the local bootstrap values.
@@ -287,6 +290,17 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     );
   }
 
+  Future<void> _syncAccountHolderCache() async {
+    await _sessionService.saveProfileCache(
+      firstName: ApplicationData.toTitleCase(_data.firstName),
+      lastName: ApplicationData.toTitleCase(_data.lastName),
+      email: ApplicationData.normalizeEmail(_data.email),
+      studentId: _data.accountStudentId.trim(),
+      course: _data.currentCourse.trim(),
+      phone: ApplicationData.normalizeMobileNumber(_data.mobileNumber),
+    );
+  }
+
   void _next() {
     final validationError = _validateCurrentForm();
     if (validationError != null) {
@@ -378,6 +392,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     if (!mounted) return;
 
     if (success) {
+      await _syncAccountHolderCache();
+      if (!mounted) return;
+
       final successMessage =
           provider.successMessage ?? 'Application submitted successfully.';
       final application =

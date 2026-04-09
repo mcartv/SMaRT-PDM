@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/applicant_documents_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/opening_indigency_apply_screen.dart';
 import 'package:smartpdm_mobileapp/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
@@ -84,14 +83,13 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     if (opening.hasApplied &&
         opening.applyLabel == 'Upload Requirements' &&
         (opening.existingApplicationId?.isNotEmpty ?? false)) {
-      await Navigator.push(
+      await Navigator.pushNamed(
         context,
-        MaterialPageRoute(
-          builder: (_) => ApplicantDocumentsScreen(
-            initialTitle: opening.openingTitle,
-            initialProgramName: opening.programName,
-          ),
-        ),
+        AppRoutes.documents,
+        arguments: <String, dynamic>{
+          'initialTitle': opening.openingTitle,
+          'initialProgramName': opening.programName,
+        },
       );
 
       if (!mounted) return;

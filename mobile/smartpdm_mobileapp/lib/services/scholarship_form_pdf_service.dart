@@ -1,8 +1,8 @@
-import 'dart:ui' show Rect;
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MissingPluginException, rootBundle;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:smartpdm_mobileapp/models/saved_application_print_model.dart';
@@ -11,6 +11,14 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 class ScholarshipFormPdfService {
   static const double _imageWidth = 2550;
   static const double _imageHeight = 3900;
+
+  Future<Directory> _resolveOutputDirectory() async {
+    try {
+      return await getTemporaryDirectory();
+    } on MissingPluginException {
+      return Directory.systemTemp.createTemp('smartpdm_pdf_');
+    }
+  }
 
   Future<File> generateFromSavedApplication(
     SavedApplicationPrintModel model,
@@ -63,11 +71,7 @@ class ScholarshipFormPdfService {
       );
     }
 
-    void drawMultiLine(
-      String value,
-      Rect bounds, {
-      PdfFont? textFont,
-    }) {
+    void drawMultiLine(String value, Rect bounds, {PdfFont? textFont}) {
       final clean = value.trim();
       if (clean.isEmpty) return;
       page.graphics.drawString(
@@ -124,35 +128,103 @@ class ScholarshipFormPdfService {
 
     drawText(model.fatherLastName, r(505, 1140, 440, 42), textFont: smallFont);
     drawText(model.fatherFirstName, r(505, 1182, 440, 42), textFont: smallFont);
-    drawText(model.fatherMiddleName, r(505, 1224, 440, 42), textFont: smallFont);
+    drawText(
+      model.fatherMiddleName,
+      r(505, 1224, 440, 42),
+      textFont: smallFont,
+    );
     drawText(model.fatherMobile, r(505, 1266, 440, 42), textFont: smallFont);
 
     drawText(model.motherLastName, r(960, 1140, 440, 42), textFont: smallFont);
     drawText(model.motherFirstName, r(960, 1182, 440, 42), textFont: smallFont);
-    drawText(model.motherMiddleName, r(960, 1224, 440, 42), textFont: smallFont);
+    drawText(
+      model.motherMiddleName,
+      r(960, 1224, 440, 42),
+      textFont: smallFont,
+    );
     drawText(model.motherMobile, r(960, 1266, 440, 42), textFont: smallFont);
 
-    drawText(model.siblingLastName, r(1415, 1140, 440, 42), textFont: smallFont);
-    drawText(model.siblingFirstName, r(1415, 1182, 440, 42), textFont: smallFont);
-    drawText(model.siblingMiddleName, r(1415, 1224, 440, 42), textFont: smallFont);
+    drawText(
+      model.siblingLastName,
+      r(1415, 1140, 440, 42),
+      textFont: smallFont,
+    );
+    drawText(
+      model.siblingFirstName,
+      r(1415, 1182, 440, 42),
+      textFont: smallFont,
+    );
+    drawText(
+      model.siblingMiddleName,
+      r(1415, 1224, 440, 42),
+      textFont: smallFont,
+    );
     drawText(model.siblingMobile, r(1415, 1266, 440, 42), textFont: smallFont);
 
-    drawText(model.guardianLastName, r(1870, 1140, 500, 42), textFont: smallFont);
-    drawText(model.guardianFirstName, r(1870, 1182, 500, 42), textFont: smallFont);
-    drawText(model.guardianMiddleName, r(1870, 1224, 500, 42), textFont: smallFont);
+    drawText(
+      model.guardianLastName,
+      r(1870, 1140, 500, 42),
+      textFont: smallFont,
+    );
+    drawText(
+      model.guardianFirstName,
+      r(1870, 1182, 500, 42),
+      textFont: smallFont,
+    );
+    drawText(
+      model.guardianMiddleName,
+      r(1870, 1224, 500, 42),
+      textFont: smallFont,
+    );
     drawText(model.guardianMobile, r(1870, 1266, 500, 42), textFont: smallFont);
 
-    drawText(model.fatherEducationalAttainment, r(505, 1368, 440, 60), textFont: smallFont);
-    drawText(model.motherEducationalAttainment, r(960, 1368, 440, 60), textFont: smallFont);
-    drawText(model.guardianEducationalAttainment, r(1870, 1368, 500, 60), textFont: smallFont);
+    drawText(
+      model.fatherEducationalAttainment,
+      r(505, 1368, 440, 60),
+      textFont: smallFont,
+    );
+    drawText(
+      model.motherEducationalAttainment,
+      r(960, 1368, 440, 60),
+      textFont: smallFont,
+    );
+    drawText(
+      model.guardianEducationalAttainment,
+      r(1870, 1368, 500, 60),
+      textFont: smallFont,
+    );
 
-    drawText(model.fatherOccupation, r(505, 1460, 440, 60), textFont: smallFont);
-    drawText(model.motherOccupation, r(960, 1460, 440, 60), textFont: smallFont);
-    drawText(model.guardianOccupation, r(1870, 1460, 500, 60), textFont: smallFont);
+    drawText(
+      model.fatherOccupation,
+      r(505, 1460, 440, 60),
+      textFont: smallFont,
+    );
+    drawText(
+      model.motherOccupation,
+      r(960, 1460, 440, 60),
+      textFont: smallFont,
+    );
+    drawText(
+      model.guardianOccupation,
+      r(1870, 1460, 500, 60),
+      textFont: smallFont,
+    );
 
-    drawMultiLine(model.fatherCompanyNameAddress, r(505, 1548, 440, 95), textFont: smallFont);
-    drawMultiLine(model.motherCompanyNameAddress, r(960, 1548, 440, 95), textFont: smallFont);
-    drawMultiLine(model.guardianCompanyNameAddress, r(1870, 1548, 500, 95), textFont: smallFont);
+    drawMultiLine(
+      model.fatherCompanyNameAddress,
+      r(505, 1548, 440, 95),
+      textFont: smallFont,
+    );
+    drawMultiLine(
+      model.motherCompanyNameAddress,
+      r(960, 1548, 440, 95),
+      textFont: smallFont,
+    );
+    drawMultiLine(
+      model.guardianCompanyNameAddress,
+      r(1870, 1548, 500, 95),
+      textFont: smallFont,
+    );
 
     drawCheck(model.isFatherOnlyNative, r(1040, 1668, 24, 24));
     drawCheck(model.isMotherOnlyNative, r(1255, 1668, 24, 24));
@@ -165,63 +237,168 @@ class ScholarshipFormPdfService {
     drawText(model.collegeAddress, r(680, 1818, 520, 58), textFont: smallFont);
     drawText(model.collegeHonors, r(1205, 1818, 470, 58), textFont: smallFont);
     drawText(model.collegeClub, r(1680, 1818, 445, 58), textFont: smallFont);
-    drawText(model.collegeYearGraduated, r(2130, 1818, 250, 58), textFont: smallFont);
+    drawText(
+      model.collegeYearGraduated,
+      r(2130, 1818, 250, 58),
+      textFont: smallFont,
+    );
 
-    drawText(model.highSchoolSchool, r(170, 1888, 505, 58), textFont: smallFont);
-    drawText(model.highSchoolAddress, r(680, 1888, 520, 58), textFont: smallFont);
-    drawText(model.highSchoolHonors, r(1205, 1888, 470, 58), textFont: smallFont);
+    drawText(
+      model.highSchoolSchool,
+      r(170, 1888, 505, 58),
+      textFont: smallFont,
+    );
+    drawText(
+      model.highSchoolAddress,
+      r(680, 1888, 520, 58),
+      textFont: smallFont,
+    );
+    drawText(
+      model.highSchoolHonors,
+      r(1205, 1888, 470, 58),
+      textFont: smallFont,
+    );
     drawText(model.highSchoolClub, r(1680, 1888, 445, 58), textFont: smallFont);
-    drawText(model.highSchoolYearGraduated, r(2130, 1888, 250, 58), textFont: smallFont);
+    drawText(
+      model.highSchoolYearGraduated,
+      r(2130, 1888, 250, 58),
+      textFont: smallFont,
+    );
 
-    drawText(model.seniorHighSchool, r(170, 1958, 505, 58), textFont: smallFont);
-    drawText(model.seniorHighAddress, r(680, 1958, 520, 58), textFont: smallFont);
-    drawText(model.seniorHighHonors, r(1205, 1958, 470, 58), textFont: smallFont);
+    drawText(
+      model.seniorHighSchool,
+      r(170, 1958, 505, 58),
+      textFont: smallFont,
+    );
+    drawText(
+      model.seniorHighAddress,
+      r(680, 1958, 520, 58),
+      textFont: smallFont,
+    );
+    drawText(
+      model.seniorHighHonors,
+      r(1205, 1958, 470, 58),
+      textFont: smallFont,
+    );
     drawText(model.seniorHighClub, r(1680, 1958, 445, 58), textFont: smallFont);
-    drawText(model.seniorHighYearGraduated, r(2130, 1958, 250, 58), textFont: smallFont);
+    drawText(
+      model.seniorHighYearGraduated,
+      r(2130, 1958, 250, 58),
+      textFont: smallFont,
+    );
 
-    drawText(model.elementarySchool, r(170, 2028, 505, 58), textFont: smallFont);
-    drawText(model.elementaryAddress, r(680, 2028, 520, 58), textFont: smallFont);
-    drawText(model.elementaryHonors, r(1205, 2028, 470, 58), textFont: smallFont);
+    drawText(
+      model.elementarySchool,
+      r(170, 2028, 505, 58),
+      textFont: smallFont,
+    );
+    drawText(
+      model.elementaryAddress,
+      r(680, 2028, 520, 58),
+      textFont: smallFont,
+    );
+    drawText(
+      model.elementaryHonors,
+      r(1205, 2028, 470, 58),
+      textFont: smallFont,
+    );
     drawText(model.elementaryClub, r(1680, 2028, 445, 58), textFont: smallFont);
-    drawText(model.elementaryYearGraduated, r(2130, 2028, 250, 58), textFont: smallFont);
+    drawText(
+      model.elementaryYearGraduated,
+      r(2130, 2028, 250, 58),
+      textFont: smallFont,
+    );
 
-    drawText(model.currentYearSection, r(170, 2104, 330, 55), textFont: smallFont);
+    drawText(
+      model.currentYearSection,
+      r(170, 2104, 330, 55),
+      textFont: smallFont,
+    );
     drawText(model.studentNumber, r(505, 2104, 330, 55), textFont: smallFont);
-    drawText(model.learnersReferenceNumber, r(840, 2104, 430, 55), textFont: smallFont);
+    drawText(
+      model.learnersReferenceNumber,
+      r(840, 2104, 430, 55),
+      textFont: smallFont,
+    );
     drawText(model.currentCourse, r(1275, 2104, 320, 55), textFont: smallFont);
 
     drawCheck(model.supportParents, r(1695, 2110, 20, 20));
     drawCheck(model.supportScholarship, r(1880, 2110, 20, 20));
     drawCheck(model.supportLoan, r(2055, 2110, 20, 20));
     drawCheck(model.supportOther, r(2215, 2110, 20, 20));
-    drawText(model.financialSupportOther, r(2260, 2104, 155, 55), textFont: smallFont);
+    drawText(
+      model.financialSupportOther,
+      r(2260, 2104, 155, 55),
+      textFont: smallFont,
+    );
 
     drawCheck(model.hadScholarship, r(220, 2185, 20, 20));
     drawCheck(model.noScholarshipHistory, r(360, 2185, 20, 20));
-    drawMultiLine(model.scholarshipDetails, r(1290, 2168, 1120, 58), textFont: smallFont);
+    drawMultiLine(
+      model.scholarshipDetails,
+      r(1290, 2168, 1120, 58),
+      textFont: smallFont,
+    );
 
     drawCheck(model.hasDisciplinaryRecord, r(220, 2248, 20, 20));
     drawCheck(model.noDisciplinaryRecord, r(360, 2248, 20, 20));
-    drawMultiLine(model.disciplinaryDetails, r(1290, 2232, 1120, 58), textFont: smallFont);
+    drawMultiLine(
+      model.disciplinaryDetails,
+      r(1290, 2232, 1120, 58),
+      textFont: smallFont,
+    );
 
-    drawMultiLine(model.selfDescription, r(90, 2328, 2320, 180), textFont: smallFont);
-    drawMultiLine(model.aimsAndAmbitions, r(90, 2550, 2320, 170), textFont: smallFont);
+    drawMultiLine(
+      model.selfDescription,
+      r(90, 2328, 2320, 180),
+      textFont: smallFont,
+    );
+    drawMultiLine(
+      model.aimsAndAmbitions,
+      r(90, 2550, 2320, 170),
+      textFont: smallFont,
+    );
 
-    drawText(model.applicantPrintedName, r(225, 2915, 600, 55), textFont: smallFont);
+    drawText(
+      model.applicantPrintedName,
+      r(225, 2915, 600, 55),
+      textFont: smallFont,
+    );
     drawText(model.printedDate, r(1085, 2915, 160, 55), textFont: smallFont);
-    drawText(model.parentGuardianPrintedName, r(1365, 2915, 700, 55), textFont: smallFont);
+    drawText(
+      model.parentGuardianPrintedName,
+      r(1365, 2915, 700, 55),
+      textFont: smallFont,
+    );
     drawText(model.printedDate, r(2310, 2915, 120, 55), textFont: smallFont);
 
     final bytes = Uint8List.fromList(document.saveSync());
     document.dispose();
 
-    final dir = await getTemporaryDirectory();
+    final dir = await _resolveOutputDirectory();
     final file = File('${dir.path}/filled_scholarship_form.pdf');
     await file.writeAsBytes(bytes, flush: true);
     return file;
   }
 
   Future<void> openGeneratedPdf(File file) async {
-    await OpenFilex.open(file.path);
+    if (kIsWeb) {
+      throw Exception(
+        'Printable PDF download is not available in the web build.',
+      );
+    }
+
+    try {
+      final result = await OpenFilex.open(file.path);
+      if (result.type != ResultType.done) {
+        throw Exception(
+          'Printable PDF was created, but your device could not open it automatically.',
+        );
+      }
+    } on MissingPluginException {
+      throw Exception(
+        'Printable PDF was created at ${file.path}, but automatic opening is not available on this device.',
+      );
+    }
   }
 }

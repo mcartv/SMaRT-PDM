@@ -9,8 +9,10 @@ import {
   CheckCircle, XCircle, Clock, ArrowLeft,
   FileText, Flag, ChevronRight, Loader2,
   AlertTriangle, ShieldCheck, ScanText, ExternalLink,
-  Columns2,
+  Columns2, RefreshCw,
 } from 'lucide-react';
+
+const API_BASE = 'http://localhost:5000';
 
 const C = {
   blue: '#1E3A8A',
@@ -53,6 +55,12 @@ const DOC_STATUS = {
     bg: '#fef2f2',
     label: 'Flagged',
   },
+  uploaded: {
+    icon: <Clock className="w-3.5 h-3.5" />,
+    color: C.blueMid,
+    bg: C.blueSoft,
+    label: 'Uploaded',
+  },
 };
 
 const REQUIRED_DOCUMENTS = [
@@ -89,7 +97,7 @@ const REQUIRED_DOCUMENTS = [
   {
     id: 'certificate_of_registration',
     name: 'Certificate of Registration',
-    aliases: ['cor', 'certificate of registration', 'registration form'],
+    aliases: ['cor', 'certificate of registration', 'registration form', 'registration'],
   },
   {
     id: 'id_picture',
@@ -121,7 +129,8 @@ function findRequiredDocConfig(rawDoc = {}) {
     .map(normalizeKey);
 
   return REQUIRED_DOCUMENTS.find((cfg) =>
-    cfg.aliases.some((alias) => candidates.includes(normalizeKey(alias)))
+    cfg.aliases.some((alias) => candidates.includes(normalizeKey(alias))) ||
+    candidates.includes(normalizeKey(cfg.id))
   );
 }
 
@@ -137,11 +146,15 @@ function normalizeRequiredDocuments(rawDocs = []) {
       document_key: rawDoc.document_key || config.id,
       requirement_id: rawDoc.requirement_id || null,
       name: config.name,
-      url: rawDoc.url || rawDoc.file_url || rawDoc.document_url || '',
+      url: rawDoc.url || rawDoc.file_url || rawDoc.document_url || rawDoc.signed_url || '',
       status: rawDoc.status || rawDoc.document_status || 'pending',
       admin_comment: rawDoc.admin_comment || rawDoc.comment || '',
       ocr: rawDoc.ocr || {},
       ocr_confidence: rawDoc.ocr_confidence ?? rawDoc.ocr?.confidence ?? null,
+      file_name: rawDoc.file_name || '',
+      file_path: rawDoc.file_path || '',
+      submitted_at: rawDoc.submitted_at || rawDoc.uploaded_at || null,
+      reviewed_at: rawDoc.reviewed_at || null,
     });
   });
 
@@ -158,6 +171,10 @@ function normalizeRequiredDocuments(rawDocs = []) {
       admin_comment: '',
       ocr: {},
       ocr_confidence: null,
+      file_name: '',
+      file_path: '',
+      submitted_at: null,
+      reviewed_at: null,
     };
   });
 }
@@ -342,7 +359,7 @@ function DocumentPreviewPanel({ activeDoc }) {
           <FileText className="w-4 h-4 text-stone-500" />
           <div>
             <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
-            <p className="text-[11px] text-stone-400">Scanned / Uploaded Document</p>
+            <p className="text-[11px] text-stone-400">Uploaded by student</p>
           </div>
         </div>
 
@@ -372,7 +389,7 @@ function DocumentPreviewPanel({ activeDoc }) {
               <FileText className="w-6 h-6 text-blue-500" />
             </div>
             <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
-            <p className="text-xs text-stone-400 mt-1">No file uploaded yet.</p>
+            <p className="text-xs text-stone-400 mt-1">No file uploaded by student yet.</p>
           </div>
         )}
       </div>
@@ -427,8 +444,9 @@ function OCRPanel({ activeDoc, application, extractedData }) {
                 </div>
 
                 <span
-                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.verified ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
-                    }`}
+                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${
+                    item.verified ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+                  }`}
                 >
                   {item.verified ? 'Detected' : 'Review'}
                 </span>
@@ -478,61 +496,66 @@ export default function DocumentVerification() {
 
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const [doc, setDoc] = useState('cor');
+  const [doc, setDoc] = useState('certificate_of_registration');
   const [comment, setComment] = useState('');
   const [docStatuses, setDocStatuses] = useState({});
   const [docComments, setDocComments] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState('preview');
 
-  useEffect(() => {
-    const fetchApplicationDocuments = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchApplicationDocuments = async ({ soft = false } = {}) => {
+    try {
+      if (soft) setRefreshing(true);
+      else setLoading(true);
 
-        const res = await fetch(`http://localhost:5000/api/applications/${id}/documents`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-            'Content-Type': 'application/json',
-          },
-        });
+      setError(null);
 
-        if (!res.ok) {
-          const payload = await res.json().catch(() => ({}));
-          throw new Error(payload.error || 'Failed to load application documents');
-        }
+      const res = await fetch(`${API_BASE}/api/applications/${id}/documents`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-        const data = await res.json();
-        const normalizedDocs = normalizeRequiredDocuments(data?.documents || []);
-        const firstAvailable = normalizedDocs.find((d) => d.url)?.id || normalizedDocs[0]?.id || 'cor';
-
-        const initialStatuses = {};
-        const initialComments = {};
-
-        normalizedDocs.forEach((d) => {
-          initialStatuses[d.id] = d.status || 'pending';
-          initialComments[d.id] = d.admin_comment || '';
-        });
-
-        setApplication({
-          ...data,
-          documents: normalizedDocs,
-        });
-        setDoc(firstAvailable);
-        setDocStatuses(initialStatuses);
-        setDocComments(initialComments);
-      } catch (err) {
-        console.error('Document fetch error:', err);
-        setError(err.message || 'Failed to load document data');
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || 'Failed to load application documents');
       }
-    };
 
+      const data = await res.json();
+      const normalizedDocs = normalizeRequiredDocuments(data?.documents || []);
+      const firstAvailable = normalizedDocs.find((d) => d.url)?.id || normalizedDocs[0]?.id || 'certificate_of_registration';
+
+      const initialStatuses = {};
+      const initialComments = {};
+
+      normalizedDocs.forEach((d) => {
+        initialStatuses[d.id] = d.status || 'pending';
+        initialComments[d.id] = d.admin_comment || '';
+      });
+
+      setApplication({
+        ...data,
+        documents: normalizedDocs,
+      });
+      setDocStatuses(initialStatuses);
+      setDocComments(initialComments);
+      setDoc(firstAvailable);
+    } catch (err) {
+      console.error('Document fetch error:', err);
+      setError(err.message || 'Failed to load document data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     fetchApplicationDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const docs = useMemo(() => {
@@ -553,12 +576,16 @@ export default function DocumentVerification() {
   const verifiedCount = docs.filter((d) => d.status === 'verified').length;
   const flaggedCount = docs.filter((d) => d.status === 'flagged').length;
   const reuploadCount = docs.filter((d) => d.status === 'rejected').length;
-  const reviewedCount = docs.filter((d) => !!d.url && d.status !== 'pending').length;
+  const reviewedCount = docs.filter((d) => !!d.url && d.status !== 'pending' && d.status !== 'uploaded').length;
 
   const requiredDocs = docs.slice(0, REQUIRED_DOC_COUNT);
   const allRequiredDocsUploaded = requiredDocs.every((d) => !!d.url);
-  const allRequiredDocsReviewed = requiredDocs.every((d) => !!d.url && d.status !== 'pending');
-  const allRequiredDocsVerified = requiredDocs.every((d) => !!d.url && d.status === 'verified');
+  const allRequiredDocsReviewed = requiredDocs.every(
+    (d) => !!d.url && d.status !== 'pending' && d.status !== 'uploaded'
+  );
+  const allRequiredDocsVerified = requiredDocs.every(
+    (d) => !!d.url && d.status === 'verified'
+  );
 
   const canCompleteVerification =
     allRequiredDocsUploaded &&
@@ -632,11 +659,12 @@ export default function DocumentVerification() {
           uploaded,
           flagged: flaggedCount,
           reupload: reuploadCount,
+          pending: docs.filter((d) => d.status === 'pending' || d.status === 'uploaded').length,
           progress,
         },
       };
 
-      const res = await fetch(`http://localhost:5000/api/applications/${id}/verify`, {
+      const res = await fetch(`${API_BASE}/api/applications/${id}/verify`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
@@ -651,24 +679,27 @@ export default function DocumentVerification() {
         throw new Error(data.error || 'Failed to save verification');
       }
 
-      const markReviewRes = await fetch(`http://localhost:5000/api/applications/${id}/mark-reviewed`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      if (finalVerificationStatus === 'verified') {
+        const markReviewRes = await fetch(`${API_BASE}/api/applications/${id}/mark-reviewed`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (!markReviewRes.ok) {
-        const payload = await markReviewRes.json().catch(() => ({}));
-        throw new Error(payload.error || 'Verification saved, but application review status was not updated');
+        if (!markReviewRes.ok) {
+          const payload = await markReviewRes.json().catch(() => ({}));
+          throw new Error(payload.error || 'Verification saved, but application review status was not updated');
+        }
       }
 
       alert(
         finalVerificationStatus === 'verified'
           ? 'Verification completed successfully.'
-          : 'Verification completed. Application marked as requiring re-upload or further review.'
+          : 'Verification completed. Application marked as needing re-upload or further review.'
       );
+
       navigate('/admin/applications');
     } catch (err) {
       console.error('COMPLETE VERIFICATION ERROR:', err);
@@ -694,7 +725,7 @@ export default function DocumentVerification() {
         <p className="text-sm font-semibold text-red-800">Failed to load document verification</p>
         <p className="text-xs text-red-600 mt-1">{error}</p>
         <Button
-          onClick={() => window.location.reload()}
+          onClick={() => fetchApplicationDocuments()}
           variant="outline"
           size="sm"
           className="mt-4 border-red-200 text-red-600 text-xs"
@@ -728,6 +759,23 @@ export default function DocumentVerification() {
             <span className="text-stone-600">{id}</span>
           </div>
           <h1 className="text-xl font-semibold text-stone-900 mt-0.5">Document Verification</h1>
+        </div>
+
+        <div className="ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchApplicationDocuments({ soft: true })}
+            disabled={refreshing}
+            className="rounded-lg border-stone-200 text-xs"
+          >
+            {refreshing ? (
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            Refresh
+          </Button>
         </div>
       </div>
 
@@ -778,10 +826,11 @@ export default function DocumentVerification() {
                   <button
                     key={d.id}
                     onClick={() => setDoc(d.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
+                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                      isActive
                         ? 'border-blue-800 bg-blue-50 shadow-sm'
                         : 'border-stone-100 bg-white hover:border-stone-200'
-                      }`}
+                    }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span style={{ color: s.color }}>{s.icon}</span>
@@ -848,11 +897,11 @@ export default function DocumentVerification() {
                     </p>
                   ) : !allRequiredDocsReviewed ? (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
-                      All 5 documents are uploaded, but admin review actions are still pending.
+                      All {REQUIRED_DOC_COUNT} documents are uploaded, but admin review actions are still pending.
                     </p>
                   ) : allRequiredDocsVerified ? (
                     <p className="text-xs font-semibold mt-1 text-green-700">
-                      All 5 required documents are uploaded and verified.
+                      All {REQUIRED_DOC_COUNT} required documents are uploaded and verified.
                     </p>
                   ) : (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
@@ -872,10 +921,11 @@ export default function DocumentVerification() {
                 <button
                   key={d.id}
                   onClick={() => setDoc(d.id)}
-                  className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${doc === d.id
+                  className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${
+                    doc === d.id
                       ? 'border-blue-800 text-blue-900 bg-white'
                       : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
-                    }`}
+                  }`}
                 >
                   {d.name}
                 </button>
@@ -886,30 +936,33 @@ export default function DocumentVerification() {
               <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
                 <button
                   onClick={() => setViewMode('preview')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    viewMode === 'preview'
                       ? 'bg-white text-blue-900 shadow-sm'
                       : 'text-stone-500 hover:text-stone-700'
-                    }`}
+                  }`}
                 >
                   Document Preview
                 </button>
 
                 <button
                   onClick={() => setViewMode('ocr')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    viewMode === 'ocr'
                       ? 'bg-white text-blue-900 shadow-sm'
                       : 'text-stone-500 hover:text-stone-700'
-                    }`}
+                  }`}
                 >
                   OCR Validation Hub
                 </button>
 
                 <button
                   onClick={() => setViewMode('split')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    viewMode === 'split'
                       ? 'bg-white text-blue-900 shadow-sm'
                       : 'text-stone-500 hover:text-stone-700'
-                    }`}
+                  }`}
                 >
                   <span className="inline-flex items-center gap-1">
                     <Columns2 className="w-3.5 h-3.5" />
@@ -945,6 +998,20 @@ export default function DocumentVerification() {
 
           <Card className="border-stone-200 shadow-none bg-white">
             <div className="p-5 space-y-4">
+              <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                      Selected Document
+                    </p>
+                    <p className="text-sm font-semibold text-stone-800 mt-1">{activeDoc?.name || 'N/A'}</p>
+                    <p className="text-xs text-stone-400 mt-1">
+                      {activeDoc?.url ? 'Uploaded by student and ready for admin review.' : 'No uploaded file from student yet.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
                   Administrative Feedback
@@ -968,7 +1035,7 @@ export default function DocumentVerification() {
                   size="sm"
                   onClick={handleVerify}
                   disabled={!hasUploadedDocument}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-stone-400 disabled:hover:border-stone-200"
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle size={13} className="mr-1.5" /> Verify
                 </Button>
@@ -978,7 +1045,7 @@ export default function DocumentVerification() {
                   size="sm"
                   onClick={handleReupload}
                   disabled={!hasUploadedDocument}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-stone-400 disabled:hover:border-stone-200"
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <XCircle size={13} className="mr-1.5" /> Re-upload
                 </Button>
@@ -988,7 +1055,7 @@ export default function DocumentVerification() {
                   size="sm"
                   onClick={handleFlag}
                   disabled={!hasUploadedDocument}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-stone-400 disabled:hover:border-stone-200"
+                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Flag size={13} className="mr-1.5" /> Flag
                 </Button>
@@ -996,25 +1063,25 @@ export default function DocumentVerification() {
 
               {!hasUploadedDocument && (
                 <p className="text-xs text-stone-400">
-                  Upload required before review actions can be applied to this document.
+                  Student must upload this document first before review actions can be applied.
                 </p>
               )}
 
               {!hasAnyUpload && (
                 <p className="text-xs text-stone-400">
-                  Complete verification is disabled until the applicant uploads the required documents.
+                  Complete verification is disabled until the required documents are uploaded by the student.
                 </p>
               )}
 
               {hasAnyUpload && !hasCompleteRequirements && (
                 <p className="text-xs text-orange-600">
-                  Complete verification is disabled until all 5 required documents are uploaded.
+                  Complete verification is disabled until all {REQUIRED_DOC_COUNT} required documents are uploaded by the student.
                 </p>
               )}
 
               {hasCompleteRequirements && !allRequiredDocsReviewed && (
                 <p className="text-xs text-orange-600">
-                  All 5 documents are present. Apply admin feedback/actions to each document before completing verification.
+                  All {REQUIRED_DOC_COUNT} documents are present. Apply admin feedback/actions to each document before completing verification.
                 </p>
               )}
 
@@ -1038,7 +1105,7 @@ export default function DocumentVerification() {
                 ) : !hasAnyUpload ? (
                   'Complete Verification & Next'
                 ) : !hasCompleteRequirements ? (
-                  `Upload All ${REQUIRED_DOC_COUNT} Documents First`
+                  `Wait for All ${REQUIRED_DOC_COUNT} Documents`
                 ) : !allRequiredDocsReviewed ? (
                   'Review All Documents First'
                 ) : finalVerificationStatus === 'verified' ? (

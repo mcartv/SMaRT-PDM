@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/opening_application_documents_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/applicant_documents_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/opening_indigency_apply_screen.dart';
 import 'package:smartpdm_mobileapp/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
@@ -87,10 +87,8 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => OpeningApplicationDocumentsScreen(
-            openingId: opening.openingId,
-            initialApplicationId: opening.existingApplicationId,
-            initialOpeningTitle: opening.openingTitle,
+          builder: (_) => ApplicantDocumentsScreen(
+            initialTitle: opening.openingTitle,
             initialProgramName: opening.programName,
           ),
         ),
@@ -158,7 +156,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Choose an opening, apply with your Certificate of Indigency, then upload the remaining scholarship requirements from the same opening card.',
+                    'Choose an opening when you are ready to apply, but you can upload scholarship requirements separately after completing your base application form.',
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.45,

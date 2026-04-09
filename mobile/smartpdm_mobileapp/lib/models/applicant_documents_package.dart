@@ -1,5 +1,5 @@
-class OpeningApplicationDocument {
-  const OpeningApplicationDocument({
+class ApplicantRequirementDocument {
+  const ApplicantRequirementDocument({
     required this.id,
     required this.documentType,
     required this.status,
@@ -19,8 +19,8 @@ class OpeningApplicationDocument {
 
   String get routeParam => id.replaceAll('_', '-');
 
-  factory OpeningApplicationDocument.fromJson(Map<String, dynamic> json) {
-    return OpeningApplicationDocument(
+  factory ApplicantRequirementDocument.fromJson(Map<String, dynamic> json) {
+    return ApplicantRequirementDocument(
       id: json['id']?.toString() ?? '',
       documentType:
           json['document_type']?.toString() ??
@@ -35,11 +35,11 @@ class OpeningApplicationDocument {
   }
 }
 
-class OpeningApplicationPackage {
-  const OpeningApplicationPackage({
+class ApplicantDocumentsPackage {
+  const ApplicantDocumentsPackage({
     required this.applicationId,
-    required this.openingId,
-    required this.openingTitle,
+    required this.contextId,
+    required this.contextTitle,
     required this.programName,
     required this.applicationStatus,
     required this.documentStatus,
@@ -47,12 +47,12 @@ class OpeningApplicationPackage {
   });
 
   final String applicationId;
-  final String openingId;
-  final String openingTitle;
+  final String contextId;
+  final String contextTitle;
   final String programName;
   final String applicationStatus;
   final String documentStatus;
-  final List<OpeningApplicationDocument> documents;
+  final List<ApplicantRequirementDocument> documents;
 
   int get uploadedCount =>
       documents.where((document) => document.isSubmitted).length;
@@ -61,28 +61,32 @@ class OpeningApplicationPackage {
       documents.isNotEmpty &&
       documents.every((document) => document.isSubmitted);
 
-  factory OpeningApplicationPackage.fromJson(Map<String, dynamic> json) {
+  factory ApplicantDocumentsPackage.fromJson(Map<String, dynamic> json) {
     final application =
         json['application'] as Map<String, dynamic>? ?? const {};
-    final opening = json['opening'] as Map<String, dynamic>? ?? const {};
+    final context =
+        json['context'] as Map<String, dynamic>? ??
+        json['opening'] as Map<String, dynamic>? ??
+        const {};
     final documents = (json['documents'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map(
-          (item) => OpeningApplicationDocument.fromJson(
+          (item) => ApplicantRequirementDocument.fromJson(
             Map<String, dynamic>.from(item),
           ),
         )
         .toList();
 
-    return OpeningApplicationPackage(
+    return ApplicantDocumentsPackage(
       applicationId: application['application_id']?.toString() ?? '',
-      openingId:
+      contextId:
           application['opening_id']?.toString() ??
-          opening['opening_id']?.toString() ??
+          context['opening_id']?.toString() ??
           '',
-      openingTitle:
-          opening['opening_title']?.toString() ?? 'Scholarship Opening',
-      programName: opening['program_name']?.toString() ?? 'Scholarship Program',
+      contextTitle:
+          context['opening_title']?.toString() ?? 'Scholarship Requirements',
+      programName:
+          context['program_name']?.toString() ?? 'Unassigned Application',
       applicationStatus:
           application['application_status']?.toString() ?? 'Pending Review',
       documentStatus:

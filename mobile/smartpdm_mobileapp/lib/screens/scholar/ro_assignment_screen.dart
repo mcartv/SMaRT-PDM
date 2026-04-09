@@ -47,7 +47,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
         AppNavigator.goToTopLevel(context, AppRoutes.payouts);
         break;
       case 'Renewal Documents':
-        Navigator.pushNamed(context, AppRoutes.documents);
+        Navigator.pushNamed(context, AppRoutes.renewalDocuments);
         break;
       case 'RO Assignment':
         break;

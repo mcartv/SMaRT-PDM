@@ -6,6 +6,7 @@ import 'package:smartpdm_mobileapp/screens/auth/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/change_email_screen.dart';
 import 'package:smartpdm_mobileapp/screens/auth/splash_screen.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/applicant_documents_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/new_applicant_screen.dart';
 import 'package:smartpdm_mobileapp/screens/common/success_screen.dart';
 import 'package:provider/provider.dart';
@@ -124,7 +125,8 @@ class MyApp extends StatelessWidget {
             AppRoutes.newApplicant: (context) => const NewApplicantScreen(),
             AppRoutes.application: (context) =>
                 const PlaceholderScreen(title: 'Application'),
-            AppRoutes.documents: (context) =>
+            AppRoutes.documents: (context) => const ApplicantDocumentsScreen(),
+            AppRoutes.renewalDocuments: (context) =>
                 const ScholarRenewalRequirementsScreen(),
             AppRoutes.status: (context) =>
                 const PlaceholderScreen(title: 'Status'),

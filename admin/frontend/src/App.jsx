@@ -13,6 +13,8 @@ import ReplacementManagement from './pages/ReplacementManagement';
 import DocumentVerification from './pages/DocumentVerification';
 import ReportGeneration from './pages/ReportGeneration';
 import ScholarMonitoring from './pages/ScholarMonitoring';
+import RenewalReview from './pages/RenewalReview';
+import RenewalDocumentVerification from './pages/RenewalDocumentVerification';
 import ScholarshipOpenings from './pages/ScholarshipOpenings';
 import ROAdmin from './pages/ROAdmin';
 import PayoutManagement from './pages/PayoutManagement';
@@ -62,6 +64,8 @@ export default function App() {
           <Route path="applications" element={<ApplicationReview />} />
           <Route path="applications/:id/documents" element={<DocumentVerification />} />
           <Route path="scholars" element={<ScholarMonitoring />} />
+          <Route path="renewals" element={<RenewalReview />} />
+          <Route path="renewals/:id" element={<RenewalDocumentVerification />} />
           <Route path="openings" element={<ScholarshipOpenings />} />
           <Route path="replacements" element={<ReplacementManagement />} />
           <Route path="obligations" element={<ROAdmin />} />

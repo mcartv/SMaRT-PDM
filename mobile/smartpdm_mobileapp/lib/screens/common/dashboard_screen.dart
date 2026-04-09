@@ -4,10 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
   final bool showBottomNav;
@@ -193,7 +196,37 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
-  Widget _buildFeaturedArticleCard() {
+  Future<void> _openOfficeUpdate(
+    BuildContext context,
+    AppNotification notification,
+  ) async {
+    if (!notification.isRead && notification.notificationId.isNotEmpty) {
+      await context.read<NotificationProvider>().markAsRead(
+        notification.notificationId,
+      );
+    }
+
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OfficeUpdateArticleScreen(
+          notification: notification,
+          showBottomNav: false,
+        ),
+      ),
+    );
+  }
+
+  void _openScholarshipOpenings(BuildContext context) {
+    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
+  }
+
+  Widget _buildOfficeUpdateFeaturedCard(
+    BuildContext context,
+    AppNotification notification,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: _surfaceColor,
@@ -223,9 +256,9 @@ class _DashboardContentState extends State<DashboardContent> {
                     color: AppColors.gold.withOpacity(0.18),
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text(
-                    'FEATURED ARTICLE',
-                    style: TextStyle(
+                  child: Text(
+                    notification.officeUpdateLabel,
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       color: AppColors.darkBrown,
@@ -235,10 +268,7 @@ class _DashboardContentState extends State<DashboardContent> {
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () => AppNavigator.goToTopLevel(
-                    context,
-                    AppRoutes.notifications,
-                  ),
+                  onPressed: () => _openOfficeUpdate(context, notification),
                   child: const Text(
                     'READ MORE',
                     style: TextStyle(
@@ -251,7 +281,7 @@ class _DashboardContentState extends State<DashboardContent> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Scholarship opportunities from agencies and private benefactors',
+              notification.title,
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
@@ -261,11 +291,70 @@ class _DashboardContentState extends State<DashboardContent> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Stay updated on CHED, UNIFAST, TES, TDP, and private grant support including BC Packaging, Food Crafters, Genmart, Kaizen, and Pusong Mapagkalinga.',
+              notification.previewText,
               style: TextStyle(fontSize: 14, color: _bodyColor, height: 1.45),
             ),
+            if (notification.isOpeningUpdate) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _openScholarshipOpenings(context),
+                  child: const Text('Apply Now'),
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildOfficeUpdatesSection() {
+    return Consumer<NotificationProvider>(
+      builder: (context, notificationProvider, child) {
+        final officeUpdates = notificationProvider.homeOfficeUpdatesItems;
+
+        if (officeUpdates.isEmpty) {
+          return _buildOfficeUpdateFallbackCard(context);
+        }
+
+        return Column(
+          children: officeUpdates
+              .map(
+                (notification) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GestureDetector(
+                    onTap: () => _openOfficeUpdate(context, notification),
+                    child: _buildOfficeUpdateFeaturedCard(
+                      context,
+                      notification,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildOfficeUpdateFallbackCard(BuildContext context) {
+    return _buildOfficeUpdateFeaturedCard(
+      context,
+      AppNotification(
+        notificationId: 'fallback-office-update',
+        userId: '',
+        type: 'Announcement',
+        title:
+            'Scholarship opportunities from agencies and private benefactors',
+        message:
+            'Stay updated on CHED, UNIFAST, TES, TDP, and private grant support including BC Packaging, Food Crafters, Genmart, Kaizen, and Pusong Mapagkalinga.',
+        referenceId: null,
+        referenceType: 'announcement',
+        isRead: true,
+        pushSent: false,
+        createdAt: DateTime.now(),
       ),
     );
   }
@@ -527,7 +616,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _buildFeaturedArticleCard(),
+                _buildOfficeUpdatesSection(),
                 const SizedBox(height: 20),
                 Text(
                   'Quick Actions',

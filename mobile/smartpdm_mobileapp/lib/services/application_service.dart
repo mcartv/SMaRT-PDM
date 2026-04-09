@@ -30,4 +30,8 @@ class ApplicationService {
   ) async {
     return await _apiClient.getObject('/api/applications/$applicationId');
   }
+
+  Future<Map<String, dynamic>> fetchMySavedFormData() async {
+    return await _apiClient.getObject('/api/applications/me/form-data');
+  }
 }

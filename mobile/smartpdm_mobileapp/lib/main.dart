@@ -16,7 +16,8 @@ import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart'
 import 'package:smartpdm_mobileapp/screens/providers/theme_provider.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/interview_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/announcements_screen.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/renewal_requirements_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/scholarship_openings_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/scholar_renewal_requirements_screen.dart';
 import 'package:smartpdm_mobileapp/screens/scholar/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/screens/scholar/ro_completion_screen.dart';
 import 'package:smartpdm_mobileapp/screens/scholar/report_ticket_screen.dart';
@@ -123,7 +124,8 @@ class MyApp extends StatelessWidget {
             AppRoutes.newApplicant: (context) => const NewApplicantScreen(),
             AppRoutes.application: (context) =>
                 const PlaceholderScreen(title: 'Application'),
-            AppRoutes.documents: (context) => const RenewalRequirementsScreen(),
+            AppRoutes.documents: (context) =>
+                const ScholarRenewalRequirementsScreen(),
             AppRoutes.status: (context) =>
                 const PlaceholderScreen(title: 'Status'),
             AppRoutes.interviewSchedule: (context) =>
@@ -137,6 +139,8 @@ class MyApp extends StatelessWidget {
             AppRoutes.roCompletion: (context) => ROCompletionScreen(),
             AppRoutes.tickets: (context) => const ReportTicketScreen(),
             AppRoutes.success: (context) => const SuccessScreen(),
+            AppRoutes.scholarshipOpenings: (context) =>
+                const ScholarshipOpeningsScreen(),
           },
           debugShowCheckedModeBanner: false,
         );

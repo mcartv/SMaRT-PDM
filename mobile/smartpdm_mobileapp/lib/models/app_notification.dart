@@ -36,14 +36,13 @@ class AppNotification {
       referenceType: json['referenceType']?.toString(),
       isRead: json['isRead'] == true,
       pushSent: json['pushSent'] == true,
-      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+      createdAt:
+          DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
           DateTime.now(),
     );
   }
 
-  AppNotification copyWith({
-    bool? isRead,
-  }) {
+  AppNotification copyWith({bool? isRead}) {
     return AppNotification(
       notificationId: notificationId,
       userId: userId,
@@ -58,11 +57,52 @@ class AppNotification {
     );
   }
 
+  bool get isOfficeUpdate {
+    final normalizedType = type.toLowerCase();
+    final normalizedReference = (referenceType ?? '').toLowerCase();
+
+    return normalizedReference == 'announcement' ||
+        normalizedReference == 'program_opening' ||
+        normalizedType == 'announcement' ||
+        normalizedType == 'opening';
+  }
+
+  bool get isOpeningUpdate {
+    final normalizedType = type.toLowerCase();
+    final normalizedReference = (referenceType ?? '').toLowerCase();
+    return normalizedReference == 'program_opening' ||
+        normalizedType == 'opening';
+  }
+
+  String get officeUpdateLabel {
+    if (isOpeningUpdate) {
+      return 'SCHOLARSHIP OPENING';
+    }
+
+    return 'ANNOUNCEMENT';
+  }
+
+  String get previewText {
+    if (message.trim().isEmpty) {
+      return isOpeningUpdate
+          ? 'A scholarship opening has been posted for applicants.'
+          : 'A new office update has been posted.';
+    }
+
+    return message.trim();
+  }
+
   IconData get icon {
     final normalizedType = type.toLowerCase();
     final normalizedReference = (referenceType ?? '').toLowerCase();
 
-    if (normalizedReference == 'announcement' || normalizedType == 'announcement') {
+    if (normalizedReference == 'program_opening' ||
+        normalizedType == 'opening') {
+      return Icons.auto_awesome_motion_outlined;
+    }
+
+    if (normalizedReference == 'announcement' ||
+        normalizedType == 'announcement') {
       return Icons.campaign_outlined;
     }
 
@@ -70,11 +110,13 @@ class AppNotification {
       return Icons.calendar_today;
     }
 
-    if (normalizedType.contains('warning') || normalizedType.contains('action')) {
+    if (normalizedType.contains('warning') ||
+        normalizedType.contains('action')) {
       return Icons.warning_amber_rounded;
     }
 
-    if (normalizedType.contains('status') || normalizedType.contains('update')) {
+    if (normalizedType.contains('status') ||
+        normalizedType.contains('update')) {
       return Icons.info_outline;
     }
 
@@ -85,7 +127,13 @@ class AppNotification {
     final normalizedType = type.toLowerCase();
     final normalizedReference = (referenceType ?? '').toLowerCase();
 
-    if (normalizedReference == 'announcement' || normalizedType == 'announcement') {
+    if (normalizedReference == 'program_opening' ||
+        normalizedType == 'opening') {
+      return Colors.deepOrange;
+    }
+
+    if (normalizedReference == 'announcement' ||
+        normalizedType == 'announcement') {
       return Colors.orange;
     }
 
@@ -93,7 +141,8 @@ class AppNotification {
       return Colors.green;
     }
 
-    if (normalizedType.contains('warning') || normalizedType.contains('action')) {
+    if (normalizedType.contains('warning') ||
+        normalizedType.contains('action')) {
       return Colors.red;
     }
 

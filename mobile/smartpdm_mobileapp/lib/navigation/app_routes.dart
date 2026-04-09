@@ -27,13 +27,9 @@ class AppRoutes {
   static const roCompletion = '/ro-completion';
   static const tickets = '/tickets';
   static const success = '/success';
+  static const scholarshipOpenings = '/scholarship-openings';
 
-  static const topLevel = <String>{
-    home,
-    payouts,
-    notifications,
-    profile,
-  };
+  static const topLevel = <String>{home, payouts, notifications, profile};
 
   static bool isTopLevel(String route) => topLevel.contains(route);
 }

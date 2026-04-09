@@ -17,6 +17,7 @@ const navItems = [
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/replacements', icon: Settings, label: 'Replacements' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
+  { path: '/admin/renewals', icon: FileText, label: 'Renewals' },
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },

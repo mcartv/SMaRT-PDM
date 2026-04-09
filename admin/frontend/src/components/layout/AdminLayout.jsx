@@ -15,6 +15,7 @@ const SB_SUB = '#d4a98a';
 const navItems = [
   { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
+  { path: '/admin/replacements', icon: Settings, label: 'Replacements' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },

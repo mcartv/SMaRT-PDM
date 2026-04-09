@@ -290,7 +290,7 @@ async function buildApplicationDetails(applicationId) {
                 ? `${student.year_level}${getOrdinalSuffix(student.year_level)} Year`
                 : 'N/A',
             gwa: student.gwa ?? 'N/A',
-            program: applicationRecord.scholarship_program?.program_name || 'General',
+            program: applicationRecord.scholarship_program?.program_name || 'Unassigned',
             organization_name: applicationRecord.scholarship_program?.organization_name || 'N/A',
             course: courseCode,
         },
@@ -351,7 +351,7 @@ exports.fetchApplications = async () => {
         program_id: app.program_id,
         name: `${_.get(app, 'students.last_name', 'Unknown')}, ${_.get(app, 'students.first_name', 'Student')}`,
         student_number: _.get(app, 'students.pdm_id', 'N/A'),
-        program: _.get(app, 'scholarship_program.program_name', 'General'),
+        program: _.get(app, 'scholarship_program.program_name', 'Unassigned'),
         organization_name: _.get(app, 'scholarship_program.organization_name', 'N/A'),
         submitted: app.submission_date,
         application_status: _.toLower(app.application_status || 'pending'),
@@ -368,6 +368,71 @@ exports.fetchApplications = async () => {
 
 exports.fetchApplicationDetailsById = async (id) => buildApplicationDetails(id);
 exports.fetchApplicationDocumentsById = async (id) => buildApplicationDetails(id);
+
+exports.assignApplicationProgram = async (applicationId, programId) => {
+    if (!programId) {
+        throw new Error('program_id is required');
+    }
+
+    const { data: program, error: programError } = await supabase
+        .from('scholarship_program')
+        .select('program_id')
+        .eq('program_id', programId)
+        .maybeSingle();
+
+    if (programError) {
+        console.error('Supabase Program Fetch Error:', programError);
+        throw new Error(programError.message);
+    }
+
+    if (!program) {
+        throw new Error('Selected scholarship program is invalid.');
+    }
+
+    const { data: applicationRecord, error: applicationError } = await supabase
+        .from('applications')
+        .select('application_id, student_id, application_status')
+        .eq('application_id', applicationId)
+        .single();
+
+    if (applicationError) {
+        console.error('Supabase Application Fetch Error:', applicationError);
+        throw new Error(applicationError.message);
+    }
+
+    const { data: conflictingApplication, error: conflictError } = await supabase
+        .from('applications')
+        .select('application_id')
+        .eq('student_id', applicationRecord.student_id)
+        .eq('program_id', programId)
+        .in('application_status', ['Pending Review', 'Interview'])
+        .neq('application_id', applicationId)
+        .eq('is_disqualified', false)
+        .maybeSingle();
+
+    if (conflictError) {
+        console.error('Supabase Program Conflict Fetch Error:', conflictError);
+        throw new Error(conflictError.message);
+    }
+
+    if (conflictingApplication) {
+        throw new Error('This student already has an active application for the selected program.');
+    }
+
+    const { data, error } = await supabase
+        .from('applications')
+        .update({ program_id: programId })
+        .eq('application_id', applicationId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Supabase Application Program Update Error:', error);
+        throw new Error(error.message);
+    }
+
+    return data;
+};
 
 exports.markApplicationDisqualified = async (id, reason) => {
     const { data, error } = await supabase

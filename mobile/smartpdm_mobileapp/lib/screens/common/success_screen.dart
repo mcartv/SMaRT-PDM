@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/opening_application_documents_screen.dart';
+import 'package:smartpdm_mobileapp/screens/applicant/applicant_documents_screen.dart';
 import 'package:smartpdm_mobileapp/services/printable_application_service.dart';
 
 class SuccessScreen extends StatefulWidget {
@@ -50,8 +50,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
     final openingTitle = payload['openingTitle']?.toString();
     final programName = payload['programName']?.toString();
     final canGeneratePdf = applicationId.trim().isNotEmpty;
-    final canUploadOpeningRequirements =
-        applicationId.trim().isNotEmpty && openingId.trim().isNotEmpty;
+    final canUploadRequirements =
+        payload['canUploadRequirements'] == true ||
+        applicationId.trim().isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -102,24 +103,24 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   ),
                 ),
               ],
-              if (canUploadOpeningRequirements) ...[
+              if (canUploadRequirements) ...[
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => OpeningApplicationDocumentsScreen(
-                          openingId: openingId,
-                          initialApplicationId: applicationId,
-                          initialOpeningTitle: openingTitle,
+                        builder: (_) => ApplicantDocumentsScreen(
+                          initialTitle: openingId.trim().isNotEmpty
+                              ? openingTitle
+                              : 'Scholarship Requirements',
                           initialProgramName: programName,
                         ),
                       ),
                     );
                   },
                   icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Upload Remaining Requirements'),
+                  label: const Text('Upload Requirements'),
                 ),
               ],
               const SizedBox(height: 30),

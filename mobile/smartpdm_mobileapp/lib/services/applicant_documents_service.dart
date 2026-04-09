@@ -1,32 +1,28 @@
 import 'dart:typed_data';
 
-import 'package:smartpdm_mobileapp/models/opening_application_package.dart';
+import 'package:smartpdm_mobileapp/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/services/api_client.dart';
 
-class OpeningApplicationService {
-  OpeningApplicationService({ApiClient? apiClient})
+class ApplicantDocumentsService {
+  ApplicantDocumentsService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 
-  Future<OpeningApplicationPackage> fetchOpeningApplication(
-    String openingId,
-  ) async {
+  Future<ApplicantDocumentsPackage> fetchMyDocuments() async {
     final response = await _apiClient.getObject(
-      '/api/openings/$openingId/application',
+      '/api/applications/me/documents',
     );
-    return OpeningApplicationPackage.fromJson(response);
+    return ApplicantDocumentsPackage.fromJson(response);
   }
 
-  Future<OpeningApplicationPackage> uploadDocument({
-    required String openingId,
+  Future<ApplicantDocumentsPackage> uploadDocument({
     required String documentRouteParam,
     required String fileName,
     String? filePath,
     Uint8List? fileBytes,
   }) async {
-    final path =
-        '/api/openings/$openingId/documents/$documentRouteParam/upload';
+    final path = '/api/applications/me/documents/$documentRouteParam/upload';
     Map<String, dynamic> response;
 
     if (fileBytes != null) {
@@ -48,6 +44,6 @@ class OpeningApplicationService {
       );
     }
 
-    return OpeningApplicationPackage.fromJson(response);
+    return ApplicantDocumentsPackage.fromJson(response);
   }
 }

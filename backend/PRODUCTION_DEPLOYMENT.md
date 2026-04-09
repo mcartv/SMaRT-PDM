@@ -63,6 +63,9 @@ Production:
 ### `GET /api/notifications/unread-count`
 - Reads: `notifications`
 
+### `GET /api/faqs`
+- Reads: `faqs`
+
 ### `PATCH /api/notifications/:id/read`
 - Updates: `notifications.is_read`
 

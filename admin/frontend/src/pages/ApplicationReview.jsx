@@ -1,20 +1,21 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Search, Download, Eye, ChevronLeft, ChevronRight,
-  UserMinus, Users, CheckCircle2,
-  Clock, AlertTriangle, AlertCircle, Loader2, X,
-  ShieldCheck, XCircle, FileSearch, MessageSquare,
-  GitCompareArrows,
+  Search,
+  Loader2,
+  AlertCircle,
+  CalendarDays,
+  Users,
+  CheckCircle2,
+  Clock3,
+  ArrowRight,
+  FolderOpen,
+  CircleOff,
 } from 'lucide-react';
 
-// ─── Theme ───────────────────────────────────────────────────────
 const C = {
   brown: '#5c2d0e',
   brownMid: '#7c4a2e',
@@ -46,10 +47,13 @@ const DOC_STATUS_MAP = {
 };
 
 const APP_STATUS = {
-  'pending review': { label: 'Pending Review', bg: '#f5f5f4', color: '#57534e' },
-  interview: { label: 'Interview', bg: C.blueSoft, color: C.blueMid },
-  approved: { label: 'Approved', bg: C.greenSoft, color: C.green },
-  rejected: { label: 'Rejected', bg: C.redSoft, color: C.red },
+  pending: { label: 'Pending', bg: '#f5f5f4', color: '#57534e' },
+  review: { label: 'Under Review', bg: C.blueSoft, color: C.blueMid },
+  qualified: { label: 'Qualified', bg: C.greenSoft, color: C.green },
+  rejected: { label: 'Not Qualified', bg: C.redSoft, color: C.red },
+  notqualified: { label: 'Not Qualified', bg: C.redSoft, color: C.red },
+  disqualified: { label: 'Disqualified', bg: '#fee2e2', color: '#991b1b' },
+  requires_reupload: { label: 'Needs Re-upload', bg: C.amberSoft, color: C.amber },
 };
 
 const SDO_STATUS_MAP = {
@@ -103,20 +107,16 @@ function getGwaMeta(gwa) {
   if (!Number.isFinite(numeric)) {
     return { label: 'No GWA', bg: '#f5f5f4', color: '#78716c' };
   }
-  if (numeric <= 2.0) {
-    return { label: `Eligible · ${numeric}`, bg: C.greenSoft, color: C.green };
+
+  if (raw === 'closed') {
+    return { label: 'Closed', bg: C.redSoft, color: C.red };
   }
-  return { label: `At Risk · ${numeric}`, bg: C.redSoft, color: C.red };
-}
 
-function getOcrMeta(app) {
-  const ocr = (app.ocr_status || '').toLowerCase();
-  if (ocr && OCR_STATUS_MAP[ocr]) return OCR_STATUS_MAP[ocr];
+  if (raw === 'filled' || remainingSlots <= 0) {
+    return { label: 'Filled', bg: C.amberSoft, color: C.amber };
+  }
 
-  const docStatus = (app.document_status || '').toLowerCase();
-  if (docStatus === 'documents ready') return OCR_STATUS_MAP.match;
-  if (docStatus === 'under review') return OCR_STATUS_MAP.review;
-  return OCR_STATUS_MAP.mismatch;
+  return { label: 'Open', bg: C.greenSoft, color: C.green };
 }
 
 function StatusPill({ meta }) {
@@ -141,7 +141,7 @@ function isApplicantAtRisk(app) {
   const docRisk = docStatus === 'missing docs' || docStatus === 'under review';
   const verificationRisk = verificationStatus === 'rejected';
   const sdoRisk = sdo === 'major' || sdo === 'minor';
-  const appRisk = verificationStatus === 'rejected';
+  const appRisk = rawStatus === 'requires_reupload';
 
   return gwaRisk || docRisk || verificationRisk || sdoRisk || appRisk;
 }
@@ -149,7 +149,7 @@ function isApplicantAtRisk(app) {
 function isReplacementCandidate(app) {
   const rawStatus = (app?.application_status || '').toLowerCase();
   return (
-    rawStatus === 'rejected' &&
+    ['rejected', 'notqualified', 'disqualified'].includes(rawStatus) &&
     !!app?.is_reconsideration_candidate
   );
 }
@@ -301,78 +301,51 @@ function RemarksModal({ app, value, onChange, onSave, onClose, saving }) {
 export default function ApplicationReview() {
   const navigate = useNavigate();
 
-  const [apps, setApps] = useState([]);
+  const [openings, setOpenings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tableLoading, setTableLoading] = useState(false);
-  const [error, setError] = useState(null);
-
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [program, setProgram] = useState('All Programs');
-  const [status, setStatus] = useState('all');
-  const [sdoFilter, setSdoFilter] = useState('all');
-  const [appStatusFilter, setAppStatusFilter] = useState('All');
-  const [viewMode, setViewMode] = useState(VIEW_MODES.current);
 
-  const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState(new Set());
-
-  const [disqApp, setDisqApp] = useState(null);
-
-  const [remarksModal, setRemarksModal] = useState(null);
-  const [remarksText, setRemarksText] = useState('');
-  const [remarksSaving, setRemarksSaving] = useState(false);
-
-  const [decisionLoading, setDecisionLoading] = useState(null);
-
-  const visibleApps = useMemo(() => apps.filter((app) => !app.is_scholar), [apps]);
-
-  const reloadApplications = async ({ soft = false } = {}) => {
+  const loadOpenings = async ({ soft = false } = {}) => {
     try {
-      if (soft) setTableLoading(true);
-      else {
+      if (soft) {
+        setRefreshing(true);
+      } else {
         setLoading(true);
-        setError(null);
+        setError('');
       }
 
-      const res = await fetch('http://localhost:5000/api/applications', {
+      const token = localStorage.getItem('adminToken');
+
+      const res = await fetch('http://localhost:5000/api/program-openings/admin/applications-summary', {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (!res.ok) {
-        throw new Error('Failed to fetch applications');
+        const message = await parseErrorResponse(res, 'Failed to fetch scholarship openings');
+        throw new Error(message);
       }
 
       const data = await res.json();
-      setApps(Array.isArray(data) ? data : []);
+      setOpenings(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('APPLICATION FETCH ERROR:', err);
-      setError(err.message || 'Failed to load applications');
+      console.error('OPENINGS FETCH ERROR:', err);
+      setError(err.message || 'Failed to load scholarship openings');
     } finally {
       setLoading(false);
-      setTableLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    reloadApplications();
+    loadOpenings();
   }, []);
 
-  const programOptions = useMemo(() => {
-    return ['All Programs', ...new Set(visibleApps.map((a) => a.program).filter(Boolean))];
-  }, [visibleApps]);
-
-  const replacementCount = useMemo(() => {
-    return visibleApps.filter(isReplacementCandidate).length;
-  }, [visibleApps]);
-
-  const atRiskCount = useMemo(() => {
-    return visibleApps.filter((a) => !isReplacementCandidate(a) && isApplicantAtRisk(a)).length;
-  }, [visibleApps]);
-
-  const filtered = useMemo(() => {
+  const filteredOpenings = useMemo(() => {
     const q = search.trim().toLowerCase();
     const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
@@ -381,7 +354,7 @@ export default function ApplicationReview() {
     if (appStatusFilter !== 'All') {
       base = base.filter((a) => {
         const raw = (a.application_status || 'pending').toLowerCase();
-        if (appStatusFilter === 'rejected') return raw === 'rejected';
+        if (appStatusFilter === 'notqualified') return raw === 'rejected' || raw === 'notqualified';
         return raw === appStatusFilter.toLowerCase();
       });
     }
@@ -430,89 +403,42 @@ export default function ApplicationReview() {
 
       return matchSearch && matchProgram && matchStatus && matchSdo;
     });
-  }, [visibleApps, search, program, status, sdoFilter, appStatusFilter, viewMode]);
+  }, [openings, search]);
 
-  useEffect(() => {
-    setPage(1);
-    setSelected(new Set());
-  }, [search, program, status, sdoFilter, appStatusFilter, viewMode]);
+  const stats = useMemo(() => {
+    const total = openings.length;
+    const openCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Open').length;
+    const filledCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Filled').length;
+    const totalApplicants = openings.reduce((sum, o) => sum + Number(o.application_count || 0), 0);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-
-  const pageData = useMemo(() => {
-    return filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }, [filtered, page]);
-
-  const allVisibleSelected = useMemo(() => {
-    return pageData.length > 0 && pageData.every((a) => selected.has(a.id));
-  }, [pageData, selected]);
-
-  const handleExportExcel = async () => {
-    try {
-      const token = localStorage.getItem('adminToken');
-
-      if (!token) {
-        throw new Error('No token found. Please log in again.');
-      }
-
-      const response = await fetch('http://localhost:5000/api/applications/export/excel', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to export Excel: ${response.status} ${errorText}`);
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'applications.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Export Excel Error:', error);
-      alert(error.message);
-    }
-  };
-
-  const STATS = useMemo(() => {
     return [
       {
-        label: 'Total Applications',
-        value: visibleApps.length,
-        icon: Users,
-        accent: C.brown,
+        label: 'Total Openings',
+        value: total,
+        icon: FolderOpen,
         soft: C.amberSoft,
+        accent: C.brown,
       },
       {
-        label: 'Documents Ready',
-        value: visibleApps.filter((a) => (a.document_status || '').toLowerCase() === 'documents ready').length,
+        label: 'Open Now',
+        value: openCount,
         icon: CheckCircle2,
-        accent: C.green,
         soft: C.greenSoft,
+        accent: C.green,
       },
       {
-        label: 'At-Risk Applicants',
-        value: atRiskCount,
-        icon: AlertTriangle,
-        accent: C.red,
+        label: 'Filled',
+        value: filledCount,
+        icon: CircleOff,
         soft: C.redSoft,
+        accent: C.red,
       },
       {
-        label: 'Replacement Pool',
-        value: replacementCount,
-        icon: GitCompareArrows,
-        accent: C.blueMid,
+        label: 'Total Applicants',
+        value: totalApplicants,
+        icon: Users,
         soft: C.blueSoft,
+        accent: C.blueMid,
       },
     ];
   }, [visibleApps, atRiskCount, replacementCount]);
@@ -542,7 +468,7 @@ export default function ApplicationReview() {
   const handleDisqualify = async (id, reason, includeInQueue) => {
     try {
       const res = await fetch(`http://localhost:5000/api/applications/${id}/disqualify`, {
-        method: 'PATCH',
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
@@ -564,8 +490,7 @@ export default function ApplicationReview() {
               ...a,
               disqualified: true,
               disqReason: reason,
-              application_status: 'rejected',
-              verification_status: 'rejected',
+              application_status: 'disqualified',
               is_reconsideration_candidate: includeInQueue,
             }
             : a
@@ -603,7 +528,7 @@ export default function ApplicationReview() {
           a.id === id
             ? {
               ...a,
-              application_status: action === 'approve' ? 'approved' : 'rejected',
+              application_status: action === 'approve' ? 'qualified' : 'rejected',
             }
             : a
         )
@@ -677,8 +602,8 @@ export default function ApplicationReview() {
 
   const renderApplicationCard = (app) => {
     const id = app.id;
-    const normalizedAppStatus = (app.application_status || 'pending review').toLowerCase();
-    const isDisq = app.disqualified;
+    const normalizedAppStatus = (app.application_status || 'pending').toLowerCase();
+    const isDisq = app.disqualified || normalizedAppStatus === 'disqualified';
 
     const docMeta = getDocStatusMeta(app.document_status);
     const appMeta = getAppStatusMeta(normalizedAppStatus);
@@ -692,13 +617,14 @@ export default function ApplicationReview() {
     const verificationStatus = (app.verification_status || '').toLowerCase();
 
     const isDocsComplete = docStatus === 'documents ready';
-    const isInReviewStage = appStatus === 'interview';
+    const isInReviewStage = appStatus === 'review';
     const isVerified = verificationStatus === 'verified';
 
     const requiresReupload =
       docStatus === 'missing docs' ||
       docStatus === 'under review' ||
-      verificationStatus === 'rejected';
+      verificationStatus === 'rejected' ||
+      appStatus === 'requires_reupload';
 
     const canDecide =
       isDocsComplete &&
@@ -867,9 +793,9 @@ export default function ApplicationReview() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[420px] gap-3">
         <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading applications...</p>
+        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading scholarship openings...</p>
       </div>
     );
   }
@@ -878,10 +804,10 @@ export default function ApplicationReview() {
     return (
       <div className="p-8 bg-red-50 border border-red-100 rounded-xl text-center">
         <AlertCircle className="w-7 h-7 text-red-400 mx-auto mb-3" />
-        <p className="text-sm font-semibold text-red-800">Failed to load applications</p>
+        <p className="text-sm font-semibold text-red-800">Failed to load openings</p>
         <p className="text-xs text-red-600 mt-1">{error}</p>
         <Button
-          onClick={() => window.location.reload()}
+          onClick={() => loadOpenings()}
           variant="outline"
           size="sm"
           className="mt-4 border-red-200 text-red-600 text-xs"
@@ -894,96 +820,33 @@ export default function ApplicationReview() {
 
   return (
     <div className="space-y-5 py-2" style={{ background: C.bg }}>
-      {disqApp && (
-        <DisqModal
-          app={disqApp}
-          onDisqualify={handleDisqualify}
-          onClose={() => setDisqApp(null)}
-        />
-      )}
-
-      {remarksModal && (
-        <RemarksModal
-          app={remarksModal}
-          value={remarksText}
-          onChange={setRemarksText}
-          onSave={handleSaveRemarks}
-          onClose={() => setRemarksModal(null)}
-          saving={remarksSaving}
-        />
-      )}
-
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
             Applications
           </h1>
           <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            {filtered.length} records
+            Review applicants by scholarship opening
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {viewMode === VIEW_MODES.replacement && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/admin/replacements')}
-              className="rounded-lg text-xs border-stone-200 text-stone-600"
-            >
-              <GitCompareArrows className="mr-1.5 h-3.5 w-3.5" />
-              Open Advanced Matching
-            </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => loadOpenings({ soft: true })}
+          className="rounded-lg text-xs border-stone-200 text-stone-600"
+        >
+          {refreshing ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Clock3 className="mr-1.5 h-3.5 w-3.5" />
           )}
-
-          <Button
-            size="sm"
-            className="rounded-lg text-white text-xs border-none"
-            style={{ background: C.brownMid }}
-            onClick={handleExportExcel}
-          >
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Export Excel
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setViewMode(VIEW_MODES.current)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.current
-            ? 'bg-stone-900 text-white border-stone-900'
-            : 'bg-white text-stone-600 border-stone-200'
-            }`}
-        >
-          Current Applicants
-        </button>
-
-        <button
-          onClick={() => setViewMode(VIEW_MODES.at_risk)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.at_risk
-            ? 'bg-red-600 text-white border-red-600'
-            : 'bg-white text-stone-600 border-stone-200'
-            }`}
-        >
-          At Risk
-          <span className="ml-1.5">{atRiskCount}</span>
-        </button>
-
-        <button
-          onClick={() => setViewMode(VIEW_MODES.replacement)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.replacement
-            ? 'bg-amber-600 text-white border-amber-600'
-            : 'bg-white text-stone-600 border-stone-200'
-            }`}
-        >
-          Replacement Pool
-          <span className="ml-1.5">{replacementCount}</span>
-        </button>
+          Refresh
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {STATS.map((s) => (
+        {stats.map((s) => (
           <Card key={s.label} className="border-stone-200 shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
               <div
@@ -1003,43 +866,15 @@ export default function ApplicationReview() {
         ))}
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {Object.entries(DOC_STATUS_MAP).map(([key, s]) => {
-          const count = visibleApps.filter((a) => (a.document_status || '').toLowerCase() === key).length;
-          const isActive = status === key;
-
-          return (
-            <button
-              key={key}
-              onClick={() => {
-                setStatus(isActive ? 'all' : key);
-                setPage(1);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-              style={{
-                background: isActive ? s.bg : '#fff',
-                borderColor: isActive ? s.color : '#e5e7eb',
-                color: isActive ? s.color : '#9ca3af',
-              }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />
-              {s.label}
-              <span className="font-semibold">{count}</span>
-            </button>
-          );
-        })}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
+        <Input
+          placeholder="Search by opening title, scholarship program, or benefactor..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9 h-10 text-sm bg-white rounded-lg border-stone-200"
+        />
       </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
-          <Input
-            placeholder="Search by student name or PDM ID..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
-          />
-        </div>
 
         <Select value={program} onValueChange={setProgram}>
           <SelectTrigger className="w-[180px] h-9 rounded-lg border-stone-200 text-sm">
@@ -1072,10 +907,11 @@ export default function ApplicationReview() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="All">All Status</SelectItem>
-            <SelectItem value="pending review">Pending Review</SelectItem>
-            <SelectItem value="interview">Interview</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="review">Under Review</SelectItem>
+            <SelectItem value="qualified">Qualified</SelectItem>
+            <SelectItem value="notqualified">Not Qualified</SelectItem>
+            <SelectItem value="disqualified">Disqualified</SelectItem>
           </SelectContent>
         </Select>
 
@@ -1111,96 +947,65 @@ export default function ApplicationReview() {
               </CardDescription>
             </div>
 
-            <label className="flex items-center gap-2 text-xs text-stone-600 bg-white border border-stone-200 rounded-lg px-3 py-2 shrink-0">
-              <input
-                type="checkbox"
-                checked={allVisibleSelected}
-                onChange={toggleAllVisible}
-                className="accent-stone-700"
-              />
-              Select all on page
-            </label>
-          </div>
+                    <StatusPill meta={statusMeta} />
+                  </div>
+                </CardHeader>
 
-          {selected.size > 0 && viewMode !== VIEW_MODES.replacement && (
-            <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 mt-2">
-              <span className="text-xs font-medium text-amber-700">{selected.size} selected</span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  className="h-7 text-xs rounded-md text-white border-none"
-                  style={{ background: C.green }}
-                  onClick={handleBulkApprove}
-                >
-                  Approve All
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setSelected(new Set())}
-                  className="h-7 text-xs rounded-md border-stone-200"
-                >
-                  Clear
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                      <p className="text-[11px] text-stone-500">Slots</p>
+                      <p className="text-lg font-semibold text-stone-900">{slotCount}</p>
+                    </div>
 
-        <CardContent className="p-4">
-          {tableLoading ? (
-            <div className="text-center py-12 text-sm text-stone-400">
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Refreshing records...
-              </div>
-            </div>
-          ) : pageData.length === 0 ? (
-            <div className="text-center py-12 text-sm text-stone-400">
-              No applications match the current filters.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pageData.map(renderApplicationCard)}
-            </div>
-          )}
-        </CardContent>
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                      <p className="text-[11px] text-stone-500">Qualified</p>
+                      <p className="text-lg font-semibold text-stone-900">{qualifiedCount}</p>
+                    </div>
 
-        <div className="px-5 py-3 bg-stone-50/50 border-t border-stone-100 flex items-center justify-between">
-          <span className="text-xs text-stone-400">
-            Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 w-7 p-0 rounded-lg border-stone-200"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </Button>
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                      <p className="text-[11px] text-stone-500">Applicants</p>
+                      <p className="text-lg font-semibold text-stone-900">{applicationCount}</p>
+                    </div>
 
-            <span className="text-xs font-medium px-2.5 py-1 bg-white border border-stone-200 rounded-lg">
-              {page} / {totalPages}
-            </span>
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                      <p className="text-[11px] text-stone-500">Remaining</p>
+                      <p className="text-lg font-semibold text-stone-900">{remainingSlots}</p>
+                    </div>
+                  </div>
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 w-7 p-0 rounded-lg border-stone-200"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      {formatDate(opening.start_date || opening.application_start)} - {formatDate(opening.end_date || opening.application_end)}
+                    </span>
+                    <span>•</span>
+                    <span>{pendingCount} pending</span>
+                    <span>•</span>
+                    <span>{reviewCount} under review</span>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      className="rounded-lg text-white text-xs border-none"
+                      style={{ background: C.brownMid }}
+                      onClick={() => navigate(`/admin/openings/${opening.opening_id}/applications`)}
+                    >
+                      View Applicants
+                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
-      </Card>
+      )}
 
       <footer className="pt-6 pb-2 border-t border-stone-100">
         <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · Application Management Layer
+          SMaRT PDM · Opening-Based Application Review
         </p>
       </footer>
     </div>

@@ -117,6 +117,69 @@ exports.markApplicationReviewed = async (req, res) => {
     }
 };
 
+exports.saveApplicationRemarks = async (req, res) => {
+    const { id } = req.params;
+    const { remarks } = req.body;
+
+    try {
+        const data = await applicationService.saveApplicationRemarks(id, remarks);
+
+        res.status(200).json({
+            message: 'Application remarks saved successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('SAVE APPLICATION REMARKS CONTROLLER ERROR:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.approveApplication = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const updated = await applicationService.approveApplicationWithSlotCheck(id);
+
+        res.status(200).json({
+            message: 'Application qualified successfully',
+            application: updated,
+        });
+    } catch (err) {
+        console.error('APPROVE APPLICATION CONTROLLER ERROR:', err.message);
+
+        if (
+            err.message === 'Application not found' ||
+            err.message === 'This scholarship opening is already closed' ||
+            err.message === 'This scholarship opening has already reached its allotted slots'
+        ) {
+            return res.status(400).json({
+                message: err.message,
+            });
+        }
+
+        res.status(500).json({
+            message: 'Failed to approve application',
+            error: err.message,
+        });
+    }
+};
+
+exports.moveApplicationToWaiting = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const data = await applicationService.moveApplicationToWaiting(id);
+
+        res.status(200).json({
+            message: 'Application moved to waiting/replacement successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('MOVE APPLICATION TO WAITING CONTROLLER ERROR:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.disqualifyApplication = async (req, res) => {
     const { id } = req.params;
     const { reason, is_reconsideration_candidate = false } = req.body;

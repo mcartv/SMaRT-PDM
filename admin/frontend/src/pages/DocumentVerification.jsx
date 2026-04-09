@@ -444,9 +444,8 @@ function OCRPanel({ activeDoc, application, extractedData }) {
                 </div>
 
                 <span
-                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${
-                    item.verified ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
-                  }`}
+                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.verified ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+                    }`}
                 >
                   {item.verified ? 'Detected' : 'Review'}
                 </span>
@@ -826,11 +825,10 @@ export default function DocumentVerification() {
                   <button
                     key={d.id}
                     onClick={() => setDoc(d.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
-                      isActive
+                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
                         ? 'border-blue-800 bg-blue-50 shadow-sm'
                         : 'border-stone-100 bg-white hover:border-stone-200'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span style={{ color: s.color }}>{s.icon}</span>
@@ -921,11 +919,10 @@ export default function DocumentVerification() {
                 <button
                   key={d.id}
                   onClick={() => setDoc(d.id)}
-                  className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${
-                    doc === d.id
+                  className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${doc === d.id
                       ? 'border-blue-800 text-blue-900 bg-white'
                       : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
-                  }`}
+                    }`}
                 >
                   {d.name}
                 </button>
@@ -936,33 +933,30 @@ export default function DocumentVerification() {
               <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
                 <button
                   onClick={() => setViewMode('preview')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    viewMode === 'preview'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
                       ? 'bg-white text-blue-900 shadow-sm'
                       : 'text-stone-500 hover:text-stone-700'
-                  }`}
+                    }`}
                 >
                   Document Preview
                 </button>
 
                 <button
                   onClick={() => setViewMode('ocr')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    viewMode === 'ocr'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
                       ? 'bg-white text-blue-900 shadow-sm'
                       : 'text-stone-500 hover:text-stone-700'
-                  }`}
+                    }`}
                 >
                   OCR Validation Hub
                 </button>
 
                 <button
                   onClick={() => setViewMode('split')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    viewMode === 'split'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
                       ? 'bg-white text-blue-900 shadow-sm'
                       : 'text-stone-500 hover:text-stone-700'
-                  }`}
+                    }`}
                 >
                   <span className="inline-flex items-center gap-1">
                     <Columns2 className="w-3.5 h-3.5" />

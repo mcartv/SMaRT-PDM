@@ -1,9 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, FileText, Users, CheckSquare, BarChart3,
-  Megaphone, Settings, Bell, ChevronLeft, ChevronRight,
-  LogOut, Wallet, Briefcase
+  LayoutDashboard,
+  FileText,
+  Users,
+  CheckSquare,
+  BarChart3,
+  Megaphone,
+  Settings,
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  Wallet,
+  Briefcase,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 
@@ -39,13 +49,18 @@ export default function AdminLayout() {
     const initializeLayout = () => {
       const token = localStorage.getItem('adminToken');
       if (!token) {
-        navigate('/admin/login');
+        navigate('/admin/login', { replace: true });
         return;
       }
 
       const savedProfile = localStorage.getItem('adminProfile');
       if (savedProfile) {
-        setAdminData(JSON.parse(savedProfile));
+        try {
+          setAdminData(JSON.parse(savedProfile));
+        } catch (err) {
+          console.error('Failed to parse adminProfile from localStorage:', err);
+          setAdminData(null);
+        }
       }
 
       setNotifs([]);
@@ -57,7 +72,7 @@ export default function AdminLayout() {
   const handleLogout = () => {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminProfile');
-    navigate('/admin/login');
+    navigate('/admin/login', { replace: true });
   };
 
   useEffect(() => {
@@ -111,8 +126,10 @@ export default function AdminLayout() {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.path === '/admin/applications' || item.path === '/admin/openings'}
               className={({ isActive }) =>
-                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl text-sm transition-all group ${isActive
+                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'
+                } px-3 py-2.5 rounded-xl text-sm transition-all group ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'
                   : 'text-[#f0d9c8] hover:bg-white/7'
                 }`
@@ -132,16 +149,22 @@ export default function AdminLayout() {
         <div className="p-3 border-t border-white/10 space-y-1.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
+              } w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {collapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
             {!collapsed && <span className="font-medium">Collapse</span>}
           </button>
 
           <button
             onClick={handleLogout}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
+              } w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="w-4 h-4" />
@@ -157,7 +180,7 @@ export default function AdminLayout() {
           <div className="min-w-0">
             <h1 className="text-sm font-semibold text-stone-800 leading-tight">SMaRT PDM</h1>
             <p className="text-[11px] text-stone-500 truncate">
-              Scholarship Monitoring & Tracking
+              Scholarship Monitoring &amp; Tracking
             </p>
           </div>
 

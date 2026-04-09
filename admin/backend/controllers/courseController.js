@@ -17,14 +17,14 @@ const createCourse = async (req, res) => {
         const {
             course_code,
             course_name,
-            department,
+            department_id,
             is_archived,
         } = req.body;
 
         const createdCourse = await courseService.createCourse({
             course_code,
             course_name,
-            department,
+            department_id,
             is_archived,
         });
 
@@ -32,9 +32,13 @@ const createCourse = async (req, res) => {
     } catch (error) {
         console.error('CREATE COURSE CONTROLLER ERROR:', error);
 
-        if (error.message === 'Course code is required' ||
+        if (
+            error.message === 'Course code is required' ||
             error.message === 'Course name is required' ||
-            error.message === 'Department is required') {
+            error.message === 'Department is required' ||
+            error.message === 'Department not found' ||
+            error.message === 'Department is archived'
+        ) {
             return res.status(400).json({ error: error.message });
         }
 
@@ -54,14 +58,14 @@ const updateCourse = async (req, res) => {
         const {
             course_code,
             course_name,
-            department,
+            department_id,
             is_archived,
         } = req.body;
 
         const updatedCourse = await courseService.updateCourse(id, {
             course_code,
             course_name,
-            department,
+            department_id,
             is_archived,
         });
 
@@ -74,6 +78,16 @@ const updateCourse = async (req, res) => {
         res.status(200).json(updatedCourse);
     } catch (error) {
         console.error('UPDATE COURSE CONTROLLER ERROR:', error);
+
+        if (
+            error.message === 'Course code is required' ||
+            error.message === 'Course name is required' ||
+            error.message === 'Department is required' ||
+            error.message === 'Department not found' ||
+            error.message === 'Department is archived'
+        ) {
+            return res.status(400).json({ error: error.message });
+        }
 
         if (error.message === 'Course code already exists') {
             return res.status(409).json({ error: error.message });

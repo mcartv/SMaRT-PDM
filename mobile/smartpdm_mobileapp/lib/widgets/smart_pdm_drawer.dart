@@ -108,12 +108,6 @@ class SmartPdmDrawer extends StatelessWidget {
           ),
           _buildDrawerItem(
             context: context,
-            icon: Icons.info_outline,
-            label: 'About PDM/OSFA',
-            route: AppRoutes.about,
-          ),
-          _buildDrawerItem(
-            context: context,
             icon: Icons.help_outline,
             label: 'FAQs',
             route: AppRoutes.faqs,

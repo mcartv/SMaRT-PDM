@@ -103,15 +103,34 @@ Production:
 - Reads: `application_documents`
 - Reads: `application_document_reviews`
 
-### `GET /api/messages/:room`
+### `GET /api/messages/thread`
 - Reads: `messages`
 
-### Socket `send_message`
+### `POST /api/messages/thread`
 - Writes: `messages`
+
+### `PATCH /api/messages/thread/read`
+- Updates: `messages.is_read`
+
+### `GET /api/messages/unread-count`
+- Reads: `messages`
+
+### `GET /api/messages/conversations`
+- Reads: `messages`
+
+### `GET /api/messages/conversations/:counterpartyId`
+- Reads: `messages`
+
+### `POST /api/messages/conversations/:counterpartyId`
+- Writes: `messages`
+
+### `PATCH /api/messages/conversations/:counterpartyId/read`
+- Updates: `messages.is_read`
 
 ### Socket authenticated connect
 - Reads: JWT auth token
 - Emits: `notification:new`, `notification:updated`, `notification:deleted`
+- Emits: `message:new`, `message:read`
 
 ## Render deployment
 1. Push the repo to GitHub.
@@ -165,5 +184,5 @@ flutter build appbundle --dart-define=API_BASE_URL=https://<your-backend-domain>
 
 ## Regression checks
 - Admin flows still read `applications`, `students`, and related student tables correctly
-- Socket messaging still persists to `messages`
+- Direct messaging still persists to `messages`
 - Mobile app no longer points to a LAN IP in production builds

@@ -75,7 +75,7 @@ async function loadProgramMap(programIds = []) {
     }
 
     const { data, error } = await supabase
-        .from('scholarship_programs')
+        .from('scholarship_program')
         .select('program_id, program_name, organization_name')
         .in('program_id', uniqueProgramIds);
 

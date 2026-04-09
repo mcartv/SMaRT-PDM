@@ -134,7 +134,7 @@ exports.getROList = async (status = 'pending') => {
                     first_name,
                     last_name
                 ),
-                scholarship_programs (
+                scholarship_program (
                     program_name
                 )
             )
@@ -152,7 +152,7 @@ exports.getROList = async (status = 'pending') => {
             ? `${row.scholars.students.first_name} ${row.scholars.students.last_name}`.trim()
             : 'Unknown Student',
         student_number: row.scholars?.students?.pdm_id || 'N/A',
-        program_name: row.scholars?.scholarship_programs?.program_name || 'Scholar',
+        program_name: row.scholars?.scholarship_program?.program_name || 'Scholar',
     }));
 
     const mapped = rows.map((row) => mapRO(row, config.requiredHours, now));

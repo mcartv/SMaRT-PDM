@@ -15,9 +15,9 @@ import {
   Wallet,
   Briefcase,
   LifeBuoy,
-  MessageSquareMore,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
+import AdminMessages from '../../pages/AdminMessages';
 
 // Theme Colors
 const SB_BASE = '#7c4a2e';
@@ -33,7 +33,6 @@ const navItems = [
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
-  { path: '/admin/messages', icon: MessageSquareMore, label: 'Messages' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/support-tickets', icon: LifeBuoy, label: 'Support Tickets' },
@@ -132,17 +131,20 @@ export default function AdminLayout() {
               to={item.path}
               end={item.path === '/admin/applications' || item.path === '/admin/openings'}
               className={({ isActive }) =>
-                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'
-                } px-3 py-2.5 rounded-xl text-sm transition-all group ${isActive
-                  ? 'bg-[#9a5d3a] text-white shadow-sm'
-                  : 'text-[#f0d9c8] hover:bg-white/7'
+                `flex items-center ${
+                  collapsed ? 'justify-center' : 'gap-3'
+                } px-3 py-2.5 rounded-xl text-sm transition-all group ${
+                  isActive
+                    ? 'bg-[#9a5d3a] text-white shadow-sm'
+                    : 'text-[#f0d9c8] hover:bg-white/7'
                 }`
               }
               title={collapsed ? item.label : ''}
             >
               <item.icon
-                className={`w-4 h-4 shrink-0 transition-colors ${collapsed ? '' : 'group-hover:text-amber-300'
-                  }`}
+                className={`w-4 h-4 shrink-0 transition-colors ${
+                  collapsed ? '' : 'group-hover:text-amber-300'
+                }`}
               />
               {!collapsed && <span className="font-medium truncate">{item.label}</span>}
             </NavLink>
@@ -153,8 +155,9 @@ export default function AdminLayout() {
         <div className="p-3 border-t border-white/10 space-y-1.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
-              } w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
+            className={`flex items-center ${
+              collapsed ? 'justify-center' : 'gap-3'
+            } w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? (
@@ -167,8 +170,9 @@ export default function AdminLayout() {
 
           <button
             onClick={handleLogout}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
-              } w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
+            className={`flex items-center ${
+              collapsed ? 'justify-center' : 'gap-3'
+            } w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="w-4 h-4" />
@@ -260,6 +264,18 @@ export default function AdminLayout() {
             <Outlet />
           </div>
         </main>
+      </div>
+
+      {/* Floating Messages */}
+      <div className="group">
+        <div className="pointer-events-none fixed bottom-24 right-6 z-[60] translate-y-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+          <div className="relative rounded-xl bg-stone-900 px-3 py-2 text-xs font-medium text-white shadow-lg">
+            Open messages
+            <div className="absolute right-6 top-full h-0 w-0 border-l-[6px] border-r-[6px] border-t-[7px] border-l-transparent border-r-transparent border-t-stone-900" />
+          </div>
+        </div>
+
+        <AdminMessages />
       </div>
     </div>
   );

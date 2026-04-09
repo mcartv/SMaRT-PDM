@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Search, Download, Eye, ChevronLeft, ChevronRight,
-  UserMinus, UserPlus, Users, CheckCircle2,
+  UserMinus, Users, CheckCircle2,
   Clock, AlertTriangle, AlertCircle, Loader2, X,
   ShieldCheck, XCircle, FileSearch, MessageSquare,
+  GitCompareArrows,
 } from 'lucide-react';
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -29,6 +30,12 @@ const C = {
   bg: '#faf7f2',
   muted: '#78716c',
   border: '#e7e5e4',
+};
+
+const VIEW_MODES = {
+  current: 'current',
+  at_risk: 'at_risk',
+  replacement: 'replacement',
 };
 
 // ─── Constants ───────────────────────────────────────────────────
@@ -126,6 +133,30 @@ function StatusPill({ meta }) {
   );
 }
 
+function isApplicantAtRisk(app) {
+  const gwa = Number(app?.gwa);
+  const rawStatus = (app?.application_status || '').toLowerCase();
+  const docStatus = (app?.document_status || '').toLowerCase();
+  const verificationStatus = (app?.verification_status || '').toLowerCase();
+  const sdo = normalizeSdo(app?.sdu_level || app?.sdo_status || '');
+
+  const gwaRisk = Number.isFinite(gwa) && gwa > 2.0;
+  const docRisk = docStatus === 'missing docs' || docStatus === 'under review';
+  const verificationRisk = verificationStatus === 'rejected';
+  const sdoRisk = sdo === 'major' || sdo === 'minor';
+  const appRisk = rawStatus === 'requires_reupload';
+
+  return gwaRisk || docRisk || verificationRisk || sdoRisk || appRisk;
+}
+
+function isReplacementCandidate(app) {
+  const rawStatus = (app?.application_status || '').toLowerCase();
+  return (
+    ['rejected', 'notqualified', 'disqualified'].includes(rawStatus) &&
+    !!app?.is_reconsideration_candidate
+  );
+}
+
 // ─── Disqualify Modal ────────────────────────────────────────────
 function DisqModal({ app, onDisqualify, onClose }) {
   const [reason, setReason] = useState('');
@@ -164,8 +195,8 @@ function DisqModal({ app, onDisqualify, onClose }) {
               key={r}
               onClick={() => setReason(r)}
               className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-medium transition-all border ${reason === r
-                  ? 'bg-red-600 border-red-600 text-white'
-                  : 'bg-white border-stone-200 text-stone-600 hover:border-red-200 hover:bg-red-50'
+                ? 'bg-red-600 border-red-600 text-white'
+                : 'bg-white border-stone-200 text-stone-600 hover:border-red-200 hover:bg-red-50'
                 }`}
             >
               {r}
@@ -180,9 +211,9 @@ function DisqModal({ app, onDisqualify, onClose }) {
               className="mt-0.5 accent-stone-700"
             />
             <div>
-              <p className="text-xs font-medium text-stone-700">Include in Replacement Queue</p>
+              <p className="text-xs font-medium text-stone-700">Include in Replacement Pool</p>
               <p className="text-[11px] text-stone-500 mt-0.5">
-                Keeps this disqualified applicant eligible for reconsideration if a scholar slot opens later.
+                Keeps this applicant visible under the replacement pool for future slot reconsideration.
               </p>
             </div>
           </label>
@@ -283,11 +314,11 @@ export default function ApplicationReview() {
   const [status, setStatus] = useState('all');
   const [sdoFilter, setSdoFilter] = useState('all');
   const [appStatusFilter, setAppStatusFilter] = useState('All');
+  const [viewMode, setViewMode] = useState(VIEW_MODES.current);
 
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(new Set());
 
-  const [showRepl, setShowRepl] = useState(false);
   const [disqApp, setDisqApp] = useState(null);
 
   const [remarksModal, setRemarksModal] = useState(null);
@@ -336,6 +367,14 @@ export default function ApplicationReview() {
     return ['All Programs', ...new Set(visibleApps.map((a) => a.program).filter(Boolean))];
   }, [visibleApps]);
 
+  const replacementCount = useMemo(() => {
+    return visibleApps.filter(isReplacementCandidate).length;
+  }, [visibleApps]);
+
+  const atRiskCount = useMemo(() => {
+    return visibleApps.filter((a) => !isReplacementCandidate(a) && isApplicantAtRisk(a)).length;
+  }, [visibleApps]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const normalizedQ = q.replace(/[^a-z0-9]/g, '');
@@ -349,6 +388,25 @@ export default function ApplicationReview() {
         return raw === appStatusFilter.toLowerCase();
       });
     }
+
+    base = base.filter((a) => {
+      const replacement = isReplacementCandidate(a);
+      const atRisk = isApplicantAtRisk(a);
+
+      if (viewMode === VIEW_MODES.current) {
+        return !replacement;
+      }
+
+      if (viewMode === VIEW_MODES.at_risk) {
+        return !replacement && atRisk;
+      }
+
+      if (viewMode === VIEW_MODES.replacement) {
+        return replacement;
+      }
+
+      return true;
+    });
 
     return base.filter((a) => {
       const fullName = (a.name || '').toLowerCase();
@@ -375,11 +433,12 @@ export default function ApplicationReview() {
 
       return matchSearch && matchProgram && matchStatus && matchSdo;
     });
-  }, [visibleApps, search, program, status, sdoFilter, appStatusFilter]);
+  }, [visibleApps, search, program, status, sdoFilter, appStatusFilter, viewMode]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, program, status, sdoFilter, appStatusFilter]);
+    setSelected(new Set());
+  }, [search, program, status, sdoFilter, appStatusFilter, viewMode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -390,22 +449,6 @@ export default function ApplicationReview() {
   const allVisibleSelected = useMemo(() => {
     return pageData.length > 0 && pageData.every((a) => selected.has(a.id));
   }, [pageData, selected]);
-
-  const disqualifiedCount = useMemo(() => {
-    return visibleApps.filter(
-      (a) =>
-        ((a.disqualified || (a.application_status || '').toLowerCase() === 'disqualified')) &&
-        a.is_reconsideration_candidate
-    ).length;
-  }, [visibleApps]);
-
-  const replacementCandidates = useMemo(() => {
-    return visibleApps.filter(
-      (a) =>
-        ((a.disqualified || (a.application_status || '').toLowerCase() === 'disqualified')) &&
-        a.is_reconsideration_candidate
-    );
-  }, [visibleApps]);
 
   const handleExportExcel = async () => {
     try {
@@ -461,21 +504,21 @@ export default function ApplicationReview() {
         soft: C.greenSoft,
       },
       {
-        label: 'Under Review',
-        value: visibleApps.filter((a) => (a.application_status || 'pending').toLowerCase() === 'review').length,
-        icon: Clock,
-        accent: C.blueMid,
-        soft: C.blueSoft,
-      },
-      {
-        label: 'Missing Docs',
-        value: visibleApps.filter((a) => (a.document_status || '').toLowerCase() === 'missing docs').length,
+        label: 'At-Risk Applicants',
+        value: atRiskCount,
         icon: AlertTriangle,
         accent: C.red,
         soft: C.redSoft,
       },
+      {
+        label: 'Replacement Pool',
+        value: replacementCount,
+        icon: GitCompareArrows,
+        accent: C.blueMid,
+        soft: C.blueSoft,
+      },
     ];
-  }, [visibleApps]);
+  }, [visibleApps, atRiskCount, replacementCount]);
 
   const toggleOne = (id) => {
     setSelected((prev) => {
@@ -667,6 +710,9 @@ export default function ApplicationReview() {
       !requiresReupload &&
       !!app.remarks;
 
+    const atRisk = isApplicantAtRisk(app);
+    const replacement = isReplacementCandidate(app);
+
     return (
       <div
         key={id}
@@ -697,9 +743,15 @@ export default function ApplicationReview() {
                 </Badge>
               )}
 
-              {app.is_reconsideration_candidate && (
+              {atRisk && !replacement && (
+                <Badge className="bg-red-50 text-red-700 border-red-100 text-[10px] font-medium">
+                  At Risk
+                </Badge>
+              )}
+
+              {replacement && (
                 <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-medium">
-                  Replacement Candidate
+                  Replacement Pool
                 </Badge>
               )}
             </div>
@@ -746,27 +798,31 @@ export default function ApplicationReview() {
             Review Documents
           </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canDecide || decisionLoading === id}
-            onClick={() => handleDecision(id, 'approve')}
-            className="h-8 px-3 rounded-lg border-green-100 text-green-700 hover:bg-green-50 text-xs shadow-none disabled:opacity-40"
-          >
-            {decisionLoading === id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-1" />}
-            Qualify
-          </Button>
+          {viewMode !== VIEW_MODES.replacement && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canDecide || decisionLoading === id}
+                onClick={() => handleDecision(id, 'approve')}
+                className="h-8 px-3 rounded-lg border-green-100 text-green-700 hover:bg-green-50 text-xs shadow-none disabled:opacity-40"
+              >
+                {decisionLoading === id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-1" />}
+                Qualify
+              </Button>
 
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canDecide || decisionLoading === id}
-            onClick={() => handleDecision(id, 'reject')}
-            className="h-8 px-3 rounded-lg border-red-100 text-red-600 hover:bg-red-50 text-xs shadow-none disabled:opacity-40"
-          >
-            <XCircle className="w-3 h-3 mr-1" />
-            Not Qualified
-          </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canDecide || decisionLoading === id}
+                onClick={() => handleDecision(id, 'reject')}
+                className="h-8 px-3 rounded-lg border-red-100 text-red-600 hover:bg-red-50 text-xs shadow-none disabled:opacity-40"
+              >
+                <XCircle className="w-3 h-3 mr-1" />
+                Not Qualified
+              </Button>
+            </>
+          )}
 
           <Button
             size="sm"
@@ -778,7 +834,7 @@ export default function ApplicationReview() {
             Remarks
           </Button>
 
-          {!isDisq && (
+          {!isDisq && viewMode !== VIEW_MODES.replacement && (
             <Button
               size="sm"
               onClick={() => setDisqApp(app)}
@@ -789,7 +845,7 @@ export default function ApplicationReview() {
           )}
         </div>
 
-        {!canDecide && (
+        {viewMode !== VIEW_MODES.replacement && !canDecide && (
           <p className="text-[11px] text-stone-400 mt-2">
             {!isInReviewStage
               ? 'Move application to review stage first.'
@@ -800,6 +856,12 @@ export default function ApplicationReview() {
                   : !app.remarks
                     ? 'Add reviewer remarks before decision.'
                     : 'Not ready for decision.'}
+          </p>
+        )}
+
+        {viewMode === VIEW_MODES.replacement && (
+          <p className="text-[11px] text-stone-400 mt-2">
+            This applicant is in the replacement pool and can be considered later if a scholarship slot becomes available.
           </p>
         )}
       </div>
@@ -864,21 +926,18 @@ export default function ApplicationReview() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowRepl(!showRepl)}
-            className="rounded-lg text-xs border-stone-200 text-stone-600"
-          >
-            <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-            Replacement Queue
-            {disqualifiedCount > 0 && (
-              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">
-                {disqualifiedCount}
-              </span>
-            )}
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {viewMode === VIEW_MODES.replacement && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/admin/replacements')}
+              className="rounded-lg text-xs border-stone-200 text-stone-600"
+            >
+              <GitCompareArrows className="mr-1.5 h-3.5 w-3.5" />
+              Open Advanced Matching
+            </Button>
+          )}
 
           <Button
             size="sm"
@@ -890,6 +949,40 @@ export default function ApplicationReview() {
             Export Excel
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setViewMode(VIEW_MODES.current)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.current
+            ? 'bg-stone-900 text-white border-stone-900'
+            : 'bg-white text-stone-600 border-stone-200'
+            }`}
+        >
+          Current Applicants
+        </button>
+
+        <button
+          onClick={() => setViewMode(VIEW_MODES.at_risk)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.at_risk
+            ? 'bg-red-600 text-white border-red-600'
+            : 'bg-white text-stone-600 border-stone-200'
+            }`}
+        >
+          At Risk
+          <span className="ml-1.5">{atRiskCount}</span>
+        </button>
+
+        <button
+          onClick={() => setViewMode(VIEW_MODES.replacement)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.replacement
+            ? 'bg-amber-600 text-white border-amber-600'
+            : 'bg-white text-stone-600 border-stone-200'
+            }`}
+        >
+          Replacement Pool
+          <span className="ml-1.5">{replacementCount}</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -912,43 +1005,6 @@ export default function ApplicationReview() {
           </Card>
         ))}
       </div>
-
-      {showRepl && (
-        <Card className="border-stone-200 shadow-none overflow-hidden">
-          <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-            <CardTitle className="text-sm font-semibold text-stone-800">Replacement Queue</CardTitle>
-            <CardDescription className="text-xs">
-              Disqualified applicants retained for reconsideration if scholarship slots reopen
-            </CardDescription>
-          </CardHeader>
-
-          <div className="p-4">
-            {replacementCandidates.length === 0 ? (
-              <div className="text-xs text-stone-400">No replacement candidates yet.</div>
-            ) : (
-              <div className="space-y-2">
-                {replacementCandidates.map((app) => (
-                  <div
-                    key={app.id}
-                    className="flex items-center justify-between rounded-lg border border-stone-200 bg-white px-3 py-2.5"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-stone-800">{app.name}</p>
-                      <p className="text-xs text-stone-400 mt-0.5">
-                        {app.student_number}
-                        {app.disqReason ? ` · ${app.disqReason}` : ''}
-                      </p>
-                    </div>
-                    <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-medium">
-                      Reconsideration Pool
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
 
       <div className="flex items-center gap-2 flex-wrap">
         {Object.entries(DOC_STATUS_MAP).map(([key, s]) => {
@@ -1027,7 +1083,7 @@ export default function ApplicationReview() {
           </SelectContent>
         </Select>
 
-        {(search || program !== 'All Programs' || status !== 'all' || sdoFilter !== 'all' || appStatusFilter !== 'All') && (
+        {(search || program !== 'All Programs' || status !== 'all' || sdoFilter !== 'all' || appStatusFilter !== 'All' || viewMode !== VIEW_MODES.current) && (
           <Button
             variant="outline"
             size="sm"
@@ -1037,6 +1093,7 @@ export default function ApplicationReview() {
               setStatus('all');
               setSdoFilter('all');
               setAppStatusFilter('All');
+              setViewMode(VIEW_MODES.current);
               setPage(1);
             }}
             className="h-9 rounded-lg text-xs border-stone-200"
@@ -1052,7 +1109,9 @@ export default function ApplicationReview() {
             <div>
               <CardTitle className="text-sm font-semibold text-stone-800">Application Registry</CardTitle>
               <CardDescription className="text-xs">
-                Condensed review layout for faster admin scanning
+                {viewMode === VIEW_MODES.current && 'Active and current-cycle applicant review'}
+                {viewMode === VIEW_MODES.at_risk && 'Current applicants needing closer attention or follow-up'}
+                {viewMode === VIEW_MODES.replacement && 'Past applicants retained for possible slot reconsideration'}
               </CardDescription>
             </div>
 
@@ -1067,7 +1126,7 @@ export default function ApplicationReview() {
             </label>
           </div>
 
-          {selected.size > 0 && (
+          {selected.size > 0 && viewMode !== VIEW_MODES.replacement && (
             <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 mt-2">
               <span className="text-xs font-medium text-amber-700">{selected.size} selected</span>
               <div className="flex gap-2">

@@ -9,6 +9,7 @@ import AdminLogin from './pages/AdminLogin';
 import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import ApplicationReview from './pages/ApplicationReview';
+import ReplacementManagement from './pages/ReplacementManagement';
 import DocumentVerification from './pages/DocumentVerification';
 import ReportGeneration from './pages/ReportGeneration';
 import ScholarMonitoring from './pages/ScholarMonitoring';
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="renewals" element={<RenewalReview />} />
           <Route path="renewals/:id" element={<RenewalDocumentVerification />} />
           <Route path="openings" element={<ScholarshipOpenings />} />
+          <Route path="replacements" element={<ReplacementManagement />} />
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />

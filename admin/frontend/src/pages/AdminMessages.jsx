@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { io } from 'socket.io-client'
 import {
   LoaderCircle,
   MessageSquareMore,
@@ -9,36 +8,120 @@ import {
   X,
   Filter,
   RefreshCw,
+  Users,
+  Plus,
+  Check,
 } from 'lucide-react'
-import {
-  buildMessagingHeaders,
-  getAdminMessagingToken,
-  MESSAGING_API_BASE,
-  MESSAGING_SOCKET_BASE,
-  parseMessagingToken,
-} from '../lib/messaging-config'
+
+const MESSAGING_API_BASE = 'http://localhost:5000'
+
+function getAdminMessagingToken() {
+  return localStorage.getItem('adminToken') || ''
+}
+
+function parseMessagingToken(token) {
+  try {
+    if (!token) return {}
+    const parts = token.split('.')
+    if (parts.length < 2) return {}
+    return JSON.parse(atob(parts[1])) || {}
+  } catch {
+    return {}
+  }
+}
+
+function buildMessagingHeaders(token, options = {}) {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  }
+
+  if (options.json) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  return headers
+}
 
 function normalizeConversation(raw = {}) {
   return {
-    counterpartyId: raw.counterpartyId?.toString() || '',
+    id:
+      raw.counterpartyId?.toString() ||
+      raw.counterparty_id?.toString() ||
+      '',
+    type: 'private',
     name: raw.name?.toString() || 'Unknown user',
-    studentNumber: raw.studentNumber?.toString() || '',
-    lastMessage: raw.lastMessage?.toString() || '',
-    lastSentAt: raw.lastSentAt?.toString() || '',
-    unreadCount: Number(raw.unreadCount || 0),
+    studentNumber:
+      raw.studentNumber?.toString() ||
+      raw.student_number?.toString() ||
+      '',
+    lastMessage:
+      raw.lastMessage?.toString() ||
+      raw.last_message?.toString() ||
+      '',
+    lastSentAt:
+      raw.lastSentAt?.toString() ||
+      raw.last_sent_at?.toString() ||
+      '',
+    unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
+  }
+}
+
+function normalizeRoom(raw = {}) {
+  return {
+    id: raw.room_id?.toString() || '',
+    type: 'group',
+    name: raw.room_name?.toString() || 'Untitled Group',
+    studentNumber: `${Number(raw.member_count || 0)} members`,
+    lastMessage: raw.last_message?.toString() || '',
+    lastSentAt: raw.last_sent_at?.toString() || '',
+    unreadCount: 0,
+  }
+}
+
+function normalizeScholarMember(raw = {}) {
+  return {
+    userId: raw.user_id?.toString() || '',
+    scholarId: raw.scholar_id?.toString() || '',
+    studentId: raw.student_id?.toString() || '',
+    studentNumber: raw.student_number?.toString() || '',
+    studentName: raw.student_name?.toString() || 'Unknown Scholar',
+    programName: raw.program_name?.toString() || 'No Program',
+    benefactorName: raw.benefactor_name?.toString() || 'Unassigned Benefactor',
   }
 }
 
 function normalizeMessage(raw = {}) {
   return {
-    messageId: raw.messageId?.toString() || '',
-    senderId: raw.senderId?.toString() || '',
-    receiverId: raw.receiverId?.toString() || '',
-    messageBody: raw.messageBody?.toString() || '',
-    sentAt: raw.sentAt?.toString() || '',
-    isRead: raw.isRead === true,
+    messageId:
+      raw.messageId?.toString() ||
+      raw.message_id?.toString() ||
+      '',
+    senderId:
+      raw.senderId?.toString() ||
+      raw.sender_id?.toString() ||
+      '',
+    receiverId:
+      raw.receiverId?.toString() ||
+      raw.receiver_id?.toString() ||
+      '',
+    roomId:
+      raw.roomId?.toString() ||
+      raw.room_id?.toString() ||
+      '',
+    messageBody:
+      raw.messageBody?.toString() ||
+      raw.message_body?.toString() ||
+      '',
+    sentAt:
+      raw.sentAt?.toString() ||
+      raw.sent_at?.toString() ||
+      '',
+    isRead: raw.isRead === true || raw.is_read === true,
     subject: raw.subject?.toString() || null,
-    attachmentUrl: raw.attachmentUrl?.toString() || null,
+    attachmentUrl:
+      raw.attachmentUrl?.toString() ||
+      raw.attachment_url?.toString() ||
+      null,
   }
 }
 
@@ -48,7 +131,7 @@ function sortMessages(items = []) {
   )
 }
 
-function sortConversations(items = []) {
+function sortItems(items = []) {
   return [...items].sort(
     (left, right) =>
       new Date(right.lastSentAt || 0).getTime() - new Date(left.lastSentAt || 0).getTime()
@@ -75,9 +158,7 @@ function markMessagesRead(items, messageIds = []) {
 }
 
 function formatConversationTime(value) {
-  if (!value) {
-    return ''
-  }
+  if (!value) return ''
 
   const date = new Date(value)
   const sameDay = new Date().toDateString() === date.toDateString()
@@ -94,9 +175,7 @@ function formatConversationTime(value) {
 }
 
 function formatMessageTime(value) {
-  if (!value) {
-    return ''
-  }
+  if (!value) return ''
 
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -116,68 +195,364 @@ async function parseApiResponse(response, fallbackMessage) {
   return payload
 }
 
+function CreateGroupModal({
+  open,
+  onClose,
+  onCreate,
+  creating,
+  scholars,
+  loadingScholars,
+}) {
+  const [roomName, setRoomName] = useState('')
+  const [search, setSearch] = useState('')
+  const [programFilter, setProgramFilter] = useState('All Programs')
+  const [benefactorFilter, setBenefactorFilter] = useState('All Benefactors')
+  const [selectedMembers, setSelectedMembers] = useState([])
+
+  useEffect(() => {
+    if (!open) {
+      setRoomName('')
+      setSearch('')
+      setProgramFilter('All Programs')
+      setBenefactorFilter('All Benefactors')
+      setSelectedMembers([])
+    }
+  }, [open])
+
+  const programOptions = useMemo(() => {
+    return ['All Programs', ...new Set(scholars.map((item) => item.programName).filter(Boolean))]
+  }, [scholars])
+
+  const benefactorOptions = useMemo(() => {
+    return ['All Benefactors', ...new Set(scholars.map((item) => item.benefactorName).filter(Boolean))]
+  }, [scholars])
+
+  const filteredScholars = useMemo(() => {
+    const query = search.trim().toLowerCase()
+
+    return scholars.filter((item) => {
+      const matchesSearch =
+        !query ||
+        [
+          item.studentName,
+          item.studentNumber,
+          item.programName,
+          item.benefactorName,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+
+      const matchesProgram =
+        programFilter === 'All Programs' || item.programName === programFilter
+
+      const matchesBenefactor =
+        benefactorFilter === 'All Benefactors' || item.benefactorName === benefactorFilter
+
+      return matchesSearch && matchesProgram && matchesBenefactor
+    })
+  }, [scholars, search, programFilter, benefactorFilter])
+
+  if (!open) return null
+
+  const toggleMember = (userId) => {
+    setSelectedMembers((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+    )
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-stone-900">Create Group Chat</h3>
+            <p className="mt-1 text-sm text-stone-500">
+              Select scholars by program and benefactor.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="border-b border-stone-100 px-5 py-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px]">
+            <input
+              type="text"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              placeholder="Group name"
+              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+            />
+
+            <select
+              value={programFilter}
+              onChange={(e) => setProgramFilter(e.target.value)}
+              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+            >
+              {programOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <select
+              value={benefactorFilter}
+              onChange={(e) => setBenefactorFilter(e.target.value)}
+              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+            >
+              {benefactorOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search scholar, student number, program, or benefactor"
+              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+            />
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {loadingScholars ? (
+              <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Loading scholars
+              </div>
+            ) : filteredScholars.length ? (
+              <div className="space-y-2">
+                {filteredScholars.map((item) => {
+                  const checked = selectedMembers.includes(item.userId)
+
+                  return (
+                    <label
+                      key={item.userId}
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
+                        checked
+                          ? 'border-[#7c4a2e] bg-amber-50'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleMember(item.userId)}
+                        className="mt-1 h-4 w-4 accent-[#7c4a2e]"
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="truncate text-sm font-semibold text-stone-900">
+                            {item.studentName}
+                          </p>
+
+                          {checked && (
+                            <span className="inline-flex items-center rounded-full bg-[#7c4a2e] px-2 py-0.5 text-[10px] font-semibold text-white">
+                              <Check className="mr-1 h-3 w-3" />
+                              Selected
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-1 text-xs text-stone-500">
+                          {item.studentNumber || 'No student number'}
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-700">
+                            {item.programName}
+                          </span>
+                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-700">
+                            {item.benefactorName}
+                          </span>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-stone-500">
+                No scholars match the current filters.
+              </div>
+            )}
+          </div>
+
+          <div className="w-[260px] border-l border-stone-100 bg-stone-50/70 px-5 py-4">
+            <p className="text-sm font-semibold text-stone-900">Selected Members</p>
+            <p className="mt-1 text-xs text-stone-500">
+              {selectedMembers.length} selected
+            </p>
+
+            <div className="mt-4 space-y-2">
+              {selectedMembers.length ? (
+                selectedMembers.map((userId) => {
+                  const scholar = scholars.find((item) => item.userId === userId)
+                  if (!scholar) return null
+
+                  return (
+                    <div
+                      key={userId}
+                      className="rounded-2xl border border-stone-200 bg-white px-3 py-2"
+                    >
+                      <p className="text-sm font-medium text-stone-900">
+                        {scholar.studentName}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {scholar.studentNumber || 'No student number'}
+                      </p>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-4 text-sm text-stone-500">
+                  No members selected yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            disabled={creating || !roomName.trim() || !selectedMembers.length}
+            onClick={() =>
+              onCreate({
+                roomName: roomName.trim(),
+                memberIds: selectedMembers,
+              })
+            }
+            className="inline-flex h-11 items-center rounded-2xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {creating ? (
+              <>
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                Creating
+              </>
+            ) : (
+              <>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Group
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminMessages() {
   const token = getAdminMessagingToken()
   const tokenPayload = parseMessagingToken(token)
   const currentUserId =
-    tokenPayload.user_id || tokenPayload.userId || tokenPayload.sub || ''
+    tokenPayload.user_id || tokenPayload.userId || tokenPayload.sub || tokenPayload.id || ''
 
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
 
   const [conversations, setConversations] = useState([])
+  const [rooms, setRooms] = useState([])
+  const [scholars, setScholars] = useState([])
+  const [loadingScholars, setLoadingScholars] = useState(false)
+
+  const [activeType, setActiveType] = useState('private')
   const [activeConversationId, setActiveConversationId] = useState('')
+  const [activeRoomId, setActiveRoomId] = useState('')
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
+  const [createGroupOpen, setCreateGroupOpen] = useState(false)
+  const [creatingGroup, setCreatingGroup] = useState(false)
 
   const activeConversationRef = useRef('')
-  const currentUserIdRef = useRef(currentUserId)
+  const activeRoomRef = useRef('')
   const messagesEndRef = useRef(null)
-  const socketRef = useRef(null)
 
   const totalUnreadCount = useMemo(
     () => conversations.reduce((sum, item) => sum + Number(item.unreadCount || 0), 0),
     [conversations]
   )
 
-  const filteredConversations = useMemo(() => {
+  const mergedItems = useMemo(() => {
+    const privateItems = conversations.map((item) => ({
+      ...item,
+      type: 'private',
+    }))
+
+    const groupItems = rooms.map((item) => ({
+      ...item,
+      type: 'group',
+    }))
+
+    return sortItems([...privateItems, ...groupItems])
+  }, [conversations, rooms])
+
+  const filteredItems = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
 
-    return sortConversations(
-      conversations.filter((conversation) => {
-        const matchesUnread = showUnreadOnly ? conversation.unreadCount > 0 : true
+    return mergedItems.filter((item) => {
+      const matchesUnread = showUnreadOnly ? item.unreadCount > 0 : true
+      const searchText = [item.name, item.studentNumber, item.lastMessage]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
 
-        const matchesSearch = query
-          ? (
-              conversation.name ||
-              conversation.studentNumber ||
-              conversation.lastMessage
-            )
-              .toLowerCase()
-              .includes(query)
-          : true
+      const matchesSearch = query ? searchText.includes(query) : true
+      return matchesUnread && matchesSearch
+    })
+  }, [mergedItems, searchTerm, showUnreadOnly])
 
-        return matchesUnread && matchesSearch
-      })
-    )
-  }, [conversations, searchTerm, showUnreadOnly])
+  const selectedItem = useMemo(() => {
+    if (activeType === 'group') {
+      return filteredItems.find((item) => item.type === 'group' && item.id === activeRoomId)
+        || mergedItems.find((item) => item.type === 'group' && item.id === activeRoomId)
+    }
 
-  const selectedConversation = filteredConversations.find(
-    (item) => item.counterpartyId === activeConversationId
-  ) || conversations.find((item) => item.counterpartyId === activeConversationId)
+    return filteredItems.find((item) => item.type === 'private' && item.id === activeConversationId)
+      || mergedItems.find((item) => item.type === 'private' && item.id === activeConversationId)
+  }, [filteredItems, mergedItems, activeType, activeConversationId, activeRoomId])
 
   useEffect(() => {
     activeConversationRef.current = activeConversationId
   }, [activeConversationId])
 
   useEffect(() => {
-    currentUserIdRef.current = currentUserId
-  }, [currentUserId])
+    activeRoomRef.current = activeRoomId
+  }, [activeRoomId])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -192,32 +567,81 @@ export default function AdminMessages() {
           headers: buildMessagingHeaders(token),
         })
         const payload = await parseApiResponse(response, 'Failed to load conversations.')
-        const items = sortConversations((payload.items || []).map(normalizeConversation))
+        const items = sortItems((payload.items || []).map(normalizeConversation))
 
         setConversations(items)
         setError('')
 
-        if (!items.length) {
+        if (!items.length && !rooms.length) {
           setActiveConversationId('')
           setMessages([])
           return
         }
 
-        const nextConversationId = items.some(
-          (item) => item.counterpartyId === preferredConversationId
-        )
-          ? preferredConversationId
-          : items[0].counterpartyId
+        if (items.length) {
+          const nextConversationId = items.some(
+            (item) => item.id === preferredConversationId
+          )
+            ? preferredConversationId
+            : items[0].id
 
-        setActiveConversationId(nextConversationId)
+          if (!activeRoomRef.current) {
+            setActiveType('private')
+            setActiveConversationId(nextConversationId)
+          }
+        }
       } catch (err) {
         setError(err.message || 'Failed to load conversations.')
       } finally {
         setLoadingConversations(false)
       }
     },
+    [token, rooms.length]
+  )
+
+  const fetchRooms = useCallback(
+    async (preferredRoomId = activeRoomRef.current) => {
+      try {
+        const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms`, {
+          headers: buildMessagingHeaders(token),
+        })
+        const payload = await parseApiResponse(response, 'Failed to load rooms.')
+        const items = sortItems((payload.items || []).map(normalizeRoom))
+
+        setRooms(items)
+
+        if (items.length && !activeConversationRef.current && !preferredRoomId) {
+          setActiveType('group')
+          setActiveRoomId(items[0].id)
+        } else if (
+          items.length &&
+          preferredRoomId &&
+          items.some((item) => item.id === preferredRoomId)
+        ) {
+          setActiveType('group')
+          setActiveRoomId(preferredRoomId)
+        }
+      } catch (err) {
+        console.error('ROOM FETCH ERROR:', err.message)
+      }
+    },
     [token]
   )
+
+  const fetchScholarMembers = useCallback(async () => {
+    try {
+      setLoadingScholars(true)
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/members/scholars`, {
+        headers: buildMessagingHeaders(token),
+      })
+      const payload = await parseApiResponse(response, 'Failed to load scholar members.')
+      setScholars((payload.items || []).map(normalizeScholarMember))
+    } catch (err) {
+      setError(err.message || 'Failed to load scholar members.')
+    } finally {
+      setLoadingScholars(false)
+    }
+  }, [token])
 
   const fetchConversationMessages = useCallback(
     async (counterpartyId) => {
@@ -249,11 +673,39 @@ export default function AdminMessages() {
     [token]
   )
 
-  const markConversationRead = useCallback(
-    async (counterpartyId) => {
-      if (!counterpartyId) {
+  const fetchRoomMessages = useCallback(
+    async (roomId) => {
+      if (!roomId) {
+        setMessages([])
         return
       }
+
+      setLoadingMessages(true)
+
+      try {
+        const response = await fetch(
+          `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/messages`,
+          {
+            headers: buildMessagingHeaders(token),
+          }
+        )
+        const payload = await parseApiResponse(response, 'Failed to load room messages.')
+        const items = sortMessages((payload.items || []).map(normalizeMessage))
+        setMessages(items)
+        setError('')
+      } catch (err) {
+        setError(err.message || 'Failed to load room messages.')
+        setMessages([])
+      } finally {
+        setLoadingMessages(false)
+      }
+    },
+    [token]
+  )
+
+  const markConversationRead = useCallback(
+    async (counterpartyId) => {
+      if (!counterpartyId) return
 
       try {
         const response = await fetch(
@@ -272,7 +724,7 @@ export default function AdminMessages() {
 
         setConversations((current) =>
           current.map((item) =>
-            item.counterpartyId === counterpartyId
+            item.id === counterpartyId
               ? {
                   ...item,
                   unreadCount: 0,
@@ -281,7 +733,23 @@ export default function AdminMessages() {
           )
         )
       } catch {
-        // Keep the current UI state if the read acknowledgement fails.
+        // keep current UI state if read update fails
+      }
+    },
+    [token]
+  )
+
+  const markRoomMessagesRead = useCallback(
+    async (roomId) => {
+      if (!roomId) return
+
+      try {
+        await fetch(`${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/read`, {
+          method: 'PATCH',
+          headers: buildMessagingHeaders(token, { json: true }),
+        })
+      } catch {
+        // no-op
       }
     },
     [token]
@@ -291,38 +759,71 @@ export default function AdminMessages() {
     event.preventDefault()
 
     const messageBody = draft.trim()
-    if (!messageBody || !activeConversationId) {
-      return
-    }
+    if (!messageBody) return
 
     setSending(true)
 
     try {
-      const response = await fetch(
-        `${MESSAGING_API_BASE}/api/messages/conversations/${activeConversationId}`,
-        {
-          method: 'POST',
-          headers: buildMessagingHeaders(token, { json: true }),
-          body: JSON.stringify({ messageBody }),
-        }
-      )
+      let response
+
+      if (activeType === 'group' && activeRoomId) {
+        response = await fetch(
+          `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/messages`,
+          {
+            method: 'POST',
+            headers: buildMessagingHeaders(token, { json: true }),
+            body: JSON.stringify({ messageBody }),
+          }
+        )
+      } else if (activeConversationId) {
+        response = await fetch(
+          `${MESSAGING_API_BASE}/api/messages/conversations/${activeConversationId}`,
+          {
+            method: 'POST',
+            headers: buildMessagingHeaders(token, { json: true }),
+            body: JSON.stringify({ messageBody }),
+          }
+        )
+      } else {
+        setSending(false)
+        return
+      }
+
       const payload = await parseApiResponse(response, 'Failed to send message.')
       const message = normalizeMessage(payload)
 
       setMessages((current) => upsertMessage(current, message))
-      setConversations((current) => {
-        const next = current.map((item) =>
-          item.counterpartyId === activeConversationId
-            ? {
-                ...item,
-                lastMessage: message.messageBody,
-                lastSentAt: message.sentAt,
-              }
-            : item
-        )
 
-        return sortConversations(next)
-      })
+      if (activeType === 'group') {
+        setRooms((current) =>
+          sortItems(
+            current.map((item) =>
+              item.id === activeRoomId
+                ? {
+                    ...item,
+                    lastMessage: message.messageBody,
+                    lastSentAt: message.sentAt,
+                  }
+                : item
+            )
+          )
+        )
+      } else {
+        setConversations((current) =>
+          sortItems(
+            current.map((item) =>
+              item.id === activeConversationId
+                ? {
+                    ...item,
+                    lastMessage: message.messageBody,
+                    lastSentAt: message.sentAt,
+                  }
+                : item
+            )
+          )
+        )
+      }
+
       setDraft('')
       setError('')
     } catch (err) {
@@ -332,119 +833,73 @@ export default function AdminMessages() {
     }
   }
 
+  async function handleCreateGroup(payload) {
+    try {
+      setCreatingGroup(true)
+
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms`, {
+        method: 'POST',
+        headers: buildMessagingHeaders(token, { json: true }),
+        body: JSON.stringify(payload),
+      })
+
+      const createdRoom = await parseApiResponse(response, 'Failed to create group chat.')
+
+      setCreateGroupOpen(false)
+      await fetchRooms(createdRoom.room_id?.toString?.() || createdRoom.room_id || '')
+    } catch (err) {
+      setError(err.message || 'Failed to create group chat.')
+    } finally {
+      setCreatingGroup(false)
+    }
+  }
+
   useEffect(() => {
+    if (!isOpen) return
+
     if (!token || !currentUserId) {
       setError('Admin authentication is required to open messaging.')
       setLoadingConversations(false)
-      return undefined
-    }
-
-    fetchConversations()
-
-    const socket = io(MESSAGING_SOCKET_BASE, {
-      transports: ['websocket'],
-      autoConnect: false,
-      auth: { token },
-    })
-
-    socketRef.current = socket
-    socket.connect()
-
-    socket.on('message:new', (rawPayload) => {
-      const message = normalizeMessage(rawPayload || {})
-      if (!message.messageId) {
-        return
-      }
-
-      const selfUserId = currentUserIdRef.current
-      const counterpartyId =
-        message.senderId === selfUserId ? message.receiverId : message.senderId
-
-      setMessages((current) =>
-        activeConversationRef.current === counterpartyId
-          ? upsertMessage(current, message)
-          : current
-      )
-
-      setConversations((current) => {
-        const next = [...current]
-        const index = next.findIndex((item) => item.counterpartyId === counterpartyId)
-
-        if (index < 0) {
-          fetchConversations(counterpartyId)
-          return current
-        }
-
-        const existing = next[index]
-        const nextUnreadCount =
-          message.receiverId === selfUserId && !message.isRead
-            ? existing.unreadCount + 1
-            : existing.unreadCount
-
-        next[index] = {
-          ...existing,
-          lastMessage: message.messageBody,
-          lastSentAt: message.sentAt,
-          unreadCount: nextUnreadCount,
-        }
-
-        return sortConversations(next)
-      })
-
-      if (
-        activeConversationRef.current === counterpartyId &&
-        message.receiverId === selfUserId &&
-        !message.isRead
-      ) {
-        markConversationRead(counterpartyId)
-      }
-    })
-
-    socket.on('message:read', (rawPayload) => {
-      const payload = rawPayload || {}
-      const messageIds = (payload.messageIds || []).map((item) => item.toString())
-      const counterpartyId = payload.counterpartyId?.toString() || ''
-      const readerId = payload.readerId?.toString() || ''
-
-      if (!messageIds.length) {
-        return
-      }
-
-      setMessages((current) => markMessagesRead(current, messageIds))
-
-      if (readerId === currentUserIdRef.current && counterpartyId) {
-        setConversations((current) =>
-          current.map((item) =>
-            item.counterpartyId === counterpartyId
-              ? {
-                  ...item,
-                  unreadCount: 0,
-                }
-              : item
-          )
-        )
-      }
-    })
-
-    return () => {
-      socket.disconnect()
-      socket.removeAllListeners()
-      socketRef.current = null
-    }
-  }, [currentUserId, fetchConversations, markConversationRead, token])
-
-  useEffect(() => {
-    if (!isOpen) {
       return
     }
 
-    if (!activeConversationId && conversations.length) {
-      setActiveConversationId(conversations[0].counterpartyId)
-    }
-  }, [isOpen, activeConversationId, conversations])
+    fetchConversations()
+    fetchRooms()
+  }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
 
   useEffect(() => {
-    if (!isOpen) {
+    if (createGroupOpen && !scholars.length) {
+      fetchScholarMembers()
+    }
+  }, [createGroupOpen, scholars.length, fetchScholarMembers])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    if (!activeConversationId && !activeRoomId && filteredItems.length) {
+      const firstItem = filteredItems[0]
+
+      if (firstItem.type === 'group') {
+        setActiveType('group')
+        setActiveRoomId(firstItem.id)
+      } else {
+        setActiveType('private')
+        setActiveConversationId(firstItem.id)
+      }
+    }
+  }, [isOpen, activeConversationId, activeRoomId, filteredItems])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    if (activeType === 'group') {
+      if (!activeRoomId) {
+        setMessages([])
+        return
+      }
+
+      fetchRoomMessages(activeRoomId)
+      markRoomMessagesRead(activeRoomId)
       return
     }
 
@@ -455,17 +910,34 @@ export default function AdminMessages() {
 
     fetchConversationMessages(activeConversationId)
     markConversationRead(activeConversationId)
-  }, [isOpen, activeConversationId, fetchConversationMessages, markConversationRead])
+  }, [
+    isOpen,
+    activeType,
+    activeConversationId,
+    activeRoomId,
+    fetchConversationMessages,
+    fetchRoomMessages,
+    markConversationRead,
+    markRoomMessagesRead,
+  ])
 
   useEffect(() => {
-    if (!selectedConversation && filteredConversations.length) {
-      setActiveConversationId(filteredConversations[0].counterpartyId)
+    if (!selectedItem && filteredItems.length) {
+      const firstItem = filteredItems[0]
+
+      if (firstItem.type === 'group') {
+        setActiveType('group')
+        setActiveRoomId(firstItem.id)
+      } else {
+        setActiveType('private')
+        setActiveConversationId(firstItem.id)
+      }
     }
 
-    if (!filteredConversations.length && searchTerm) {
+    if (!filteredItems.length && searchTerm) {
       setMessages([])
     }
-  }, [filteredConversations, selectedConversation, searchTerm])
+  }, [filteredItems, selectedItem, searchTerm])
 
   return (
     <>
@@ -482,6 +954,15 @@ export default function AdminMessages() {
         )}
       </button>
 
+      <CreateGroupModal
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        onCreate={handleCreateGroup}
+        creating={creatingGroup}
+        scholars={scholars}
+        loadingScholars={loadingScholars}
+      />
+
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6">
           <div className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl">
@@ -489,14 +970,26 @@ export default function AdminMessages() {
               <div>
                 <h1 className="text-xl font-semibold text-stone-900">Messages</h1>
                 <p className="mt-1 text-sm text-stone-500">
-                  Respond to student messages from the fixed admin office thread.
+                  Private messages and group chats in one workspace.
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => fetchConversations(activeConversationId)}
+                  onClick={() => setCreateGroupOpen(true)}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+                >
+                  <Users className="h-4 w-4" />
+                  New Group
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchConversations(activeConversationId)
+                    fetchRooms(activeRoomId)
+                  }}
                   className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
                 >
                   <RefreshCw className="h-4 w-4" />
@@ -528,7 +1021,7 @@ export default function AdminMessages() {
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search conversations..."
+                      placeholder="Search messages or groups..."
                       className="h-11 w-full rounded-2xl border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
                     />
                   </div>
@@ -548,8 +1041,7 @@ export default function AdminMessages() {
                     </button>
 
                     <p className="text-xs text-stone-500">
-                      {filteredConversations.length} conversation
-                      {filteredConversations.length === 1 ? '' : 's'}
+                      {filteredItems.length} thread{filteredItems.length === 1 ? '' : 's'}
                     </p>
                   </div>
                 </div>
@@ -558,50 +1050,65 @@ export default function AdminMessages() {
                   {loadingConversations ? (
                     <div className="flex items-center justify-center gap-2 px-6 py-12 text-sm text-stone-500">
                       <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Loading conversations
+                      Loading threads
                     </div>
-                  ) : filteredConversations.length ? (
-                    filteredConversations.map((conversation) => {
-                      const isActive = conversation.counterpartyId === activeConversationId
+                  ) : filteredItems.length ? (
+                    filteredItems.map((item) => {
+                      const isActive =
+                        item.type === 'group'
+                          ? activeType === 'group' && item.id === activeRoomId
+                          : activeType === 'private' && item.id === activeConversationId
 
                       return (
                         <button
-                          key={conversation.counterpartyId}
+                          key={`${item.type}-${item.id}`}
                           type="button"
-                          onClick={() => setActiveConversationId(conversation.counterpartyId)}
+                          onClick={() => {
+                            if (item.type === 'group') {
+                              setActiveType('group')
+                              setActiveRoomId(item.id)
+                            } else {
+                              setActiveType('private')
+                              setActiveConversationId(item.id)
+                            }
+                          }}
                           className={`flex w-full items-start gap-3 border-b border-stone-100 px-4 py-4 text-left transition sm:px-5 ${
                             isActive ? 'bg-amber-50/70' : 'hover:bg-stone-50'
                           }`}
                         >
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-100 text-stone-600">
-                            <UserRound className="h-5 w-5" />
+                            {item.type === 'group' ? (
+                              <Users className="h-5 w-5" />
+                            ) : (
+                              <UserRound className="h-5 w-5" />
+                            )}
                           </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold text-stone-900">
-                                  {conversation.name}
+                                  {item.name}
                                 </p>
                                 <p className="truncate text-xs text-stone-500">
-                                  {conversation.studentNumber || 'No student number'}
+                                  {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'No student number')}
                                 </p>
                               </div>
 
                               <div className="flex flex-col items-end gap-1">
                                 <span className="text-[11px] text-stone-400">
-                                  {formatConversationTime(conversation.lastSentAt)}
+                                  {formatConversationTime(item.lastSentAt)}
                                 </span>
-                                {conversation.unreadCount > 0 && (
+                                {item.unreadCount > 0 && (
                                   <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                                    {conversation.unreadCount}
+                                    {item.unreadCount}
                                   </span>
                                 )}
                               </div>
                             </div>
 
                             <p className="mt-1 truncate text-sm text-stone-600">
-                              {conversation.lastMessage || 'No messages yet'}
+                              {item.lastMessage || 'No messages yet'}
                             </p>
                           </div>
                         </button>
@@ -610,22 +1117,32 @@ export default function AdminMessages() {
                   ) : (
                     <div className="px-6 py-14 text-center text-sm text-stone-500">
                       {searchTerm || showUnreadOnly
-                        ? 'No conversations match the current filter.'
-                        : 'No student conversations yet.'}
+                        ? 'No threads match the current filter.'
+                        : 'No messages or groups yet.'}
                     </div>
                   )}
                 </div>
               </section>
 
               <section className="flex min-h-0 flex-col bg-white">
-                {selectedConversation ? (
+                {selectedItem ? (
                   <>
                     <div className="border-b border-stone-100 px-5 py-4 sm:px-6 sm:py-5">
-                      <p className="text-lg font-semibold text-stone-900">
-                        {selectedConversation.name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        {selectedItem.type === 'group' ? (
+                          <Users className="h-5 w-5 text-stone-500" />
+                        ) : (
+                          <UserRound className="h-5 w-5 text-stone-500" />
+                        )}
+                        <p className="text-lg font-semibold text-stone-900">
+                          {selectedItem.name}
+                        </p>
+                      </div>
+
                       <p className="mt-1 text-sm text-stone-500">
-                        {selectedConversation.studentNumber || 'No student number'}
+                        {selectedItem.type === 'group'
+                          ? 'Group chat'
+                          : selectedItem.studentNumber || 'No student number'}
                       </p>
                     </div>
 
@@ -670,7 +1187,7 @@ export default function AdminMessages() {
                         </div>
                       ) : (
                         <div className="flex h-full items-center justify-center text-sm text-stone-500">
-                          No messages in this conversation yet.
+                          No messages in this thread yet.
                         </div>
                       )}
                     </div>
@@ -684,7 +1201,11 @@ export default function AdminMessages() {
                           value={draft}
                           onChange={(event) => setDraft(event.target.value)}
                           rows={3}
-                          placeholder="Write a reply to the student..."
+                          placeholder={
+                            selectedItem.type === 'group'
+                              ? 'Write a message to the group...'
+                              : 'Write a reply to the student...'
+                          }
                           className="min-h-[88px] flex-1 resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
                         />
 
@@ -710,10 +1231,10 @@ export default function AdminMessages() {
                     </div>
                     <div>
                       <p className="text-lg font-semibold text-stone-900">
-                        Select a conversation
+                        Select a thread
                       </p>
                       <p className="mt-2 text-sm text-stone-500">
-                        Choose a student from the left to load the admin thread.
+                        Choose a private conversation or a group chat from the left.
                       </p>
                     </div>
                   </div>

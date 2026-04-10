@@ -182,7 +182,9 @@ async function getSignedFileUrl(filePath) {
 
     const { data, error } = await supabase.storage
         .from(STORAGE_BUCKET)
-        .createSignedUrl(filePath, 60 * 60);
+        .createSignedUrl(filePath, 60 * 60, {
+            download: false,
+        });
 
     if (error) {
         console.error(

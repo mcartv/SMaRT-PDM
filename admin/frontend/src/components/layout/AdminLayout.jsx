@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -40,6 +40,7 @@ const navItems = [
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const notifRef = useRef(null);
 
   const [collapsed, setCollapsed] = useState(false);
@@ -99,14 +100,18 @@ export default function AdminLayout() {
     navigate('/admin/adminprofile');
   };
 
+  const isWidePage =
+    /^\/admin\/applications\/[^/]+\/documents$/.test(location.pathname) ||
+    /^\/admin\/openings\/[^/]+\/applications$/.test(location.pathname) ||
+    /^\/admin\/renewals\/[^/]+$/.test(location.pathname);
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#faf7f2]">
-      {/* ── Sidebar ── */}
+      {/* Sidebar */}
       <aside
         className="flex flex-col h-full shrink-0 transition-all duration-300 border-r border-black/10"
         style={{ width: collapsed ? '76px' : '248px', background: SB_BASE }}
       >
-        {/* Logo Section */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-[#8f5235] flex items-center justify-center shrink-0 shadow-sm">
             <img src={pdmLogo} alt="PDM" className="w-5 h-5 object-contain" />
@@ -122,7 +127,6 @@ export default function AdminLayout() {
           )}
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5">
           {navItems.map((item) => (
             <NavLink
@@ -130,8 +134,7 @@ export default function AdminLayout() {
               to={item.path}
               end={item.path === '/admin/applications' || item.path === '/admin/openings'}
               className={({ isActive }) =>
-                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'
-                } px-3 py-2.5 rounded-xl text-sm transition-all group ${isActive
+                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl text-sm transition-all group ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'
                   : 'text-[#f0d9c8] hover:bg-white/7'
                 }`
@@ -147,7 +150,6 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        {/* Sidebar Footer */}
         <div className="p-3 border-t border-white/10 space-y-1.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -175,9 +177,8 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* ── Main Content Area ── */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
         <header className="h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
           <div className="min-w-0">
             <h1 className="text-sm font-semibold text-stone-800 leading-tight">SMaRT PDM</h1>
@@ -187,7 +188,6 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Notifications Dropdown */}
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
@@ -230,7 +230,6 @@ export default function AdminLayout() {
               )}
             </div>
 
-            {/* Profile Chip */}
             <button
               onClick={handleProfileClick}
               className="flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full border border-stone-200 bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer"
@@ -252,15 +251,13 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        {/* Dashboard Viewport */}
         <main className="flex-1 overflow-y-auto p-5 md:p-6 bg-[#faf7f2]">
-          <div className="max-w-7xl mx-auto">
+          <div className={isWidePage ? 'w-full' : 'max-w-7xl mx-auto'}>
             <Outlet />
           </div>
         </main>
       </div>
 
-      {/* Floating Messages */}
       <div className="group">
         <div className="pointer-events-none fixed bottom-24 right-6 z-[60] translate-y-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
           <div className="relative rounded-xl bg-stone-900 px-3 py-2 text-xs font-medium text-white shadow-lg">

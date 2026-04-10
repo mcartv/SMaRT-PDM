@@ -6,8 +6,11 @@ exports.getApplications = async (req, res) => {
         const applications = await applicationService.fetchApplications();
         res.status(200).json(applications);
     } catch (err) {
-        console.error('APPLICATION CONTROLLER ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+        console.error('GET APPLICATIONS CONTROLLER ERROR:', err.message);
+        res.status(500).json({
+            message: 'Failed to fetch applications',
+            error: err.message || 'Unknown backend error',
+        });
     }
 };
 
@@ -209,22 +212,29 @@ exports.exportApplicationsExcel = async (req, res) => {
         const worksheet = workbook.addWorksheet('Applications');
 
         worksheet.columns = [
-            { header: 'Application ID', key: 'id', width: 22 },
-            { header: 'Student Name', key: 'name', width: 30 },
-            { header: 'Student Number', key: 'student_number', width: 18 },
-            { header: 'Program', key: 'program', width: 25 },
+            { header: 'Application ID', key: 'application_id', width: 24 },
+            { header: 'Applicant Name', key: 'student_name', width: 30 },
+            { header: 'PDM ID', key: 'pdm_id', width: 18 },
+            { header: 'Scholarship', key: 'program_name', width: 25 },
+            { header: 'Opening', key: 'opening_title', width: 30 },
+            { header: 'Semester', key: 'semester', width: 14 },
+            { header: 'Academic Year', key: 'academic_year', width: 16 },
+            { header: 'Allocated Slots', key: 'allocated_slots', width: 16 },
+            { header: 'Filled Slots', key: 'filled_slots', width: 14 },
             { header: 'GWA', key: 'gwa', width: 10 },
-            { header: 'Application Status', key: 'status', width: 20 },
+            { header: 'Application Status', key: 'application_status', width: 20 },
             { header: 'Document Status', key: 'document_status', width: 20 },
-            { header: 'Disqualified', key: 'disqualified', width: 14 },
-            { header: 'Disqualification Reason', key: 'disqReason', width: 35 },
-            { header: 'Submitted', key: 'submitted', width: 20 },
+            { header: 'Verification Status', key: 'verification_status', width: 20 },
+            { header: 'Remarks', key: 'remarks', width: 30 },
+            { header: 'Disqualified', key: 'disqualified_label', width: 14 },
+            { header: 'Disqualification Reason', key: 'disqualification_reason', width: 35 },
+            { header: 'Submitted', key: 'submission_date', width: 20 },
         ];
 
         applications.forEach((app) => {
             worksheet.addRow({
                 ...app,
-                disqualified: app.disqualified ? 'Yes' : 'No',
+                disqualified_label: app.is_disqualified ? 'Yes' : 'No',
             });
         });
 

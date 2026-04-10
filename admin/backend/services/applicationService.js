@@ -147,41 +147,6 @@ function deriveAggregateDocumentStatus(summary = {}) {
     return 'Under Review';
 }
 
-function computeDocumentSummary(documents = []) {
-    const summary = {
-        verified: 0,
-        uploaded: 0,
-        flagged: 0,
-        reupload: 0,
-        pending: 0,
-        progress: 0,
-    };
-
-    for (const doc of documents) {
-        const status = normalizeLookupValue(doc.status);
-
-        if (status === 'verified') {
-            summary.verified += 1;
-            summary.uploaded += 1;
-        } else if (status === 'uploaded' || status === 'under review') {
-            summary.uploaded += 1;
-        } else if (status === 'flagged') {
-            summary.flagged += 1;
-            summary.uploaded += 1;
-        } else if (status === 'rejected' || status === 're upload') {
-            summary.reupload += 1;
-            summary.uploaded += 1;
-        } else {
-            summary.pending += 1;
-        }
-    }
-
-    const total = documents.length || 0;
-    summary.progress = total > 0 ? Math.round((summary.uploaded / total) * 100) : 0;
-
-    return summary;
-}
-
 function ensureDocumentCoverage(normalizedDocuments = []) {
     const documentMap = new Map(
         normalizedDocuments.map((document) => [document.id, document])
@@ -452,72 +417,133 @@ async function buildApplicationDetails(applicationId) {
 }
 
 exports.fetchApplications = async () => {
-    const { data: applications, error: appError } = await supabase
-        .from('applications')
-        .select(`
-            application_id,
-            student_id,
-            program_id,
-            application_status,
-            submission_date,
-            document_status,
-            is_disqualified,
-            disqualification_reason,
-            is_reconsideration_candidate,
-            students ( first_name, last_name, pdm_id, gwa, sdo_status ),
-            scholarship_program (
-                program_id,
-                organization_name,
-                program_name
-            )
-        `);
+    const query = `
+        SELECT
+            a.application_id,
+            a.student_id,
+            a.opening_id,
+            a.application_status,
+            a.evaluator_id,
+            a.submission_date,
+            a.deficiency_status,
+            a.is_disqualified,
+            a.disqualification_reason,
+            a.document_status,
+            a.is_reconsideration_candidate,
+            a.reconsideration_tagged_at,
+            a.cor_url,
+            a.grade_card_url,
+            a.good_moral_url,
+            a.application_form_url,
+            a.verification_status,
+            a.remarks,
+            a.is_archived,
 
-    if (appError) {
-        console.error('Supabase Fetch Error:', appError);
-        throw new Error(appError.message);
-    }
+            st.first_name,
+            st.last_name,
+            st.pdm_id,
+            st.gwa,
+            st.sdo_status,
 
-    const { data: scholars, error: scholarError } = await supabase
-        .from('scholars')
-        .select('student_id');
+            po.opening_title,
+            po.semester,
+            po.academic_year,
+            po.allocated_slots,
+            po.filled_slots,
+            po.financial_allocation,
+            po.per_scholar_amount,
+            po.posting_status,
 
-    if (scholarError) {
-        console.error('Supabase Scholar Fetch Error:', scholarError);
-        throw new Error(scholarError.message);
-    }
+            sp.program_name
 
-    const scholarStudentIds = new Set(
-        (scholars || []).map((s) => s.student_id).filter(Boolean)
+        FROM applications a
+        LEFT JOIN students st
+            ON a.student_id = st.student_id
+        LEFT JOIN program_openings po
+            ON a.opening_id = po.opening_id
+        LEFT JOIN scholarship_program sp
+            ON po.program_id = sp.program_id
+        LEFT JOIN scholars sc
+            ON a.student_id = sc.student_id
+
+        WHERE
+            COALESCE(a.is_archived, FALSE) = FALSE
+            AND sc.student_id IS NULL
+
+        ORDER BY a.submission_date DESC
+    `;
+
+    const { rows } = await pool.query(query);
+
+    const processed = rows.map((row) => {
+        const firstName = row.first_name || '';
+        const lastName = row.last_name || '';
+        const fullName =
+            `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim() || 'Unnamed Applicant';
+
+        return {
+            application_id: row.application_id,
+            student_id: row.student_id,
+            opening_id: row.opening_id,
+            evaluator_id: row.evaluator_id,
+
+            first_name: firstName,
+            last_name: lastName,
+            student_name: fullName,
+            applicant_name: fullName,
+            pdm_id: row.pdm_id || 'N/A',
+            gwa: row.gwa ?? null,
+            sdo_status: row.sdo_status || 'clear',
+
+            program_name: row.program_name || 'General',
+
+            opening_title: row.opening_title || 'Untitled Opening',
+            semester: row.semester || null,
+            academic_year: row.academic_year || null,
+            allocated_slots: Number(row.allocated_slots || 0),
+            filled_slots: Number(row.filled_slots || 0),
+            financial_allocation: row.financial_allocation ?? null,
+            per_scholar_amount: row.per_scholar_amount ?? null,
+            opening_status: row.posting_status || 'Open',
+
+            application_status: row.is_disqualified
+                ? 'Disqualified'
+                : row.application_status || 'Pending',
+
+            status: row.is_disqualified
+                ? 'Disqualified'
+                : row.application_status || 'Pending',
+
+            document_status:
+                row.document_status ||
+                row.deficiency_status ||
+                'Missing Docs',
+
+            deficiency_status: row.deficiency_status || null,
+            verification_status: row.verification_status || null,
+            remarks: row.remarks || null,
+
+            is_disqualified: !!row.is_disqualified,
+            disqualification_reason: row.disqualification_reason || null,
+            is_reconsideration_candidate: !!row.is_reconsideration_candidate,
+            reconsideration_tagged_at: row.reconsideration_tagged_at || null,
+
+            cor_url: row.cor_url || null,
+            grade_card_url: row.grade_card_url || null,
+            good_moral_url: row.good_moral_url || null,
+            application_form_url: row.application_form_url || null,
+
+            submission_date: row.submission_date || null,
+            submitted_at: row.submission_date || null,
+            is_archived: !!row.is_archived,
+        };
+    });
+
+    return _.orderBy(
+        processed,
+        [(row) => new Date(row.submission_date || 0).getTime()],
+        ['desc']
     );
-
-    const filteredApplications = (applications || []).filter(
-        (app) => !scholarStudentIds.has(app.student_id)
-    );
-
-    const processed = _.map(filteredApplications, (app) => ({
-        id: app.application_id,
-        student_id: app.student_id,
-        program_id: app.program_id,
-        name: `${_.get(app, 'students.last_name', 'Unknown')}, ${_.get(
-            app,
-            'students.first_name',
-            'Student'
-        )}`,
-        student_number: _.get(app, 'students.pdm_id', 'N/A'),
-        program: _.get(app, 'scholarship_program.program_name', 'General'),
-        organization_name: _.get(app, 'scholarship_program.organization_name', 'N/A'),
-        submitted: app.submission_date,
-        application_status: _.toLower(app.application_status || 'pending'),
-        status: _.toLower(app.application_status || 'pending'),
-        document_status: _.toLower(app.document_status || 'missing docs'),
-        disqualified: !!app.is_disqualified,
-        disqReason: app.disqualification_reason || null,
-        is_reconsideration_candidate: !!app.is_reconsideration_candidate,
-        gwa: _.get(app, 'students.gwa', 0),
-        sdo_status: _.get(app, 'students.sdo_status', 'clear'),
-    }));
-
-    return _.orderBy(processed, ['submitted'], ['desc']);
 };
 
 exports.fetchApplicationDetailsById = async (id) => buildApplicationDetails(id);
@@ -872,11 +898,11 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 a.application_id,
                 a.opening_id,
                 a.application_status,
-                po.slot_count,
-                po.status,
+                po.allocated_slots,
+                po.filled_slots,
+                po.posting_status,
                 COUNT(a2.application_id) FILTER (
                     WHERE LOWER(COALESCE(a2.application_status, '')) = 'qualified'
-                      AND COALESCE(a2.is_archived, FALSE) = FALSE
                 )::int AS qualified_count
             FROM applications a
             INNER JOIN program_openings po
@@ -888,8 +914,9 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 a.application_id,
                 a.opening_id,
                 a.application_status,
-                po.slot_count,
-                po.status
+                po.allocated_slots,
+                po.filled_slots,
+                po.posting_status
         `;
 
         const applicationResult = await client.query(applicationQuery, [applicationId]);
@@ -899,9 +926,9 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         }
 
         const row = applicationResult.rows[0];
-        const slotCount = Number(row.slot_count || 0);
+        const slotCount = Number(row.allocated_slots || 0);
         const qualifiedCount = Number(row.qualified_count || 0);
-        const openingStatus = (row.status || '').toLowerCase();
+        const openingStatus = (row.posting_status || '').toLowerCase();
         const currentApplicationStatus = (row.application_status || '').toLowerCase();
 
         if (currentApplicationStatus === 'qualified') {
@@ -934,7 +961,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             await client.query(
                 `
                 UPDATE program_openings
-                SET status = 'filled',
+                SET posting_status = 'filled',
                     updated_at = NOW()
                 WHERE opening_id = $1
                 `,
@@ -970,16 +997,28 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         );
 
         const newQualifiedCount = qualifiedCount + 1;
+        const nextFilledSlots = Number(row.filled_slots || 0) + 1;
 
         if (slotCount > 0 && newQualifiedCount >= slotCount) {
             await client.query(
                 `
                 UPDATE program_openings
-                SET status = 'filled',
+                SET posting_status = 'filled',
+                    filled_slots = $2,
                     updated_at = NOW()
                 WHERE opening_id = $1
                 `,
-                [row.opening_id]
+                [row.opening_id, nextFilledSlots]
+            );
+        } else {
+            await client.query(
+                `
+                UPDATE program_openings
+                SET filled_slots = $2,
+                    updated_at = NOW()
+                WHERE opening_id = $1
+                `,
+                [row.opening_id, nextFilledSlots]
             );
         }
 

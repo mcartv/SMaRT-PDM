@@ -14,6 +14,11 @@ import {
   ArrowRight,
   FolderOpen,
   CircleOff,
+  LayoutGrid,
+  Table2,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
 } from 'lucide-react';
 
 const C = {
@@ -33,6 +38,8 @@ const C = {
   border: '#e7e5e4',
 };
 
+const PAGE_SIZE = 8;
+
 function formatDate(value) {
   if (!value) return 'No date';
   const d = new Date(value);
@@ -45,12 +52,10 @@ function formatDate(value) {
 }
 
 function getOpeningStatusMeta(opening) {
-  const raw = (opening?.status || opening?.posting_status || '').toLowerCase();
-  const remainingSlots = Math.max(
-    0,
-    Number(opening?.slot_count || opening?.allocated_slots || 0) -
-    Number(opening?.qualified_count || 0)
-  );
+  const raw = (opening?.posting_status || opening?.status || '').toLowerCase();
+  const allocated = Number(opening?.allocated_slots || opening?.slot_count || 0);
+  const filled = Number(opening?.filled_slots || opening?.qualified_count || 0);
+  const remainingSlots = Math.max(0, allocated - filled);
 
   if (raw === 'draft') {
     return { label: 'Draft', bg: '#f5f5f4', color: '#57534e' };
@@ -71,10 +76,58 @@ function getOpeningStatusMeta(opening) {
   return { label: 'Open', bg: C.greenSoft, color: C.green };
 }
 
+function getApplicationStatusMeta(row) {
+  const raw = (row?.application_status || row?.status || '').toLowerCase();
+
+  if (['qualified', 'approved', 'accepted'].includes(raw)) {
+    return { label: 'Qualified', bg: C.greenSoft, color: C.green };
+  }
+
+  if (['disqualified', 'rejected', 'declined'].includes(raw)) {
+    return { label: 'Disqualified', bg: C.redSoft, color: C.red };
+  }
+
+  if (['review', 'under review', 'for review'].includes(raw)) {
+    return { label: 'Under Review', bg: C.blueSoft, color: C.blueMid };
+  }
+
+  if (['waiting', 'waitlisted'].includes(raw)) {
+    return { label: 'Waiting', bg: C.amberSoft, color: C.amber };
+  }
+
+  return {
+    label: row?.application_status || row?.status || 'Pending',
+    bg: '#f5f5f4',
+    color: '#57534e',
+  };
+}
+
+function getDocumentStatusMeta(row) {
+  const raw = (row?.document_status || '').toLowerCase();
+
+  if (['documents ready', 'verified', 'complete'].includes(raw)) {
+    return { label: 'Documents Ready', bg: C.greenSoft, color: C.green };
+  }
+
+  if (['missing docs', 'missing', 'incomplete'].includes(raw)) {
+    return { label: 'Missing Docs', bg: C.redSoft, color: C.red };
+  }
+
+  if (['under review', 'review'].includes(raw)) {
+    return { label: 'Under Review', bg: C.amberSoft, color: C.amber };
+  }
+
+  return {
+    label: row?.document_status || '—',
+    bg: '#f5f5f4',
+    color: '#57534e',
+  };
+}
+
 function StatusPill({ meta }) {
   return (
     <span
-      className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium"
+      className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap"
       style={{ background: meta.bg, color: meta.color }}
     >
       {meta.label}
@@ -98,16 +151,42 @@ async function parseErrorResponse(res, fallbackMessage) {
   }
 }
 
+function normalizeApplicantRow(app) {
+  return {
+    application_id: app.application_id,
+    opening_id: app.opening_id,
+    applicant_name:
+      app.student_name ||
+      [app.first_name, app.last_name].filter(Boolean).join(' ') ||
+      'Unnamed Applicant',
+    pdm_id: app.pdm_id || '—',
+    program_name: app.program_name || 'No Program',
+    application_status: app.application_status || 'Pending',
+    document_status: app.document_status || app.deficiency_status || '—',
+    submitted_at: app.submission_date || null,
+    opening_title: app.opening_title || 'Untitled Opening',
+    semester: app.semester || '—',
+    academic_year: app.academic_year || '—',
+    gwa: app.gwa ?? null,
+    is_disqualified: !!app.is_disqualified,
+    verification_status: app.verification_status || null,
+    remarks: app.remarks || null,
+  };
+}
+
 export default function ApplicationReview() {
   const navigate = useNavigate();
 
   const [openings, setOpenings] = useState([]);
+  const [registryRows, setRegistryRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [viewType, setViewType] = useState('cards');
+  const [page, setPage] = useState(1);
 
-  const loadOpenings = async ({ soft = false } = {}) => {
+  const loadData = async ({ soft = false } = {}) => {
     try {
       if (soft) {
         setRefreshing(true);
@@ -118,23 +197,49 @@ export default function ApplicationReview() {
 
       const token = localStorage.getItem('adminToken');
 
-      const res = await fetch('http://localhost:5000/api/program-openings/admin/applications-summary', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const [openingsRes, applicationsRes] = await Promise.all([
+        fetch('http://localhost:5000/api/program-openings/admin/applications-summary', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch('http://localhost:5000/api/applications', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      ]);
 
-      if (!res.ok) {
-        const message = await parseErrorResponse(res, 'Failed to fetch scholarship openings');
+      if (!openingsRes.ok) {
+        const message = await parseErrorResponse(
+          openingsRes,
+          'Failed to fetch scholarship openings'
+        );
         throw new Error(message);
       }
 
-      const data = await res.json();
-      setOpenings(Array.isArray(data) ? data : []);
+      if (!applicationsRes.ok) {
+        const message = await parseErrorResponse(
+          applicationsRes,
+          'Failed to fetch applications'
+        );
+        throw new Error(message);
+      }
+
+      const openingsData = await openingsRes.json();
+      const applicationsData = await applicationsRes.json();
+
+      setOpenings(Array.isArray(openingsData) ? openingsData : []);
+      setRegistryRows(
+        Array.isArray(applicationsData)
+          ? applicationsData.map(normalizeApplicantRow)
+          : []
+      );
     } catch (err) {
-      console.error('OPENINGS FETCH ERROR:', err);
-      setError(err.message || 'Failed to load scholarship openings');
+      console.error('APPLICATION REVIEW LOAD ERROR:', err);
+      setError(err.message || 'Failed to load application review data');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -142,8 +247,12 @@ export default function ApplicationReview() {
   };
 
   useEffect(() => {
-    loadOpenings();
+    loadData();
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, viewType]);
 
   const filteredOpenings = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -151,24 +260,51 @@ export default function ApplicationReview() {
     return openings.filter((opening) => {
       if (!q) return true;
 
-      const title = (opening.title || opening.opening_title || '').toLowerCase();
+      const title = (opening.opening_title || opening.title || '').toLowerCase();
       const program = (opening.program_name || '').toLowerCase();
-      const benefactor = (opening.benefactor_name || opening.organization_name || '').toLowerCase();
+      const semester = (opening.semester || '').toLowerCase();
+      const academicYear = (opening.academic_year || '').toLowerCase();
+      const status = (opening.posting_status || opening.status || '').toLowerCase();
 
-      return title.includes(q) || program.includes(q) || benefactor.includes(q);
+      return (
+        title.includes(q) ||
+        program.includes(q) ||
+        semester.includes(q) ||
+        academicYear.includes(q) ||
+        status.includes(q)
+      );
     });
   }, [openings, search]);
 
+  const filteredRegistryRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return registryRows.filter((row) => {
+      if (!q) return true;
+
+      return (
+        (row.applicant_name || '').toLowerCase().includes(q) ||
+        (row.pdm_id || '').toLowerCase().includes(q) ||
+        (row.program_name || '').toLowerCase().includes(q) ||
+        (row.application_status || '').toLowerCase().includes(q) ||
+        (row.document_status || '').toLowerCase().includes(q) ||
+        (row.opening_title || '').toLowerCase().includes(q) ||
+        (row.semester || '').toLowerCase().includes(q) ||
+        (row.academic_year || '').toLowerCase().includes(q)
+      );
+    });
+  }, [registryRows, search]);
+
   const stats = useMemo(() => {
-    const total = openings.length;
+    const totalOpenings = openings.length;
     const openCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Open').length;
     const filledCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Filled').length;
-    const totalApplicants = openings.reduce((sum, o) => sum + Number(o.application_count || 0), 0);
+    const totalApplicants = registryRows.length;
 
     return [
       {
         label: 'Total Openings',
-        value: total,
+        value: totalOpenings,
         icon: FolderOpen,
         soft: C.amberSoft,
         accent: C.brown,
@@ -195,13 +331,23 @@ export default function ApplicationReview() {
         accent: C.blueMid,
       },
     ];
-  }, [openings]);
+  }, [openings, registryRows]);
+
+  const activeRows = viewType === 'cards' ? filteredOpenings : filteredRegistryRows;
+  const totalPages = Math.max(1, Math.ceil(activeRows.length / PAGE_SIZE));
+
+  const pageData = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return activeRows.slice(start, start + PAGE_SIZE);
+  }, [activeRows, page]);
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[420px] gap-3">
         <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading scholarship openings...</p>
+        <p className="text-xs text-stone-400 uppercase tracking-widest">
+          Loading application review...
+        </p>
       </div>
     );
   }
@@ -210,10 +356,10 @@ export default function ApplicationReview() {
     return (
       <div className="p-8 bg-red-50 border border-red-100 rounded-xl text-center">
         <AlertCircle className="w-7 h-7 text-red-400 mx-auto mb-3" />
-        <p className="text-sm font-semibold text-red-800">Failed to load openings</p>
+        <p className="text-sm font-semibold text-red-800">Failed to load application review</p>
         <p className="text-xs text-red-600 mt-1">{error}</p>
         <Button
-          onClick={() => loadOpenings()}
+          onClick={() => loadData()}
           variant="outline"
           size="sm"
           className="mt-4 border-red-200 text-red-600 text-xs"
@@ -232,14 +378,14 @@ export default function ApplicationReview() {
             Applications
           </h1>
           <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            Review applicants by scholarship opening
+            Review scholarship openings or scan all applicants in the registry table
           </p>
         </div>
 
         <Button
           variant="outline"
           size="sm"
-          onClick={() => loadOpenings({ soft: true })}
+          onClick={() => loadData({ soft: true })}
           className="rounded-lg text-xs border-stone-200 text-stone-600"
         >
           {refreshing ? (
@@ -272,111 +418,327 @@ export default function ApplicationReview() {
         ))}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
-        <Input
-          placeholder="Search by opening title, scholarship program, or benefactor..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-10 text-sm bg-white rounded-lg border-stone-200"
-        />
-      </div>
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
+              <Input
+                placeholder={
+                  viewType === 'cards'
+                    ? 'Search by opening, scholarship, semester, academic year, or status...'
+                    : 'Search by applicant, PDM ID, scholarship, opening, semester, year, or status...'
+                }
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-10 text-sm bg-white rounded-lg border-stone-200"
+              />
+            </div>
 
-      {filteredOpenings.length === 0 ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewType('cards')}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'cards'
+                  ? 'bg-stone-900 text-white border-stone-900'
+                  : 'bg-white text-stone-600 border-stone-200'
+                  }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Cards View
+              </button>
+
+              <button
+                onClick={() => setViewType('table')}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'table'
+                  ? 'bg-stone-900 text-white border-stone-900'
+                  : 'bg-white text-stone-600 border-stone-200'
+                  }`}
+              >
+                <Table2 className="w-3.5 h-3.5" />
+                Registry Table
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {activeRows.length === 0 ? (
         <Card className="border-stone-200 shadow-none">
           <CardContent className="py-14 text-center text-sm text-stone-400">
-            No scholarship openings found.
+            {viewType === 'cards'
+              ? 'No scholarship openings found.'
+              : 'No applicants found.'}
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {filteredOpenings.map((opening) => {
-            const statusMeta = getOpeningStatusMeta(opening);
-            const slotCount = Number(opening.slot_count || opening.allocated_slots || 0);
-            const qualifiedCount = Number(opening.qualified_count || 0);
-            const applicationCount = Number(opening.application_count || 0);
-            const pendingCount = Number(opening.pending_count || 0);
-            const reviewCount = Number(opening.review_count || 0);
-            const remainingSlots = Math.max(0, slotCount - qualifiedCount);
+      ) : viewType === 'cards' ? (
+        <>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {pageData.map((opening) => {
+              const statusMeta = getOpeningStatusMeta(opening);
+              const allocatedSlots = Number(opening.allocated_slots || opening.slot_count || 0);
+              const filledSlots = Number(opening.filled_slots || opening.qualified_count || 0);
+              const applicationCount = Number(opening.application_count || 0);
+              const pendingCount = Number(opening.pending_count || 0);
+              const reviewCount = Number(opening.review_count || 0);
+              const remainingSlots = Math.max(0, allocatedSlots - filledSlots);
 
-            return (
-              <Card
-                key={opening.opening_id}
-                className="border-stone-200 shadow-none hover:border-stone-300 transition-all"
+              return (
+                <Card
+                  key={opening.opening_id}
+                  className="border-stone-200 shadow-none hover:border-stone-300 transition-all"
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <CardTitle className="text-base font-semibold text-stone-900">
+                          {opening.opening_title || opening.title || 'Untitled Opening'}
+                        </CardTitle>
+                        <CardDescription className="mt-1 text-xs">
+                          {opening.program_name || 'No Program'}
+                          {(opening.semester || opening.academic_year) && (
+                            <>
+                              {' · '}
+                              {[opening.semester, opening.academic_year].filter(Boolean).join(' · ')}
+                            </>
+                          )}
+                        </CardDescription>
+                      </div>
+
+                      <StatusPill meta={statusMeta} />
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                        <p className="text-[11px] text-stone-500">Slots</p>
+                        <p className="text-lg font-semibold text-stone-900">{allocatedSlots}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                        <p className="text-[11px] text-stone-500">Filled</p>
+                        <p className="text-lg font-semibold text-stone-900">{filledSlots}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                        <p className="text-[11px] text-stone-500">Applicants</p>
+                        <p className="text-lg font-semibold text-stone-900">{applicationCount}</p>
+                      </div>
+
+                      <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                        <p className="text-[11px] text-stone-500">Remaining</p>
+                        <p className="text-lg font-semibold text-stone-900">{remainingSlots}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        {[opening.semester, opening.academic_year].filter(Boolean).join(' · ') || 'No term'}
+                      </span>
+                      <span>•</span>
+                      <span>{pendingCount} pending</span>
+                      <span>•</span>
+                      <span>{reviewCount} under review</span>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        className="rounded-lg text-white text-xs border-none"
+                        style={{ background: C.brownMid }}
+                        onClick={() => navigate(`/admin/openings/${opening.opening_id}/applications`)}
+                      >
+                        View Applicants
+                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs text-stone-400">
+              Showing {activeRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
+              {Math.min(page * PAGE_SIZE, activeRows.length)} of {activeRows.length}
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 p-0 rounded-lg border-stone-200"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <CardTitle className="text-base font-semibold text-stone-900">
-                        {opening.title || opening.opening_title || 'Untitled Opening'}
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs">
-                        {opening.program_name || 'No Program'}
-                        {opening.benefactor_name || opening.organization_name
-                          ? ` · ${opening.benefactor_name || opening.organization_name}`
-                          : ''}
-                      </CardDescription>
-                    </div>
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Button>
 
-                    <StatusPill meta={statusMeta} />
-                  </div>
-                </CardHeader>
+              <span className="text-xs font-medium px-2.5 py-1 bg-white border border-stone-200 rounded-lg">
+                {page} / {totalPages}
+              </span>
 
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                      <p className="text-[11px] text-stone-500">Slots</p>
-                      <p className="text-lg font-semibold text-stone-900">{slotCount}</p>
-                    </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 p-0 rounded-lg border-stone-200"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <Card className="border-stone-200 shadow-none overflow-hidden">
+          <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
+            <div>
+              <CardTitle className="text-sm font-semibold text-stone-800">
+                Applicant Registry
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Tabular view of applicants and the scholarship they applied for
+              </CardDescription>
+            </div>
+          </CardHeader>
 
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                      <p className="text-[11px] text-stone-500">Qualified</p>
-                      <p className="text-lg font-semibold text-stone-900">{qualifiedCount}</p>
-                    </div>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1150px]">
+                <thead className="bg-stone-50">
+                  <tr className="border-b border-stone-200">
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Applicant</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">PDM ID</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Scholarship</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Opening</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Semester</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Academic Year</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Submitted</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Application Status</th>
+                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Document Status</th>
+                    <th className="text-right text-xs font-semibold text-stone-500 px-4 py-3">Action</th>
+                  </tr>
+                </thead>
 
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                      <p className="text-[11px] text-stone-500">Applicants</p>
-                      <p className="text-lg font-semibold text-stone-900">{applicationCount}</p>
-                    </div>
+                <tbody>
+                  {pageData.map((row) => {
+                    const appStatusMeta = getApplicationStatusMeta(row);
+                    const docStatusMeta = getDocumentStatusMeta(row);
 
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                      <p className="text-[11px] text-stone-500">Remaining</p>
-                      <p className="text-lg font-semibold text-stone-900">{remainingSlots}</p>
-                    </div>
-                  </div>
+                    return (
+                      <tr
+                        key={row.application_id}
+                        className="border-b border-stone-100 hover:bg-stone-50/60 transition-colors"
+                      >
+                        <td className="px-4 py-4 align-top">
+                          <div className="max-w-[220px]">
+                            <p className="text-sm font-semibold text-stone-900">
+                              {row.applicant_name}
+                            </p>
+                          </div>
+                        </td>
 
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarDays className="w-3.5 h-3.5" />
-                      {formatDate(opening.start_date || opening.application_start)} - {formatDate(opening.end_date || opening.application_end)}
-                    </span>
-                    <span>•</span>
-                    <span>{pendingCount} pending</span>
-                    <span>•</span>
-                    <span>{reviewCount} under review</span>
-                  </div>
+                        <td className="px-4 py-4 align-top text-sm text-stone-600 whitespace-nowrap">
+                          {row.pdm_id}
+                        </td>
 
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      className="rounded-lg text-white text-xs border-none"
-                      style={{ background: C.brownMid }}
-                      onClick={() => navigate(`/admin/openings/${opening.opening_id}/applications`)}
-                    >
-                      View Applicants
-                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                        <td className="px-4 py-4 align-top text-sm text-stone-800 font-medium">
+                          {row.program_name}
+                        </td>
+
+                        <td className="px-4 py-4 align-top text-sm text-stone-600">
+                          <div className="max-w-[220px]">
+                            {row.opening_title}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4 align-top text-sm text-stone-600 whitespace-nowrap">
+                          {row.semester}
+                        </td>
+
+                        <td className="px-4 py-4 align-top text-sm text-stone-600 whitespace-nowrap">
+                          {row.academic_year}
+                        </td>
+
+                        <td className="px-4 py-4 align-top text-xs text-stone-500 whitespace-nowrap">
+                          {formatDate(row.submitted_at)}
+                        </td>
+
+                        <td className="px-4 py-4 align-top">
+                          <StatusPill meta={appStatusMeta} />
+                        </td>
+
+                        <td className="px-4 py-4 align-top">
+                          <StatusPill meta={docStatusMeta} />
+                        </td>
+
+                        <td className="px-4 py-4 align-top text-right">
+                          <Button
+                            size="sm"
+                            className="rounded-lg text-white text-xs border-none"
+                            style={{ background: C.brownMid }}
+                            onClick={() => {
+                              if (row.opening_id) {
+                                navigate(`/admin/openings/${row.opening_id}/applications`);
+                                return;
+                              }
+
+                              navigate('/admin/applications');
+                            }}
+                          >
+                            Review
+                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+
+          <div className="px-5 py-3 bg-stone-50/50 border-t border-stone-100 flex items-center justify-between">
+            <span className="text-xs text-stone-400">
+              Showing {activeRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
+              {Math.min(page * PAGE_SIZE, activeRows.length)} of {activeRows.length}
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 w-7 p-0 rounded-lg border-stone-200"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Button>
+
+              <span className="text-xs font-medium px-2.5 py-1 bg-white border border-stone-200 rounded-lg">
+                {page} / {totalPages}
+              </span>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 w-7 p-0 rounded-lg border-stone-200"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        </Card>
       )}
 
       <footer className="pt-6 pb-2 border-t border-stone-100">
         <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · Opening-Based Application Review
+          SMaRT PDM · Applicant-Based Application Review
         </p>
       </footer>
     </div>

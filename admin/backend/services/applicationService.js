@@ -15,7 +15,12 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
     {
         id: 'student_grade_forms',
         name: 'Grade Form',
-        aliases: ['student grade forms', 'grade forms', 'grades', 'grade card', 'report card'],
+        aliases: ['student grade forms', 'grade forms', 'grades', 'grade card', 'report card', 'grade form'],
+    },
+    {
+        id: 'certificate_of_indigency',
+        name: 'Certificate of Indigency',
+        aliases: ['certificate of indigency', 'indigency'],
     },
     {
         id: 'letter_of_intent',
@@ -23,19 +28,9 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
         aliases: ['letter of intent', 'intent letter', 'loi'],
     },
     {
-        id: 'certificate_of_good_moral_character',
-        name: 'Good Moral',
-        aliases: [
-            'certificate of good moral character',
-            'certificate of good moral',
-            'good moral',
-            'good moral certificate',
-        ],
-    },
-    {
         id: 'application_form',
         name: 'Application Form',
-        aliases: ['application form', 'application', 'scholarship application form'],
+        aliases: ['application form', 'application'],
     },
 ];
 
@@ -48,13 +43,13 @@ const DOCUMENT_TYPE_ALIASES = {
     grade_forms: 'student_grade_forms',
     grades: 'student_grade_forms',
     student_grade_forms: 'student_grade_forms',
+    grade_form: 'student_grade_forms',
+
+    certificate_of_indigency: 'certificate_of_indigency',
+    indigency: 'certificate_of_indigency',
 
     loi: 'letter_of_intent',
     letter_of_intent: 'letter_of_intent',
-
-    good_moral: 'certificate_of_good_moral_character',
-    certificate_of_good_moral_character: 'certificate_of_good_moral_character',
-    certificate_of_good_moral: 'certificate_of_good_moral_character',
 
     application_form: 'application_form',
     application: 'application_form',
@@ -63,8 +58,8 @@ const DOCUMENT_TYPE_ALIASES = {
 const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_registration: 'Certificate of Registration',
     student_grade_forms: 'Grade Form',
+    certificate_of_indigency: 'Certificate of Indigency',
     letter_of_intent: 'Letter of Intent',
-    certificate_of_good_moral_character: 'Good Moral',
     application_form: 'Application Form',
 };
 
@@ -129,7 +124,7 @@ function deriveReviewStatus(document = {}, review = null) {
     if (preferredStatus === 'flagged') return 'flagged';
     if (preferredStatus === 'uploaded' || preferredStatus === 'under review') return 'uploaded';
 
-    return document.is_submitted || document.file_url ? 'uploaded' : 'pending';
+    return document.is_submitted || document.file_path || document.file_url ? 'uploaded' : 'pending';
 }
 
 function deriveAggregateDocumentStatus(summary = {}) {
@@ -190,7 +185,12 @@ async function getSignedFileUrl(filePath) {
         .createSignedUrl(filePath, 60 * 60);
 
     if (error) {
-        console.error('SUPABASE SIGNED URL ERROR:', error.message);
+        console.error(
+            'SUPABASE SIGNED URL ERROR:',
+            `bucket=${STORAGE_BUCKET}`,
+            `path=${filePath}`,
+            error.message
+        );
         return null;
     }
 
@@ -355,9 +355,9 @@ async function buildApplicationDetails(applicationId) {
                 document_type: document.document_type || null,
                 file_name: document.file_name || null,
                 file_path: filePath,
-                url: signedUrl || review?.file_url || document.file_url || null,
-                file_url: signedUrl || review?.file_url || document.file_url || null,
-                signed_url: signedUrl,
+                url: signedUrl || null,
+                file_url: signedUrl || null,
+                signed_url: signedUrl || null,
                 status: deriveReviewStatus(document, review),
                 admin_comment: review?.admin_comment || document.notes || '',
                 notes: document.notes || null,
@@ -367,6 +367,24 @@ async function buildApplicationDetails(applicationId) {
             };
         })
     );
+
+    normalizedDocuments.push({
+        id: 'application_form',
+        document_key: 'application_form',
+        name: 'Application Form',
+        document_type: 'Application Form',
+        file_name: null,
+        file_path: null,
+        url: null,
+        file_url: null,
+        signed_url: null,
+        status: reviewByKey.get('application_form')?.review_status || 'pending',
+        admin_comment: reviewByKey.get('application_form')?.admin_comment || '',
+        notes: null,
+        uploaded_at: applicationRecord.submission_date || null,
+        submitted_at: applicationRecord.submission_date || null,
+        reviewed_at: reviewByKey.get('application_form')?.reviewed_at || null,
+    });
 
     const documents = ensureDocumentCoverage(normalizedDocuments);
 
@@ -425,18 +443,11 @@ exports.fetchApplications = async () => {
             a.application_status,
             a.evaluator_id,
             a.submission_date,
-            a.deficiency_status,
             a.is_disqualified,
             a.disqualification_reason,
             a.document_status,
             a.is_reconsideration_candidate,
             a.reconsideration_tagged_at,
-            a.cor_url,
-            a.grade_card_url,
-            a.good_moral_url,
-            a.application_form_url,
-            a.verification_status,
-            a.remarks,
             a.is_archived,
 
             st.first_name,
@@ -504,6 +515,7 @@ exports.fetchApplications = async () => {
             filled_slots: Number(row.filled_slots || 0),
             financial_allocation: row.financial_allocation ?? null,
             per_scholar_amount: row.per_scholar_amount ?? null,
+            posting_status: row.posting_status || 'Open',
             opening_status: row.posting_status || 'Open',
 
             application_status: row.is_disqualified
@@ -514,24 +526,15 @@ exports.fetchApplications = async () => {
                 ? 'Disqualified'
                 : row.application_status || 'Pending',
 
-            document_status:
-                row.document_status ||
-                row.deficiency_status ||
-                'Missing Docs',
+            document_status: row.document_status || 'Missing Docs',
 
-            deficiency_status: row.deficiency_status || null,
-            verification_status: row.verification_status || null,
-            remarks: row.remarks || null,
+            verification_status: null,
+            remarks: null,
 
             is_disqualified: !!row.is_disqualified,
             disqualification_reason: row.disqualification_reason || null,
             is_reconsideration_candidate: !!row.is_reconsideration_candidate,
-            reconsideration_tagged_at: row.reconsideration_tagged_at || null,
-
-            cor_url: row.cor_url || null,
-            grade_card_url: row.grade_card_url || null,
-            good_moral_url: row.good_moral_url || null,
-            application_form_url: row.application_form_url || null,
+            consideration_tagged_at: row.consideration_tagged_at || null,
 
             submission_date: row.submission_date || null,
             submitted_at: row.submission_date || null,
@@ -568,6 +571,10 @@ exports.uploadStudentApplicationDocument = async ({
     }
 
     const normalizedDocumentType = normalizeDocumentType(documentType);
+
+    if (normalizedDocumentType === 'application_form') {
+        throw new Error('Application Form is text-based and cannot be uploaded as a file');
+    }
 
     if (!DOCUMENT_TYPE_TO_NAME[normalizedDocumentType]) {
         throw new Error('Invalid documentType');
@@ -634,11 +641,11 @@ exports.uploadStudentApplicationDocument = async ({
         document_type: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
         file_name: file.originalname,
         file_path: storagePath,
-        file_url: signedUrl,
+        file_url: null,
         is_submitted: true,
         submitted_at: now,
         notes: null,
-        uploaded_by: uploaderId,
+        uploaded_by: studentRecord.student_id,
     };
 
     const { error: documentUpsertError } = await supabase
@@ -657,7 +664,7 @@ exports.uploadStudentApplicationDocument = async ({
 
     const { data: existingDocuments, error: docsError } = await supabase
         .from('application_documents')
-        .select('document_type, file_url, is_submitted')
+        .select('document_type, file_path, is_submitted')
         .eq('application_id', applicationId);
 
     if (docsError) {
@@ -665,10 +672,13 @@ exports.uploadStudentApplicationDocument = async ({
         throw new Error(docsError.message);
     }
 
-    const requiredDocumentNames = Object.values(DOCUMENT_TYPE_TO_NAME);
+    const requiredDocumentNames = Object.values(DOCUMENT_TYPE_TO_NAME).filter(
+        (name) => name !== 'Application Form'
+    );
+
     const uploadedNames = new Set(
         (existingDocuments || [])
-            .filter((d) => d.is_submitted && d.file_url)
+            .filter((d) => d.is_submitted && d.file_path)
             .map((d) => d.document_type)
     );
 
@@ -770,6 +780,10 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             doc.document_key || doc.document_type || doc.id || doc.name
         );
 
+        if (normalizedDocumentType === 'application_form') {
+            continue;
+        }
+
         const documentTypeName =
             DOCUMENT_TYPE_TO_NAME[normalizedDocumentType] || doc.document_type || doc.name;
 
@@ -779,7 +793,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             .from('application_documents')
             .update({
                 is_submitted: !!doc.url,
-                file_url: doc.url || null,
+                file_url: null,
                 submitted_at: doc.url ? reviewedAt : null,
                 notes: doc.comment || null,
             })
@@ -867,13 +881,30 @@ exports.saveApplicationRemarks = async (applicationId, remarks) => {
     return data;
 };
 
+exports.assignApplicationProgram = async (applicationId, programId) => {
+    const { data, error } = await supabase
+        .from('applications')
+        .update({
+            program_id: programId,
+        })
+        .eq('application_id', applicationId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Supabase Assign Program Error:', error);
+        throw new Error(error.message);
+    }
+
+    return data;
+};
+
 exports.moveApplicationToWaiting = async (applicationId) => {
     const { data, error } = await supabase
         .from('applications')
         .update({
             application_status: 'Waiting',
             is_reconsideration_candidate: true,
-            updated_at: new Date().toISOString(),
         })
         .eq('application_id', applicationId)
         .select()
@@ -945,8 +976,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 `
                 UPDATE applications
                 SET application_status = 'Waiting',
-                    is_reconsideration_candidate = TRUE,
-                    updated_at = NOW()
+                    is_reconsideration_candidate = TRUE
                 WHERE application_id = $1
                 RETURNING *
                 `,
@@ -972,8 +1002,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 `
                 UPDATE applications
                 SET application_status = 'Waiting',
-                    is_reconsideration_candidate = TRUE,
-                    updated_at = NOW()
+                    is_reconsideration_candidate = TRUE
                 WHERE application_id = $1
                 RETURNING *
                 `,
@@ -988,8 +1017,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             `
             UPDATE applications
             SET application_status = 'Qualified',
-                is_reconsideration_candidate = FALSE,
-                updated_at = NOW()
+                is_reconsideration_candidate = FALSE
             WHERE application_id = $1
             RETURNING *
             `,
@@ -1030,4 +1058,18 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
     } finally {
         client.release();
     }
+};
+
+module.exports = {
+    fetchApplications: exports.fetchApplications,
+    fetchApplicationDetailsById: exports.fetchApplicationDetailsById,
+    fetchApplicationDocumentsById: exports.fetchApplicationDocumentsById,
+    uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
+    markApplicationDisqualified: exports.markApplicationDisqualified,
+    saveApplicationVerification: exports.saveApplicationVerification,
+    markApplicationReviewed: exports.markApplicationReviewed,
+    saveApplicationRemarks: exports.saveApplicationRemarks,
+    assignApplicationProgram: exports.assignApplicationProgram,
+    moveApplicationToWaiting: exports.moveApplicationToWaiting,
+    approveApplicationWithSlotCheck: exports.approveApplicationWithSlotCheck,
 };

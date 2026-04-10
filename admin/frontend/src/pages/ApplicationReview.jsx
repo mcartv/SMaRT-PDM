@@ -680,16 +680,9 @@ export default function ApplicationReview() {
                             size="sm"
                             className="rounded-lg text-white text-xs border-none"
                             style={{ background: C.brownMid }}
-                            onClick={() => {
-                              if (row.opening_id) {
-                                navigate(`/admin/openings/${row.opening_id}/applications`);
-                                return;
-                              }
-
-                              navigate('/admin/applications');
-                            }}
+                            onClick={() => navigate(`/admin/applications/${row.application_id}/documents`)}
                           >
-                            Review
+                            View Documents
                             <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                           </Button>
                         </td>

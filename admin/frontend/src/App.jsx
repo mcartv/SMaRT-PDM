@@ -49,7 +49,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Root Redirect */}
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
 
         {/* Public Routes */}
@@ -115,7 +114,6 @@ export default function App() {
           <Route path="maintenance" element={<SDOMaintenance />} />
         </Route>
 
-        {/* Fallback */}
         <Route path="*" element={<Navigate to="/admin/login" replace />} />
       </Routes>
     </BrowserRouter>

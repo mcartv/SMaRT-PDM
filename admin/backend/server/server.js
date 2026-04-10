@@ -20,6 +20,7 @@ const programOpeningRoutes = require('../routes/programOpeningRoutes');
 const courseRoutes = require('../routes/courseRoutes');
 const departmentRoutes = require('../routes/departmentRoutes');
 const renewalRoutes = require('../routes/renewalRoutes');
+const supportTicketRoutes = require('../routes/supportTicketRoutes');
 
 // ✅ Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
@@ -59,6 +60,8 @@ app.use('/api/program-openings', programOpeningRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/renewals', renewalRoutes);
+app.use('/api/support-tickets', supportTicketRoutes);
+
 
 
 // =========================

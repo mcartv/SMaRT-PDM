@@ -65,14 +65,14 @@ const DOC_STATUS = {
 
 const REQUIRED_DOCUMENTS = [
   {
-    id: 'survey_form',
-    name: 'Survey Form',
-    aliases: ['survey form'],
+    id: 'certificate_of_registration',
+    name: 'Certificate of Registration',
+    aliases: ['cor', 'certificate of registration', 'registration form', 'registration'],
   },
   {
-    id: 'letter_of_request',
-    name: 'Letter of Request',
-    aliases: ['letter of request', 'request letter'],
+    id: 'student_grade_forms',
+    name: 'Grade Form',
+    aliases: ['student grade forms', 'grade forms', 'grade card', 'grades', 'grade form'],
   },
   {
     id: 'certificate_of_indigency',
@@ -80,29 +80,14 @@ const REQUIRED_DOCUMENTS = [
     aliases: ['certificate of indigency', 'indigency'],
   },
   {
-    id: 'certificate_of_good_moral_character',
-    name: 'Certificate of Good Moral Character',
-    aliases: ['certificate of good moral character', 'good moral'],
+    id: 'letter_of_intent',
+    name: 'Letter of Intent',
+    aliases: ['letter of intent', 'intent letter', 'loi'],
   },
   {
-    id: 'senior_high_school_card',
-    name: 'Senior High School Card',
-    aliases: ['senior high school card', 'shs card'],
-  },
-  {
-    id: 'student_grade_forms',
-    name: 'Student Grade Forms',
-    aliases: ['student grade forms', 'grade forms', 'grade card', 'grades'],
-  },
-  {
-    id: 'certificate_of_registration',
-    name: 'Certificate of Registration',
-    aliases: ['cor', 'certificate of registration', 'registration form', 'registration'],
-  },
-  {
-    id: 'id_picture',
-    name: 'ID Picture',
-    aliases: ['id picture', 'picture', 'photo', '1x1'],
+    id: 'application_form',
+    name: 'Application Form',
+    aliases: ['application form', 'application'],
   },
 ];
 
@@ -229,22 +214,6 @@ function buildExtractedData(activeDoc, application) {
   ];
 
   switch (activeDoc.id) {
-    case 'letter_of_request':
-      return [
-        ...base,
-        { label: 'Document Type', value: 'Letter of Request', verified: true },
-        {
-          label: 'Request Letter',
-          value: activeDoc.url ? 'Detected and ready for admin review' : 'No uploaded file detected',
-          verified: !!activeDoc.url,
-        },
-        {
-          label: 'Signature Presence',
-          value: activeDoc.url ? 'Detected' : 'Not detected',
-          verified: !!activeDoc.url,
-        },
-      ];
-
     case 'certificate_of_registration':
       return [
         ...base,
@@ -264,7 +233,7 @@ function buildExtractedData(activeDoc, application) {
     case 'student_grade_forms':
       return [
         ...base,
-        { label: 'Document Type', value: 'Student Grade Forms', verified: true },
+        { label: 'Document Type', value: 'Grade Form', verified: true },
         {
           label: 'Detected GWA',
           value: fallbackGwa,
@@ -274,42 +243,6 @@ function buildExtractedData(activeDoc, application) {
           label: 'GWA Eligibility',
           value: Number(student.gwa) <= 2.0 ? 'Eligible' : 'Needs Review',
           verified: Number(student.gwa) <= 2.0,
-        },
-      ];
-
-    case 'certificate_of_good_moral_character':
-      return [
-        ...base,
-        {
-          label: 'Document Type',
-          value: 'Certificate of Good Moral Character',
-          verified: true,
-        },
-        {
-          label: 'Conduct Certification',
-          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
-          verified: !!activeDoc.url,
-        },
-        {
-          label: 'School/Issuer Marker',
-          value: activeDoc.url ? 'Present' : 'Missing',
-          verified: !!activeDoc.url,
-        },
-      ];
-
-    case 'survey_form':
-      return [
-        ...base,
-        { label: 'Document Type', value: 'Survey Form', verified: true },
-        {
-          label: 'Form Completeness',
-          value: activeDoc.url ? 'Detected' : 'Not detected',
-          verified: !!activeDoc.url,
-        },
-        {
-          label: 'Review Status',
-          value: activeDoc.url ? 'Ready for admin review' : 'No uploaded file detected',
-          verified: !!activeDoc.url,
         },
       ];
 
@@ -324,25 +257,44 @@ function buildExtractedData(activeDoc, application) {
         },
       ];
 
-    case 'senior_high_school_card':
+    case 'letter_of_intent':
       return [
         ...base,
-        { label: 'Document Type', value: 'Senior High School Card', verified: true },
+        { label: 'Document Type', value: 'Letter of Intent', verified: true },
         {
-          label: 'Academic Record',
-          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
+          label: 'Intent Letter',
+          value: activeDoc.url ? 'Detected and ready for admin review' : 'No uploaded file detected',
+          verified: !!activeDoc.url,
+        },
+        {
+          label: 'Signature Presence',
+          value: activeDoc.url ? 'Detected' : 'Not detected',
           verified: !!activeDoc.url,
         },
       ];
 
-    case 'id_picture':
+    case 'application_form':
       return [
         ...base,
-        { label: 'Document Type', value: 'ID Picture', verified: true },
+        { label: 'Document Type', value: 'Application Form', verified: true },
         {
-          label: 'Photo Upload',
-          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
-          verified: !!activeDoc.url,
+          label: 'Profile Section',
+          value: application?.student_profile ? 'Available' : 'Not found',
+          verified: !!application?.student_profile,
+        },
+        {
+          label: 'Family Records',
+          value: (application?.family_members || []).length
+            ? `${application.family_members.length} record(s)`
+            : 'No records',
+          verified: (application?.family_members || []).length > 0,
+        },
+        {
+          label: 'Education Records',
+          value: (application?.education_records || []).length
+            ? `${application.education_records.length} record(s)`
+            : 'No records',
+          verified: (application?.education_records || []).length > 0,
         },
       ];
 
@@ -351,7 +303,100 @@ function buildExtractedData(activeDoc, application) {
   }
 }
 
-function DocumentPreviewPanel({ activeDoc }) {
+function ApplicationFormPreview({ application }) {
+  const student = application?.student || {};
+  const profile = application?.student_profile || {};
+  const familyMembers = application?.family_members || [];
+  const educationRecords = application?.education_records || [];
+
+  return (
+    <div className="w-full h-[520px] overflow-y-auto bg-white border border-stone-200 rounded-lg p-4">
+      <h3 className="text-sm font-semibold text-stone-800 mb-3">Application Form Summary</h3>
+
+      <div className="space-y-5 text-sm text-stone-700">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+            Student Overview
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <InfoRow label="Student Name" value={student.name} />
+            <InfoRow label="PDM ID" value={student.pdm_id} />
+            <InfoRow label="Program" value={student.program} />
+            <InfoRow label="Course" value={student.course} />
+            <InfoRow label="Academic Year" value={student.year} />
+            <InfoRow label="GWA" value={student.gwa} mono />
+          </div>
+        </div>
+
+        <div className="border-t border-stone-100 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+            Profile
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <InfoRow label="Barangay" value={profile.barangay || profile.address_barangay || 'N/A'} />
+            <InfoRow label="Civil Status" value={profile.civil_status || 'N/A'} />
+            <InfoRow label="Birth Date" value={profile.birth_date || 'N/A'} />
+            <InfoRow label="Gender" value={profile.gender || 'N/A'} />
+          </div>
+        </div>
+
+        <div className="border-t border-stone-100 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+            Family Background
+          </p>
+          {familyMembers.length ? (
+            <div className="space-y-2">
+              {familyMembers.map((member, index) => (
+                <div
+                  key={`${member.family_id || member.id || index}`}
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2"
+                >
+                  <p className="font-medium text-stone-800">
+                    {member.full_name || member.name || `Family Member ${index + 1}`}
+                  </p>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    {member.relation || 'Relation not set'}
+                    {member.occupation ? ` · ${member.occupation}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-stone-400">No family records found.</p>
+          )}
+        </div>
+
+        <div className="border-t border-stone-100 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
+            Educational Background
+          </p>
+          {educationRecords.length ? (
+            <div className="space-y-2">
+              {educationRecords.map((record, index) => (
+                <div
+                  key={`${record.education_id || record.id || index}`}
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2"
+                >
+                  <p className="font-medium text-stone-800">
+                    {record.school_name || `Education Record ${index + 1}`}
+                  </p>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    {record.education_level || 'Level not set'}
+                    {record.year_graduated ? ` · ${record.year_graduated}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-stone-400">No education records found.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DocumentPreviewPanel({ activeDoc, application }) {
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50">
@@ -359,11 +404,13 @@ function DocumentPreviewPanel({ activeDoc }) {
           <FileText className="w-4 h-4 text-stone-500" />
           <div>
             <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
-            <p className="text-[11px] text-stone-400">Uploaded by student</p>
+            <p className="text-[11px] text-stone-400">
+              {activeDoc.id === 'application_form' ? 'Submitted text-based form' : 'Uploaded by student'}
+            </p>
           </div>
         </div>
 
-        {activeDoc.url && (
+        {activeDoc.url && activeDoc.id !== 'application_form' && (
           <a
             href={activeDoc.url}
             target="_blank"
@@ -377,7 +424,9 @@ function DocumentPreviewPanel({ activeDoc }) {
       </div>
 
       <div className="p-4 min-h-[520px] flex items-center justify-center bg-stone-50/20">
-        {activeDoc.url ? (
+        {activeDoc.id === 'application_form' ? (
+          <ApplicationFormPreview application={application} />
+        ) : activeDoc.url ? (
           <iframe
             src={activeDoc.url}
             title={activeDoc.name}
@@ -462,9 +511,9 @@ function OCRPanel({ activeDoc, application, extractedData }) {
             </p>
           </div>
           <p className="text-xs text-stone-500 leading-relaxed">
-            Compare the uploaded file against the extracted OCR fields. If text is incomplete,
-            blurred, inconsistent, or mismatched with student records, mark the document for
-            re-upload or flag it for further review.
+            Compare the uploaded file or text-based application form against the extracted fields.
+            If the details are incomplete, blurred, inconsistent, or mismatched with student records,
+            mark the item for re-upload or flag it for further review.
           </p>
         </div>
 
@@ -479,7 +528,7 @@ COURSE: ${application?.student?.course || 'N/A'}
 GWA: ${application?.student?.gwa ?? 'N/A'}
 
 STATUS:
-- File ${activeDoc.url ? 'detected and readable' : 'not uploaded'}
+- Source ${activeDoc.id === 'application_form' ? 'is text-based form data' : activeDoc.url ? 'detected and readable' : 'not uploaded'}
 - OCR fields available for manual admin validation
 - Final approval depends on review status`}
           </div>
@@ -526,7 +575,10 @@ export default function DocumentVerification() {
 
       const data = await res.json();
       const normalizedDocs = normalizeRequiredDocuments(data?.documents || []);
-      const firstAvailable = normalizedDocs.find((d) => d.url)?.id || normalizedDocs[0]?.id || 'certificate_of_registration';
+      const firstAvailable =
+        normalizedDocs.find((d) => d.id === 'application_form' || d.url)?.id ||
+        normalizedDocs[0]?.id ||
+        'certificate_of_registration';
 
       const initialStatuses = {};
       const initialComments = {};
@@ -566,36 +618,36 @@ export default function DocumentVerification() {
     }));
   }, [application, docStatuses, docComments]);
 
-  const REQUIRED_DOC_COUNT = REQUIRED_DOCUMENTS.length;
+  const isDocumentAvailable = (document) =>
+    document?.id === 'application_form' ? true : !!document?.url;
 
-  const uploaded = docs.filter((d) => !!d.url).length;
-  const hasAnyUpload = uploaded > 0;
-  const hasCompleteRequirements = uploaded >= REQUIRED_DOC_COUNT;
+  const REQUIRED_DOC_COUNT = REQUIRED_DOCUMENTS.length;
+  const availableCount = docs.filter((d) => isDocumentAvailable(d)).length;
+  const hasAnyUpload = availableCount > 0;
+  const hasCompleteRequirements = availableCount >= REQUIRED_DOC_COUNT;
 
   const verifiedCount = docs.filter((d) => d.status === 'verified').length;
   const flaggedCount = docs.filter((d) => d.status === 'flagged').length;
   const reuploadCount = docs.filter((d) => d.status === 'rejected').length;
-  const reviewedCount = docs.filter((d) => !!d.url && d.status !== 'pending' && d.status !== 'uploaded').length;
+  const reviewedCount = docs.filter(
+    (d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
+  ).length;
 
   const requiredDocs = docs.slice(0, REQUIRED_DOC_COUNT);
-  const allRequiredDocsUploaded = requiredDocs.every((d) => !!d.url);
+  const allRequiredDocsUploaded = requiredDocs.every((d) => isDocumentAvailable(d));
   const allRequiredDocsReviewed = requiredDocs.every(
-    (d) => !!d.url && d.status !== 'pending' && d.status !== 'uploaded'
+    (d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
   );
   const allRequiredDocsVerified = requiredDocs.every(
-    (d) => !!d.url && d.status === 'verified'
+    (d) => isDocumentAvailable(d) && d.status === 'verified'
   );
 
-  const canCompleteVerification =
-    allRequiredDocsUploaded &&
-    allRequiredDocsReviewed;
-
-  const finalVerificationStatus =
-    allRequiredDocsVerified ? 'verified' : 'rejected';
+  const canCompleteVerification = allRequiredDocsUploaded && allRequiredDocsReviewed;
+  const finalVerificationStatus = allRequiredDocsVerified ? 'verified' : 'rejected';
 
   const progress = docs.length ? Math.round((reviewedCount / docs.length) * 100) : 0;
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
-  const hasUploadedDocument = !!activeDoc?.url;
+  const hasUploadedDocument = isDocumentAvailable(activeDoc);
 
   const extractedData = useMemo(
     () => buildExtractedData(activeDoc, application),
@@ -655,7 +707,7 @@ export default function DocumentVerification() {
         summary: {
           verified: verifiedCount,
           reviewed: reviewedCount,
-          uploaded,
+          uploaded: availableCount,
           flagged: flaggedCount,
           reupload: reuploadCount,
           pending: docs.filter((d) => d.status === 'pending' || d.status === 'uploaded').length,
@@ -813,21 +865,20 @@ export default function DocumentVerification() {
           <Card className="border-stone-200 shadow-none bg-white">
             <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
               <h3 className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Checklist</h3>
-              <span className="text-xs text-stone-400">{uploaded}/{docs.length} uploaded</span>
+              <span className="text-xs text-stone-400">{availableCount}/{docs.length} available</span>
             </div>
 
             <CardContent className="p-3 space-y-1.5">
               {docs.map((d) => {
                 const s = DOC_STATUS[d.status] || DOC_STATUS.pending;
                 const isActive = doc === d.id;
+                const available = isDocumentAvailable(d);
 
                 return (
                   <button
                     key={d.id}
                     onClick={() => setDoc(d.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
-                        ? 'border-blue-800 bg-blue-50 shadow-sm'
-                        : 'border-stone-100 bg-white hover:border-stone-200'
+                    className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive ? 'border-blue-800 bg-blue-50 shadow-sm' : 'border-stone-100 bg-white hover:border-stone-200'
                       }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -837,7 +888,11 @@ export default function DocumentVerification() {
                           {d.name}
                         </p>
                         <p className="text-[10px] text-stone-400 mt-0.5">
-                          {d.url ? 'File uploaded' : 'No file uploaded'}
+                          {d.id === 'application_form'
+                            ? 'Text-based application data'
+                            : available
+                              ? 'File uploaded'
+                              : 'No file uploaded'}
                         </p>
                       </div>
                     </div>
@@ -887,23 +942,23 @@ export default function DocumentVerification() {
 
                   {!hasAnyUpload ? (
                     <p className="text-xs font-semibold mt-1 text-red-700">
-                      No uploaded documents yet.
+                      No submitted requirements yet.
                     </p>
                   ) : !hasCompleteRequirements ? (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
-                      Incomplete requirements: {uploaded}/{REQUIRED_DOC_COUNT} uploaded.
+                      Incomplete requirements: {availableCount}/{REQUIRED_DOC_COUNT} available.
                     </p>
                   ) : !allRequiredDocsReviewed ? (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
-                      All {REQUIRED_DOC_COUNT} documents are uploaded, but admin review actions are still pending.
+                      All {REQUIRED_DOC_COUNT} requirements are available, but admin review actions are still pending.
                     </p>
                   ) : allRequiredDocsVerified ? (
                     <p className="text-xs font-semibold mt-1 text-green-700">
-                      All {REQUIRED_DOC_COUNT} required documents are uploaded and verified.
+                      All {REQUIRED_DOC_COUNT} required items are verified.
                     </p>
                   ) : (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
-                      Review is complete, but one or more required documents need re-upload or follow-up.
+                      Review is complete, but one or more required items need re-upload or follow-up.
                     </p>
                   )}
                 </div>
@@ -933,9 +988,7 @@ export default function DocumentVerification() {
               <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
                 <button
                   onClick={() => setViewMode('preview')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview' ? 'bg-white text-blue-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   Document Preview
@@ -943,9 +996,7 @@ export default function DocumentVerification() {
 
                 <button
                   onClick={() => setViewMode('ocr')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr' ? 'bg-white text-blue-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   OCR Validation Hub
@@ -953,9 +1004,7 @@ export default function DocumentVerification() {
 
                 <button
                   onClick={() => setViewMode('split')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split' ? 'bg-white text-blue-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -970,7 +1019,7 @@ export default function DocumentVerification() {
               {!activeDoc ? (
                 <p className="text-sm text-stone-400">No document selected.</p>
               ) : viewMode === 'preview' ? (
-                <DocumentPreviewPanel activeDoc={activeDoc} />
+                <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
               ) : viewMode === 'ocr' ? (
                 <OCRPanel
                   activeDoc={activeDoc}
@@ -979,7 +1028,7 @@ export default function DocumentVerification() {
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  <DocumentPreviewPanel activeDoc={activeDoc} />
+                  <DocumentPreviewPanel activeDoc={activeDoc} application={application} />
                   <OCRPanel
                     activeDoc={activeDoc}
                     application={application}
@@ -1000,7 +1049,11 @@ export default function DocumentVerification() {
                     </p>
                     <p className="text-sm font-semibold text-stone-800 mt-1">{activeDoc?.name || 'N/A'}</p>
                     <p className="text-xs text-stone-400 mt-1">
-                      {activeDoc?.url ? 'Uploaded by student and ready for admin review.' : 'No uploaded file from student yet.'}
+                      {activeDoc?.id === 'application_form'
+                        ? 'Text-based application form ready for admin review.'
+                        : activeDoc?.url
+                          ? 'Uploaded by student and ready for admin review.'
+                          : 'No uploaded file from student yet.'}
                     </p>
                   </div>
                 </div>
@@ -1013,7 +1066,7 @@ export default function DocumentVerification() {
                 <Textarea
                   placeholder={
                     hasUploadedDocument
-                      ? 'Enter specific instructions or reasons for document rejection...'
+                      ? 'Enter specific instructions or reasons for review outcome...'
                       : 'No uploaded document selected yet.'
                   }
                   value={comment}
@@ -1063,19 +1116,19 @@ export default function DocumentVerification() {
 
               {!hasAnyUpload && (
                 <p className="text-xs text-stone-400">
-                  Complete verification is disabled until the required documents are uploaded by the student.
+                  Complete verification is disabled until the required items are available.
                 </p>
               )}
 
               {hasAnyUpload && !hasCompleteRequirements && (
                 <p className="text-xs text-orange-600">
-                  Complete verification is disabled until all {REQUIRED_DOC_COUNT} required documents are uploaded by the student.
+                  Complete verification is disabled until all {REQUIRED_DOC_COUNT} required items are available.
                 </p>
               )}
 
               {hasCompleteRequirements && !allRequiredDocsReviewed && (
                 <p className="text-xs text-orange-600">
-                  All {REQUIRED_DOC_COUNT} documents are present. Apply admin feedback/actions to each document before completing verification.
+                  All {REQUIRED_DOC_COUNT} items are present. Apply admin feedback/actions to each item before completing verification.
                 </p>
               )}
 
@@ -1099,9 +1152,9 @@ export default function DocumentVerification() {
                 ) : !hasAnyUpload ? (
                   'Complete Verification & Next'
                 ) : !hasCompleteRequirements ? (
-                  `Wait for All ${REQUIRED_DOC_COUNT} Documents`
+                  `Wait for All ${REQUIRED_DOC_COUNT} Items`
                 ) : !allRequiredDocsReviewed ? (
-                  'Review All Documents First'
+                  'Review All Items First'
                 ) : finalVerificationStatus === 'verified' ? (
                   'Complete Verification & Next'
                 ) : (

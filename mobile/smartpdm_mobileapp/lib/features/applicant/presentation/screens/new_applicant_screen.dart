@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -14,7 +17,18 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class NewApplicantScreen extends StatefulWidget {
-  const NewApplicantScreen({super.key});
+  const NewApplicantScreen({
+    super.key,
+    this.initialOpeningId,
+    this.initialOpeningTitle,
+    this.initialProgramName,
+    this.replaceExistingDraft = false,
+  });
+
+  final String? initialOpeningId;
+  final String? initialOpeningTitle;
+  final String? initialProgramName;
+  final bool replaceExistingDraft;
 
   @override
   State<NewApplicantScreen> createState() => _NewApplicantScreenState();
@@ -28,6 +42,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   final _scrollCtrl = ScrollController();
   bool _isBootstrapping = true;
   bool _showValidationErrors = false;
+  Timer? _autosaveDebounce;
+  bool _isAutosaving = false;
+  bool _hasDraftLoaded = false;
+  String? _autosaveError;
 
   static const _stepLabels = [
     'Personal',
@@ -43,6 +61,20 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _bootstrapFormData();
   }
 
+  void _applyOpeningSelection({
+    required String openingId,
+    required String openingTitle,
+    required String programName,
+  }) {
+    _data.applyOpeningSelection(
+      openingId: openingId,
+      openingTitle: openingTitle,
+      programName: programName,
+    );
+  }
+
+  bool get _hasSelectedOpening => _data.openingId.trim().isNotEmpty;
+
   Future<void> _bootstrapFormData() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -56,11 +88,32 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.currentCourse = prefs.getString('user_course') ?? '';
     _data.currentSection = prefs.getString('user_section') ?? '';
 
+    if ((widget.initialOpeningId ?? '').trim().isNotEmpty) {
+      _applyOpeningSelection(
+        openingId: widget.initialOpeningId!.trim(),
+        openingTitle: widget.initialOpeningTitle?.trim() ?? '',
+        programName: widget.initialProgramName?.trim() ?? '',
+      );
+    }
+
     try {
       final savedFormData = await _applicationService.fetchMySavedFormData();
       if (savedFormData['has_saved_form'] == true) {
-        _hydrateFromSavedForm(savedFormData);
-        await _syncAccountHolderCache();
+        final savedOpening = Map<String, dynamic>.from(
+          savedFormData['opening'] as Map? ?? const {},
+        );
+        final savedOpeningId = _savedString(savedOpening['opening_id']).trim();
+        final shouldReplaceDraft =
+            widget.replaceExistingDraft &&
+            (widget.initialOpeningId ?? '').trim().isNotEmpty &&
+            savedOpeningId.isNotEmpty &&
+            savedOpeningId != (widget.initialOpeningId ?? '').trim();
+
+        if (!shouldReplaceDraft) {
+          _hydrateFromSavedForm(savedFormData);
+          _hasDraftLoaded = true;
+          await _syncAccountHolderCache();
+        }
       }
     } catch (_) {
       // If the backend has no saved form yet, keep the local bootstrap values.
@@ -68,6 +121,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
     if (!mounted) return;
     setState(() => _isBootstrapping = false);
+
+    if (_hasSelectedOpening && !_hasDraftLoaded) {
+      _queueAutosave(immediate: true);
+    }
   }
 
   String _savedString(dynamic value) => value?.toString() ?? '';
@@ -87,7 +144,49 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     return '$month/$day/$year';
   }
 
+  void _queueAutosave({bool immediate = false}) {
+    if (_isBootstrapping || !_hasSelectedOpening) {
+      return;
+    }
+
+    _autosaveDebounce?.cancel();
+    final delay = immediate ? Duration.zero : const Duration(milliseconds: 600);
+    _autosaveDebounce = Timer(delay, _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    if (_isBootstrapping || !_hasSelectedOpening) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isAutosaving = true;
+        _autosaveError = null;
+      });
+    }
+
+    try {
+      await _applicationService.saveMySavedFormData(_data);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _autosaveError = error
+            .toString()
+            .replaceFirst('Exception: ', '')
+            .trim();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isAutosaving = false);
+      }
+    }
+  }
+
   void _hydrateFromSavedForm(Map<String, dynamic> payload) {
+    final opening = Map<String, dynamic>.from(
+      payload['opening'] as Map? ?? const {},
+    );
     final account = Map<String, dynamic>.from(
       payload['account'] as Map? ?? const {},
     );
@@ -115,6 +214,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     final essays = Map<String, dynamic>.from(
       payload['essays'] as Map? ?? const {},
     );
+    final certification = Map<String, dynamic>.from(
+      payload['certification'] as Map? ?? const {},
+    );
 
     final father = Map<String, dynamic>.from(
       family['father'] as Map? ?? const {},
@@ -141,6 +243,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.email = _savedString(contact['email']).isNotEmpty
         ? _savedString(contact['email'])
         : _data.email;
+    if (_savedString(opening['opening_id']).trim().isNotEmpty) {
+      _applyOpeningSelection(
+        openingId: _savedString(opening['opening_id']),
+        openingTitle: _savedString(opening['opening_title']),
+        programName: _savedString(opening['program_name']),
+      );
+    }
 
     _data.firstName = _savedString(personal['first_name']);
     _data.middleName = _savedString(personal['middle_name']);
@@ -288,6 +397,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.aimsAndAmbitionEssay = _savedString(
       essays['aims_and_ambition_essay'],
     );
+    _data.certificationRead = certification['certification_read'] == true;
+    _data.agree = certification['agree'] == true;
   }
 
   Future<void> _syncAccountHolderCache() async {
@@ -313,6 +424,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
     if (_step < 4) {
       setState(() => _step++);
+      _queueAutosave();
       _scrollCtrl.animateTo(
         0,
         duration: const Duration(milliseconds: 300),
@@ -324,6 +436,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   void _back() {
     if (_step > 0) {
       setState(() => _step--);
+      _queueAutosave();
       _scrollCtrl.animateTo(
         0,
         duration: const Duration(milliseconds: 300),
@@ -333,6 +446,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Future<void> _submitApplication() async {
+    if (!_hasSelectedOpening) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Choose a scholarship opening before submitting.'),
+        ),
+      );
+      return;
+    }
+
     if (!_data.agree) {
       setState(() => _showValidationErrors = true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -387,11 +509,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     final provider = context.read<NewScholarProvider>();
-    final success = await provider.submitApplication(_data);
+    final success = await provider.submitApplication(
+      _data,
+      openingId: _data.openingId,
+    );
 
     if (!mounted) return;
 
     if (success) {
+      _autosaveDebounce?.cancel();
       await _syncAccountHolderCache();
       if (!mounted) return;
 
@@ -400,17 +526,23 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       final application =
           provider.lastSubmissionResponse?['application']
               as Map<String, dynamic>?;
-      final applicationId = application?['application_id']?.toString() ?? '';
+      final openingTitle = _data.openingTitle.isNotEmpty
+          ? _data.openingTitle
+          : application?['opening_title']?.toString();
+      final programName = _data.openingProgramName.isNotEmpty
+          ? _data.openingProgramName
+          : application?['program_name']?.toString();
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
+
       Navigator.pushReplacementNamed(
         context,
-        '/success',
+        AppRoutes.documents,
         arguments: {
-          'appBarTitle': 'Application Submitted',
-          'title': 'Application Submitted Successfully!',
-          'message': successMessage,
-          'applicationId': applicationId,
-          'programName': 'Base Application',
-          'canUploadRequirements': true,
+          'initialTitle': openingTitle,
+          'initialProgramName': programName,
         },
       );
       return;
@@ -543,28 +675,56 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case 0:
         return StepPersonal(
           data: _data,
-          onChanged: () => setState(() {}),
+          onChanged: () {
+            setState(() {});
+            _queueAutosave();
+          },
           showErrors: _showValidationErrors,
         );
       case 1:
-        return StepFamily(data: _data, onChanged: () => setState(() {}));
+        return StepFamily(
+          data: _data,
+          onChanged: () {
+            setState(() {});
+            _queueAutosave();
+          },
+        );
       case 2:
         return StepAcademic(
           data: _data,
-          onChanged: () => setState(() {}),
+          onChanged: () {
+            setState(() {});
+            _queueAutosave();
+          },
           showErrors: _showValidationErrors,
         );
       case 3:
-        return StepEssay(data: _data, onChanged: () => setState(() {}));
+        return StepEssay(
+          data: _data,
+          onChanged: () {
+            setState(() {});
+            _queueAutosave();
+          },
+        );
       case 4:
         return StepSubmit(
           data: _data,
-          onChanged: () => setState(() {}),
+          onChanged: () {
+            setState(() {});
+            _queueAutosave();
+          },
           showErrors: _showValidationErrors,
         );
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  @override
+  void dispose() {
+    _autosaveDebounce?.cancel();
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -613,13 +773,142 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                 padding: EdgeInsets.symmetric(vertical: 48),
                                 child: CircularProgressIndicator(),
                               )
-                            else
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 250),
-                                child: KeyedSubtree(
-                                  key: ValueKey(_step),
-                                  child: _buildStep(),
+                            else if (!_hasSelectedOpening)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF7F1E5),
+                                  border: Border.all(
+                                    color: AppColors.gold,
+                                    width: 1.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Choose an opening first',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.darkBrown,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'This application form is now tied to one admin-posted scholarship opening. Select the opening you want to apply for before continuing.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        height: 1.45,
+                                        color: AppColors.brown,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: GoldButton(
+                                        label: 'View Scholarship Openings',
+                                        onTap: () =>
+                                            Navigator.pushReplacementNamed(
+                                              context,
+                                              AppRoutes.scholarshipOpenings,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Column(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF7F1E5),
+                                      border: Border.all(
+                                        color: AppColors.gold,
+                                        width: 1.1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Selected Opening',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.brown,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          _data.openingTitle.isNotEmpty
+                                              ? _data.openingTitle
+                                              : 'Scholarship Opening',
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.darkBrown,
+                                          ),
+                                        ),
+                                        if (_data.openingProgramName.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 4,
+                                            ),
+                                            child: Text(
+                                              _data.openingProgramName,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.brown,
+                                              ),
+                                            ),
+                                          ),
+                                        const SizedBox(height: 10),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              _isAutosaving
+                                                  ? Icons.sync
+                                                  : Icons.save_outlined,
+                                              size: 16,
+                                              color: AppColors.brown,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                _isAutosaving
+                                                    ? 'Saving draft...'
+                                                    : _autosaveError == null
+                                                    ? 'Draft autosaves as you complete the form.'
+                                                    : _autosaveError!,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: AppColors.brown,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 250),
+                                    child: KeyedSubtree(
+                                      key: ValueKey(_step),
+                                      child: _buildStep(),
+                                    ),
+                                  ),
+                                ],
                               ),
                             const SizedBox(height: 24),
                             Row(
@@ -635,7 +924,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                 ],
                                 Expanded(
                                   flex: 2,
-                                  child: _step < 4
+                                  child: !_hasSelectedOpening
+                                      ? const SizedBox.shrink()
+                                      : _step < 4
                                       ? NavyButton(label: 'Next', onTap: _next)
                                       : provider.isLoading
                                       ? const Center(
@@ -648,7 +939,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                           ),
                                         )
                                       : GoldButton(
-                                          label: 'Save Profile Details',
+                                          label: 'Submit Application',
                                           onTap: _submitApplication,
                                         ),
                                 ),

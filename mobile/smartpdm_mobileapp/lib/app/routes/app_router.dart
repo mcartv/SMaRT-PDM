@@ -59,7 +59,10 @@ class AppRouter {
           (_) => const TopLevelShellScreen(initialIndex: 3),
         );
       case AppRoutes.newApplicant:
-        return _buildRoute(settings, (_) => const NewApplicantScreen());
+        return _buildRoute(
+          settings,
+          (context) => _buildNewApplicantScreen(context, settings),
+        );
       case AppRoutes.application:
         return _buildRoute(
           settings,
@@ -122,6 +125,21 @@ class AppRouter {
     return ApplicantDocumentsScreen(
       initialTitle: payload['initialTitle']?.toString(),
       initialProgramName: payload['initialProgramName']?.toString(),
+    );
+  }
+
+  static NewApplicantScreen _buildNewApplicantScreen(
+    BuildContext context,
+    RouteSettings settings,
+  ) {
+    final args = settings.arguments;
+    final payload = args is Map<String, dynamic> ? args : const {};
+
+    return NewApplicantScreen(
+      initialOpeningId: payload['openingId']?.toString(),
+      initialOpeningTitle: payload['openingTitle']?.toString(),
+      initialProgramName: payload['programName']?.toString(),
+      replaceExistingDraft: payload['replaceExistingDraft'] == true,
     );
   }
 

@@ -149,11 +149,11 @@ function BenefactorOnlyModal({
                         <div className="space-y-1.5 md:col-span-2">
                             <FieldLabel>Organization Name</FieldLabel>
                             <Input
-                                value={form.organization_name}
+                                value={form.benefactor_name}
                                 onChange={(e) =>
                                     setForm((prev) => ({
                                         ...prev,
-                                        organization_name: e.target.value,
+                                        benefactor_name: e.target.value,
                                     }))
                                 }
                                 placeholder="e.g. CHED / Kaizen Corporation"
@@ -228,7 +228,7 @@ function BenefactorOnlyModal({
                         onClick={onSave}
                         disabled={
                             saving ||
-                            !form.organization_name?.trim() ||
+                            !form.benefactor_name?.trim() ||
                             !form.benefactor_type
                         }
                         className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
@@ -346,7 +346,7 @@ function ProgramModal({
                                                 key={b.benefactor_id}
                                                 value={b.benefactor_id}
                                             >
-                                                {b.organization_name}
+                                                {b.benefactor_name}
                                             </SelectItem>
                                         ))
                                     )}
@@ -998,7 +998,7 @@ function BenefactorsPanel() {
     const [editingBenefactorId, setEditingBenefactorId] = useState(null);
 
     const emptyForm = {
-        organization_name: '',
+        benefactor_name: '',
         benefactor_type: 'Public',
         description: '',
         is_archived: false,
@@ -1053,7 +1053,7 @@ function BenefactorsPanel() {
         return benefactors.filter((b) => {
             const matchSearch =
                 !q ||
-                (b.organization_name || '').toLowerCase().includes(q) ||
+                (b.benefactor_name || '').toLowerCase().includes(q) ||
                 (b.description || '').toLowerCase().includes(q);
 
             const matchType =
@@ -1080,7 +1080,7 @@ function BenefactorsPanel() {
         setModalMode('edit');
         setEditingBenefactorId(benefactor.benefactor_id);
         setForm({
-            organization_name: benefactor.organization_name || '',
+            benefactor_name: benefactor.benefactor_name || '',
             benefactor_type: benefactor.benefactor_type || 'Public',
             description: benefactor.description || '',
             is_archived: !!benefactor.is_archived,
@@ -1093,13 +1093,13 @@ function BenefactorsPanel() {
             setSaving(true);
 
             const payload = {
-                organization_name: form.organization_name.trim(),
+                benefactor_name: form.benefactor_name.trim(),
                 benefactor_type: form.benefactor_type,
                 description: form.description?.trim() ? form.description.trim() : null,
                 is_archived: !!form.is_archived,
             };
 
-            if (!payload.organization_name) {
+            if (!payload.benefactor_name) {
                 throw new Error('Benefactor name is required');
             }
 
@@ -1344,7 +1344,7 @@ function BenefactorsPanel() {
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <h3 className="text-sm font-semibold text-stone-900">
-                                                        {b.organization_name}
+                                                        {b.benefactor_name}
                                                     </h3>
 
                                                     <span
@@ -1495,7 +1495,7 @@ function ProgramsPanel() {
     const benefactorNameMap = useMemo(() => {
         const map = {};
         benefactors.forEach((b) => {
-            map[b.benefactor_id] = b.organization_name;
+            map[b.benefactor_id] = b.benefactor_name;
         });
         return map;
     }, [benefactors]);
@@ -1518,7 +1518,7 @@ function ProgramsPanel() {
 
         return programs.filter((p) => {
             const benefactorName =
-                p.organization_name ||
+                p.benefactor_name ||
                 benefactorNameMap[p.benefactor_id] ||
                 '';
 
@@ -1799,7 +1799,7 @@ function ProgramsPanel() {
                         <SelectItem value="All">All Benefactors</SelectItem>
                         {benefactors.map((b) => (
                             <SelectItem key={b.benefactor_id} value={b.benefactor_id}>
-                                {b.organization_name}
+                                {b.benefactor_name}
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -1892,7 +1892,7 @@ function ProgramsPanel() {
                             {filteredPrograms.map((p) => {
                                 const audience = p.target_audience || 'Applicants';
                                 const benefactorName =
-                                    p.organization_name ||
+                                    p.benefactor_name ||
                                     benefactorNameMap[p.benefactor_id] ||
                                     'Unknown Benefactor';
 

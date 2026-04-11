@@ -226,7 +226,7 @@ async function buildApplicationDetails(applicationId) {
             ),
             scholarship_program (
                 program_id,
-                organization_name,
+                benefactor_name,
                 program_name
             )
         `)
@@ -425,8 +425,8 @@ async function buildApplicationDetails(applicationId) {
                 : 'N/A',
             gwa: student.gwa ?? 'N/A',
             program: applicationRecord.scholarship_program?.program_name || 'General',
-            organization_name:
-                applicationRecord.scholarship_program?.organization_name || 'N/A',
+            benefactor_name:
+                applicationRecord.scholarship_program?.benefactor_name || 'N/A',
             course: courseCode,
         },
         student_profile: profileResult.data || null,

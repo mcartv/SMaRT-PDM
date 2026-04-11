@@ -4,23 +4,6 @@ function normalizeStatus(value) {
     return (value || '').toString().trim().toLowerCase();
 }
 
-function normalizeAudience(value) {
-    const raw = (value || '').toString().trim();
-
-    if (!raw) return 'Applicants';
-    if (raw === 'Applicants') return 'Applicants';
-    if (raw === 'Scholars') return 'Scholars';
-    if (
-        raw === 'Both' ||
-        raw === 'Applicants,Scholars' ||
-        raw === 'Scholars,Applicants'
-    ) {
-        return 'Both';
-    }
-
-    return raw;
-}
-
 function toNullableNumber(value) {
     if (value === undefined || value === null || value === '') return null;
 
@@ -35,7 +18,7 @@ function toRequiredNumber(value, fallback = 0) {
 
 function derivePostingStatus(opening, counts = {}) {
     const existing = normalizeStatus(opening.posting_status || 'draft');
-    const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
+    const allocatedSlots = toRequiredNumber(opening.allocated_slotss, 0);
     const filledSlots =
         opening.filled_slots != null
             ? toRequiredNumber(opening.filled_slots, 0)
@@ -43,6 +26,7 @@ function derivePostingStatus(opening, counts = {}) {
 
     if (existing === 'archived') return 'archived';
     if (existing === 'closed') return 'closed';
+    if (existing === 'filled') return 'filled';
 
     const hasRequiredFields =
         !!opening.opening_title &&
@@ -50,13 +34,13 @@ function derivePostingStatus(opening, counts = {}) {
         allocatedSlots > 0;
 
     if (!hasRequiredFields) return 'draft';
-    if (filledSlots >= allocatedSlots) return 'closed';
+    if (filledSlots >= allocatedSlots && allocatedSlots > 0) return 'filled';
 
     return 'open';
 }
 
 function mapOpening(opening, counts = {}) {
-    const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
+    const allocatedSlots = toRequiredNumber(opening.allocated_slotss, 0);
     const qualifiedCount = toRequiredNumber(counts.qualified_count, 0);
 
     const storedFilledSlots =
@@ -80,16 +64,9 @@ function mapOpening(opening, counts = {}) {
 
         program_name: program?.program_name || opening.program_name || 'Program',
 
-        organization_name:
-            benefactor?.organization_name ||
-            benefactor?.benefactor_name ||
-            opening.organization_name ||
-            null,
-
         benefactor_name:
-            benefactor?.organization_name ||
             benefactor?.benefactor_name ||
-            opening.organization_name ||
+            opening.benefactor_name ||
             null,
 
         benefactor_type: benefactor?.benefactor_type || null,
@@ -103,11 +80,9 @@ function mapOpening(opening, counts = {}) {
 
         semester: opening.semester || null,
         academic_year: opening.academic_year || null,
-        target_audience: normalizeAudience(
-            program?.target_audience || opening.target_audience
-        ),
 
         allocated_slots: allocatedSlots,
+        allocated_slotss: allocatedSlots,
         filled_slots: effectiveFilledSlots,
         remaining_slots: Math.max(allocatedSlots - effectiveFilledSlots, 0),
 
@@ -122,6 +97,7 @@ function mapOpening(opening, counts = {}) {
         announcement_text: opening.announcement_text || '',
         created_at: opening.created_at || null,
         updated_at: opening.updated_at || null,
+        is_archived: opening.is_archived ?? false,
 
         application_count: toRequiredNumber(counts.application_count, 0),
         pending_count: toRequiredNumber(counts.pending_count, 0),
@@ -146,18 +122,22 @@ function buildCounts(opening, applications = []) {
             ['pending', 'submitted'].includes(normalizeStatus(app.application_status))
         ).length,
         review_count: related.filter((app) =>
-            ['review', 'under review', 'under_review'].includes(
+            ['review', 'under review', 'under_review', 'for review'].includes(
                 normalizeStatus(app.application_status)
             )
         ).length,
         qualified_count: related.filter((app) =>
-            ['qualified', 'approved'].includes(normalizeStatus(app.application_status))
+            ['qualified', 'approved', 'accepted'].includes(
+                normalizeStatus(app.application_status)
+            )
         ).length,
         waiting_count: related.filter((app) =>
             ['waiting', 'waitlisted'].includes(normalizeStatus(app.application_status))
         ).length,
         disqualified_count: related.filter((app) =>
-            ['disqualified', 'rejected'].includes(normalizeStatus(app.application_status))
+            ['disqualified', 'rejected', 'declined'].includes(
+                normalizeStatus(app.application_status)
+            )
         ).length,
     };
 }
@@ -201,15 +181,14 @@ function baseOpeningSelectQuery() {
             financial_allocation,
             per_scholar_amount,
             posting_status,
-            target_audience,
             created_at,
             updated_at,
+            is_archived,
             scholarship_program (
                 program_id,
                 benefactor_id,
                 program_name,
                 description,
-                target_audience,
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
@@ -218,9 +197,9 @@ function baseOpeningSelectQuery() {
                 updated_at,
                 benefactors (
                     benefactor_id,
-                    organization_name,
                     benefactor_name,
                     benefactor_type,
+                    description,
                     is_archived,
                     created_at,
                     updated_at
@@ -252,6 +231,7 @@ exports.fetchMobileOpenings = async () => {
     const { data, error } = await baseOpeningSelectQuery().in('posting_status', [
         'open',
         'draft',
+        'filled',
     ]);
 
     if (error) {
@@ -269,9 +249,10 @@ exports.fetchMobileOpenings = async () => {
         })
         .filter(
             (opening) =>
-                opening.posting_status === 'open' &&
+                opening.is_archived !== true &&
                 opening.program_is_archived !== true &&
-                opening.benefactor_is_archived !== true
+                opening.benefactor_is_archived !== true &&
+                ['open', 'filled'].includes(opening.posting_status)
         );
 };
 
@@ -288,10 +269,12 @@ exports.fetchOpeningsApplicationSummary = async () => {
 
     const applications = await fetchApplicationsForCounts();
 
-    return (openings || []).map((opening) => {
-        const counts = buildCounts(opening, applications);
-        return mapOpening(opening, counts);
-    });
+    return (openings || [])
+        .filter((opening) => opening.is_archived !== true)
+        .map((opening) => {
+            const counts = buildCounts(opening, applications);
+            return mapOpening(opening, counts);
+        });
 };
 
 exports.fetchProgramOpeningById = async (openingId) => {
@@ -321,8 +304,6 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             opening_id,
             application_status,
             document_status,
-            verification_status,
-            remarks,
             submission_date,
             is_reconsideration_candidate,
             is_disqualified,
@@ -359,15 +340,15 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             sdo_status: app.students?.sdo_status || 'clear',
             application_status: normalizeStatus(app.application_status || 'pending'),
             document_status: normalizeStatus(app.document_status || 'missing docs'),
-            verification_status: normalizeStatus(app.verification_status || 'pending'),
+            verification_status: 'pending',
             ocr_status: '',
-            remarks: app.remarks || '',
+            remarks: '',
             submitted: app.submission_date || null,
             submission_date: app.submission_date || null,
             is_reconsideration_candidate: !!app.is_reconsideration_candidate,
             disqualified: !!app.is_disqualified,
             disqReason: app.disqualification_reason || null,
-            is_scholar: ['qualified', 'approved'].includes(
+            is_scholar: ['qualified', 'approved', 'accepted'].includes(
                 normalizeStatus(app.application_status)
             ),
         }));
@@ -385,7 +366,6 @@ exports.createProgramOpening = async (payload = {}) => {
         financial_allocation,
         per_scholar_amount,
         posting_status,
-        target_audience,
     } = payload;
 
     if (!program_id) {
@@ -406,7 +386,6 @@ exports.createProgramOpening = async (payload = {}) => {
         filled_slots: toRequiredNumber(filled_slots, 0),
         financial_allocation: toNullableNumber(financial_allocation),
         per_scholar_amount: toNullableNumber(per_scholar_amount),
-        target_audience: target_audience || null,
         posting_status: 'draft',
     };
 
@@ -430,15 +409,14 @@ exports.createProgramOpening = async (payload = {}) => {
             financial_allocation,
             per_scholar_amount,
             posting_status,
-            target_audience,
             created_at,
             updated_at,
+            is_archived,
             scholarship_program (
                 program_id,
                 benefactor_id,
                 program_name,
                 description,
-                target_audience,
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
@@ -447,9 +425,9 @@ exports.createProgramOpening = async (payload = {}) => {
                 updated_at,
                 benefactors (
                     benefactor_id,
-                    organization_name,
                     benefactor_name,
                     benefactor_type,
+                    description,
                     is_archived,
                     created_at,
                     updated_at
@@ -490,7 +468,6 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         financial_allocation: payload.financial_allocation ?? existing.financial_allocation,
         per_scholar_amount: payload.per_scholar_amount ?? existing.per_scholar_amount,
         posting_status: payload.posting_status ?? existing.posting_status,
-        target_audience: payload.target_audience ?? existing.target_audience,
     };
 
     if (!merged.program_id) {
@@ -513,7 +490,6 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         filled_slots: toRequiredNumber(merged.filled_slots, 0),
         financial_allocation: toNullableNumber(merged.financial_allocation),
         per_scholar_amount: toNullableNumber(merged.per_scholar_amount),
-        target_audience: merged.target_audience || null,
         updated_at: new Date().toISOString(),
     };
 
@@ -539,15 +515,14 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
             financial_allocation,
             per_scholar_amount,
             posting_status,
-            target_audience,
             created_at,
             updated_at,
+            is_archived,
             scholarship_program (
                 program_id,
                 benefactor_id,
                 program_name,
                 description,
-                target_audience,
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
@@ -556,9 +531,9 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 updated_at,
                 benefactors (
                     benefactor_id,
-                    organization_name,
                     benefactor_name,
                     benefactor_type,
+                    description,
                     is_archived,
                     created_at,
                     updated_at
@@ -585,6 +560,7 @@ exports.closeProgramOpening = async (openingId) => {
         .from('program_openings')
         .update({
             posting_status: 'closed',
+            is_archived: true,
             updated_at: new Date().toISOString(),
         })
         .eq('opening_id', openingId)
@@ -600,15 +576,14 @@ exports.closeProgramOpening = async (openingId) => {
             financial_allocation,
             per_scholar_amount,
             posting_status,
-            target_audience,
             created_at,
             updated_at,
+            is_archived,
             scholarship_program (
                 program_id,
                 benefactor_id,
                 program_name,
                 description,
-                target_audience,
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
@@ -617,9 +592,9 @@ exports.closeProgramOpening = async (openingId) => {
                 updated_at,
                 benefactors (
                     benefactor_id,
-                    organization_name,
                     benefactor_name,
                     benefactor_type,
+                    description,
                     is_archived,
                     created_at,
                     updated_at
@@ -639,4 +614,15 @@ exports.closeProgramOpening = async (openingId) => {
     const counts = buildCounts(data, applications);
 
     return mapOpening(data, counts);
+};
+
+module.exports = {
+    fetchAllProgramOpenings: exports.fetchAllProgramOpenings,
+    fetchMobileOpenings: exports.fetchMobileOpenings,
+    fetchOpeningsApplicationSummary: exports.fetchOpeningsApplicationSummary,
+    fetchProgramOpeningById: exports.fetchProgramOpeningById,
+    fetchApplicationsByOpeningId: exports.fetchApplicationsByOpeningId,
+    createProgramOpening: exports.createProgramOpening,
+    updateProgramOpening: exports.updateProgramOpening,
+    closeProgramOpening: exports.closeProgramOpening,
 };

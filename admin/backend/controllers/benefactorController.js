@@ -1,158 +1,54 @@
-const supabase = require('../config/supabase');
+const benefactorService = require('../services/benefactorService');
 
-const ALLOWED_BENEFACTOR_TYPES = ['Public', 'Private'];
+exports.getBenefactors = async (req, res) => {
+    try {
+        const benefactors = await benefactorService.getBenefactors();
 
-function normalizeRequiredText(value, fieldName) {
-    const trimmed = String(value || '').trim();
-    if (!trimmed) {
-        throw new Error(`${fieldName} is required`);
+        res.status(200).json(benefactors);
+    } catch (err) {
+        console.error('GET BENEFACTORS CONTROLLER ERROR:', err);
+
+        res.status(500).json({
+            message: err.message || 'Failed to fetch benefactors',
+            error: err.message || 'Unknown backend error',
+        });
     }
-    return trimmed;
-}
-
-function normalizeNullableText(value) {
-    if (value === undefined) return undefined;
-    if (value === null) return null;
-
-    const trimmed = String(value).trim();
-    return trimmed ? trimmed : null;
-}
-
-function normalizeEnum(value, allowed, fallback, fieldName) {
-    const normalized = value ?? fallback;
-
-    if (!allowed.includes(normalized)) {
-        throw new Error(`${fieldName} must be one of: ${allowed.join(', ')}`);
-    }
-
-    return normalized;
-}
-
-function mapBenefactorRow(row) {
-    return {
-        benefactor_id: row.benefactor_id,
-        organization_name: row.organization_name,
-        benefactor_type: row.benefactor_type,
-        description: row.description,
-        is_archived: !!row.is_archived,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-    };
-}
-
-exports.getBenefactors = async () => {
-    const { data, error } = await supabase
-        .from('benefactors')
-        .select(`
-            benefactor_id,
-            organization_name,
-            benefactor_type,
-            description,
-            is_archived,
-            created_at,
-            updated_at
-        `)
-        .order('organization_name', { ascending: true });
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return (data || []).map(mapBenefactorRow);
 };
 
-exports.createBenefactor = async (payload = {}) => {
-    const insertPayload = {
-        organization_name: normalizeRequiredText(
-            payload.organization_name,
-            'Organization name'
-        ),
-        benefactor_type: normalizeEnum(
-            payload.benefactor_type,
-            ALLOWED_BENEFACTOR_TYPES,
-            null,
-            'Benefactor type'
-        ),
-        description: normalizeNullableText(payload.description),
-        is_archived: !!payload.is_archived,
-    };
+exports.createBenefactor = async (req, res) => {
+    try {
+        const created = await benefactorService.createBenefactor(req.body);
 
-    const { data, error } = await supabase
-        .from('benefactors')
-        .insert([insertPayload])
-        .select(`
-            benefactor_id,
-            organization_name,
-            benefactor_type,
-            description,
-            is_archived,
-            created_at,
-            updated_at
-        `)
-        .single();
+        res.status(201).json(created);
+    } catch (err) {
+        console.error('CREATE BENEFACTOR CONTROLLER ERROR:', err);
 
-    if (error) {
-        throw new Error(error.message);
+        res.status(500).json({
+            message: err.message || 'Failed to create benefactor',
+            error: err.message || 'Unknown backend error',
+        });
     }
-
-    return mapBenefactorRow(data);
 };
 
-exports.updateBenefactor = async (benefactorId, payload = {}) => {
-    if (!benefactorId) {
-        throw new Error('Benefactor ID is required');
+exports.updateBenefactor = async (req, res) => {
+    try {
+        const { benefactorId } = req.params;
+        const updated = await benefactorService.updateBenefactor(benefactorId, req.body);
+
+        if (!updated) {
+            return res.status(404).json({
+                message: 'Benefactor not found',
+                error: 'Benefactor not found',
+            });
+        }
+
+        res.status(200).json(updated);
+    } catch (err) {
+        console.error('UPDATE BENEFACTOR CONTROLLER ERROR:', err);
+
+        res.status(500).json({
+            message: err.message || 'Failed to update benefactor',
+            error: err.message || 'Unknown backend error',
+        });
     }
-
-    const updateData = {};
-
-    if ('organization_name' in payload) {
-        updateData.organization_name = normalizeRequiredText(
-            payload.organization_name,
-            'Organization name'
-        );
-    }
-
-    if ('benefactor_type' in payload) {
-        updateData.benefactor_type = normalizeEnum(
-            payload.benefactor_type,
-            ALLOWED_BENEFACTOR_TYPES,
-            null,
-            'Benefactor type'
-        );
-    }
-
-    if ('description' in payload) {
-        updateData.description = normalizeNullableText(payload.description);
-    }
-
-    if ('is_archived' in payload) {
-        updateData.is_archived = !!payload.is_archived;
-    }
-
-    if (Object.keys(updateData).length === 0) {
-        throw new Error('No valid fields provided for update');
-    }
-
-    updateData.updated_at = new Date().toISOString();
-
-    const { data, error } = await supabase
-        .from('benefactors')
-        .update(updateData)
-        .eq('benefactor_id', benefactorId)
-        .select(`
-            benefactor_id,
-            organization_name,
-            benefactor_type,
-            description,
-            is_archived,
-            created_at,
-            updated_at
-        `)
-        .maybeSingle();
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data ? mapBenefactorRow(data) : null;
 };

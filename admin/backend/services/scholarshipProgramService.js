@@ -58,7 +58,7 @@ async function ensureBenefactorExists(benefactorId) {
         .from('benefactors')
         .select(`
             benefactor_id,
-            organization_name,
+            benefactor_name,
             benefactor_type,
             is_archived
         `)
@@ -80,7 +80,7 @@ function mapProgramRow(row) {
     return {
         program_id: row.program_id,
         benefactor_id: row.benefactor_id,
-        organization_name: row.benefactors?.organization_name || null,
+        benefactor_name: row.benefactors?.benefactor_name || null,
         benefactor_type: row.benefactors?.benefactor_type || null,
         program_name: row.program_name,
         description: row.description,
@@ -111,7 +111,7 @@ exports.getScholarshipPrograms = async () => {
             updated_at,
             benefactors:benefactor_id (
                 benefactor_id,
-                organization_name,
+                benefactor_name,
                 benefactor_type,
                 is_archived
             )
@@ -172,7 +172,7 @@ exports.createScholarshipProgram = async (payload = {}) => {
             updated_at,
             benefactors:benefactor_id (
                 benefactor_id,
-                organization_name,
+                benefactor_name,
                 benefactor_type,
                 is_archived
             )
@@ -265,7 +265,7 @@ exports.updateScholarshipProgram = async (programId, payload = {}) => {
             updated_at,
             benefactors:benefactor_id (
                 benefactor_id,
-                organization_name,
+                benefactor_name,
                 benefactor_type,
                 is_archived
             )

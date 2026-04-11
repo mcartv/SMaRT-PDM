@@ -76,7 +76,7 @@ async function loadProgramMap(programIds = []) {
 
     const { data, error } = await supabase
         .from('scholarship_program')
-        .select('program_id, program_name, organization_name')
+        .select('program_id, program_name, benefactor_name')
         .in('program_id', uniqueProgramIds);
 
     if (error) {
@@ -165,7 +165,7 @@ exports.fetchRenewals = async () => {
         student_name: `${row.scholars?.students?.last_name || 'Unknown'}, ${row.scholars?.students?.first_name || 'Scholar'}`,
         student_number: row.scholars?.students?.pdm_id || 'N/A',
         program_name: (programMap.get(row.scholars?.program_id) || {}).program_name || 'Scholarship',
-        organization_name: (programMap.get(row.scholars?.program_id) || {}).organization_name || 'N/A',
+        benefactor_name: (programMap.get(row.scholars?.program_id) || {}).benefactor_name || 'N/A',
         batch_year: row.scholars?.batch_year || 'N/A',
     }));
 };
@@ -286,7 +286,7 @@ exports.fetchRenewalDetailsById = async (renewalId) => {
             year: student.year_level ? `${student.year_level} Year` : 'Scholar',
             gwa: student.gwa ?? 'N/A',
             program: programMeta?.program_name || 'Scholarship',
-            organization_name: programMeta?.organization_name || 'N/A',
+            benefactor_name: programMeta?.benefactor_name || 'N/A',
             course: programMeta?.program_name || 'Scholarship',
         },
         documents: normalizedDocuments,

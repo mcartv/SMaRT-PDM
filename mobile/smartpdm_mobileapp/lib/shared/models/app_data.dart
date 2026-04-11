@@ -1,6 +1,9 @@
 class ApplicationData {
   String userId = '';
   String accountStudentId = '';
+  String openingId = '';
+  String openingTitle = '';
+  String openingProgramName = '';
 
   // Step 1: Personal Data
   String firstName = '';
@@ -204,6 +207,16 @@ class ApplicationData {
 
   String _title(String value) => toTitleCase(value);
 
+  void applyOpeningSelection({
+    required String openingId,
+    required String openingTitle,
+    required String programName,
+  }) {
+    this.openingId = openingId.trim();
+    this.openingTitle = openingTitle.trim();
+    openingProgramName = programName.trim();
+  }
+
   Map<String, dynamic> toSubmissionPayload() {
     final normalizedMobile = normalizeMobileNumber(mobileNumber);
     return {
@@ -333,5 +346,15 @@ class ApplicationData {
       },
       'documents': {'records': <Map<String, dynamic>>[]},
     };
+  }
+
+  Map<String, dynamic> toDraftPayload() {
+    final payload = toSubmissionPayload();
+    payload['opening'] = {
+      'opening_id': openingId.trim(),
+      'opening_title': openingTitle.trim(),
+      'program_name': openingProgramName.trim(),
+    };
+    return payload;
   }
 }

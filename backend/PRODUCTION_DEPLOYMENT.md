@@ -24,6 +24,13 @@ Notes:
 - In production, use the hosting platform's secret manager instead of committing `.env`.
 - Rotate any secrets that were previously exposed.
 
+## Database schema checklist
+Run the SQL files in `backend/sql` against the target Supabase project before deploying backend changes that depend on them.
+
+Relevant files for the applicant application flow:
+- `application_form_schema.sql`
+- `application_form_drafts_schema.sql`
+
 ## Mobile config checklist
 The mobile base URL is controlled in `mobile/smartpdm_mobileapp/lib/config/app_config.dart`.
 
@@ -81,16 +88,62 @@ Production:
 ### `GET /api/scholarship-programs`
 - Reads: `scholarship_program`
 
+### `GET /api/openings`
+- Reads: `program_openings`
+- Reads: `scholarship_program`
+- Reads: `students`
+- Reads: `scholars`
+- Reads: `applications`
+- Reads: `application_form_drafts`
+
+### `GET /api/openings/latest`
+- Reads: `program_openings`
+- Reads: `scholarship_program`
+- Reads: `students`
+- Reads: `scholars`
+
+### `GET /api/applications/me/form-data`
+- Reads: `application_form_drafts`
+
+### `PUT /api/applications/me/form-data`
+- Reads: `program_openings`
+- Reads/Writes: `application_form_drafts`
+
 ### `POST /api/applications`
-- Reads: `scholarship_program` when `program_id` is present
+- Compatibility alias for opening-bound submission
+- Requires an `opening_id` in the request payload
+- Uses the same tables as `POST /api/openings/:openingId/apply`
+
+### `POST /api/openings/:openingId/apply`
+- Reads: `program_openings`
+- Reads: `scholarship_program`
+- Reads: `users`
+- Reads: `students`
+- Reads: `scholars`
+- Reads: `applications`
 - Reads: `academic_course`
-- Reads/Writes: `students`
+- Writes: `students`
 - Writes: `users` contact fields
-- Reads/Writes: `applications` when `program_id` is present
 - Writes: `student_profiles`
-- Reads/Writes: `student_family`
+- Writes: `student_family`
 - Writes: `student_education`
-- Writes: `application_documents` when an application row exists
+- Writes: `applications`
+- Writes: `application_documents`
+- Deletes: `application_form_drafts`
+
+### `GET /api/applications/me/documents`
+- Reads: `students`
+- Reads: `applications`
+- Reads: `program_openings`
+- Reads: `scholarship_program`
+- Reads: `application_documents`
+- Reads: `application_document_reviews`
+
+### `POST /api/applications/me/documents/:documentKey/upload`
+- Reads: `students`
+- Reads: `applications`
+- Writes: Storage bucket `application-documents`
+- Writes: `application_documents`
 - Updates: `applications.document_status`
 
 ### `GET /api/applications/:id`
@@ -149,8 +202,10 @@ Production:
 7. Smoke test:
    - `POST /api/auth/register`
    - `POST /api/auth/login`
-   - `GET /api/scholarship-programs`
-   - `POST /api/applications`
+   - `GET /api/openings`
+   - `PUT /api/applications/me/form-data`
+   - `POST /api/openings/:openingId/apply`
+   - `GET /api/applications/me/documents`
 
 ## Railway deployment
 1. Create a new Railway project.
@@ -177,12 +232,16 @@ flutter build appbundle --dart-define=API_BASE_URL=https://<your-backend-domain>
 - Register a new user
 - Verify OTP
 - Login
-- Submit application/profile payload
+- Load scholarship openings
+- Save a draft payload
+- Submit an opening-bound application payload
+- Upload one document to the submitted application
 - Open messages
 - Upload avatar if enabled
 - Confirm rows appear in the expected Supabase tables above
 
 ## Regression checks
 - Admin flows still read `applications`, `students`, and related student tables correctly
+- Draft autosave works only through `application_form_drafts` and does not create `applications` rows
 - Direct messaging still persists to `messages`
 - Mobile app no longer points to a LAN IP in production builds

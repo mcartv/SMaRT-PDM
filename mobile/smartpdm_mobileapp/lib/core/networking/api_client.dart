@@ -157,6 +157,36 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> putJson(
+    String path, {
+    Map<String, dynamic> body = const {},
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    try {
+      final response = await _httpClient
+          .put(
+            buildUri(path),
+            headers: await _buildHeaders(contentType: 'application/json'),
+            body: jsonEncode(body),
+          )
+          .timeout(timeout);
+
+      return _decodeObjectResponse(response);
+    } on TimeoutException {
+      throw const ApiException(
+        'Request timed out. Please check your connection and try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Network connection error. Please check your internet connection.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'Connection error. Please ensure your backend is running and accessible.',
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> deleteJson(
     String path, {
     Duration timeout = const Duration(seconds: 15),

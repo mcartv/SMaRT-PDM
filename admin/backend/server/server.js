@@ -12,13 +12,17 @@ const cors = require('cors');
 const authRoutes = require('../routes/authRoutes');
 const scholarRoutes = require('../routes/scholarRoutes');
 const applicationRoutes = require('../routes/applicationRoutes');
+const messageRoutes = require('../routes/messageRoutes');
 const notificationRoutes = require('../routes/notificationRoutes');
 const announcementRoutes = require('../routes/announcementRoutes');
 const roRoutes = require('../routes/roRoutes');
 const scholarshipProgramRoutes = require('../routes/scholarshipProgramRoutes');
 const programOpeningRoutes = require('../routes/programOpeningRoutes');
 const courseRoutes = require('../routes/courseRoutes');
+const benefactorRoutes = require('../routes/benefactorRoutes');
+const departmentRoutes = require('../routes/departmentRoutes');
 const renewalRoutes = require('../routes/renewalRoutes');
+const supportTicketRoutes = require('../routes/supportTicketRoutes');
 
 // ✅ Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
@@ -50,13 +54,18 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/scholars', scholarRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/ro', roRoutes);
 app.use('/api/scholarship-program', scholarshipProgramRoutes);
 app.use('/api/program-openings', programOpeningRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/benefactors', benefactorRoutes);
+app.use('/api/departments', departmentRoutes);
 app.use('/api/renewals', renewalRoutes);
+app.use('/api/support-tickets', supportTicketRoutes);
+
 
 
 // =========================

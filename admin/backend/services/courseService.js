@@ -3,13 +3,20 @@ const pool = require('../config/db');
 const fetchCourses = async () => {
     const query = `
         SELECT
-            course_id,
-            course_code,
-            course_name,
-            department,
-            is_archived
-        FROM academic_course
-        ORDER BY is_archived ASC, department ASC, course_code ASC
+            ac.course_id,
+            ac.course_code,
+            ac.course_name,
+            ac.department_id,
+            ad.department_code AS department,
+            ad.department_name,
+            ac.is_archived
+        FROM academic_course ac
+        LEFT JOIN academic_departments ad
+            ON ac.department_id = ad.department_id
+        ORDER BY
+            ac.is_archived ASC,
+            ad.department_code ASC NULLS LAST,
+            ac.course_code ASC
     `;
 
     const { rows } = await pool.query(query);
@@ -19,12 +26,12 @@ const fetchCourses = async () => {
 const createCourse = async ({
     course_code,
     course_name,
-    department,
+    department_id,
     is_archived = false,
 }) => {
     const normalizedCourseCode = (course_code || '').trim().toUpperCase();
     const normalizedCourseName = (course_name || '').trim();
-    const normalizedDepartment = (department || '').trim().toUpperCase();
+    const normalizedDepartmentId = (department_id || '').trim();
 
     if (!normalizedCourseCode) {
         throw new Error('Course code is required');
@@ -34,7 +41,7 @@ const createCourse = async ({
         throw new Error('Course name is required');
     }
 
-    if (!normalizedDepartment) {
+    if (!normalizedDepartmentId) {
         throw new Error('Department is required');
     }
 
@@ -51,30 +58,61 @@ const createCourse = async ({
         throw new Error('Course code already exists');
     }
 
+    const departmentCheckQuery = `
+        SELECT department_id, is_archived
+        FROM academic_departments
+        WHERE department_id = $1
+        LIMIT 1
+    `;
+
+    const departmentCheck = await pool.query(departmentCheckQuery, [normalizedDepartmentId]);
+
+    if (departmentCheck.rows.length === 0) {
+        throw new Error('Department not found');
+    }
+
+    if (departmentCheck.rows[0].is_archived) {
+        throw new Error('Department is archived');
+    }
+
     const insertQuery = `
         INSERT INTO academic_course (
             course_code,
             course_name,
-            department,
+            department_id,
             is_archived
         )
         VALUES ($1, $2, $3, $4)
-        RETURNING
-            course_id,
-            course_code,
-            course_name,
-            department,
-            is_archived
+        RETURNING course_id
     `;
 
     const values = [
         normalizedCourseCode,
         normalizedCourseName,
-        normalizedDepartment,
+        normalizedDepartmentId,
         !!is_archived,
     ];
 
-    const { rows } = await pool.query(insertQuery, values);
+    const insertResult = await pool.query(insertQuery, values);
+    const createdCourseId = insertResult.rows[0].course_id;
+
+    const fetchCreatedQuery = `
+        SELECT
+            ac.course_id,
+            ac.course_code,
+            ac.course_name,
+            ac.department_id,
+            ad.department_code AS department,
+            ad.department_name,
+            ac.is_archived
+        FROM academic_course ac
+        LEFT JOIN academic_departments ad
+            ON ac.department_id = ad.department_id
+        WHERE ac.course_id = $1
+        LIMIT 1
+    `;
+
+    const { rows } = await pool.query(fetchCreatedQuery, [createdCourseId]);
     return rows[0];
 };
 
@@ -83,7 +121,7 @@ const updateCourse = async (
     {
         course_code,
         course_name,
-        department,
+        department_id,
         is_archived,
     }
 ) => {
@@ -92,7 +130,7 @@ const updateCourse = async (
             course_id,
             course_code,
             course_name,
-            department,
+            department_id,
             is_archived
         FROM academic_course
         WHERE course_id = $1
@@ -117,15 +155,27 @@ const updateCourse = async (
             ? String(course_name).trim()
             : existingCourse.course_name;
 
-    const nextDepartment =
-        department !== undefined
-            ? String(department).trim().toUpperCase()
-            : existingCourse.department;
+    const nextDepartmentId =
+        department_id !== undefined
+            ? String(department_id).trim()
+            : existingCourse.department_id;
 
     const nextIsArchived =
         is_archived !== undefined
             ? !!is_archived
             : existingCourse.is_archived;
+
+    if (!nextCourseCode) {
+        throw new Error('Course code is required');
+    }
+
+    if (!nextCourseName) {
+        throw new Error('Course name is required');
+    }
+
+    if (!nextDepartmentId) {
+        throw new Error('Department is required');
+    }
 
     if (course_code !== undefined) {
         const duplicateCheckQuery = `
@@ -146,31 +196,64 @@ const updateCourse = async (
         }
     }
 
+    if (department_id !== undefined) {
+        const departmentCheckQuery = `
+            SELECT department_id, is_archived
+            FROM academic_departments
+            WHERE department_id = $1
+            LIMIT 1
+        `;
+
+        const departmentCheck = await pool.query(departmentCheckQuery, [nextDepartmentId]);
+
+        if (departmentCheck.rows.length === 0) {
+            throw new Error('Department not found');
+        }
+
+        if (departmentCheck.rows[0].is_archived) {
+            throw new Error('Department is archived');
+        }
+    }
+
     const updateQuery = `
         UPDATE academic_course
         SET
             course_code = $1,
             course_name = $2,
-            department = $3,
+            department_id = $3,
             is_archived = $4
         WHERE course_id = $5
-        RETURNING
-            course_id,
-            course_code,
-            course_name,
-            department,
-            is_archived
+        RETURNING course_id
     `;
 
     const values = [
         nextCourseCode,
         nextCourseName,
-        nextDepartment,
+        nextDepartmentId,
         nextIsArchived,
         courseId,
     ];
 
-    const { rows } = await pool.query(updateQuery, values);
+    const updateResult = await pool.query(updateQuery, values);
+    const updatedCourseId = updateResult.rows[0].course_id;
+
+    const fetchUpdatedQuery = `
+        SELECT
+            ac.course_id,
+            ac.course_code,
+            ac.course_name,
+            ac.department_id,
+            ad.department_code AS department,
+            ad.department_name,
+            ac.is_archived
+        FROM academic_course ac
+        LEFT JOIN academic_departments ad
+            ON ac.department_id = ad.department_id
+        WHERE ac.course_id = $1
+        LIMIT 1
+    `;
+
+    const { rows } = await pool.query(fetchUpdatedQuery, [updatedCourseId]);
     return rows[0];
 };
 

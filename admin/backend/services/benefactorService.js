@@ -10,34 +10,12 @@ import { Button } from "@/components/ui/button";
 
 // --- ICONS ---
 import {
-    Building2,
-    BookOpen,
-    SlidersHorizontal,
-    Cpu,
-    ClipboardList,
-    Plus,
-    Edit,
-    Activity,
-    Globe,
-    Database,
-    RefreshCw,
-    Save,
-    X,
-    Calendar,
-    Settings,
-    Loader2,
-    Check,
-    ToggleLeft,
-    ToggleRight,
-    Search,
-    Archive,
-    ShieldCheck,
-    Briefcase,
-    User,
-    Mail,
-    Phone,
-    Users as UsersIcon,
-    GraduationCap,
+    Building2, BookOpen, SlidersHorizontal,
+    Cpu, ClipboardList, Plus, Edit,
+    Activity, Globe, Database, RefreshCw, Save,
+    X, Calendar, Settings, Loader2, Check,
+    ToggleLeft, ToggleRight, Search, Archive, ShieldCheck, Briefcase,
+    User, Mail, Phone, Users as UsersIcon
 } from 'lucide-react';
 
 const C = {
@@ -81,11 +59,7 @@ function GroupCard({ title, icon: Icon, children }) {
 function Toggle({ value, onChange, labels = ['Enabled', 'Disabled'] }) {
     return (
         <button type="button" onClick={() => onChange(!value)} className="flex items-center gap-2">
-            {value ? (
-                <ToggleRight className="w-7 h-7 text-green-600" />
-            ) : (
-                <ToggleLeft className="w-7 h-7 text-stone-300" />
-            )}
+            {value ? <ToggleRight className="w-7 h-7 text-green-600" /> : <ToggleLeft className="w-7 h-7 text-stone-300" />}
             <span className={`text-xs font-medium ${value ? 'text-green-700' : 'text-stone-400'}`}>
                 {value ? labels[0] : labels[1]}
             </span>
@@ -147,7 +121,7 @@ function BenefactorOnlyModal({
                 <CardContent className="p-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5 md:col-span-2">
-                            <FieldLabel>Organization Name</FieldLabel>
+                            <FieldLabel>Benefactor Name</FieldLabel>
                             <Input
                                 value={form.organization_name}
                                 onChange={(e) =>
@@ -299,28 +273,13 @@ function ProgramModal({
 
                 <CardContent className="p-5 max-h-[calc(90vh-180px)] overflow-y-auto space-y-5">
                     <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-                        <p className="text-sm font-medium text-stone-800">Program Setup</p>
+                        <p className="text-sm font-medium text-stone-800">Publication Behavior</p>
                         <p className="text-xs text-stone-500 mt-1">
-                            Programs are linked to a benefactor and can be published for openings later.
+                            Published programs appear in Scholarship Openings. Draft programs stay in maintenance until ready.
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <FieldLabel>Scholarship Program</FieldLabel>
-                            <Input
-                                value={form.program_name}
-                                onChange={(e) =>
-                                    setForm((prev) => ({
-                                        ...prev,
-                                        program_name: e.target.value,
-                                    }))
-                                }
-                                placeholder="e.g. TES - Tertiary Education Subsidy"
-                                className="h-10 rounded-lg border-stone-200 text-sm"
-                            />
-                        </div>
-
                         <div className="space-y-1.5">
                             <FieldLabel>Benefactor</FieldLabel>
                             <Select
@@ -354,6 +313,21 @@ function ProgramModal({
                             </Select>
                         </div>
 
+                        <div className="space-y-1.5">
+                            <FieldLabel>Program Name</FieldLabel>
+                            <Input
+                                value={form.program_name}
+                                onChange={(e) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        program_name: e.target.value,
+                                    }))
+                                }
+                                placeholder="e.g. TES - Tertiary Education Subsidy"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
                         <div className="space-y-1.5 md:col-span-2">
                             <FieldLabel>Description</FieldLabel>
                             <Textarea
@@ -364,7 +338,7 @@ function ProgramModal({
                                         description: e.target.value,
                                     }))
                                 }
-                                placeholder="Program notes, eligibility details, or internal guidance..."
+                                placeholder="Reusable opening description, eligibility notes, reminders, or admin guidance..."
                                 className="min-h-[120px] rounded-lg border-stone-200 text-sm resize-none"
                             />
                         </div>
@@ -417,6 +391,10 @@ function ProgramModal({
                                 placeholder="e.g. 2.00"
                                 className="h-10 rounded-lg border-stone-200 text-sm disabled:bg-stone-100 disabled:text-stone-400"
                             />
+
+                            <p className="text-[10px] text-stone-400">
+                                Turn on “No GWA Threshold” if this program does not require a grade cutoff.
+                            </p>
                         </div>
 
                         <div className="space-y-1.5">
@@ -493,8 +471,8 @@ function ProgramModal({
                         onClick={onSave}
                         disabled={
                             saving ||
-                            !form.program_name?.trim() ||
-                            !form.benefactor_id
+                            !form.benefactor_id ||
+                            !form.program_name?.trim()
                         }
                         className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
                         style={{ background: C.brownMid }}
@@ -663,10 +641,8 @@ function CourseModal({
 
 function DepartmentModal({
     open,
-    code,
-    setCode,
-    name,
-    setName,
+    value,
+    setValue,
     onClose,
     onSave,
     saving,
@@ -701,21 +677,11 @@ function DepartmentModal({
 
                 <CardContent className="p-5 space-y-4">
                     <div className="space-y-1.5">
-                        <FieldLabel>Department Code</FieldLabel>
+                        <FieldLabel>Department Code / Name</FieldLabel>
                         <Input
-                            value={code}
-                            onChange={(e) => setCode(e.target.value.toUpperCase())}
-                            placeholder="e.g. CCS"
-                            className="h-10 rounded-lg border-stone-200 text-sm"
-                        />
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <FieldLabel>Department Full Name</FieldLabel>
-                        <Input
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. College of Computer Studies"
+                            value={value}
+                            onChange={(e) => setValue(e.target.value.toUpperCase())}
+                            placeholder="e.g. CAS, CBA, CCS"
                             className="h-10 rounded-lg border-stone-200 text-sm"
                         />
                     </div>
@@ -731,7 +697,7 @@ function DepartmentModal({
 
                         <Button
                             onClick={onSave}
-                            disabled={saving || !code.trim()}
+                            disabled={saving || !value.trim()}
                             className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
                             style={{ background: C.brownMid }}
                         >
@@ -1185,7 +1151,7 @@ function BenefactorsPanel() {
                 <div>
                     <h2 className="text-lg font-semibold text-stone-900">Benefactors</h2>
                     <p className="text-sm text-stone-500">
-                        Add and maintain benefactor organizations only
+                        Manage benefactor organizations only
                     </p>
                 </div>
 
@@ -1349,8 +1315,8 @@ function BenefactorsPanel() {
 
                                                     <span
                                                         className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${isPublic
-                                                                ? 'bg-blue-50 text-blue-700'
-                                                                : 'bg-amber-50 text-amber-700'
+                                                            ? 'bg-blue-50 text-blue-700'
+                                                            : 'bg-amber-50 text-amber-700'
                                                             }`}
                                                     >
                                                         {isPublic ? 'Public Sponsor' : 'Private Sponsor'}
@@ -1383,8 +1349,8 @@ function BenefactorsPanel() {
                                                     size="sm"
                                                     variant="outline"
                                                     className={`h-8 px-3 rounded-lg text-xs shadow-none ${b.is_archived
-                                                            ? 'border-green-200 text-green-700 hover:bg-green-50'
-                                                            : 'border-red-200 text-red-700 hover:bg-red-50'
+                                                        ? 'border-green-200 text-green-700 hover:bg-green-50'
+                                                        : 'border-red-200 text-red-700 hover:bg-red-50'
                                                         }`}
                                                     onClick={() => handleArchiveToggle(b)}
                                                 >
@@ -1405,6 +1371,758 @@ function BenefactorsPanel() {
                                     </div>
                                 );
                             })}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function BenefactorOnlyModal({
+    open,
+    mode,
+    form,
+    setForm,
+    onClose,
+    onSave,
+    saving,
+}) {
+    if (!open) return null;
+
+    const isEdit = mode === 'edit';
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-2xl border-stone-200 shadow-xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-base font-semibold text-stone-800">
+                            {isEdit ? 'Edit Benefactor' : 'Add Benefactor'}
+                        </h3>
+                        <p className="text-xs text-stone-500 mt-0.5">
+                            Create or update a benefactor organization
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <CardContent className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5 md:col-span-2">
+                            <FieldLabel>Benefactor Name</FieldLabel>
+                            <Input
+                                value={form.organization_name}
+                                onChange={(e) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        organization_name: e.target.value,
+                                    }))
+                                }
+                                placeholder="e.g. CHED / Kaizen Corporation"
+                                className="h-10 rounded-lg border-stone-200 text-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <FieldLabel>Benefactor Type</FieldLabel>
+                            <Select
+                                value={form.benefactor_type}
+                                onValueChange={(value) =>
+                                    setForm((prev) => ({ ...prev, benefactor_type: value }))
+                                }
+                            >
+                                <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                                    <SelectValue placeholder="Select benefactor type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Public">Public</SelectItem>
+                                    <SelectItem value="Private">Private</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <FieldLabel>Archive Status</FieldLabel>
+                            <div className="h-10 px-3 rounded-lg border border-stone-200 flex items-center bg-white">
+                                <Toggle
+                                    value={!form.is_archived}
+                                    onChange={(value) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            is_archived: !value,
+                                        }))
+                                    }
+                                    labels={['Active', 'Archived']}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5 md:col-span-2">
+                            <FieldLabel>Description</FieldLabel>
+                            <Textarea
+                                value={form.description}
+                                onChange={(e) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        description: e.target.value,
+                                    }))
+                                }
+                                placeholder="Optional notes about this benefactor..."
+                                className="min-h-[120px] rounded-lg border-stone-200 text-sm resize-none"
+                            />
+                        </div>
+                    </div>
+                </CardContent>
+
+                <div className="px-5 py-4 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                        className="h-9 rounded-lg border-stone-200 text-xs"
+                    >
+                        Cancel
+                    </Button>
+
+                    <Button
+                        onClick={onSave}
+                        disabled={
+                            saving ||
+                            !form.organization_name?.trim() ||
+                            !form.benefactor_type
+                        }
+                        className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+                        style={{ background: C.brownMid }}
+                    >
+                        {saving ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                        )}
+                        {isEdit ? 'Save Benefactor' : 'Create Benefactor'}
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
+function CoursesPanel() {
+    const [courses, setCourses] = useState([]);
+    const [departments, setDepartments] = useState([]);
+
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [departmentSaving, setDepartmentSaving] = useState(false);
+
+    const [search, setSearch] = useState('');
+    const [departmentFilter, setDepartmentFilter] = useState('All');
+    const [archiveFilter, setArchiveFilter] = useState('Active');
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('create');
+    const [editingCourseId, setEditingCourseId] = useState(null);
+
+    const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
+    const [newDepartmentCode, setNewDepartmentCode] = useState('');
+    const [newDepartmentName, setNewDepartmentName] = useState('');
+
+    const emptyForm = {
+        course_code: '',
+        course_name: '',
+        department_id: '',
+        is_archived: false,
+    };
+
+    const [form, setForm] = useState(emptyForm);
+
+    const fetchDepartments = async () => {
+        const res = await fetch('http://localhost:5000/api/departments', {
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!res.ok) {
+            throw new Error('Failed to load departments');
+        }
+
+        const data = await res.json();
+        setDepartments(Array.isArray(data) ? data.filter((d) => !d.is_archived) : []);
+    };
+
+    const fetchCourses = async () => {
+        const res = await fetch('http://localhost:5000/api/courses', {
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!res.ok) {
+            throw new Error('Failed to load courses');
+        }
+
+        const data = await res.json();
+        setCourses(Array.isArray(data) ? data : []);
+    };
+
+    const loadAll = async () => {
+        try {
+            setLoading(true);
+            await Promise.all([fetchCourses(), fetchDepartments()]);
+        } catch (err) {
+            console.error('COURSES/DEPARTMENTS FETCH ERROR:', err);
+            alert(err.message || 'Failed to load maintenance data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadAll();
+    }, []);
+
+    const stats = useMemo(() => {
+        return {
+            total: courses.length,
+            active: courses.filter((c) => !c.is_archived).length,
+            archived: courses.filter((c) => !!c.is_archived).length,
+            departments: new Set(courses.map((c) => c.department_id).filter(Boolean)).size,
+        };
+    }, [courses]);
+
+    const filteredCourses = useMemo(() => {
+        const q = search.trim().toLowerCase();
+
+        return courses.filter((c) => {
+            const badgeLabel = c.department
+                ? `${c.department}${c.department_name ? ` - ${c.department_name}` : ''}`
+                : '';
+
+            const matchSearch =
+                !q ||
+                (c.course_code || '').toLowerCase().includes(q) ||
+                (c.course_name || '').toLowerCase().includes(q) ||
+                badgeLabel.toLowerCase().includes(q) ||
+                (c.department || '').toLowerCase().includes(q) ||
+                (c.department_name || '').toLowerCase().includes(q);
+
+            const matchDepartment =
+                departmentFilter === 'All' ||
+                (c.department || '').toLowerCase() === departmentFilter.toLowerCase();
+
+            const matchArchive =
+                archiveFilter === 'All' ||
+                (archiveFilter === 'Active' && !c.is_archived) ||
+                (archiveFilter === 'Archived' && !!c.is_archived);
+
+            return matchSearch && matchDepartment && matchArchive;
+        });
+    }, [courses, search, departmentFilter, archiveFilter]);
+
+    const openCreateModal = () => {
+        setModalMode('create');
+        setEditingCourseId(null);
+        setForm(emptyForm);
+        setModalOpen(true);
+    };
+
+    const openEditModal = (course) => {
+        setModalMode('edit');
+        setEditingCourseId(course.course_id);
+        setForm({
+            course_code: course.course_code || '',
+            course_name: course.course_name || '',
+            department_id: course.department_id || '',
+            is_archived: !!course.is_archived,
+        });
+        setModalOpen(true);
+    };
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+
+            const normalizedOrganizationName = form.organization_name.trim();
+            const normalizedProgramName = form.program_name.trim();
+
+            const payload = {
+                benefactor_type: form.benefactor_type,
+                organization_name: normalizedOrganizationName,
+                program_name: normalizedProgramName,
+                description: form.description?.trim() ? form.description.trim() : null,
+                target_audience: form.target_audience || 'Applicants',
+                gwa_threshold:
+                    form.gwa_threshold === null || form.gwa_threshold === ''
+                        ? null
+                        : Number(form.gwa_threshold),
+                renewal_cycle: form.renewal_cycle || 'Semester',
+                visibility_status: form.visibility_status || 'Published',
+                is_archived: !!form.is_archived,
+            };
+
+            if (
+                payload.gwa_threshold !== null &&
+                (Number.isNaN(payload.gwa_threshold) || payload.gwa_threshold < 0)
+            ) {
+                throw new Error('GWA threshold must be a valid number or left as no threshold');
+            }
+
+            const isEdit = modalMode === 'edit' && editingBenefactorId;
+            const url = isEdit
+                ? `http://localhost:5000/api/scholarship-program/${editingBenefactorId}`
+                : 'http://localhost:5000/api/scholarship-program';
+
+            const method = isEdit ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to save benefactor');
+            }
+
+            setModalOpen(false);
+            setEditingBenefactorId(null);
+            setForm(emptyForm);
+            await fetchData();
+        } catch (err) {
+            console.error('SAVE BENEFACTOR ERROR:', err);
+            alert(err.message || 'Failed to save benefactor');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleAddDepartment = async () => {
+        try {
+            setDepartmentSaving(true);
+
+            const trimmedCode = newDepartmentCode.trim().toUpperCase();
+            const trimmedName = newDepartmentName.trim();
+
+            if (!trimmedCode) {
+                alert('Department code is required');
+                return;
+            }
+
+            const res = await fetch('http://localhost:5000/api/departments', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    department_code: trimmedCode,
+                    department_name: trimmedName || null,
+                }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to add department');
+            }
+
+            setNewDepartmentCode('');
+            setNewDepartmentName('');
+            setDepartmentModalOpen(false);
+            await fetchDepartments();
+        } catch (err) {
+            console.error('ADD DEPARTMENT ERROR:', err);
+            alert(err.message || 'Failed to add department');
+        } finally {
+            setDepartmentSaving(false);
+        }
+    };
+
+    const handleArchiveToggle = async (course) => {
+        try {
+            const res = await fetch(`http://localhost:5000/api/courses/${course.course_id}`, {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    is_archived: !course.is_archived,
+                }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to update course status');
+            }
+
+            await fetchCourses();
+        } catch (err) {
+            console.error('ARCHIVE COURSE ERROR:', err);
+            alert(err.message || 'Failed to update course status');
+        }
+    };
+
+    return (
+        <div className="space-y-5">
+            <CourseModal
+                open={modalOpen}
+                mode={modalMode}
+                form={form}
+                setForm={setForm}
+                onClose={() => {
+                    setModalOpen(false);
+                    setEditingCourseId(null);
+                }}
+                onSave={handleSave}
+                saving={saving}
+                departments={departments}
+            />
+
+            {departmentModalOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+                    onClick={() => {
+                        setDepartmentModalOpen(false);
+                        setNewDepartmentCode('');
+                        setNewDepartmentName('');
+                    }}
+                >
+                    <Card
+                        className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-base font-semibold text-stone-800">Add Department</h3>
+                                <p className="text-xs text-stone-500 mt-0.5">
+                                    Create a new department option for academic courses
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setDepartmentModalOpen(false);
+                                    setNewDepartmentCode('');
+                                    setNewDepartmentName('');
+                                }}
+                                className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <CardContent className="p-5 space-y-4">
+                            <div className="space-y-1.5">
+                                <FieldLabel>Department Code</FieldLabel>
+                                <Input
+                                    value={newDepartmentCode}
+                                    onChange={(e) => setNewDepartmentCode(e.target.value.toUpperCase())}
+                                    placeholder="e.g. CCS"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <FieldLabel>Department Full Name</FieldLabel>
+                                <Input
+                                    value={newDepartmentName}
+                                    onChange={(e) => setNewDepartmentName(e.target.value)}
+                                    placeholder="e.g. College of Computer Studies"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        setDepartmentModalOpen(false);
+                                        setNewDepartmentCode('');
+                                        setNewDepartmentName('');
+                                    }}
+                                    className="h-9 rounded-lg border-stone-200 text-xs"
+                                >
+                                    Cancel
+                                </Button>
+
+                                <Button
+                                    onClick={handleAddDepartment}
+                                    disabled={departmentSaving || !newDepartmentCode.trim()}
+                                    className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+                                    style={{ background: C.brownMid }}
+                                >
+                                    {departmentSaving ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <Plus className="w-4 h-4 mr-2" />
+                                    )}
+                                    Add Department
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                    <h2 className="text-lg font-semibold text-stone-900">Academic Courses</h2>
+                    <p className="text-sm text-stone-500">
+                        Manage academic course registry used across student and scholar records
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={loadAll}
+                        className="rounded-lg text-xs border-stone-200 text-stone-600"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                        Refresh
+                    </Button>
+
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg text-xs border-stone-200 text-stone-600"
+                        onClick={() => setDepartmentModalOpen(true)}
+                    >
+                        <Building2 className="w-3.5 h-3.5 mr-1.5" />
+                        Add Department
+                    </Button>
+
+                    <Button
+                        size="sm"
+                        className="rounded-lg text-white text-xs border-none"
+                        style={{ background: C.brownMid }}
+                        onClick={openCreateModal}
+                    >
+                        <Plus className="w-3.5 h-3.5 mr-1.5" />
+                        Add Course
+                    </Button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <Card className="border-stone-200 shadow-none">
+                    <CardContent className="p-4">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.amberSoft }}>
+                            <BookOpen className="w-4 h-4 text-amber-700" />
+                        </div>
+                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.total}</div>
+                        <p className="text-xs text-stone-500 mt-0.5">Total Courses</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-stone-200 shadow-none">
+                    <CardContent className="p-4">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.greenSoft }}>
+                            <ShieldCheck className="w-4 h-4 text-green-700" />
+                        </div>
+                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.active}</div>
+                        <p className="text-xs text-stone-500 mt-0.5">Active Courses</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-stone-200 shadow-none">
+                    <CardContent className="p-4">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-stone-100">
+                            <Archive className="w-4 h-4 text-stone-600" />
+                        </div>
+                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.archived}</div>
+                        <p className="text-xs text-stone-500 mt-0.5">Archived</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-stone-200 shadow-none">
+                    <CardContent className="p-4">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.blueSoft }}>
+                            <Building2 className="w-4 h-4 text-blue-700" />
+                        </div>
+                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.departments}</div>
+                        <p className="text-xs text-stone-500 mt-0.5">Departments</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[260px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
+                    <Input
+                        placeholder="Search by code, course name, or department..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
+                    />
+                </div>
+
+                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                    <SelectTrigger className="w-[240px] h-9 rounded-lg border-stone-200 text-sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Departments</SelectItem>
+                        {departments.map((dept) => (
+                            <SelectItem key={dept.department_id} value={dept.department_code}>
+                                {dept.department_code}
+                                {dept.department_name ? ` - ${dept.department_name}` : ''}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select value={archiveFilter} onValueChange={setArchiveFilter}>
+                    <SelectTrigger className="w-[145px] h-9 rounded-lg border-stone-200 text-sm">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="All">All Records</SelectItem>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Archived">Archived</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                {(search || departmentFilter !== 'All' || archiveFilter !== 'Active') && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            setSearch('');
+                            setDepartmentFilter('All');
+                            setArchiveFilter('Active');
+                        }}
+                        className="h-9 rounded-lg text-xs border-stone-200"
+                    >
+                        Reset
+                    </Button>
+                )}
+            </div>
+
+            <Card className="border-stone-200 shadow-none overflow-hidden">
+                <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
+                    <div>
+                        <CardTitle className="text-sm font-semibold text-stone-800">Course Registry</CardTitle>
+                        <CardDescription className="text-xs">
+                            Manage available academic courses and archive obsolete ones without deleting them
+                        </CardDescription>
+                    </div>
+                </CardHeader>
+
+                <CardContent className="p-4">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center min-h-[240px] gap-3">
+                            <Loader2 className="w-6 h-6 animate-spin text-stone-300" />
+                            <p className="text-xs text-stone-400 uppercase tracking-widest">
+                                Loading academic courses...
+                            </p>
+                        </div>
+                    ) : filteredCourses.length === 0 ? (
+                        <EmptyState
+                            icon={BookOpen}
+                            title="No academic courses found"
+                            subtitle="Create course entries here so they can be used in student, scholar, and application records."
+                        />
+                    ) : (
+                        <div className="space-y-3">
+                            {filteredCourses.map((course) => (
+                                <div
+                                    key={course.course_id}
+                                    className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
+                                >
+                                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h3 className="text-sm font-semibold text-stone-900">
+                                                    {course.course_code}
+                                                </h3>
+
+                                                <Badge
+                                                    variant="outline"
+                                                    className="text-[10px] border-stone-200 bg-white text-stone-600"
+                                                >
+                                                    {course.department
+                                                        ? `${course.department}${course.department_name ? ` - ${course.department_name}` : ''}`
+                                                        : 'No Department'}
+                                                </Badge>
+
+                                                {!course.is_archived ? (
+                                                    <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700">
+                                                        Active
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-700">
+                                                        Archived
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                                                {course.course_name || 'No course name available.'}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+                                                onClick={() => openEditModal(course)}
+                                            >
+                                                <Edit className="w-3.5 h-3.5 mr-1.5" />
+                                                Edit
+                                            </Button>
+
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className={`h-8 px-3 rounded-lg text-xs shadow-none ${course.is_archived
+                                                    ? 'border-green-200 text-green-700 hover:bg-green-50'
+                                                    : 'border-red-200 text-red-700 hover:bg-red-50'
+                                                    }`}
+                                                onClick={() => handleArchiveToggle(course)}
+                                            >
+                                                {course.is_archived ? (
+                                                    <>
+                                                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                                                        Restore
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Archive className="w-3.5 h-3.5 mr-1.5" />
+                                                        Archive
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </CardContent>
@@ -1711,7 +2429,7 @@ function ProgramsPanel() {
                 <div>
                     <h2 className="text-lg font-semibold text-stone-900">Programs</h2>
                     <p className="text-sm text-stone-500">
-                        Add scholarship programs and link them to a benefactor
+                        Manage scholarship programs linked to benefactors
                     </p>
                 </div>
 
@@ -1920,10 +2638,10 @@ function ProgramsPanel() {
 
                                                     <span
                                                         className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${audience === 'Both'
-                                                                ? 'bg-purple-50 text-purple-700'
-                                                                : audience === 'Scholars'
-                                                                    ? 'bg-indigo-50 text-indigo-700'
-                                                                    : 'bg-sky-50 text-sky-700'
+                                                            ? 'bg-purple-50 text-purple-700'
+                                                            : audience === 'Scholars'
+                                                                ? 'bg-indigo-50 text-indigo-700'
+                                                                : 'bg-sky-50 text-sky-700'
                                                             }`}
                                                     >
                                                         <UsersIcon className="w-3 h-3 inline mr-1" />
@@ -1932,8 +2650,8 @@ function ProgramsPanel() {
 
                                                     <span
                                                         className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${isPublished
-                                                                ? 'bg-green-50 text-green-700'
-                                                                : 'bg-stone-100 text-stone-500'
+                                                            ? 'bg-green-50 text-green-700'
+                                                            : 'bg-stone-100 text-stone-500'
                                                             }`}
                                                     >
                                                         {isPublished ? 'Published' : 'Draft'}
@@ -1966,8 +2684,8 @@ function ProgramsPanel() {
                                                     size="sm"
                                                     variant="outline"
                                                     className={`h-8 px-3 rounded-lg text-xs shadow-none ${p.is_archived
-                                                            ? 'border-green-200 text-green-700 hover:bg-green-50'
-                                                            : 'border-red-200 text-red-700 hover:bg-red-50'
+                                                        ? 'border-green-200 text-green-700 hover:bg-green-50'
+                                                        : 'border-red-200 text-red-700 hover:bg-red-50'
                                                         }`}
                                                     onClick={() => handleArchiveToggle(p)}
                                                 >
@@ -2045,541 +2763,6 @@ function ProgramsPanel() {
     );
 }
 
-function CoursesPanel() {
-    const [courses, setCourses] = useState([]);
-    const [departments, setDepartments] = useState([]);
-
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [departmentSaving, setDepartmentSaving] = useState(false);
-
-    const [search, setSearch] = useState('');
-    const [departmentFilter, setDepartmentFilter] = useState('All');
-    const [archiveFilter, setArchiveFilter] = useState('Active');
-
-    const [modalOpen, setModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState('create');
-    const [editingCourseId, setEditingCourseId] = useState(null);
-
-    const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
-    const [newDepartmentCode, setNewDepartmentCode] = useState('');
-    const [newDepartmentName, setNewDepartmentName] = useState('');
-
-    const emptyForm = {
-        course_code: '',
-        course_name: '',
-        department_id: '',
-        is_archived: false,
-    };
-
-    const [form, setForm] = useState(emptyForm);
-
-    const fetchDepartments = async () => {
-        const res = await fetch('http://localhost:5000/api/departments', {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!res.ok) {
-            throw new Error('Failed to load departments');
-        }
-
-        const data = await res.json();
-        setDepartments(Array.isArray(data) ? data.filter((d) => !d.is_archived) : []);
-    };
-
-    const fetchCourses = async () => {
-        const res = await fetch('http://localhost:5000/api/courses', {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!res.ok) {
-            throw new Error('Failed to load courses');
-        }
-
-        const data = await res.json();
-        setCourses(Array.isArray(data) ? data : []);
-    };
-
-    const loadAll = async () => {
-        try {
-            setLoading(true);
-            await Promise.all([fetchCourses(), fetchDepartments()]);
-        } catch (err) {
-            console.error('COURSES/DEPARTMENTS FETCH ERROR:', err);
-            alert(err.message || 'Failed to load maintenance data');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadAll();
-    }, []);
-
-    const stats = useMemo(() => {
-        return {
-            total: courses.length,
-            active: courses.filter((c) => !c.is_archived).length,
-            archived: courses.filter((c) => !!c.is_archived).length,
-            departments: new Set(courses.map((c) => c.department_id).filter(Boolean)).size,
-        };
-    }, [courses]);
-
-    const filteredCourses = useMemo(() => {
-        const q = search.trim().toLowerCase();
-
-        return courses.filter((c) => {
-            const badgeLabel = c.department
-                ? `${c.department}${c.department_name ? ` - ${c.department_name}` : ''}`
-                : '';
-
-            const matchSearch =
-                !q ||
-                (c.course_code || '').toLowerCase().includes(q) ||
-                (c.course_name || '').toLowerCase().includes(q) ||
-                badgeLabel.toLowerCase().includes(q) ||
-                (c.department || '').toLowerCase().includes(q) ||
-                (c.department_name || '').toLowerCase().includes(q);
-
-            const matchDepartment =
-                departmentFilter === 'All' ||
-                (c.department || '').toLowerCase() === departmentFilter.toLowerCase();
-
-            const matchArchive =
-                archiveFilter === 'All' ||
-                (archiveFilter === 'Active' && !c.is_archived) ||
-                (archiveFilter === 'Archived' && !!c.is_archived);
-
-            return matchSearch && matchDepartment && matchArchive;
-        });
-    }, [courses, search, departmentFilter, archiveFilter]);
-
-    const openCreateModal = () => {
-        setModalMode('create');
-        setEditingCourseId(null);
-        setForm(emptyForm);
-        setModalOpen(true);
-    };
-
-    const openEditModal = (course) => {
-        setModalMode('edit');
-        setEditingCourseId(course.course_id);
-        setForm({
-            course_code: course.course_code || '',
-            course_name: course.course_name || '',
-            department_id: course.department_id || '',
-            is_archived: !!course.is_archived,
-        });
-        setModalOpen(true);
-    };
-
-    const handleSave = async () => {
-        try {
-            setSaving(true);
-
-            const payload = {
-                course_code: form.course_code.trim().toUpperCase(),
-                course_name: form.course_name.trim(),
-                department_id: form.department_id,
-                is_archived: !!form.is_archived,
-            };
-
-            if (!payload.course_code) {
-                throw new Error('Course code is required');
-            }
-
-            if (!payload.course_name) {
-                throw new Error('Course name is required');
-            }
-
-            if (!payload.department_id) {
-                throw new Error('Department is required');
-            }
-
-            const isEdit = modalMode === 'edit' && editingCourseId;
-            const url = isEdit
-                ? `http://localhost:5000/api/courses/${editingCourseId}`
-                : 'http://localhost:5000/api/courses';
-
-            const method = isEdit ? 'PATCH' : 'POST';
-
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            });
-
-            const data = await res.json().catch(() => ({}));
-
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to save course');
-            }
-
-            setModalOpen(false);
-            setEditingCourseId(null);
-            setForm(emptyForm);
-            await fetchCourses();
-        } catch (err) {
-            console.error('SAVE COURSE ERROR:', err);
-            alert(err.message || 'Failed to save course');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleAddDepartment = async () => {
-        try {
-            setDepartmentSaving(true);
-
-            const trimmedCode = newDepartmentCode.trim().toUpperCase();
-            const trimmedName = newDepartmentName.trim();
-
-            if (!trimmedCode) {
-                alert('Department code is required');
-                return;
-            }
-
-            const res = await fetch('http://localhost:5000/api/departments', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    department_code: trimmedCode,
-                    department_name: trimmedName || null,
-                }),
-            });
-
-            const data = await res.json().catch(() => ({}));
-
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to add department');
-            }
-
-            setNewDepartmentCode('');
-            setNewDepartmentName('');
-            setDepartmentModalOpen(false);
-            await fetchDepartments();
-        } catch (err) {
-            console.error('ADD DEPARTMENT ERROR:', err);
-            alert(err.message || 'Failed to add department');
-        } finally {
-            setDepartmentSaving(false);
-        }
-    };
-
-    const handleArchiveToggle = async (course) => {
-        try {
-            const res = await fetch(`http://localhost:5000/api/courses/${course.course_id}`, {
-                method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    is_archived: !course.is_archived,
-                }),
-            });
-
-            const data = await res.json().catch(() => ({}));
-
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to update course status');
-            }
-
-            await fetchCourses();
-        } catch (err) {
-            console.error('ARCHIVE COURSE ERROR:', err);
-            alert(err.message || 'Failed to update course status');
-        }
-    };
-
-    return (
-        <div className="space-y-5">
-            <CourseModal
-                open={modalOpen}
-                mode={modalMode}
-                form={form}
-                setForm={setForm}
-                onClose={() => {
-                    setModalOpen(false);
-                    setEditingCourseId(null);
-                }}
-                onSave={handleSave}
-                saving={saving}
-                departments={departments}
-            />
-
-            <DepartmentModal
-                open={departmentModalOpen}
-                code={newDepartmentCode}
-                setCode={setNewDepartmentCode}
-                name={newDepartmentName}
-                setName={setNewDepartmentName}
-                onClose={() => {
-                    setDepartmentModalOpen(false);
-                    setNewDepartmentCode('');
-                    setNewDepartmentName('');
-                }}
-                onSave={handleAddDepartment}
-                saving={departmentSaving}
-            />
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                    <h2 className="text-lg font-semibold text-stone-900">Academic Courses</h2>
-                    <p className="text-sm text-stone-500">
-                        Manage academic course registry used across student and scholar records
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={loadAll}
-                        className="rounded-lg text-xs border-stone-200 text-stone-600"
-                    >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                        Refresh
-                    </Button>
-
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-lg text-xs border-stone-200 text-stone-600"
-                        onClick={() => setDepartmentModalOpen(true)}
-                    >
-                        <Building2 className="w-3.5 h-3.5 mr-1.5" />
-                        Add Department
-                    </Button>
-
-                    <Button
-                        size="sm"
-                        className="rounded-lg text-white text-xs border-none"
-                        style={{ background: C.brownMid }}
-                        onClick={openCreateModal}
-                    >
-                        <Plus className="w-3.5 h-3.5 mr-1.5" />
-                        Add Course
-                    </Button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <Card className="border-stone-200 shadow-none">
-                    <CardContent className="p-4">
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.amberSoft }}>
-                            <BookOpen className="w-4 h-4 text-amber-700" />
-                        </div>
-                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.total}</div>
-                        <p className="text-xs text-stone-500 mt-0.5">Total Courses</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-stone-200 shadow-none">
-                    <CardContent className="p-4">
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.greenSoft }}>
-                            <ShieldCheck className="w-4 h-4 text-green-700" />
-                        </div>
-                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.active}</div>
-                        <p className="text-xs text-stone-500 mt-0.5">Active Courses</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-stone-200 shadow-none">
-                    <CardContent className="p-4">
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-stone-100">
-                            <Archive className="w-4 h-4 text-stone-600" />
-                        </div>
-                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.archived}</div>
-                        <p className="text-xs text-stone-500 mt-0.5">Archived</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-stone-200 shadow-none">
-                    <CardContent className="p-4">
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: C.blueSoft }}>
-                            <Building2 className="w-4 h-4 text-blue-700" />
-                        </div>
-                        <div className="text-2xl font-semibold text-stone-900 mt-3">{stats.departments}</div>
-                        <p className="text-xs text-stone-500 mt-0.5">Departments</p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[260px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
-                    <Input
-                        placeholder="Search by code, course name, or department..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
-                    />
-                </div>
-
-                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                    <SelectTrigger className="w-[240px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Departments</SelectItem>
-                        {departments.map((dept) => (
-                            <SelectItem key={dept.department_id} value={dept.department_code}>
-                                {dept.department_code}
-                                {dept.department_name ? ` - ${dept.department_name}` : ''}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={archiveFilter} onValueChange={setArchiveFilter}>
-                    <SelectTrigger className="w-[145px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Records</SelectItem>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Archived">Archived</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {(search || departmentFilter !== 'All' || archiveFilter !== 'Active') && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            setSearch('');
-                            setDepartmentFilter('All');
-                            setArchiveFilter('Active');
-                        }}
-                        className="h-9 rounded-lg text-xs border-stone-200"
-                    >
-                        Reset
-                    </Button>
-                )}
-            </div>
-
-            <Card className="border-stone-200 shadow-none overflow-hidden">
-                <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-                    <div>
-                        <CardTitle className="text-sm font-semibold text-stone-800">
-                            Academic Course Registry
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                            Course entries used in student, scholar, and application records
-                        </CardDescription>
-                    </div>
-                </CardHeader>
-
-                <CardContent className="p-4">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center min-h-[240px] gap-3">
-                            <Loader2 className="w-6 h-6 animate-spin text-stone-300" />
-                            <p className="text-xs text-stone-400 uppercase tracking-widest">
-                                Loading courses...
-                            </p>
-                        </div>
-                    ) : filteredCourses.length === 0 ? (
-                        <EmptyState
-                            icon={BookOpen}
-                            title="No academic courses found"
-                            subtitle="Create course entries here so they can be used in student, scholar, and application records."
-                        />
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredCourses.map((course) => (
-                                <div
-                                    key={course.course_id}
-                                    className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
-                                >
-                                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <h3 className="text-sm font-semibold text-stone-900">
-                                                    {course.course_code}
-                                                </h3>
-
-                                                <Badge
-                                                    variant="outline"
-                                                    className="text-[10px] border-stone-200 bg-white text-stone-600"
-                                                >
-                                                    {course.department
-                                                        ? `${course.department}${course.department_name ? ` - ${course.department_name}` : ''}`
-                                                        : 'No Department'}
-                                                </Badge>
-
-                                                {!course.is_archived ? (
-                                                    <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-700">
-                                                        Active
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-700">
-                                                        Archived
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                                                {course.course_name || 'No course name available.'}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                                                onClick={() => openEditModal(course)}
-                                            >
-                                                <Edit className="w-3.5 h-3.5 mr-1.5" />
-                                                Edit
-                                            </Button>
-
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className={`h-8 px-3 rounded-lg text-xs shadow-none ${course.is_archived
-                                                    ? 'border-green-200 text-green-700 hover:bg-green-50'
-                                                    : 'border-red-200 text-red-700 hover:bg-red-50'
-                                                    }`}
-                                                onClick={() => handleArchiveToggle(course)}
-                                            >
-                                                {course.is_archived ? (
-                                                    <>
-                                                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                                                        Restore
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Archive className="w-3.5 h-3.5 mr-1.5" />
-                                                        Archive
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-        </div>
-    );
-}
-
 function SystemPanel() {
     return (
         <div className="space-y-5">
@@ -2631,7 +2814,6 @@ export default function SettingsMaintenance() {
     const TABS = [
         { key: 'general', label: 'General', icon: SlidersHorizontal },
         { key: 'benefactors', label: 'Benefactors', icon: Building2 },
-        { key: 'programs', label: 'Programs', icon: GraduationCap },
         { key: 'courses', label: 'Courses', icon: BookOpen },
         { key: 'system', label: 'System', icon: Cpu },
         { key: 'audit', label: 'Audit', icon: ClipboardList },
@@ -2646,14 +2828,14 @@ export default function SettingsMaintenance() {
 
             <Card className="border-stone-200 shadow-none overflow-hidden min-h-[600px]">
                 <div className="flex border-b border-stone-100 bg-stone-50/50 overflow-x-auto">
-                    {TABS.map((t) => (
+                    {TABS.map(t => (
                         <button
                             key={t.key}
                             type="button"
                             onClick={() => setTab(t.key)}
                             className={`flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${tab === t.key
-                                    ? 'text-stone-900 border-stone-900 bg-white'
-                                    : 'text-stone-400 border-transparent hover:text-stone-600'
+                                ? 'text-stone-900 border-stone-900 bg-white'
+                                : 'text-stone-400 border-transparent hover:text-stone-600'
                                 }`}
                         >
                             <t.icon size={14} />

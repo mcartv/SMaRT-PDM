@@ -1,11 +1,17 @@
 const express = require('express');
 const router = express.Router();
 
-const scholarshipProgramController = require('../controllers/scholarshipProgramController');
+const {
+    getScholarshipPrograms,
+    createScholarshipProgram,
+    updateScholarshipProgram,
+} = require('../controllers/scholarshipProgramController');
+
 const { protect } = require('../middleware/authMiddleware');
 
-router.get('/', protect, scholarshipProgramController.getScholarshipPrograms);
-router.post('/', protect, scholarshipProgramController.createScholarshipProgram);
-router.patch('/:id', protect, scholarshipProgramController.updateScholarshipProgram);
+// IMPORTANT: path must match frontend EXACTLY
+router.get('/', protect, getScholarshipPrograms);
+router.post('/', protect, createScholarshipProgram);
+router.patch('/:id', protect, updateScholarshipProgram);
 
 module.exports = router;

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/services/auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
@@ -68,7 +69,7 @@ class _OtpScreenState extends State<OtpScreen> {
       final email = args?['email'];
       final nextRoute =
           args?['nextRoute'] ??
-          '/new_applicant'; // Default to /new_applicant if nextRoute is not provided
+          AppRoutes.home;
 
       try {
         await _authService.verifyOtp(email: email ?? '', otp: otp);

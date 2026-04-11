@@ -17,7 +17,6 @@ import 'package:smartpdm_mobileapp/screens/messaging/messaging_screen.dart';
 import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/screens/providers/theme_provider.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/interview_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/announcements_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/scholarship_openings_screen.dart';
 import 'package:smartpdm_mobileapp/screens/applicant/scholar_renewal_requirements_screen.dart';
@@ -26,6 +25,7 @@ import 'package:smartpdm_mobileapp/screens/scholar/ro_completion_screen.dart';
 import 'package:smartpdm_mobileapp/screens/scholar/report_ticket_screen.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/screens/common/top_level_shell_screen.dart';
+import 'package:smartpdm_mobileapp/widgets/scholar_access_gate.dart';
 
 void main() {
   runApp(
@@ -54,6 +54,10 @@ class MyApp extends StatelessWidget {
       initialTitle: payload['initialTitle']?.toString(),
       initialProgramName: payload['initialProgramName']?.toString(),
     );
+  }
+
+  Widget _buildScholarOnlyScreen(Widget child) {
+    return ScholarAccessGate(child: child);
   }
 
   @override
@@ -130,8 +134,9 @@ class MyApp extends StatelessWidget {
             AppRoutes.changeEmail: (context) => const ChangeEmailScreen(),
             AppRoutes.home: (context) =>
                 const TopLevelShellScreen(initialIndex: 0),
-            AppRoutes.payouts: (context) =>
-                const TopLevelShellScreen(initialIndex: 1),
+            AppRoutes.payouts: (context) => _buildScholarOnlyScreen(
+              const TopLevelShellScreen(initialIndex: 1),
+            ),
             AppRoutes.notifications: (context) =>
                 const TopLevelShellScreen(initialIndex: 2),
             AppRoutes.profile: (context) =>
@@ -144,16 +149,17 @@ class MyApp extends StatelessWidget {
             AppRoutes.renewalDocuments: (context) =>
                 const ScholarRenewalRequirementsScreen(),
             AppRoutes.status: (context) => const StatusTrackingScreen(),
-            AppRoutes.interviewSchedule: (context) =>
-                const InterviewScheduleScreen(),
             AppRoutes.announcements: (context) => const AnnouncementsScreen(),
             AppRoutes.about: (context) =>
                 const PlaceholderScreen(title: 'About PDM/OSFA'),
             AppRoutes.faqs: (context) => const FaqsScreen(),
             AppRoutes.messaging: (context) => const MessagingScreen(),
-            AppRoutes.roAssignment: (context) => const ROAssignmentScreen(),
-            AppRoutes.roCompletion: (context) => ROCompletionScreen(),
-            AppRoutes.tickets: (context) => const ReportTicketScreen(),
+            AppRoutes.roAssignment: (context) =>
+                _buildScholarOnlyScreen(const ROAssignmentScreen()),
+            AppRoutes.roCompletion: (context) =>
+                _buildScholarOnlyScreen(ROCompletionScreen()),
+            AppRoutes.tickets: (context) =>
+                _buildScholarOnlyScreen(const ReportTicketScreen()),
             AppRoutes.success: (context) => const SuccessScreen(),
             AppRoutes.scholarshipOpenings: (context) =>
                 const ScholarshipOpeningsScreen(),

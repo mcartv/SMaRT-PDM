@@ -57,6 +57,37 @@ class AppNotification {
     );
   }
 
+  factory AppNotification.fromLatestOpening(Map<String, dynamic> json) {
+    final openingId = json['opening_id']?.toString() ?? '';
+    final openingTitle =
+        json['opening_title']?.toString().trim().isNotEmpty == true
+        ? json['opening_title']!.toString().trim()
+        : 'Scholarship Opening';
+    final programName = json['program_name']?.toString().trim() ?? '';
+    final body = json['announcement_text']?.toString().trim() ?? '';
+
+    return AppNotification(
+      notificationId: openingId.isNotEmpty
+          ? 'latest-opening-$openingId'
+          : 'latest-opening',
+      userId: '',
+      type: 'Opening',
+      title: openingTitle,
+      message: body.isNotEmpty
+          ? body
+          : programName.isNotEmpty
+          ? 'A new scholarship opening is now available for $programName applicants.'
+          : 'A new scholarship opening is now available for applicants.',
+      referenceId: openingId.isNotEmpty ? openingId : null,
+      referenceType: 'program_opening',
+      isRead: true,
+      pushSent: false,
+      createdAt:
+          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+
   bool get isOfficeUpdate {
     final normalizedType = type.toLowerCase();
     final normalizedReference = (referenceType ?? '').toLowerCase();

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:smartpdm_mobileapp/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/services/api_client.dart';
 
@@ -20,6 +21,17 @@ class ProgramOpeningService {
       hasBaseApplicationProfile: response['hasBaseApplicationProfile'] == true,
       items: items,
     );
+  }
+
+  Future<AppNotification?> fetchLatestOpeningOfficeUpdate() async {
+    final response = await _apiClient.getObject('/api/openings/latest');
+    final item = response['item'];
+
+    if (item is! Map) {
+      return null;
+    }
+
+    return AppNotification.fromLatestOpening(Map<String, dynamic>.from(item));
   }
 
   Future<Map<String, dynamic>> applyToOpening({

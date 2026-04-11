@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/services/auth_service.dart';
 import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -102,10 +103,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (mounted) {
           Navigator.pushNamed(
             context,
-            '/otp',
+            AppRoutes.otp,
             arguments: {
               'email': _emailController.text.trim().toLowerCase(),
-              'nextRoute': '/new_applicant',
+              'nextRoute': AppRoutes.home,
               'user_id': registration.userId,
               'student_id': registration.studentId,
             },

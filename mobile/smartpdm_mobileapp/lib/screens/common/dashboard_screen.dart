@@ -826,28 +826,6 @@ class _DashboardContentState extends State<DashboardContent> {
                         const Divider(height: 1),
                         ListTile(
                           leading: Icon(
-                            Icons.calendar_today,
-                            color: _isDarkMode
-                                ? const Color(0xFFFFD54F)
-                                : primaryColor,
-                          ),
-                          title: const Text('View Interview Schedule'),
-                          subtitle: Text(
-                            'Check your scheduled interviews',
-                            style: TextStyle(color: _subtitleColor),
-                          ),
-                          trailing: Icon(
-                            Icons.chevron_right,
-                            color: _isDarkMode ? Colors.white54 : Colors.grey,
-                          ),
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            AppRoutes.interviewSchedule,
-                          ),
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: Icon(
                             Icons.file_upload,
                             color: _isDarkMode
                                 ? const Color(0xFFFFD54F)

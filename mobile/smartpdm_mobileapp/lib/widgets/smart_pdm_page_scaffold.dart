@@ -68,6 +68,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold> {
                   top: false,
                   child: SmartPdmBottomNav(
                     selectedIndex: widget.selectedIndex,
+                    isVerifiedScholar: _isScholar,
                     unreadNotifications: widget.unreadNotifications > 0
                         ? widget.unreadNotifications
                         : notificationProvider.unreadCount,

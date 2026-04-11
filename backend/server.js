@@ -591,6 +591,43 @@ async function resolveLatestBaseApplicationForUser(userId) {
   };
 }
 
+async function fetchLatestOpenProgramOpening() {
+  const { data, error } = await supabase
+    .from('program_openings')
+    .select(`
+      opening_id,
+      program_id,
+      opening_title,
+      announcement_text,
+      created_at,
+      scholarship_program (
+        program_id,
+        program_name
+      )
+    `)
+    .eq('posting_status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    opening_id: data.opening_id,
+    program_id: data.program_id,
+    opening_title: data.opening_title || 'Scholarship Opening',
+    announcement_text: data.announcement_text || '',
+    created_at: data.created_at || null,
+    program_name: data.scholarship_program?.program_name || null,
+  };
+}
+
 async function buildApplicantDocumentPackage({
   applicationId,
   context = {},
@@ -608,6 +645,30 @@ async function buildApplicantDocumentPackage({
         'Unassigned Application',
     },
     documents: details.documents ?? [],
+  };
+}
+
+async function buildApplicantStatusSummaryForUser(userId) {
+  const activeApplication = await resolveLatestBaseApplicationForUser(userId);
+
+  if (!activeApplication?.application?.application_id) {
+    return { has_application: false };
+  }
+
+  const details = await buildApplicationDetails(
+    activeApplication.application.application_id
+  );
+
+  return {
+    has_application: true,
+    application: {
+      application_id: details.application?.application_id ?? null,
+      application_status: details.application?.application_status ?? null,
+      document_status: details.application?.document_status ?? null,
+      submission_date: details.application?.submission_date ?? null,
+      program_id: details.application?.program_id ?? null,
+      program_name: details.student?.program_name ?? 'Unassigned Application',
+    },
   };
 }
 
@@ -1302,6 +1363,18 @@ app.get('/api/notifications', protect, async (req, res) => {
   }
 });
 
+app.get('/api/openings/latest', protect, async (req, res) => {
+  try {
+    const latestOpening = await fetchLatestOpenProgramOpening();
+    res.status(200).json({ item: latestOpening });
+  } catch (error) {
+    console.error('LATEST OPENING ROUTE ERROR:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to load the latest scholarship opening.',
+    });
+  }
+});
+
 app.get('/api/notifications/unread-count', protect, async (req, res) => {
   try {
     const unreadCount = await notificationService.getUnreadCount(req.user.user_id);
@@ -1751,6 +1824,18 @@ app.get('/api/applications/me/documents', protect, async (req, res) => {
     console.error('APPLICATION DOCUMENT PACKAGE ROUTE ERROR:', error);
     res.status(error.statusCode || 500).json({
       error: error.message || 'Failed to load your scholarship requirements.',
+    });
+  }
+});
+
+app.get('/api/applications/me/status-summary', protect, async (req, res) => {
+  try {
+    const payload = await buildApplicantStatusSummaryForUser(req.user.user_id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('APPLICATION STATUS SUMMARY ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load your application status.',
     });
   }
 });

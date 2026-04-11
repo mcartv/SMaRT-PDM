@@ -303,10 +303,10 @@ function OpeningModal({
                                         <Badge
                                             variant="outline"
                                             className={`text-[10px] ${previewStatus === 'open'
-                                                    ? 'border-green-200 bg-green-50 text-green-700'
-                                                    : previewStatus === 'closed'
-                                                        ? 'border-red-200 bg-red-50 text-red-700'
-                                                        : 'border-amber-200 bg-amber-50 text-amber-700'
+                                                ? 'border-green-200 bg-green-50 text-green-700'
+                                                : previewStatus === 'closed'
+                                                    ? 'border-red-200 bg-red-50 text-red-700'
+                                                    : 'border-amber-200 bg-amber-50 text-amber-700'
                                                 }`}
                                         >
                                             Auto Status: {STATUS_META[previewStatus]?.label || 'Draft'}
@@ -329,9 +329,6 @@ function OpeningModal({
                                     <div className="flex flex-wrap gap-2 mt-2">
                                         <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
                                             GWA ≤ {template.gwa_threshold ?? 'N/A'}
-                                        </Badge>
-                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                            RO: {template.requires_ro ? 'Required' : 'Not Required'}
                                         </Badge>
                                         <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
                                             {template.renewal_cycle || 'No Renewal'}
@@ -1103,9 +1100,6 @@ export default function ScholarshipOpenings() {
                                                     GWA ≤ {template.gwa_threshold ?? 'N/A'}
                                                 </Badge>
                                                 <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                                    RO: {template.requires_ro ? 'Required' : 'Not Required'}
-                                                </Badge>
-                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
                                                     {template.renewal_cycle || 'No Renewal'}
                                                 </Badge>
                                             </div>
@@ -1247,10 +1241,10 @@ export default function ScholarshipOpenings() {
                                                     <Badge
                                                         variant="outline"
                                                         className={`text-[10px] ${audience === 'Both'
-                                                                ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                                                : audience === 'Scholars'
-                                                                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                                                    : 'border-sky-200 bg-sky-50 text-sky-700'
+                                                            ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                                            : audience === 'Scholars'
+                                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                                                : 'border-sky-200 bg-sky-50 text-sky-700'
                                                             }`}
                                                     >
                                                         <Users className="w-3 h-3 mr-1" />

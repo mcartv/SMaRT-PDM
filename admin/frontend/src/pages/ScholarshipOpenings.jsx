@@ -118,7 +118,7 @@ function deriveTargetAudience(source) {
     // Fallback: check if it's a TES program
     const joined = [
         source?.program_name,
-        source?.organization_name,
+        source?.benefactor_name,
         source?.benefactor_name,
         source?.opening_title,
     ]
@@ -297,7 +297,7 @@ function OpeningModal({
                                         </p>
 
                                         <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                            {template.organization_name || 'No Organization'}
+                                            {template.benefactor_name || 'No Organization'}
                                         </Badge>
 
                                         <Badge
@@ -1080,7 +1080,7 @@ export default function ScholarshipOpenings() {
                                                     {template.program_name || 'Untitled Program'}
                                                 </h3>
                                                 <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                                    {template.organization_name || 'No Organization'}
+                                                    {template.benefactor_name || 'No Organization'}
                                                 </Badge>
                                                 <Badge
                                                     variant="outline"

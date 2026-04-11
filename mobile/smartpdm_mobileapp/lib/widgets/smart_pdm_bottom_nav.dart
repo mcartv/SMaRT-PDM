@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/constants.dart';
 import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/services/scholar_access_service.dart';
 
 class SmartPdmBottomNav extends StatelessWidget {
   final int selectedIndex;
   final int unreadNotifications;
+  final bool isVerifiedScholar;
 
   const SmartPdmBottomNav({
     super.key,
     required this.selectedIndex,
     this.unreadNotifications = 0,
+    required this.isVerifiedScholar,
   });
 
   static const List<String> _routes = [
@@ -43,8 +46,7 @@ class SmartPdmBottomNav extends StatelessWidget {
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
       currentIndex: currentIndex,
-      selectedItemColor:
-          bottomNavTheme.selectedItemColor ?? primaryColor,
+      selectedItemColor: bottomNavTheme.selectedItemColor ?? primaryColor,
       unselectedItemColor:
           bottomNavTheme.unselectedItemColor ?? Colors.grey[600],
       backgroundColor:
@@ -87,8 +89,12 @@ class SmartPdmBottomNav extends StatelessWidget {
           label: _labels[index],
         );
       }),
-      onTap: (index) {
+      onTap: (index) async {
         if (index == currentIndex) return;
+        if (index == 1 && !isVerifiedScholar) {
+          ScholarAccessService.showLockedMessage(context);
+          return;
+        }
         AppNavigator.goToTopLevel(context, _routes[index]);
       },
     );

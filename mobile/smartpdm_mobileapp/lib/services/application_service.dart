@@ -1,4 +1,5 @@
 import 'package:smartpdm_mobileapp/models/app_data.dart';
+import 'package:smartpdm_mobileapp/models/application_status_summary.dart';
 import 'package:smartpdm_mobileapp/services/api_client.dart';
 
 class ApplicationService {
@@ -33,5 +34,12 @@ class ApplicationService {
 
   Future<Map<String, dynamic>> fetchMySavedFormData() async {
     return await _apiClient.getObject('/api/applications/me/form-data');
+  }
+
+  Future<ApplicationStatusSummary> fetchMyApplicationStatusSummary() async {
+    final response = await _apiClient.getObject(
+      '/api/applications/me/status-summary',
+    );
+    return ApplicationStatusSummary.fromJson(response);
   }
 }

@@ -3,19 +3,25 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:smartpdm_mobileapp/config/app_config.dart';
 import 'package:smartpdm_mobileapp/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/services/notification_service.dart';
+import 'package:smartpdm_mobileapp/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/services/session_service.dart';
 
 class NotificationProvider extends ChangeNotifier {
   NotificationProvider({
     NotificationService? notificationService,
+    ProgramOpeningService? programOpeningService,
     SessionService? sessionService,
   }) : _notificationService = notificationService ?? NotificationService(),
+       _programOpeningService =
+           programOpeningService ?? ProgramOpeningService(),
        _sessionService = sessionService ?? const SessionService();
 
   final NotificationService _notificationService;
+  final ProgramOpeningService _programOpeningService;
   final SessionService _sessionService;
 
   List<AppNotification> _notifications = [];
+  AppNotification? _latestPendingOpeningUpdate;
   bool _isLoading = false;
   String? _errorMessage;
   int _unreadCount = 0;
@@ -23,8 +29,7 @@ class NotificationProvider extends ChangeNotifier {
   io.Socket? _socket;
 
   List<AppNotification> get notifications => _notifications;
-  List<AppNotification> get officeUpdatesItems =>
-      _notifications.where((item) => item.isOfficeUpdate).toList();
+  List<AppNotification> get officeUpdatesItems => _composeOfficeUpdates();
   List<AppNotification> get generalNotificationItems =>
       _notifications.where((item) => !item.isOfficeUpdate).toList();
   List<AppNotification> get homeOfficeUpdatesItems =>
@@ -50,8 +55,19 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final session = await _sessionService.getCurrentUser();
       final result = await _notificationService.fetchNotifications();
       _notifications = result.items;
+      if (!session.isVerified) {
+        try {
+          _latestPendingOpeningUpdate = await _programOpeningService
+              .fetchLatestOpeningOfficeUpdate();
+        } catch (_) {
+          _latestPendingOpeningUpdate = null;
+        }
+      } else {
+        _latestPendingOpeningUpdate = null;
+      }
       _unreadCount = _notifications.where((item) => !item.isRead).length;
     } catch (error) {
       _errorMessage = error.toString();
@@ -198,6 +214,31 @@ class NotificationProvider extends ChangeNotifier {
 
   void _recalculateUnreadCount() {
     _unreadCount = _notifications.where((item) => !item.isRead).length;
+  }
+
+  List<AppNotification> _composeOfficeUpdates() {
+    final officeUpdates = _notifications
+        .where((item) => item.isOfficeUpdate)
+        .toList();
+
+    if (_latestPendingOpeningUpdate == null) {
+      return officeUpdates;
+    }
+
+    final latestReferenceId = _latestPendingOpeningUpdate!.referenceId;
+    final deduped = officeUpdates.where((item) {
+      if (!item.isOpeningUpdate) {
+        return true;
+      }
+
+      if (latestReferenceId == null || latestReferenceId.isEmpty) {
+        return true;
+      }
+
+      return item.referenceId != latestReferenceId;
+    }).toList();
+
+    return [_latestPendingOpeningUpdate!, ...deduped];
   }
 
   @override

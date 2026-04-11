@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/screens/common/top_level_shell_screen.dart';
+import 'package:smartpdm_mobileapp/services/scholar_access_service.dart';
 
 class AppNavigator {
   static int? _topLevelIndexForRoute(String route) {
@@ -23,6 +24,10 @@ class AppNavigator {
     String route, {
     Object? arguments,
   }) {
+    if (ScholarAccessService.isScholarOnlyRoute(route)) {
+      return _guardScholarRoute(context, route, arguments: arguments);
+    }
+
     final shellState = TopLevelShellScreen.maybeOf(context);
     final targetIndex = _topLevelIndexForRoute(route);
 
@@ -31,9 +36,7 @@ class AppNavigator {
       return Future.value();
     }
 
-    return Navigator.of(
-      context,
-    ).pushNamedAndRemoveUntil(
+    return Navigator.of(context).pushNamedAndRemoveUntil(
       route,
       (previousRoute) => false,
       arguments: arguments,
@@ -41,7 +44,34 @@ class AppNavigator {
   }
 
   static Future<void> pushDetail(BuildContext context, String route) {
+    if (ScholarAccessService.isScholarOnlyRoute(route)) {
+      return _guardScholarRoute(context, route);
+    }
+
     return Navigator.of(context).pushNamed(route);
+  }
+
+  static Future<void> _guardScholarRoute(
+    BuildContext context,
+    String route, {
+    Object? arguments,
+  }) async {
+    final hasAccess = await ScholarAccessService.ensureScholarAccess(context);
+    if (!hasAccess || !context.mounted) return;
+
+    final shellState = TopLevelShellScreen.maybeOf(context);
+    final targetIndex = _topLevelIndexForRoute(route);
+
+    if (shellState != null && targetIndex != null) {
+      shellState.switchToIndex(targetIndex);
+      return;
+    }
+
+    await Navigator.of(context).pushNamedAndRemoveUntil(
+      route,
+      (previousRoute) => false,
+      arguments: arguments,
+    );
   }
 
   static Future<void> goBackOrHome(BuildContext context) {

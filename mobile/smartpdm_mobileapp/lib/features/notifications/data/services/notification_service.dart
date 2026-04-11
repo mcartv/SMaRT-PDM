@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:smartpdm_mobileapp/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
-import 'package:smartpdm_mobileapp/services/session_service.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
 class NotificationListResult {
   final List<AppNotification> items;

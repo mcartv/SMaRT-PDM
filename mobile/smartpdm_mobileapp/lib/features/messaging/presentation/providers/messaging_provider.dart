@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
-import 'package:smartpdm_mobileapp/config/app_config.dart';
-import 'package:smartpdm_mobileapp/models/chat_message.dart';
-import 'package:smartpdm_mobileapp/services/message_service.dart';
-import 'package:smartpdm_mobileapp/services/session_service.dart';
+import 'package:smartpdm_mobileapp/core/config/app_config.dart';
+import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
+import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
 class MessagingProvider extends ChangeNotifier {
   MessagingProvider({

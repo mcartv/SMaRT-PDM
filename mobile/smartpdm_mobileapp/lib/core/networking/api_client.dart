@@ -4,9 +4,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-import 'package:smartpdm_mobileapp/config/app_config.dart';
-import 'package:smartpdm_mobileapp/services/api_exception.dart';
-import 'package:smartpdm_mobileapp/services/session_service.dart';
+import 'package:smartpdm_mobileapp/core/config/app_config.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
 class ApiClient {
   ApiClient({http.Client? httpClient})

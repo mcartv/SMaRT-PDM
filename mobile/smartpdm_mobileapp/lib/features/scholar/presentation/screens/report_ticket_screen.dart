@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/models/support_ticket.dart';
-import 'package:smartpdm_mobileapp/services/api_exception.dart';
-import 'package:smartpdm_mobileapp/services/support_ticket_service.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/models/support_ticket.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
+import 'package:smartpdm_mobileapp/features/scholar/data/services/support_ticket_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ReportTicketScreen extends StatefulWidget {
   const ReportTicketScreen({super.key});

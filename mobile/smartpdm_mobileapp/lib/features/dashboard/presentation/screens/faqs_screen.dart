@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/models/faq_item.dart';
-import 'package:smartpdm_mobileapp/services/faq_service.dart';
-import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/shared/models/faq_item.dart';
+import 'package:smartpdm_mobileapp/features/dashboard/data/services/faq_service.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class FaqsScreen extends StatefulWidget {
   const FaqsScreen({super.key});

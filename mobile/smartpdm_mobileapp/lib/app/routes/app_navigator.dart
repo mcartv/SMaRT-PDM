@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/screens/common/top_level_shell_screen.dart';
-import 'package:smartpdm_mobileapp/services/scholar_access_service.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/shell/presentation/screens/top_level_shell_screen.dart';
+import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
 
 class AppNavigator {
   static int? _topLevelIndexForRoute(String route) {

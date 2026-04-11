@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:smartpdm_mobileapp/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/models/program_opening.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class ProgramOpeningService {
   ProgramOpeningService({ApiClient? apiClient})

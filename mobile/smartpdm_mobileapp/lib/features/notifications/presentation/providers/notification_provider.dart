@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
-import 'package:smartpdm_mobileapp/config/app_config.dart';
-import 'package:smartpdm_mobileapp/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/services/notification_service.dart';
-import 'package:smartpdm_mobileapp/services/program_opening_service.dart';
-import 'package:smartpdm_mobileapp/services/session_service.dart';
+import 'package:smartpdm_mobileapp/core/config/app_config.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/features/notifications/data/services/notification_service.dart';
+import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
 class NotificationProvider extends ChangeNotifier {
   NotificationProvider({

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ApplicationFormScreen extends StatefulWidget {
   const ApplicationFormScreen({super.key});

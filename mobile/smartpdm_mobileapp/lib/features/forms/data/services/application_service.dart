@@ -1,6 +1,6 @@
-import 'package:smartpdm_mobileapp/models/app_data.dart';
-import 'package:smartpdm_mobileapp/models/application_status_summary.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class ApplicationService {
   ApplicationService({ApiClient? apiClient})

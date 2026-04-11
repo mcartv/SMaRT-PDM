@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/services/auth_service.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});

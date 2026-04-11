@@ -2,12 +2,11 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/models/program_opening.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/services/program_opening_service.dart';
-import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class OpeningIndigencyApplyScreen extends StatefulWidget {
   const OpeningIndigencyApplyScreen({super.key, required this.opening});

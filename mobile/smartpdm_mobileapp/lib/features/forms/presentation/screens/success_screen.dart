@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/services/printable_application_service.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 
 class SuccessScreen extends StatefulWidget {
   const SuccessScreen({super.key});

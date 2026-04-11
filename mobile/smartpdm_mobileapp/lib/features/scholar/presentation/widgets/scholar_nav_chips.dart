@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 
 class ScholarNavChips extends StatefulWidget {
   final String selectedLabel;

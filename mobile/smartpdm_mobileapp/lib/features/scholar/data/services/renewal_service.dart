@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:smartpdm_mobileapp/models/scholar_renewal.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/scholar_renewal.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class RenewalService {
   RenewalService({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();

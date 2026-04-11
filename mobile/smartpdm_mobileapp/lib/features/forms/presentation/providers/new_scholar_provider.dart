@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:smartpdm_mobileapp/models/app_data.dart';
-import 'package:smartpdm_mobileapp/services/application_service.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 
 class NewScholarProvider extends ChangeNotifier {
   final ApplicationService _applicationService = ApplicationService();

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 
 class ScholarAccessService {
   static const String lockedMessage =

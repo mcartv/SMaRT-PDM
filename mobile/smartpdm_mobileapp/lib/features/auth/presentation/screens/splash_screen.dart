@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

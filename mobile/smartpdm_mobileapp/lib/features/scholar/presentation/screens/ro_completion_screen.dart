@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:io';
-import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/widgets/scholar_nav_chips.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ROCompletionScreen extends StatefulWidget {
   final Map<String, dynamic>? assignment;

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/models/app_data.dart';
-import 'package:smartpdm_mobileapp/services/application_service.dart';
-import 'package:smartpdm_mobileapp/services/session_service.dart';
-import 'package:smartpdm_mobileapp/screens/forms/step_academic.dart';
-import 'package:smartpdm_mobileapp/screens/forms/step_essay.dart';
-import 'package:smartpdm_mobileapp/screens/forms/step_family.dart';
-import 'package:smartpdm_mobileapp/screens/forms/step_personal.dart';
-import 'package:smartpdm_mobileapp/screens/forms/step_submit.dart';
-import 'package:smartpdm_mobileapp/screens/providers/new_scholar_provider.dart';
-import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_academic.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essay.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_family.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_personal.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_submit.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class NewApplicantScreen extends StatefulWidget {
   const NewApplicantScreen({super.key});

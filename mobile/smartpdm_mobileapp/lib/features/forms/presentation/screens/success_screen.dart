@@ -42,7 +42,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
         payload['title']?.toString() ?? 'Application Submitted Successfully!';
     final message =
         payload['message']?.toString() ??
-        'Please check your email for a confirmation and a reminder of documentary requirements.';
+        'Your scholarship application was submitted. You can continue in Documents to upload the required files for this opening.';
     final appBarTitle =
         payload['appBarTitle']?.toString() ?? 'Application Submitted';
     final applicationId = payload['applicationId']?.toString() ?? '';
@@ -119,7 +119,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     );
                   },
                   icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Upload Requirements'),
+                  label: const Text('View Documents'),
                 ),
               ],
               const SizedBox(height: 30),

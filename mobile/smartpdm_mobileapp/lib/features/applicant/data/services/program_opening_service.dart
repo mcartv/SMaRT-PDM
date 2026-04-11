@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
@@ -18,7 +16,13 @@ class ProgramOpeningService {
         .toList();
 
     return ProgramOpeningsResult(
-      hasBaseApplicationProfile: response['hasBaseApplicationProfile'] == true,
+      hasSavedDraft: response['hasSavedDraft'] == true,
+      draftOpeningId: response['draftOpeningId']?.toString() ?? '',
+      draftOpeningTitle: response['draftOpeningTitle']?.toString() ?? '',
+      draftProgramName: response['draftProgramName']?.toString() ?? '',
+      activeApplicationId: response['activeApplicationId']?.toString() ?? '',
+      activeOpeningId: response['activeOpeningId']?.toString() ?? '',
+      isApprovedScholar: response['isApprovedScholar'] == true,
       items: items,
     );
   }
@@ -36,27 +40,8 @@ class ProgramOpeningService {
 
   Future<Map<String, dynamic>> applyToOpening({
     required String openingId,
-    required String fileName,
-    String? filePath,
-    Uint8List? fileBytes,
+    required Map<String, dynamic> body,
   }) {
-    if (fileBytes != null) {
-      return _apiClient.uploadBytes(
-        '/api/openings/$openingId/apply',
-        fieldName: 'indigency',
-        bytes: fileBytes,
-        fileName: fileName,
-      );
-    }
-
-    if (filePath == null || filePath.isEmpty) {
-      throw ArgumentError('filePath or fileBytes is required.');
-    }
-
-    return _apiClient.uploadFile(
-      '/api/openings/$openingId/apply',
-      fieldName: 'indigency',
-      filePath: filePath,
-    );
+    return _apiClient.postJson('/api/openings/$openingId/apply', body: body);
   }
 }

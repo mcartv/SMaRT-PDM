@@ -193,7 +193,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return 'Continue uploading the remaining scholarship requirements so admin can finish reviewing your application.';
     }
 
-    return 'Upload your scholarship requirements here after completing the base application form. You do not need to apply to a scholarship opening first.';
+    return 'Upload the required scholarship documents for your submitted opening-specific application here.';
   }
 
   String _formatTimestamp(DateTime? value) {
@@ -253,7 +253,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                   Text(
                     package == null
                         ? (_needsBaseApplication
-                              ? 'Submit your base application form first, then come back here to upload your scholarship requirements.'
+                              ? 'Choose a scholarship opening and submit your application first, then come back here to upload your requirements.'
                               : 'Loading your scholarship requirements...')
                         : _summaryText(package),
                     style: TextStyle(
@@ -307,7 +307,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Complete your application form first',
+                      'Submit an application first',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -317,14 +317,16 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     const SizedBox(height: 8),
                     Text(
                       _errorMessage ??
-                          'You need a saved base application before document upload becomes available.',
+                          'You need a submitted scholarship application before document upload becomes available.',
                       style: TextStyle(color: subtitleColor, height: 1.45),
                     ),
                     const SizedBox(height: 14),
                     ElevatedButton(
-                      onPressed: () =>
-                          Navigator.pushNamed(context, AppRoutes.newApplicant),
-                      child: const Text('Open Application Form'),
+                      onPressed: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.scholarshipOpenings,
+                      ),
+                      child: const Text('View Scholarship Openings'),
                     ),
                   ],
                 ),

@@ -55,17 +55,12 @@ class NotificationProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final session = await _sessionService.getCurrentUser();
       final result = await _notificationService.fetchNotifications();
       _notifications = result.items;
-      if (!session.isVerified) {
-        try {
-          _latestPendingOpeningUpdate = await _programOpeningService
-              .fetchLatestOpeningOfficeUpdate();
-        } catch (_) {
-          _latestPendingOpeningUpdate = null;
-        }
-      } else {
+      try {
+        _latestPendingOpeningUpdate = await _programOpeningService
+            .fetchLatestOpeningOfficeUpdate();
+      } catch (_) {
         _latestPendingOpeningUpdate = null;
       }
       _unreadCount = _notifications.where((item) => !item.isRead).length;

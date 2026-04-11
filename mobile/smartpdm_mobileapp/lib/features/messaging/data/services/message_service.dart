@@ -1,5 +1,5 @@
-import 'package:smartpdm_mobileapp/models/chat_message.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class MessageThreadResult {
   final String counterpartyId;

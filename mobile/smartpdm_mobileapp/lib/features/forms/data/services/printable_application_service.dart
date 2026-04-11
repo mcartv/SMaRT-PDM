@@ -1,8 +1,8 @@
 import 'dart:io';
 
-import 'package:smartpdm_mobileapp/models/saved_application_print_model.dart';
-import 'package:smartpdm_mobileapp/services/application_service.dart';
-import 'package:smartpdm_mobileapp/services/scholarship_form_pdf_service.dart';
+import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/scholarship_form_pdf_service.dart';
 
 class PrintableApplicationService {
   PrintableApplicationService({

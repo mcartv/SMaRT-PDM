@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/services/scholar_access_service.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
 
 class ScholarAccessGate extends StatefulWidget {
   final Widget child;

@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/office_update_article_screen.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
-import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';
-import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
-import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
+import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
   final bool showBottomNav;

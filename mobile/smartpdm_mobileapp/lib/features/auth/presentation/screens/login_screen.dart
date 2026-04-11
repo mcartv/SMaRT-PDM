@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/services/auth_service.dart';
-import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
+import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

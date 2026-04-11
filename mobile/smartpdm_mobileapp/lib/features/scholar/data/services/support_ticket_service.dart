@@ -1,5 +1,5 @@
-import 'package:smartpdm_mobileapp/models/support_ticket.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/support_ticket.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class SupportTicketService {
   SupportTicketService({ApiClient? apiClient})

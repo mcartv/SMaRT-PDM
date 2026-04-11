@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'package:smartpdm_mobileapp/models/applicant_documents_package.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class ApplicantDocumentsService {
   ApplicantDocumentsService({ApiClient? apiClient})

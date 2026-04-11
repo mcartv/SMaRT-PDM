@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/services/auth_service.dart';
-import 'package:smartpdm_mobileapp/widgets/shared_widgets.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class RegisterScreen extends StatefulWidget {

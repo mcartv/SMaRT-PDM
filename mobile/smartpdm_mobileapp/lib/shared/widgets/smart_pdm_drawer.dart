@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
-import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
-import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
-import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 
 class SmartPdmDrawer extends StatelessWidget {
   final bool isScholar;

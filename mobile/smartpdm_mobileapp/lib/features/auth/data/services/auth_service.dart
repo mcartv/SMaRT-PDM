@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
-import 'package:smartpdm_mobileapp/services/session_service.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
 class AuthResult {
   final String token;

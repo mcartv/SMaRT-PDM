@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
 class StepPersonal extends StatefulWidget {
   final ApplicationData data;

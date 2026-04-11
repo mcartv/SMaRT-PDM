@@ -1,5 +1,5 @@
-import 'package:smartpdm_mobileapp/models/faq_item.dart';
-import 'package:smartpdm_mobileapp/services/api_client.dart';
+import 'package:smartpdm_mobileapp/shared/models/faq_item.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 
 class FaqService {
   FaqService({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();

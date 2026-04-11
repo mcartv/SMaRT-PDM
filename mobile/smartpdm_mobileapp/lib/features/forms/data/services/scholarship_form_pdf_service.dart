@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MissingPluginException, rootBundle;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:smartpdm_mobileapp/models/saved_application_print_model.dart';
+import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class ScholarshipFormPdfService {

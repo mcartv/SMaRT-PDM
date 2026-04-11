@@ -1,6 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/models/app_data.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class StepSubmit extends StatefulWidget {

@@ -1,28 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/screens/applicant/notifications_screen.dart';
-import 'package:smartpdm_mobileapp/screens/common/dashboard_screen.dart';
-import 'package:smartpdm_mobileapp/screens/profile/profile_screen.dart';
-import 'package:smartpdm_mobileapp/screens/providers/notification_provider.dart';
-import 'package:smartpdm_mobileapp/screens/scholar/payout_schedule_screen.dart';
-import 'package:smartpdm_mobileapp/widgets/scholar_access_gate.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_bottom_nav.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/screens/notifications_screen.dart';
+import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/payout_schedule_screen.dart';
+import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_bottom_nav.dart';
 
 class TopLevelShellScreen extends StatefulWidget {
   final int initialIndex;
 
   const TopLevelShellScreen({super.key, required this.initialIndex});
 
-  static _TopLevelShellScreenState? maybeOf(BuildContext context) {
-    return context.findAncestorStateOfType<_TopLevelShellScreenState>();
+  static TopLevelShellScreenState? maybeOf(BuildContext context) {
+    return context.findAncestorStateOfType<TopLevelShellScreenState>();
   }
 
   @override
-  State<TopLevelShellScreen> createState() => _TopLevelShellScreenState();
+  State<TopLevelShellScreen> createState() => TopLevelShellScreenState();
 }
 
-class _TopLevelShellScreenState extends State<TopLevelShellScreen> {
+class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   late final PageController _pageController;
   late int _currentIndex;
   bool _isVerifiedScholar = false;

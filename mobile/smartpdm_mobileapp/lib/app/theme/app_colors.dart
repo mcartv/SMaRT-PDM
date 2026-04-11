@@ -34,3 +34,4 @@ const Color mutedColor = pdmLightGray;
 
 const double borderRadius = 8.0;
 const double defaultPadding = 16.0;
+const double padding = defaultPadding;

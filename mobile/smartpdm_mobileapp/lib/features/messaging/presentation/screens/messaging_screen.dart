@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/constants.dart';
-import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
-import 'package:smartpdm_mobileapp/models/chat_message.dart';
-import 'package:smartpdm_mobileapp/screens/providers/messaging_provider.dart';
-import 'package:smartpdm_mobileapp/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
+import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
+import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class MessagingScreen extends StatefulWidget {
   const MessagingScreen({super.key});

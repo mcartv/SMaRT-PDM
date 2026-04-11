@@ -721,28 +721,42 @@ export default function ScholarshipOpenings() {
     const filteredOpenings = useMemo(() => {
         const q = search.trim().toLowerCase();
 
-        return visibleOpenings.filter((o) => {
-            const matchSearch =
-                !q ||
-                (o.opening_title || '').toLowerCase().includes(q) ||
-                (o.program_name || '').toLowerCase().includes(q) ||
-                (o.benefactor_name || '').toLowerCase().includes(q);
+        return visibleOpenings
+            .filter((o) => {
+                const matchSearch =
+                    !q ||
+                    (o.opening_title || '').toLowerCase().includes(q) ||
+                    (o.program_name || '').toLowerCase().includes(q) ||
+                    (o.benefactor_name || '').toLowerCase().includes(q);
 
-            const matchStatus =
-                statusFilter === 'All Statuses' ||
-                (o.posting_status || '').toLowerCase() === statusFilter.toLowerCase();
+                const matchStatus =
+                    statusFilter === 'All Statuses' ||
+                    (o.posting_status || '').toLowerCase() === statusFilter.toLowerCase();
 
-            const matchProgram =
-                programFilter === 'All Programs' ||
-                (o.program_name || '') === programFilter;
+                const matchProgram =
+                    programFilter === 'All Programs' ||
+                    (o.program_name || '') === programFilter;
 
-            const openingAudience = normalizeAudience(o.target_audience) || 'Applicants';
-            const matchAudience =
-                audienceFilter === 'All Audiences' ||
-                openingAudience === audienceFilter;
+                const openingAudience = normalizeAudience(o.target_audience) || 'Applicants';
+                const matchAudience =
+                    audienceFilter === 'All Audiences' ||
+                    openingAudience === audienceFilter;
 
-            return matchSearch && matchStatus && matchProgram && matchAudience;
-        });
+                return matchSearch && matchStatus && matchProgram && matchAudience;
+            })
+            .sort((a, b) => {
+                const aCreated = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                const bCreated = b?.created_at ? new Date(b.created_at).getTime() : 0;
+
+                if (bCreated !== aCreated) {
+                    return bCreated - aCreated;
+                }
+
+                const aUpdated = a?.updated_at ? new Date(a.updated_at).getTime() : 0;
+                const bUpdated = b?.updated_at ? new Date(b.updated_at).getTime() : 0;
+
+                return bUpdated - aUpdated;
+            });
     }, [visibleOpenings, search, statusFilter, programFilter, audienceFilter]);
 
     const stats = useMemo(() => {

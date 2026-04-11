@@ -260,12 +260,12 @@ function ProgramModal({
     if (!open) return null;
 
     const isEdit = mode === 'edit';
-    const noGwaThreshold = form.gwa_threshold === null || form.gwa_threshold === '';
+    const noGwaThreshold = form.gwa_threshold === null;
 
-    const handleToggleNoGwaThreshold = (value) => {
+    const handleToggleNoGwaThreshold = (nextNoThreshold) => {
         setForm((prev) => ({
             ...prev,
-            gwa_threshold: value ? null : '',
+            gwa_threshold: nextNoThreshold ? null : prev.gwa_threshold === null ? '' : prev.gwa_threshold,
         }));
     };
 
@@ -1349,8 +1349,8 @@ function BenefactorsPanel() {
 
                                                     <span
                                                         className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${isPublic
-                                                                ? 'bg-blue-50 text-blue-700'
-                                                                : 'bg-amber-50 text-amber-700'
+                                                            ? 'bg-blue-50 text-blue-700'
+                                                            : 'bg-amber-50 text-amber-700'
                                                             }`}
                                                     >
                                                         {isPublic ? 'Public Sponsor' : 'Private Sponsor'}
@@ -1383,8 +1383,8 @@ function BenefactorsPanel() {
                                                     size="sm"
                                                     variant="outline"
                                                     className={`h-8 px-3 rounded-lg text-xs shadow-none ${b.is_archived
-                                                            ? 'border-green-200 text-green-700 hover:bg-green-50'
-                                                            : 'border-red-200 text-red-700 hover:bg-red-50'
+                                                        ? 'border-green-200 text-green-700 hover:bg-green-50'
+                                                        : 'border-red-200 text-red-700 hover:bg-red-50'
                                                         }`}
                                                     onClick={() => handleArchiveToggle(b)}
                                                 >
@@ -1920,10 +1920,10 @@ function ProgramsPanel() {
 
                                                     <span
                                                         className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${audience === 'Both'
-                                                                ? 'bg-purple-50 text-purple-700'
-                                                                : audience === 'Scholars'
-                                                                    ? 'bg-indigo-50 text-indigo-700'
-                                                                    : 'bg-sky-50 text-sky-700'
+                                                            ? 'bg-purple-50 text-purple-700'
+                                                            : audience === 'Scholars'
+                                                                ? 'bg-indigo-50 text-indigo-700'
+                                                                : 'bg-sky-50 text-sky-700'
                                                             }`}
                                                     >
                                                         <UsersIcon className="w-3 h-3 inline mr-1" />
@@ -1932,8 +1932,8 @@ function ProgramsPanel() {
 
                                                     <span
                                                         className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${isPublished
-                                                                ? 'bg-green-50 text-green-700'
-                                                                : 'bg-stone-100 text-stone-500'
+                                                            ? 'bg-green-50 text-green-700'
+                                                            : 'bg-stone-100 text-stone-500'
                                                             }`}
                                                     >
                                                         {isPublished ? 'Published' : 'Draft'}
@@ -1966,8 +1966,8 @@ function ProgramsPanel() {
                                                     size="sm"
                                                     variant="outline"
                                                     className={`h-8 px-3 rounded-lg text-xs shadow-none ${p.is_archived
-                                                            ? 'border-green-200 text-green-700 hover:bg-green-50'
-                                                            : 'border-red-200 text-red-700 hover:bg-red-50'
+                                                        ? 'border-green-200 text-green-700 hover:bg-green-50'
+                                                        : 'border-red-200 text-red-700 hover:bg-red-50'
                                                         }`}
                                                     onClick={() => handleArchiveToggle(p)}
                                                 >
@@ -2652,8 +2652,8 @@ export default function SettingsMaintenance() {
                             type="button"
                             onClick={() => setTab(t.key)}
                             className={`flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${tab === t.key
-                                    ? 'text-stone-900 border-stone-900 bg-white'
-                                    : 'text-stone-400 border-transparent hover:text-stone-600'
+                                ? 'text-stone-900 border-stone-900 bg-white'
+                                : 'text-stone-400 border-transparent hover:text-stone-600'
                                 }`}
                         >
                             <t.icon size={14} />

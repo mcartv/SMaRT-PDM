@@ -11,8 +11,22 @@ class ApplicationService {
   Future<Map<String, dynamic>> submitApplication(
     ApplicationData applicationData,
   ) async {
+    final openingId = applicationData.openingId.trim();
+    if (openingId.isEmpty) {
+      throw Exception(
+        'Choose a scholarship opening before submitting your application.',
+      );
+    }
+
+    return submitApplicationForOpening(openingId, applicationData);
+  }
+
+  Future<Map<String, dynamic>> submitApplicationForOpening(
+    String openingId,
+    ApplicationData applicationData,
+  ) async {
     return await _apiClient.postJson(
-      '/api/applications',
+      '/api/openings/$openingId/apply',
       body: applicationData.toSubmissionPayload(),
       timeout: const Duration(seconds: 20),
     );
@@ -34,6 +48,16 @@ class ApplicationService {
 
   Future<Map<String, dynamic>> fetchMySavedFormData() async {
     return await _apiClient.getObject('/api/applications/me/form-data');
+  }
+
+  Future<Map<String, dynamic>> saveMySavedFormData(
+    ApplicationData applicationData,
+  ) async {
+    return await _apiClient.putJson(
+      '/api/applications/me/form-data',
+      body: applicationData.toDraftPayload(),
+      timeout: const Duration(seconds: 20),
+    );
   }
 
   Future<ApplicationStatusSummary> fetchMyApplicationStatusSummary() async {

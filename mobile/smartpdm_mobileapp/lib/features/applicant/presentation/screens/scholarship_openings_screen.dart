@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/opening_indigency_apply_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
@@ -19,7 +18,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   final ProgramOpeningService _programOpeningService = ProgramOpeningService();
 
   bool _isLoading = true;
-  bool _hasBaseApplicationProfile = false;
+  ProgramOpeningsResult? _result;
   String? _error;
   List<ProgramOpening> _openings = const [];
 
@@ -40,7 +39,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
       if (!mounted) return;
 
       setState(() {
-        _hasBaseApplicationProfile = result.hasBaseApplicationProfile;
+        _result = result;
         _openings = result.items;
       });
     } catch (error) {
@@ -66,21 +65,31 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     return '${format(opening.applicationStart)} - ${format(opening.applicationEnd)}';
   }
 
+  Future<void> _openApplicationForm({
+    ProgramOpening? opening,
+    bool replaceExistingDraft = false,
+  }) async {
+    await Navigator.pushNamed(
+      context,
+      AppRoutes.newApplicant,
+      arguments: opening == null
+          ? null
+          : <String, dynamic>{
+              'openingId': opening.openingId,
+              'openingTitle': opening.openingTitle,
+              'programName': opening.programName,
+              'replaceExistingDraft': replaceExistingDraft,
+            },
+    );
+
+    if (!mounted) return;
+    await _loadOpenings();
+  }
+
   Future<void> _handleApply(ProgramOpening opening) async {
-    if (!_hasBaseApplicationProfile) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please complete your application form first before applying to an opening.',
-          ),
-        ),
-      );
-      Navigator.pushNamed(context, AppRoutes.newApplicant);
-      return;
-    }
+    final result = _result;
 
     if (opening.hasApplied &&
-        opening.applyLabel == 'Upload Requirements' &&
         (opening.existingApplicationId?.isNotEmpty ?? false)) {
       await Navigator.pushNamed(
         context,
@@ -97,23 +106,49 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     }
 
     if (!opening.canApply) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You already applied to this scholarship opening.'),
-        ),
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(opening.applyLabel)));
+      return;
+    }
+
+    if (result?.hasSavedDraft == true &&
+        result!.draftOpeningId.trim().isNotEmpty &&
+        result.draftOpeningId != opening.openingId) {
+      final replaceDraft = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Existing draft found'),
+            content: Text(
+              'You already have a saved draft for ${result.draftOpeningTitle.isNotEmpty ? result.draftOpeningTitle : 'another scholarship opening'}. Continue that draft or replace it with ${opening.openingTitle}?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Continue Draft'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Replace Draft'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (replaceDraft == null) {
+        return;
+      }
+
+      await _openApplicationForm(
+        opening: replaceDraft ? opening : null,
+        replaceExistingDraft: replaceDraft,
       );
       return;
     }
 
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OpeningIndigencyApplyScreen(opening: opening),
-      ),
-    );
-
-    if (!mounted) return;
-    await _loadOpenings();
+    await _openApplicationForm(opening: opening);
   }
 
   @override
@@ -123,6 +158,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
     final cardColor = isDark ? const Color(0xFF2D1E12) : Colors.white;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+    final result = _result;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(title: const Text('Scholarship Openings')),
@@ -153,7 +189,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Choose an opening when you are ready to apply, but you can upload scholarship requirements separately after completing your base application form.',
+                    'Select an admin-posted scholarship opening to start or continue your application. One active application is allowed at a time.',
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.45,
@@ -164,7 +200,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            if (!_hasBaseApplicationProfile)
+            if (result?.hasSavedDraft == true)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(16),
@@ -176,7 +212,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Complete your base application form first',
+                      'Saved draft available',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -185,16 +221,28 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'You can browse openings now, but Apply Now will ask you to finish the application form before submitting to an opening.',
+                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship opening'} or choose a different opening to replace it.',
                       style: TextStyle(color: subtitleColor, height: 1.4),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: () =>
-                          Navigator.pushNamed(context, AppRoutes.newApplicant),
-                      child: const Text('Complete Application Form'),
+                      onPressed: () => _openApplicationForm(),
+                      child: const Text('Continue Draft'),
                     ),
                   ],
+                ),
+              ),
+            if (result?.isApprovedScholar == true)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  'You are already an approved scholar. Only TES scholarship openings are shown here.',
+                  style: TextStyle(color: subtitleColor, height: 1.4),
                 ),
               ),
             if (_isLoading)
@@ -224,7 +272,9 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 32),
                 child: Text(
-                  'No scholarship openings are currently available.',
+                  result?.isApprovedScholar == true
+                      ? 'No TES scholarship openings are currently available.'
+                      : 'No scholarship openings are currently available.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: subtitleColor),
                 ),

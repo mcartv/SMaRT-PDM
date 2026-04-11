@@ -4,6 +4,8 @@ class ApplicationStatusSummary {
     this.applicationId,
     this.applicationStatus,
     this.documentStatus,
+    this.openingId,
+    this.openingTitle,
     this.programId,
     this.programName,
     this.submissionDate,
@@ -13,6 +15,8 @@ class ApplicationStatusSummary {
   final String? applicationId;
   final String? applicationStatus;
   final String? documentStatus;
+  final String? openingId;
+  final String? openingTitle;
   final String? programId;
   final String? programName;
   final DateTime? submissionDate;
@@ -26,6 +30,8 @@ class ApplicationStatusSummary {
       applicationId: application['application_id']?.toString(),
       applicationStatus: application['application_status']?.toString(),
       documentStatus: application['document_status']?.toString(),
+      openingId: application['opening_id']?.toString(),
+      openingTitle: application['opening_title']?.toString(),
       programId: application['program_id']?.toString(),
       programName: application['program_name']?.toString(),
       submissionDate: DateTime.tryParse(

@@ -8,7 +8,7 @@ require('dotenv').config({
 const express = require('express');
 const cors = require('cors');
 
-// ✅ Route imports (keep consistent naming)
+// ✅ Route imports
 const authRoutes = require('../routes/authRoutes');
 const scholarRoutes = require('../routes/scholarRoutes');
 const applicationRoutes = require('../routes/applicationRoutes');
@@ -23,18 +23,17 @@ const benefactorRoutes = require('../routes/benefactorRoutes');
 const departmentRoutes = require('../routes/departmentRoutes');
 const renewalRoutes = require('../routes/renewalRoutes');
 const supportTicketRoutes = require('../routes/supportTicketRoutes');
+const payoutRoutes = require('../routes/payoutRoutes');
 
 // ✅ Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
 
 const app = express();
 
-
 // =========================
 // 🔧 MIDDLEWARE
 // =========================
 
-// ✅ Safer CORS (important for frontend 5173)
 app.use(cors({
     origin: [
         'http://localhost:5173',
@@ -45,7 +44,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 
 // =========================
 // 📡 ROUTES
@@ -65,17 +63,15 @@ app.use('/api/benefactors', benefactorRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/renewals', renewalRoutes);
 app.use('/api/support-tickets', supportTicketRoutes);
-
-
+app.use('/api/payouts', payoutRoutes);
 
 // =========================
-// 🧪 HEALTH CHECK (IMPORTANT)
+// 🧪 HEALTH CHECK
 // =========================
 
 app.get('/', (req, res) => {
     res.send('API is running...');
 });
-
 
 // =========================
 // ❌ ERROR HANDLER
@@ -89,7 +85,6 @@ app.use((err, req, res, next) => {
     });
 });
 
-
 // =========================
 // 🚀 SERVER START
 // =========================
@@ -100,12 +95,10 @@ app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-
 // =========================
 // ⏱️ SCHEDULER
 // =========================
 
-// ✅ Prevent multiple intervals (important in dev reloads)
 if (!global._announcementSchedulerRunning) {
     global._announcementSchedulerRunning = true;
 

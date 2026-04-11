@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/navigation/app_navigator.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/navigation/app_routes.dart';
 import 'package:smartpdm_mobileapp/widgets/app_theme.dart';
 import 'package:smartpdm_mobileapp/widgets/app_settings_sheet.dart';

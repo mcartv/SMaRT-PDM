@@ -17,23 +17,50 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _firstNameController = TextEditingController();
   final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _courseCodeController = TextEditingController();
-  final _yearLevelController = TextEditingController();
   final _barangayController = TextEditingController();
   final _phoneNumberController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isLoadingCourses = true;
+
+  List<CourseOption> _courses = const [];
+  CourseOption? _selectedCourse;
+  int? _selectedYearLevel;
+
+  static const List<int> _yearLevels = [1, 2, 3, 4, 5];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourses();
+  }
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _middleNameController.dispose();
     _lastNameController.dispose();
-    _courseCodeController.dispose();
-    _yearLevelController.dispose();
     _barangayController.dispose();
     _phoneNumberController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCourses() async {
+    try {
+      final courses = await _authService.fetchCourses();
+
+      if (!mounted) return;
+      setState(() {
+        _courses = courses;
+        _isLoadingCourses = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCourses = false;
+      });
+      _showMessage('Failed to load courses: $e', isError: true);
+    }
   }
 
   void _showMessage(String text, {bool isError = false}) {
@@ -60,46 +87,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
 
     final text = value.trim();
-    if (text.length < 2) {
-      return '$field is too short';
-    }
-
+    if (text.length < 2) return '$field is too short';
     if (!RegExp(r"^[a-zA-ZñÑ\s.'-]+$").hasMatch(text)) {
       return 'Enter a valid $field';
-    }
-
-    return null;
-  }
-
-  String? _courseCodeValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Course code is required';
-    }
-
-    final text = value.trim().toUpperCase();
-    if (text.length < 2 || text.length > 15) {
-      return 'Enter a valid course code';
-    }
-
-    if (!RegExp(r'^[A-Z0-9\- ]+$').hasMatch(text)) {
-      return 'Enter a valid course code';
-    }
-
-    return null;
-  }
-
-  String? _yearLevelValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Year level is required';
-    }
-
-    final year = int.tryParse(value.trim());
-    if (year == null) {
-      return 'Year level must be a number';
-    }
-
-    if (year < 1 || year > 10) {
-      return 'Enter a valid year level';
     }
 
     return null;
@@ -126,7 +116,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       return;
     }
 
-    final yearLevel = int.parse(_yearLevelController.text.trim());
+    if (_selectedCourse == null) {
+      _showMessage('Please select your course.', isError: true);
+      return;
+    }
+
+    if (_selectedYearLevel == null) {
+      _showMessage('Please select your year level.', isError: true);
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -135,8 +133,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         firstName: _firstNameController.text.trim(),
         middleName: _middleNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
-        courseCode: _courseCodeController.text.trim().toUpperCase(),
-        yearLevel: yearLevel,
+        courseCode: _selectedCourse!.courseCode,
+        yearLevel: _selectedYearLevel!,
         barangay: _barangayController.text.trim(),
         phoneNumber: _phoneNumberController.text.trim(),
       );
@@ -144,7 +142,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       if (!mounted) return;
 
       _showMessage('Profile completed successfully.');
-
       Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     } catch (e) {
       _showMessage(e.toString(), isError: true);
@@ -154,7 +151,36 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
   }
 
-  Widget _buildField({
+  InputDecoration _inputDecoration(String label, {String? hintText}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hintText,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: BorderSide(color: accentColor, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: const BorderSide(color: Colors.red),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: const BorderSide(color: Colors.red, width: 1.4),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
     required String label,
     required TextEditingController controller,
     required String? Function(String?) validator,
@@ -167,36 +193,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
-        keyboardType: keyboardType,
         validator: validator,
+        keyboardType: keyboardType,
         inputFormatters: inputFormatters,
         textCapitalization: textCapitalization,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hintText,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: BorderSide(color: accentColor, width: 1.6),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: const BorderSide(color: Colors.red),
-          ),
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: const BorderSide(color: Colors.red, width: 1.4),
-          ),
-        ),
+        decoration: _inputDecoration(label, hintText: hintText),
       ),
     );
   }
@@ -265,59 +266,90 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       ),
                       const SizedBox(height: 28),
 
-                      _buildField(
+                      _buildTextField(
                         label: 'First Name',
                         controller: _firstNameController,
                         validator: (v) => _nameValidator(v, 'First name'),
                       ),
-                      _buildField(
+                      _buildTextField(
                         label: 'Middle Name',
                         controller: _middleNameController,
                         validator: (_) => null,
                         hintText: 'Optional',
                       ),
-                      _buildField(
+                      _buildTextField(
                         label: 'Last Name',
                         controller: _lastNameController,
                         validator: (v) => _nameValidator(v, 'Last name'),
                       ),
-                      _buildField(
-                        label: 'Course Code',
-                        controller: _courseCodeController,
-                        validator: _courseCodeValidator,
-                        hintText: 'Example: BSIT',
-                        textCapitalization: TextCapitalization.characters,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                            RegExp(r'[a-zA-Z0-9\- ]'),
-                          ),
-                          LengthLimitingTextInputFormatter(15),
-                        ],
+
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: DropdownButtonFormField<CourseOption>(
+                          value: _selectedCourse,
+                          isExpanded: true,
+                          decoration: _inputDecoration('Course'),
+                          items: _courses
+                              .map(
+                                (course) => DropdownMenuItem<CourseOption>(
+                                  value: course,
+                                  child: Text(
+                                    course.label,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _isLoadingCourses
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _selectedCourse = value;
+                                  });
+                                },
+                          validator: (value) =>
+                              value == null ? 'Course is required' : null,
+                        ),
                       ),
-                      _buildField(
-                        label: 'Year Level',
-                        controller: _yearLevelController,
-                        keyboardType: TextInputType.number,
-                        validator: _yearLevelValidator,
-                        textCapitalization: TextCapitalization.none,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(2),
-                        ],
+
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: DropdownButtonFormField<int>(
+                          value: _selectedYearLevel,
+                          decoration: _inputDecoration('Year Level'),
+                          items: _yearLevels
+                              .map(
+                                (year) => DropdownMenuItem<int>(
+                                  value: year,
+                                  child: Text('Year $year'),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedYearLevel = value;
+                            });
+                          },
+                          validator: (value) =>
+                              value == null ? 'Year level is required' : null,
+                        ),
                       ),
-                      _buildField(
+
+                      _buildTextField(
                         label: 'Barangay',
                         controller: _barangayController,
                         validator: (v) => _requiredValidator(v, 'Barangay'),
                       ),
-                      _buildField(
+                      _buildTextField(
                         label: 'Phone Number',
                         controller: _phoneNumberController,
-                        keyboardType: TextInputType.phone,
                         validator: _phoneValidator,
+                        keyboardType: TextInputType.phone,
                         textCapitalization: TextCapitalization.none,
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9+\- ]')),
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[0-9+\- ]'),
+                          ),
                           LengthLimitingTextInputFormatter(16),
                         ],
                       ),
@@ -327,7 +359,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       SizedBox(
                         height: 52,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _saveProfile,
+                          onPressed:
+                              (_isLoading || _isLoadingCourses) ? null : _saveProfile,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: accentColor,
                             foregroundColor: Colors.white,
@@ -345,9 +378,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                                     strokeWidth: 2.2,
                                   ),
                                 )
-                              : const Text(
-                                  'SAVE PROFILE',
-                                  style: TextStyle(
+                              : Text(
+                                  _isLoadingCourses
+                                      ? 'LOADING COURSES...'
+                                      : 'SAVE PROFILE',
+                                  style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 0.3,

@@ -2618,6 +2618,46 @@ async function sendOTPEmail(userEmail, otpCode) {
 
 // --- ROUTES ---
 
+app.get('/api/courses', protect, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('academic_course')
+      .select('course_id, course_code, course_name, is_archived, department_id')
+      .eq('is_archived', false)
+      .not('course_code', 'is', null)
+      .not('course_name', 'is', null)
+      .order('course_code', { ascending: true });
+
+    if (error) {
+      console.error('COURSES FETCH ERROR:', error);
+      return res.status(500).json({
+        error: error.message || 'Failed to load courses.',
+      });
+    }
+
+    const items = (data || [])
+      .filter((course) => {
+        const code = String(course.course_code || '').trim();
+        const name = String(course.course_name || '').trim();
+        return code.length > 0 && name.length > 0;
+      })
+      .map((course) => ({
+        course_id: course.course_id,
+        course_code: String(course.course_code || '').trim(),
+        course_name: String(course.course_name || '').trim(),
+        department_id: course.department_id,
+        label: `${String(course.course_code || '').trim()} - ${String(course.course_name || '').trim()}`,
+      }));
+
+    return res.status(200).json({ items });
+  } catch (error) {
+    console.error('COURSES ROUTE ERROR:', error);
+    return res.status(500).json({
+      error: error.message || 'Failed to load courses.',
+    });
+  }
+});
+
 // 1. Register Route
 app.post('/api/auth/register', async (req, res) => {
   let { email, password, student_id } = req.body;

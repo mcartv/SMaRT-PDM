@@ -43,6 +43,9 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold> {
 
   Future<void> _loadUserInfo() async {
     final prefs = await SharedPreferences.getInstance();
+
+    if (!mounted) return;
+
     setState(() {
       _isScholar = prefs.getBool('user_is_verified') ?? false;
       _userName = prefs.getString('user_student_id') ?? 'Scholar';
@@ -52,14 +55,20 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold> {
   @override
   Widget build(BuildContext context) {
     final content = widget.applyPadding
-        ? Padding(padding: const EdgeInsets.all(16.0), child: widget.child)
+        ? Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: widget.child,
+          )
         : widget.child;
 
     return Scaffold(
       appBar: widget.appBar,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       drawer: widget.showDrawer
-          ? SmartPdmDrawer(isScholar: _isScholar, userName: _userName)
+          ? SmartPdmDrawer(
+              isScholar: _isScholar,
+              userName: _userName,
+            )
           : null,
       bottomNavigationBar: widget.showBottomNav
           ? Consumer<NotificationProvider>(

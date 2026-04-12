@@ -6,6 +6,7 @@ class AppRoutes {
   static const otp = '/otp';
   static const forgotPassword = '/forgot-password';
   static const changeEmail = '/change-email';
+  static const completeProfile = '/complete-profile';
 
   // Top-level dashboard routes
   static const home = '/home';
@@ -29,7 +30,12 @@ class AppRoutes {
   static const success = '/success';
   static const scholarshipOpenings = '/scholarship-openings';
 
-  static const topLevel = <String>{home, payouts, notifications, profile};
+  static const topLevel = <String>{
+    home,
+    payouts,
+    notifications,
+    profile,
+  };
 
   static bool isTopLevel(String route) => topLevel.contains(route);
 }

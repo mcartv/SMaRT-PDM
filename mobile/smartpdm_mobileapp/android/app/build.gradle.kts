@@ -24,7 +24,7 @@ android {
         applicationId = "com.example.smartpdm_mobileapp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -37,6 +37,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    implementation("com.google.android.recaptcha:recaptcha:18.9.0-beta02")
 }
 
 flutter {

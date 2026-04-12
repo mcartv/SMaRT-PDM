@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
 class ApplicantAccessGate extends StatefulWidget {
   const ApplicantAccessGate({
@@ -15,7 +15,6 @@ class ApplicantAccessGate extends StatefulWidget {
 }
 
 class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
-  final SessionService _sessionService = const SessionService();
   bool _isChecking = true;
 
   @override
@@ -25,14 +24,13 @@ class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
   }
 
   Future<void> _checkAccess() async {
-    final session = await _sessionService.getCurrentUser();
+    final prefs = await SharedPreferences.getInstance();
+    final hasScholarAccess =
+        prefs.getBool('user_has_scholar_access') ?? false;
 
     if (!mounted) return;
 
-    final isScholar = session.isVerified == true;
-
-    // ❗ If scholar → block applicant routes
-    if (isScholar) {
+    if (hasScholarAccess) {
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.home,
@@ -41,14 +39,18 @@ class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
       return;
     }
 
-    setState(() => _isChecking = false);
+    setState(() {
+      _isChecking = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
 

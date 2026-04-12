@@ -168,6 +168,7 @@ class SessionService {
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
 
+    await prefs.remove('user_has_scholar_access');
     await prefs.remove('jwt_token');
     await prefs.remove('user_id');
     await prefs.remove('user_email');

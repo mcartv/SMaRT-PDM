@@ -1708,7 +1708,7 @@ async function uploadApplicationDocumentFile({
 
   const sanitizedFileName = (file.originalname || 'document')
     .replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const fileScope = applicationId || studentId;
+  const fileScope = applicationId || uploadedBy;
   const fileName = `${fileScope}/${definition.id}/${Date.now()}-${sanitizedFileName}`;
 
   const { error: storageError } = await supabase.storage
@@ -2920,6 +2920,14 @@ app.patch('/api/profile/me', protect, async (req, res) => {
     if (firstName) nextStudentPayload.first_name = firstName;
     if (lastName) nextStudentPayload.last_name = lastName;
     nextStudentPayload.course_id = courseId;
+
+    const isProfileComplete =
+      !!firstName &&
+      !!lastName &&
+      !!email &&
+      !!courseCode;
+
+    nextStudentPayload.is_profile_complete = isProfileComplete;
 
     const { error: studentUpdateError } = await supabase
       .from('students')

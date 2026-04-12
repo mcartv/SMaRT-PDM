@@ -2211,12 +2211,22 @@ async function persistApplicantProfileSubmission(payload = {}) {
     guardian_signature_url: null,
   };
 
-  const { error: profileError } = await supabase
+  const { data: profileRecord, error: profileError } = await supabase
     .from('student_profiles')
-    .upsert([studentProfilePayload], { onConflict: 'student_id' });
+    .upsert([studentProfilePayload], { onConflict: 'student_id' })
+    .select('profile_id, student_id')
+    .single();
 
   if (profileError) {
     throw profileError;
+  }
+
+  if (!profileRecord?.profile_id) {
+    const error = new Error(
+      'Failed to resolve the saved student profile for this application.'
+    );
+    error.statusCode = 500;
+    throw error;
   }
 
   const familyResidencyMap = buildFamilyResidencyByRelation(
@@ -2288,6 +2298,8 @@ async function persistApplicantProfileSubmission(payload = {}) {
     },
   ];
 
+  const familyRecordsByRelation = {};
+
   for (const row of familyRows) {
     const { data: existingFamilyRows, error: familyFetchError } = await supabase
       .from('student_family')
@@ -2300,7 +2312,8 @@ async function persistApplicantProfileSubmission(payload = {}) {
     }
 
     if ((existingFamilyRows || []).length > 0) {
-      const { error: familyUpdateError } = await supabase
+      const existingFamilyRecord = existingFamilyRows[0];
+      const { data: updatedFamilyRecord, error: familyUpdateError } = await supabase
         .from('student_family')
         .update({
           last_name: row.last_name,
@@ -2316,13 +2329,18 @@ async function persistApplicantProfileSubmission(payload = {}) {
           origin_province: row.origin_province,
         })
         .eq('student_id', studentRecord.student_id)
-        .eq('relation', row.relation);
+        .eq('relation', row.relation)
+        .select('family_id, relation')
+        .single();
 
       if (familyUpdateError) {
         throw familyUpdateError;
       }
+
+      familyRecordsByRelation[row.relation] =
+        updatedFamilyRecord || existingFamilyRecord;
     } else {
-      const { error: familyInsertError } = await supabase
+      const { data: insertedFamilyRecord, error: familyInsertError } = await supabase
         .from('student_family')
         .insert([
           {
@@ -2340,11 +2358,15 @@ async function persistApplicantProfileSubmission(payload = {}) {
             years_as_resident: row.years_as_resident,
             origin_province: row.origin_province,
           },
-        ]);
+        ])
+        .select('family_id, relation')
+        .single();
 
       if (familyInsertError) {
         throw familyInsertError;
       }
+
+      familyRecordsByRelation[row.relation] = insertedFamilyRecord;
     }
   }
 
@@ -2386,16 +2408,46 @@ async function persistApplicantProfileSubmission(payload = {}) {
     ...row,
   }));
 
-  const { error: educationError } = await supabase
+  const { data: educationRecords, error: educationError } = await supabase
     .from('student_education')
-    .upsert(educationRows, { onConflict: 'student_id,education_level' });
+    .upsert(educationRows, { onConflict: 'student_id,education_level' })
+    .select('education_id, education_level');
 
   if (educationError) {
     throw educationError;
   }
 
+  const familyRecord =
+    familyRecordsByRelation.Guardian ||
+    familyRecordsByRelation.Father ||
+    familyRecordsByRelation.Mother ||
+    familyRecordsByRelation.Sibling ||
+    null;
+
+  if (!familyRecord?.family_id) {
+    const error = new Error(
+      'Failed to resolve the saved family record for this application.'
+    );
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const educationRecord =
+    (educationRecords || []).find(
+      (row) => String(row.education_level || '').toLowerCase() === 'college'
+    ) ||
+    (educationRecords || []).find(
+      (row) =>
+        String(row.education_level || '').toLowerCase() === 'senior high school'
+    ) ||
+    (educationRecords || [])[0] ||
+    null;
+
   return {
     studentRecord,
+    profileRecord,
+    familyRecord,
+    educationRecord,
     account,
     contact,
     studentProfilePayload,
@@ -2510,6 +2562,9 @@ async function submitApplicantOpeningApplication({
       .insert([
         {
           student_id: persisted.studentRecord.student_id,
+          profile_id: persisted.profileRecord.profile_id,
+          family_id: persisted.familyRecord.family_id,
+          education_id: persisted.educationRecord?.education_id ?? null,
           opening_id: opening.opening_id,
           program_id: opening.program_id,
           application_status: 'Pending Review',

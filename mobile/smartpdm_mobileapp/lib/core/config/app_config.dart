@@ -1,7 +1,7 @@
 class AppConfig {
   AppConfig._();
 
-  static const String _defaultBaseUrl = 'http://192.168.22.4:3000';
+  static const String _defaultBaseUrl = 'http://10.77.117.2:3000';
 
   static String get apiBaseUrl {
     const configuredValue = String.fromEnvironment('API_BASE_URL');

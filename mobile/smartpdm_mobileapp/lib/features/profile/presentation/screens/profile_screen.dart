@@ -22,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileService _profileService = ProfileService();
   final SessionService _sessionService = const SessionService();
+
   static const List<String> _courseOptions = [
     'BSTM',
     'BSOAD',
@@ -35,11 +36,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = 'Institutional Scholar';
   String _accountHolderName = 'Pending Applicant';
   String? _imagePath;
+
   bool _isProfileLoading = true;
   bool _isUploading = false;
   bool _isEditing = false;
   bool _isSaving = false;
   bool _isEmailInvalid = false;
+  bool _isProfileIncomplete = false;
 
   late TextEditingController _firstNameController;
   late TextEditingController _lastNameController;
@@ -76,6 +79,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return fullName.isNotEmpty ? fullName : 'Institutional Scholar';
   }
 
+  bool _computeProfileIncomplete({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String course,
+  }) {
+    return firstName.trim().isEmpty ||
+        lastName.trim().isEmpty ||
+        email.trim().isEmpty ||
+        course.trim().isEmpty;
+  }
+
   void _applyProfileValues({
     required String firstName,
     required String lastName,
@@ -88,6 +103,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String? imagePath,
     required bool isApprovedScholar,
   }) {
+    final isIncomplete = _computeProfileIncomplete(
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      course: course,
+    );
+
     setState(() {
       _imagePath = imagePath != null && imagePath.isNotEmpty ? imagePath : null;
       _firstNameController.text = firstName;
@@ -103,6 +125,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ? 'Approved Scholar'
           : 'Pending Applicant';
       _isEmailInvalid = email.isNotEmpty && _isInvalidEmail(email);
+      _isProfileIncomplete = isIncomplete;
+      _isEditing = isIncomplete;
     });
   }
 
@@ -157,9 +181,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final session = await _sessionService.getCurrentUser();
-      if (session.token.isEmpty) {
-        return;
-      }
+      if (session.token.isEmpty) return;
 
       final profile = await _profileService.fetchMyProfile();
       final latestPrefs = await SharedPreferences.getInstance();
@@ -182,7 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isApprovedScholar: latestApprovalState,
       );
     } catch (_) {
-      // Keep cached values when the profile endpoint is unavailable.
+      // keep cached values
     } finally {
       if (mounted) {
         setState(() => _isProfileLoading = false);
@@ -208,9 +230,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } else {
         await _profileService.uploadAvatar(filePath: pickedFile.path);
       }
+
       final profile = await _profileService.fetchMyProfile();
       final prefs = await SharedPreferences.getInstance();
       final isApprovedScholar = prefs.getBool('user_is_verified') ?? false;
+
       if (!mounted) return;
 
       _applyProfileValues(
@@ -227,6 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         imagePath: profile['avatar_url']?.toString(),
         isApprovedScholar: isApprovedScholar,
       );
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Profile photo updated!')));
@@ -244,7 +269,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
+    final course = _courseController.text.trim();
+    final phone = _phoneController.text.trim();
+    final address = _addressController.text.trim();
+
+    if (firstName.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('First name is required')));
+      return;
+    }
+
+    if (lastName.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Last name is required')));
+      return;
+    }
 
     if (_isInvalidEmail(email)) {
       setState(() => _isEmailInvalid = true);
@@ -254,6 +298,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    if (course.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a course')));
+      return;
+    }
+
+    final wasIncomplete = _isProfileIncomplete;
+
     setState(() => _isSaving = true);
 
     try {
@@ -262,10 +315,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final profile = await _profileService.updateMyProfile(
         payload: {
+          'first_name': firstName,
+          'last_name': lastName,
           'email': email,
-          'phone_number': _phoneController.text.trim(),
-          'course_code': _courseController.text.trim(),
-          'street_address': _addressController.text.trim(),
+          'phone_number': phone,
+          'course_code': course,
+          'street_address': address,
         },
       );
 
@@ -274,19 +329,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       _applyProfileValues(
-        firstName:
-            profile['first_name']?.toString() ?? _firstNameController.text,
-        lastName: profile['last_name']?.toString() ?? _lastNameController.text,
+        firstName: profile['first_name']?.toString() ?? firstName,
+        lastName: profile['last_name']?.toString() ?? lastName,
         email: profile['email']?.toString() ?? email,
-        course: profile['course_code']?.toString() ?? _courseController.text,
+        course: profile['course_code']?.toString() ?? course,
         section: _sectionController.text.trim(),
-        phone: profile['phone_number']?.toString() ?? _phoneController.text,
-        address: _composeAddress(profile),
+        phone: profile['phone_number']?.toString() ?? phone,
+        address: _composeAddress(profile).isNotEmpty
+            ? _composeAddress(profile)
+            : address,
         studentId:
             profile['student_id']?.toString() ?? _studentIdController.text,
         imagePath: profile['avatar_url']?.toString() ?? _imagePath,
         isApprovedScholar: prefs.getBool('user_is_verified') ?? false,
       );
+
       setState(() => _isEditing = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -295,6 +352,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           backgroundColor: Colors.green,
         ),
       );
+
+      if (wasIncomplete) {
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -329,7 +390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'BTLED':
         return 'Bachelor of Technology and Livelihood Education';
       default:
-        return courseCode.isEmpty ? 'BS Computer Science' : courseCode;
+        return courseCode.isEmpty ? 'Not set' : courseCode;
     }
   }
 
@@ -399,7 +460,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _buildProfileHeader(),
                   const SizedBox(height: 24),
-                  _buildSectionLabel('Account'),
+                  _buildSectionLabel(
+                    _isProfileIncomplete ? 'Complete Your Profile' : 'Account',
+                  ),
                   if (_isEditing)
                     _buildEditSection()
                   else
@@ -662,8 +725,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         _profileRowCard(
           icon: Icons.edit_outlined,
-          title: 'Edit profile',
-          subtitle: 'Update your personal information',
+          title: _isProfileIncomplete ? 'Complete profile' : 'Edit profile',
+          subtitle: _isProfileIncomplete
+              ? 'Finish setting up your identity in the app'
+              : 'Update your personal information',
           onTap: () => setState(() => _isEditing = true),
         ),
       ],
@@ -693,7 +758,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Edit Profile Information',
+            _isProfileIncomplete
+                ? 'Complete Your Profile'
+                : 'Edit Profile Information',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -706,12 +773,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(
                 child: TextField(
                   controller: _firstNameController,
-                  enabled: false,
-                  enableInteractiveSelection: false,
                   decoration: _fieldDecoration(
                     label: 'First Name',
                     icon: Icons.person,
-                    enabled: false,
                   ),
                 ),
               ),
@@ -719,12 +783,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(
                 child: TextField(
                   controller: _lastNameController,
-                  enabled: false,
-                  enableInteractiveSelection: false,
                   decoration: _fieldDecoration(
                     label: 'Last Name',
                     icon: Icons.person_outline,
-                    enabled: false,
                   ),
                 ),
               ),

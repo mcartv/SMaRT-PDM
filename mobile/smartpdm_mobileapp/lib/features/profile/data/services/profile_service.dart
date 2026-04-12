@@ -1,6 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
-import 'dart:typed_data';
 
 class ProfileService {
   ProfileService({ApiClient? apiClient, SessionService? sessionService})
@@ -20,7 +21,10 @@ class ProfileService {
   Future<Map<String, dynamic>> updateMyProfile({
     required Map<String, dynamic> payload,
   }) async {
-    final response = await _apiClient.patchJson('/api/profile/me', body: payload);
+    final response = await _apiClient.patchJson(
+      '/api/profile/me',
+      body: payload,
+    );
     final profile = _extractProfile(response);
     await _cacheProfile(profile);
     return profile;
@@ -61,12 +65,16 @@ class ProfileService {
   }
 
   Future<void> _cacheProfile(Map<String, dynamic> profile) async {
-    final addressParts = [
-      profile['street_address']?.toString().trim(),
-      profile['subdivision']?.toString().trim(),
-      profile['city']?.toString().trim(),
-      profile['province']?.toString().trim(),
-    ].where((value) => value != null && value.isNotEmpty).cast<String>().toList();
+    final addressParts =
+        [
+              profile['street_address']?.toString().trim(),
+              profile['subdivision']?.toString().trim(),
+              profile['city']?.toString().trim(),
+              profile['province']?.toString().trim(),
+            ]
+            .where((value) => value != null && value.isNotEmpty)
+            .cast<String>()
+            .toList();
 
     await _sessionService.saveProfileCache(
       firstName: profile['first_name']?.toString() ?? '',

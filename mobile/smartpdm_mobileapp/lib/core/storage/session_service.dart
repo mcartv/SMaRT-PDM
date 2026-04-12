@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionUser {
@@ -38,24 +40,30 @@ class SessionService {
     String? role,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.setString('jwt_token', token);
     await prefs.setString('user_id', userId);
     await prefs.setString('user_email', email);
     await prefs.setString('user_student_id', studentId);
+
     if (firstName.trim().isNotEmpty) {
       await prefs.setString('user_first_name', firstName.trim());
     }
+
     if (lastName.trim().isNotEmpty) {
       await prefs.setString('user_last_name', lastName.trim());
     }
+
     await prefs.setBool('user_is_verified', isVerified);
+
     if (role != null && role.trim().isNotEmpty) {
-      await prefs.setString('user_role', role);
+      await prefs.setString('user_role', role.trim());
     }
   }
 
   Future<SessionUser> getCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
+
     return SessionUser(
       token: prefs.getString('jwt_token') ?? '',
       userId: prefs.getString('user_id') ?? '',
@@ -129,8 +137,37 @@ class SessionService {
     };
   }
 
+  Future<bool> isSessionValid() async {
+    final session = await getCurrentUser();
+
+    if (session.token.isEmpty) return false;
+
+    try {
+      final parts = session.token.split('.');
+      if (parts.length != 3) return false;
+
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = utf8.decode(base64Url.decode(normalized));
+      final decoded = jsonDecode(payload);
+
+      if (decoded is! Map<String, dynamic>) return false;
+
+      final exp = decoded['exp'];
+      if (exp == null) return false;
+
+      final expiry = exp is int ? exp : int.tryParse(exp.toString());
+      if (expiry == null) return false;
+
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      return expiry > now;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.remove('jwt_token');
     await prefs.remove('user_id');
     await prefs.remove('user_email');
@@ -139,5 +176,13 @@ class SessionService {
     await prefs.remove('user_last_name');
     await prefs.remove('user_profile_image');
     await prefs.remove('user_role');
+    await prefs.remove('user_is_verified');
+
+    await prefs.remove('user_course');
+    await prefs.remove('user_phone');
+    await prefs.remove('user_address');
+
+    await prefs.remove('push_device_token');
+    await prefs.remove('push_device_platform');
   }
 }

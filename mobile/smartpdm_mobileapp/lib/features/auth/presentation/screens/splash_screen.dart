@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -11,33 +12,67 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  final SessionService _sessionService = const SessionService();
+  final ProfileService _profileService = ProfileService();
+
   bool _isChecking = true;
 
   @override
   void initState() {
     super.initState();
-    _checkLoginStatus();
+    _bootstrap();
   }
 
-  Future<void> _checkLoginStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
+  Future<void> _bootstrap() async {
+    final isValid = await _sessionService.isSessionValid();
 
     if (!mounted) return;
 
-    if (token != null && token.isNotEmpty) {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
+    if (!isValid) {
+      await _sessionService.clearSession();
+      setState(() => _isChecking = false);
+      return;
+    }
+
+    try {
+      final profile = await _profileService.fetchMyProfile();
+
+      if (!mounted) return;
+
+      final isComplete = _isProfileComplete(profile);
+
+      if (isComplete) {
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.completeProfile);
+      }
+    } catch (_) {
+      await _sessionService.clearSession();
+
+      if (!mounted) return;
+
       setState(() => _isChecking = false);
     }
   }
 
+  bool _isProfileComplete(Map<String, dynamic> profile) {
+    final firstName = profile['first_name']?.toString().trim() ?? '';
+    final lastName = profile['last_name']?.toString().trim() ?? '';
+    final courseCode = profile['course_code']?.toString().trim() ?? '';
+    final yearLevel = profile['year_level'];
+
+    return firstName.isNotEmpty &&
+        lastName.isNotEmpty &&
+        courseCode.isNotEmpty &&
+        yearLevel != null;
+  }
+
   void _goToLogin() {
-    Navigator.pushReplacementNamed(context, '/login');
+    Navigator.pushReplacementNamed(context, AppRoutes.login);
   }
 
   void _goToRegister() {
-    Navigator.pushReplacementNamed(context, '/register');
+    Navigator.pushReplacementNamed(context, AppRoutes.register);
   }
 
   @override
@@ -81,7 +116,10 @@ class _SplashScreenState extends State<SplashScreen> {
                       const Text(
                         'Scholarship Monitoring & Reporting Tool',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16, color: AppColors.brown),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.brown,
+                        ),
                       ),
                       const SizedBox(height: 32),
                       SizedBox(

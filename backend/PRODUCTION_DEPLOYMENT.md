@@ -13,11 +13,18 @@ Required variables:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `JWT_SECRET`
 - `GMAIL_APP_PASSWORD`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_PHONE`
+- `GOOGLE_CLOUD_PROJECT_ID`
+- `GOOGLE_APPLICATION_CREDENTIALS`
+- `RECAPTCHA_ANDROID_SITE_KEY`
 - `PORT`
 
 Optional variables:
 - `JWT_EXPIRES_IN`
 - `FCM_SERVER_KEY`
+- `RECAPTCHA_MIN_SCORE`
 
 Notes:
 - `PORT` now falls back to `3000` when unset.
@@ -30,16 +37,19 @@ Run the SQL files in `backend/sql` against the target Supabase project before de
 Relevant files for the applicant application flow:
 - `application_form_schema.sql`
 - `application_form_drafts_schema.sql`
+- `account_recovery_schema.sql`
 
 ## Mobile config checklist
-The mobile base URL is controlled in `mobile/smartpdm_mobileapp/lib/config/app_config.dart`.
+The mobile base URL is controlled in `mobile/smartpdm_mobileapp/lib/core/config/app_config.dart`.
 
 Development:
 - Default LAN URL can stay for local testing.
 - Override when needed with `--dart-define=API_BASE_URL=http://<local-ip>:3000`.
+- Override the Android reCAPTCHA site key when needed with `--dart-define=RECAPTCHA_ANDROID_SITE_KEY=<your-android-site-key>`.
 
 Production:
 - Always build with `--dart-define=API_BASE_URL=https://<your-backend-domain>`.
+- Include `--dart-define=RECAPTCHA_ANDROID_SITE_KEY=<your-android-site-key>` in Android builds that use account recovery.
 - Do not add Supabase secrets to Flutter config.
 
 ## Route -> Supabase mapping
@@ -63,6 +73,29 @@ Production:
 ### `POST /api/auth/login`
 - Reads: `users`
 - Signs: JWT auth token
+
+### `POST /api/auth/recovery/lookup`
+- Reads: `users`
+- Reads: `students`
+
+### `POST /api/auth/recovery/start`
+- Reads: `users`
+- Reads: `students`
+- Writes: `account_recovery_sessions`
+- Side effects: creates a reCAPTCHA assessment and sends email or SMS
+
+### `POST /api/auth/recovery/resend-code`
+- Reads/Writes: `account_recovery_sessions`
+- Side effects: sends email or SMS
+
+### `POST /api/auth/recovery/verify-code`
+- Reads/Writes: `account_recovery_sessions`
+- Signs: short-lived password reset token
+
+### `POST /api/auth/recovery/reset-password`
+- Reads: `account_recovery_sessions`
+- Writes: `users.password_hash`
+- Updates: `account_recovery_sessions.consumed_at`
 
 ### `GET /api/notifications`
 - Reads: `notifications`
@@ -197,11 +230,21 @@ Production:
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `JWT_SECRET`
    - `GMAIL_APP_PASSWORD`
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - `TWILIO_FROM_PHONE`
+   - `GOOGLE_CLOUD_PROJECT_ID`
+   - `GOOGLE_APPLICATION_CREDENTIALS`
+   - `RECAPTCHA_ANDROID_SITE_KEY`
    - `PORT` (optional if Render provides one)
 6. Deploy and copy the public HTTPS URL.
 7. Smoke test:
    - `POST /api/auth/register`
    - `POST /api/auth/login`
+   - `POST /api/auth/recovery/lookup`
+   - `POST /api/auth/recovery/start`
+   - `POST /api/auth/recovery/verify-code`
+   - `POST /api/auth/recovery/reset-password`
    - `GET /api/openings`
    - `PUT /api/applications/me/form-data`
    - `POST /api/openings/:openingId/apply`

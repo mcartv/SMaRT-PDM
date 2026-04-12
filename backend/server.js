@@ -12,6 +12,7 @@ const {
   protect,
   authenticateSocket,
 } = require('./middleware/authMiddleware');
+const { createAccountRecoveryService } = require('./services/accountRecoveryService');
 const notificationService = require('./services/notificationService');
 const messageService = require('./services/messageService');
 
@@ -2616,6 +2617,14 @@ async function sendOTPEmail(userEmail, otpCode) {
   await transporter.sendMail(mailOptions);
 }
 
+const accountRecoveryService = createAccountRecoveryService({
+  supabase,
+  resolveStudentByUserId,
+  resolveAvatarUrl,
+  createHttpError,
+  transporter,
+});
+
 // --- ROUTES ---
 
 app.get('/api/courses', protect, async (req, res) => {
@@ -2671,6 +2680,8 @@ app.post('/api/auth/register', async (req, res) => {
     if (!email || !password || !student_id) {
       return res.status(400).json({ error: 'Email, password, and Student ID are required' });
     }
+
+    accountRecoveryService.ensurePasswordPolicy(password);
 
     const studentIdRegex = /^PDM-\d{4}-\d{6}$/;
     if (!studentIdRegex.test(student_id)) {
@@ -3020,7 +3031,93 @@ app.post('/api/profile/setup', protect, async (req, res) => {
   }
 });
 
-// 5. Login Route
+// 5. Account Recovery Lookup Route
+app.post('/api/auth/recovery/lookup', async (req, res) => {
+  try {
+    const accounts = await accountRecoveryService.lookupAccounts(
+      req.body?.identifier
+    );
+
+    return res.status(200).json({ accounts });
+  } catch (error) {
+    console.error('ACCOUNT RECOVERY LOOKUP ROUTE ERROR:', error);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to find matching accounts.',
+    });
+  }
+});
+
+// 6. Account Recovery Start Route
+app.post('/api/auth/recovery/start', async (req, res) => {
+  try {
+    const payload = await accountRecoveryService.startRecovery({
+      userId: req.body?.user_id,
+      channel: req.body?.channel,
+      captchaToken: req.body?.captcha_token,
+      userAgent: req.get('user-agent') || '',
+      userIpAddress: req.ip || req.socket?.remoteAddress || '',
+    });
+
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.error('ACCOUNT RECOVERY START ROUTE ERROR:', error);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to start account recovery.',
+    });
+  }
+});
+
+// 7. Account Recovery Resend Code Route
+app.post('/api/auth/recovery/resend-code', async (req, res) => {
+  try {
+    const payload = await accountRecoveryService.resendRecoveryCode(
+      req.body?.session_id
+    );
+
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.error('ACCOUNT RECOVERY RESEND ROUTE ERROR:', error);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to resend the recovery code.',
+    });
+  }
+});
+
+// 8. Account Recovery Verify Code Route
+app.post('/api/auth/recovery/verify-code', async (req, res) => {
+  try {
+    const payload = await accountRecoveryService.verifyRecoveryCode({
+      sessionId: req.body?.session_id,
+      code: req.body?.code,
+    });
+
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.error('ACCOUNT RECOVERY VERIFY ROUTE ERROR:', error);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to verify the recovery code.',
+    });
+  }
+});
+
+// 9. Account Recovery Reset Password Route
+app.post('/api/auth/recovery/reset-password', async (req, res) => {
+  try {
+    const payload = await accountRecoveryService.resetPassword({
+      resetToken: req.body?.reset_token,
+      newPassword: req.body?.new_password,
+    });
+
+    return res.status(200).json(payload);
+  } catch (error) {
+    console.error('ACCOUNT RECOVERY RESET ROUTE ERROR:', error);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to reset the password.',
+    });
+  }
+});
+
+// 10. Login Route
 app.post('/api/auth/login', async (req, res) => {
   const { student_id, password } = req.body;
 

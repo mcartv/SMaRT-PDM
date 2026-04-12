@@ -534,7 +534,7 @@ export default function PayoutManagement() {
                         <option value="">Select opening</option>
                         {openings.map((o) => (
                           <option key={o.opening_id} value={o.opening_id}>
-                            {o.opening_title} — {o.organization_name || o.benefactor_name || 'No Benefactor'}
+                            {o.opening_title} — {o.benefactor_name || o.benefactor_name || 'No Benefactor'}
                           </option>
                         ))}
                       </select>

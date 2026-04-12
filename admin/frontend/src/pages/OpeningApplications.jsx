@@ -212,8 +212,8 @@ function DisqModal({ app, onDisqualify, onClose }) {
                             key={r}
                             onClick={() => setReason(r)}
                             className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-medium transition-all border ${reason === r
-                                    ? 'bg-red-600 border-red-600 text-white'
-                                    : 'bg-white border-stone-200 text-stone-600 hover:border-red-200 hover:bg-red-50'
+                                ? 'bg-red-600 border-red-600 text-white'
+                                : 'bg-white border-stone-200 text-stone-600 hover:border-red-200 hover:bg-red-50'
                                 }`}
                         >
                             {r}
@@ -617,19 +617,22 @@ export default function OpeningApplications() {
         const ids = Array.from(selected);
 
         for (const id of ids) {
-            // eslint-disable-next-line no-await-in-loop
             await handleDecision(id, 'approve');
         }
 
         setSelected(new Set());
     };
 
-    const openingSlotCount = Number(opening?.slot_count || opening?.allocated_slots || 0);
-    const openingQualifiedCount = Number(opening?.qualified_count || 0);
-    const remainingSlots = Math.max(0, openingSlotCount - openingQualifiedCount);
+    const openingSlotCount = Number(opening?.allocated_slots ?? opening?.slot_count ?? 0);
+    const openingFilledCount = Number(opening?.qualified_count ?? opening?.filled_slots ?? 0);
+    const remainingSlots = Math.max(0, openingSlotCount - openingFilledCount);
     const openingFilled =
         remainingSlots <= 0 ||
         ['filled', 'closed'].includes((opening?.status || opening?.posting_status || '').toLowerCase());
+
+    const openingMetaLine = [opening?.semester, opening?.academic_year]
+        .filter(Boolean)
+        .join(' · ');
 
     const STATS = useMemo(() => {
         return [
@@ -941,12 +944,16 @@ export default function OpeningApplications() {
                                     {opening?.benefactor_name ? ` · ${opening.benefactor_name}` : ''}
                                 </p>
                                 <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 mt-2">
-                                    <span className="inline-flex items-center gap-1">
-                                        <CalendarDays className="w-3.5 h-3.5" />
-                                        {formatDate(opening?.start_date || opening?.application_start)} - {formatDate(opening?.end_date || opening?.application_end)}
-                                    </span>
-                                    <span>•</span>
-                                    <span>{openingQualifiedCount}/{openingSlotCount} qualified</span>
+                                    {openingMetaLine ? (
+                                        <>
+                                            <span className="inline-flex items-center gap-1">
+                                                <CalendarDays className="w-3.5 h-3.5" />
+                                                {openingMetaLine}
+                                            </span>
+                                            <span>•</span>
+                                        </>
+                                    ) : null}
+                                    <span>{openingFilledCount}/{openingSlotCount} filled</span>
                                     <span>•</span>
                                     <span>{remainingSlots} slots remaining</span>
                                 </div>
@@ -958,8 +965,8 @@ export default function OpeningApplications() {
                                     <p className="text-lg font-semibold text-stone-900">{openingSlotCount}</p>
                                 </div>
                                 <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                                    <p className="text-[11px] text-stone-500">Qualified</p>
-                                    <p className="text-lg font-semibold text-stone-900">{openingQualifiedCount}</p>
+                                    <p className="text-[11px] text-stone-500">Filled</p>
+                                    <p className="text-lg font-semibold text-stone-900">{openingFilledCount}</p>
                                 </div>
                                 <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
                                     <p className="text-[11px] text-stone-500">Remaining</p>
@@ -975,8 +982,8 @@ export default function OpeningApplications() {
                 <button
                     onClick={() => setViewMode(VIEW_MODES.current)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.current
-                            ? 'bg-stone-900 text-white border-stone-900'
-                            : 'bg-white text-stone-600 border-stone-200'
+                        ? 'bg-stone-900 text-white border-stone-900'
+                        : 'bg-white text-stone-600 border-stone-200'
                         }`}
                 >
                     Current Applicants
@@ -985,8 +992,8 @@ export default function OpeningApplications() {
                 <button
                     onClick={() => setViewMode(VIEW_MODES.at_risk)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.at_risk
-                            ? 'bg-red-600 text-white border-red-600'
-                            : 'bg-white text-stone-600 border-stone-200'
+                        ? 'bg-red-600 text-white border-red-600'
+                        : 'bg-white text-stone-600 border-stone-200'
                         }`}
                 >
                     At Risk
@@ -996,8 +1003,8 @@ export default function OpeningApplications() {
                 <button
                     onClick={() => setViewMode(VIEW_MODES.replacement)}
                     className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.replacement
-                            ? 'bg-amber-600 text-white border-amber-600'
-                            : 'bg-white text-stone-600 border-stone-200'
+                        ? 'bg-amber-600 text-white border-amber-600'
+                        : 'bg-white text-stone-600 border-stone-200'
                         }`}
                 >
                     Replacement Pool

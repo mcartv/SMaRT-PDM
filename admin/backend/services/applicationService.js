@@ -226,8 +226,13 @@ async function buildApplicationDetails(applicationId) {
             ),
             scholarship_program (
                 program_id,
-                benefactor_name,
-                program_name
+                benefactor_id,
+                program_name,
+                benefactors (
+                    benefactor_id,
+                    benefactor_name,
+                    benefactor_name
+                )
             )
         `)
         .eq('application_id', applicationId)
@@ -304,6 +309,9 @@ async function buildApplicationDetails(applicationId) {
     }
 
     const student = applicationRecord.students || {};
+    const scholarshipProgram = applicationRecord.scholarship_program || {};
+    const benefactor = scholarshipProgram.benefactors || {};
+
     let userContact = { email: 'N/A', phone_number: 'N/A' };
 
     if (student.user_id) {
@@ -424,9 +432,11 @@ async function buildApplicationDetails(applicationId) {
                 ? `${student.year_level}${getOrdinalSuffix(student.year_level)} Year`
                 : 'N/A',
             gwa: student.gwa ?? 'N/A',
-            program: applicationRecord.scholarship_program?.program_name || 'General',
+            program: scholarshipProgram.program_name || 'General',
             benefactor_name:
-                applicationRecord.scholarship_program?.benefactor_name || 'N/A',
+                benefactor.benefactor_name ||
+                benefactor.benefactor_name ||
+                'N/A',
             course: courseCode,
         },
         student_profile: profileResult.data || null,
@@ -441,6 +451,7 @@ exports.fetchApplications = async () => {
         SELECT
             a.application_id,
             a.student_id,
+            a.program_id,
             a.opening_id,
             a.application_status,
             a.evaluator_id,
@@ -448,6 +459,8 @@ exports.fetchApplications = async () => {
             a.is_disqualified,
             a.disqualification_reason,
             a.document_status,
+            a.verification_status,
+            a.remarks,
             a.is_reconsideration_candidate,
             a.reconsideration_tagged_at,
             a.is_archived,
@@ -475,13 +488,15 @@ exports.fetchApplications = async () => {
         LEFT JOIN program_openings po
             ON a.opening_id = po.opening_id
         LEFT JOIN scholarship_program sp
-            ON po.program_id = sp.program_id
+            ON a.program_id = sp.program_id
         LEFT JOIN scholars sc
             ON a.student_id = sc.student_id
 
         WHERE
             COALESCE(a.is_archived, FALSE) = FALSE
             AND sc.student_id IS NULL
+            AND COALESCE(a.is_disqualified, FALSE) = FALSE
+            AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved', 'qualified', 'accepted')
 
         ORDER BY a.submission_date DESC
     `;
@@ -497,6 +512,7 @@ exports.fetchApplications = async () => {
         return {
             application_id: row.application_id,
             student_id: row.student_id,
+            program_id: row.program_id,
             opening_id: row.opening_id,
             evaluator_id: row.evaluator_id,
 
@@ -508,7 +524,7 @@ exports.fetchApplications = async () => {
             gwa: row.gwa ?? null,
             sdo_status: row.sdo_status || 'clear',
 
-            program_name: row.program_name || 'General',
+            program_name: row.program_name || 'No Program',
 
             opening_title: row.opening_title || 'Untitled Opening',
             semester: row.semester || null,
@@ -520,23 +536,17 @@ exports.fetchApplications = async () => {
             posting_status: row.posting_status || 'Open',
             opening_status: row.posting_status || 'Open',
 
-            application_status: row.is_disqualified
-                ? 'Disqualified'
-                : row.application_status || 'Pending',
-
-            status: row.is_disqualified
-                ? 'Disqualified'
-                : row.application_status || 'Pending',
+            application_status: row.application_status || 'Pending',
+            status: row.application_status || 'Pending',
 
             document_status: row.document_status || 'Missing Docs',
-
-            verification_status: null,
-            remarks: null,
+            verification_status: row.verification_status || null,
+            remarks: row.remarks || null,
 
             is_disqualified: !!row.is_disqualified,
             disqualification_reason: row.disqualification_reason || null,
             is_reconsideration_candidate: !!row.is_reconsideration_candidate,
-            consideration_tagged_at: row.consideration_tagged_at || null,
+            reconsideration_tagged_at: row.reconsideration_tagged_at || null,
 
             submission_date: row.submission_date || null,
             submitted_at: row.submission_date || null,

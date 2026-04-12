@@ -18,7 +18,7 @@ function toRequiredNumber(value, fallback = 0) {
 
 function derivePostingStatus(opening, counts = {}) {
     const existing = normalizeStatus(opening.posting_status || 'draft');
-    const allocatedSlots = toRequiredNumber(opening.allocated_slotss, 0);
+    const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
     const filledSlots =
         opening.filled_slots != null
             ? toRequiredNumber(opening.filled_slots, 0)
@@ -40,7 +40,7 @@ function derivePostingStatus(opening, counts = {}) {
 }
 
 function mapOpening(opening, counts = {}) {
-    const allocatedSlots = toRequiredNumber(opening.allocated_slotss, 0);
+    const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
     const qualifiedCount = toRequiredNumber(counts.qualified_count, 0);
 
     const storedFilledSlots =
@@ -82,7 +82,6 @@ function mapOpening(opening, counts = {}) {
         academic_year: opening.academic_year || null,
 
         allocated_slots: allocatedSlots,
-        allocated_slotss: allocatedSlots,
         filled_slots: effectiveFilledSlots,
         remaining_slots: Math.max(allocatedSlots - effectiveFilledSlots, 0),
 
@@ -374,6 +373,22 @@ exports.createProgramOpening = async (payload = {}) => {
 
     if (!opening_title || !String(opening_title).trim()) {
         throw new Error('Opening title is required');
+    }
+
+    if (!semester || !String(semester).trim()) {
+        throw new Error('Semester is required');
+    }
+
+    if (!academic_year || !String(academic_year).trim()) {
+        throw new Error('Academic year is required');
+    }
+
+    if (toRequiredNumber(allocated_slots, 0) <= 0) {
+        throw new Error('Allocated slots must be greater than 0');
+    }
+
+    if (toRequiredNumber(filled_slots, 0) > toRequiredNumber(allocated_slots, 0)) {
+        throw new Error('Filled slots cannot be greater than allocated slots');
     }
 
     const insertData = {

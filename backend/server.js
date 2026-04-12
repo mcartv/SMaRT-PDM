@@ -652,17 +652,53 @@ async function resolveOpeningById(openingId) {
 }
 
 async function resolveApplicantDraftByUserId(userId) {
-  const { data, error } = await supabase
-    .from(APPLICATION_DRAFT_TABLE)
-    .select('draft_id, user_id, opening_id, payload, created_at, updated_at')
-    .eq('user_id', userId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from(APPLICATION_DRAFT_TABLE)
+      .select('draft_id, user_id, opening_id, payload, created_at, updated_at')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-  if (error) {
+    if (error) {
+      const message = String(error.message || '').toLowerCase();
+      const hint = String(error.hint || '').toLowerCase();
+
+      if (
+        error.code === 'PGRST205' ||
+        error.code === '42P01' ||
+        message.includes('application_form_drafts') ||
+        message.includes('could not find the table') ||
+        message.includes('relation') ||
+        message.includes('does not exist') ||
+        hint.includes('application_documents')
+      ) {
+        console.warn('Draft table missing, skipping applicant draft lookup.');
+        return null;
+      }
+
+      throw error;
+    }
+
+    return data || null;
+  } catch (error) {
+    const message = String(error.message || '').toLowerCase();
+    const hint = String(error.hint || '').toLowerCase();
+
+    if (
+      error.code === 'PGRST205' ||
+      error.code === '42P01' ||
+      message.includes('application_form_drafts') ||
+      message.includes('could not find the table') ||
+      message.includes('relation') ||
+      message.includes('does not exist') ||
+      hint.includes('application_documents')
+    ) {
+      console.warn('Draft table missing, skipping applicant draft lookup.');
+      return null;
+    }
+
     throw error;
   }
-
-  return data || null;
 }
 
 async function upsertApplicantDraftByUserId(userId, { openingId, payload }) {
@@ -2973,16 +3009,6 @@ app.get('/api/openings/latest', protect, async (req, res) => {
     res.status(500).json({
       error: error.message || 'Failed to load the latest scholarship opening.',
     });
-  }
-});
-
-app.get('/api/openings', protect, async (req, res) => {
-  try {
-    const payload = await fetchAvailableOpeningsForMobile(req.user.user_id);
-    res.status(200).json(payload);
-  } catch (error) {
-    console.error('OPENINGS ROUTE ERROR:', error);
-    res.status(500).json({ error: error.message });
   }
 });
 

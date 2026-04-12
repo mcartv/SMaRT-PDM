@@ -15,13 +15,43 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _studentIdController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordFocusNode = FocusNode();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _didApplyRouteArgs = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_didApplyRouteArgs) {
+      return;
+    }
+    _didApplyRouteArgs = true;
+
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final prefillStudentId = args?['prefillStudentId']?.toString().trim() ?? '';
+    final focusPassword = args?['focusPassword'] == true;
+
+    if (prefillStudentId.isNotEmpty) {
+      _studentIdController.text = prefillStudentId;
+      _passwordController.clear();
+    }
+
+    if (focusPassword) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _passwordFocusNode.requestFocus();
+      });
+    }
+  }
 
   @override
   void dispose() {
     _studentIdController.dispose();
     _passwordController.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -121,6 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Password Field
                   TextFormField(
                     controller: _passwordController,
+                    focusNode: _passwordFocusNode,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText: 'Password',

@@ -41,9 +41,10 @@ notificationService.configureNotificationService({ io, supabase });
 messageService.configureMessageService({ io, supabase });
 io.use(authenticateSocket);
 
-// Temporary in-memory store for OTPs (e.g., { "user@email.com": { otp: "123456", expiresAt: 171146... } })
-// In production, you could also save this to a 'otps' table in Supabase.
+// Temporary in-memory store for OTPs and pending registrations
 const otpStore = new Map();
+const pendingRegistrationStore = new Map();
+
 const APPLICATION_DRAFT_TABLE = 'application_form_drafts';
 const ACTIVE_APPLICATION_STATUSES = new Set([
   'pending',
@@ -2528,160 +2529,251 @@ async function sendOTPEmail(userEmail, otpCode) {
 
 // 1. Register Route
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, student_id } = req.body; // username is no longer expected as a primary input
+  let { email, password, student_id } = req.body;
 
   console.log('DEBUG (Backend): Received registration request body:', req.body);
 
-  if (!email || !password || !student_id) {
-    return res.status(400).json({ error: 'Email, password, and Student ID are required' });
-  }
+  try {
+    email = (email || '').toString().trim().toLowerCase();
+    student_id = (student_id || '').toString().trim();
 
-  const studentIdRegex = /^PDM-\d{4}-\d{6}$/;
-  if (!studentIdRegex.test(student_id)) {
-    return res.status(400).json({ error: 'Student ID must be in the format PDM-YYYY-NNNNNN (e.g., PDM-2023-000001)' });
-  }
+    if (!email || !password || !student_id) {
+      return res.status(400).json({ error: 'Email, password, and Student ID are required' });
+    }
 
-  const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
-    .from('users')
-    .select('username')
-    .eq('username', student_id)
-    .maybeSingle();
+    const studentIdRegex = /^PDM-\d{4}-\d{6}$/;
+    if (!studentIdRegex.test(student_id)) {
+      return res.status(400).json({
+        error: 'Student ID must be in the format PDM-YYYY-NNNNNN (e.g. PDM-2023-000001)',
+      });
+    }
 
-  if (studentIdCheckError) {
-    console.error('Supabase Student ID Check Error:', studentIdCheckError);
-    return res.status(500).json({ error: 'Database error during student ID check' });
-  }
-  if (existingUserByStudentId) {
-    return res.status(409).json({ error: 'Student ID already registered' });
-  }
+    const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
+      .from('users')
+      .select('username')
+      .eq('username', student_id)
+      .maybeSingle();
 
-  const { data: existingUserByEmail, error: emailCheckError } = await supabase
-    .from('users')
-    .select('email')
-    .eq('email', email)
-    .maybeSingle();
+    if (studentIdCheckError) {
+      console.error('Supabase Student ID Check Error:', studentIdCheckError);
+      return res.status(500).json({ error: 'Database error during student ID check' });
+    }
 
-  if (emailCheckError) {
-    console.error('Supabase Email Check Error:', emailCheckError);
-    return res.status(500).json({ error: 'Database error during email check' });
-  }
-  if (existingUserByEmail) {
-    return res.status(409).json({ error: 'Email already registered' });
-  }
+    if (existingUserByStudentId) {
+      return res.status(409).json({ error: 'Student ID already registered' });
+    }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+    const { data: existingUserByEmail, error: emailCheckError } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', email)
+      .maybeSingle();
 
-  const { data, error } = await supabase
-    .from('users')
-    .insert([{
+    if (emailCheckError) {
+      console.error('Supabase Email Check Error:', emailCheckError);
+      return res.status(500).json({ error: 'Database error during email check' });
+    }
+
+    if (existingUserByEmail) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    for (const [storedEmail, pending] of pendingRegistrationStore.entries()) {
+      if (Date.now() > pending.expiresAt) {
+        pendingRegistrationStore.delete(storedEmail);
+        otpStore.delete(storedEmail);
+        continue;
+      }
+
+      if (storedEmail === email || pending.student_id === student_id) {
+        otpStore.delete(storedEmail);
+        pendingRegistrationStore.delete(storedEmail);
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = generateOTP();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+
+    pendingRegistrationStore.set(email, {
       email,
-      username: student_id,
+      student_id,
       password_hash: hashedPassword,
-      is_otp_verified: false,
       role: 'Student',
-    }])
-    .select()
-    .single();
+      expiresAt,
+    });
 
-  if (error) {
-    console.error('Supabase Insert Error:', error);
-    return res.status(500).json({ error: 'Database error during registration' });
+    otpStore.set(email, { otp, expiresAt });
+
+    await sendOTPEmail(email, otp);
+
+    return res.status(200).json({
+      message: 'OTP sent. Complete verification to finish registration.',
+      user: {
+        user_id: null,
+        email,
+        student_id,
+        role: 'Student',
+        is_verified: false,
+      },
+    });
+  } catch (error) {
+    console.error('REGISTER ROUTE ERROR:', error);
+    return res.status(500).json({
+      error: error.message || 'Failed to process registration',
+    });
   }
-
-  const otp = generateOTP();
-  otpStore.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
-
-  sendOTPEmail(email, otp)
-    .then(() => console.log(`OTP sent to ${email}`))
-    .catch(err => console.error('Error sending email:', err));
-
-  res.status(200).json({
-    message: 'Registration successful. OTP sent.',
-    user: buildAuthUser(data),
-  });
 });
 
 // 2. Verify OTP Route
 app.post('/api/auth/verify-otp', async (req, res) => {
-  const { email, otp } = req.body;
-  const record = otpStore.get(email);
+  let { email, otp } = req.body;
 
-  if (!record) return res.status(400).json({ error: 'No OTP found or already verified' });
-  if (Date.now() > record.expiresAt) {
+  try {
+    email = (email || '').toString().trim().toLowerCase();
+    otp = (otp || '').toString().trim();
+
+    const record = otpStore.get(email);
+    const pendingRegistration = pendingRegistrationStore.get(email);
+
+    if (!record || !pendingRegistration) {
+      return res.status(400).json({ error: 'No pending registration found or OTP already used' });
+    }
+
+    if (Date.now() > record.expiresAt || Date.now() > pendingRegistration.expiresAt) {
+      otpStore.delete(email);
+      pendingRegistrationStore.delete(email);
+      return res.status(400).json({ error: 'OTP has expired. Please register again.' });
+    }
+
+    if (record.otp !== otp) {
+      return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
+      .from('users')
+      .select('username')
+      .eq('username', pendingRegistration.student_id)
+      .maybeSingle();
+
+    if (studentIdCheckError) {
+      console.error('Supabase Student ID Recheck Error:', studentIdCheckError);
+      return res.status(500).json({ error: 'Database error during final student ID validation' });
+    }
+
+    if (existingUserByStudentId) {
+      otpStore.delete(email);
+      pendingRegistrationStore.delete(email);
+      return res.status(409).json({ error: 'Student ID already registered' });
+    }
+
+    const { data: existingUserByEmail, error: emailCheckError } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (emailCheckError) {
+      console.error('Supabase Email Recheck Error:', emailCheckError);
+      return res.status(500).json({ error: 'Database error during final email validation' });
+    }
+
+    if (existingUserByEmail) {
+      otpStore.delete(email);
+      pendingRegistrationStore.delete(email);
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    const { data: insertedUser, error: insertError } = await supabase
+      .from('users')
+      .insert([
+        {
+          email: pendingRegistration.email,
+          username: pendingRegistration.student_id,
+          password_hash: pendingRegistration.password_hash,
+          is_otp_verified: true,
+          role: pendingRegistration.role || 'Student',
+        },
+      ])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Supabase Insert Error During OTP Verification:', insertError);
+      return res.status(500).json({ error: 'Failed to complete registration' });
+    }
+
     otpStore.delete(email);
-    return res.status(400).json({ error: 'OTP has expired' });
+    pendingRegistrationStore.delete(email);
+
+    return res.status(200).json({
+      ...(await buildAuthResponse(insertedUser)),
+      message: 'Email verified successfully',
+    });
+  } catch (error) {
+    console.error('VERIFY OTP ROUTE ERROR:', error);
+    return res.status(500).json({
+      error: error.message || 'Failed to verify OTP',
+    });
   }
-  if (record.otp !== otp) return res.status(400).json({ error: 'Invalid OTP' });
-
-  otpStore.delete(email);
-
-  const { error } = await supabase
-    .from('users')
-    .update({ is_otp_verified: true })
-    .eq('email', email);
-
-  if (error) return res.status(500).json({ error: 'Failed to verify user in database' });
-
-  const { data: verifiedUser, error: userError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('email', email)
-    .single();
-
-  if (userError || !verifiedUser) {
-    return res.status(500).json({ error: 'Failed to load verified user.' });
-  }
-
-  res.status(200).json({
-    ...(await buildAuthResponse(verifiedUser)),
-    message: 'Email verified successfully',
-  });
 });
 
 // 3. Resend OTP Route
-app.post('/api/auth/resend-otp', (req, res) => {
-  const { email } = req.body;
-  const otp = generateOTP();
-
-  otpStore.set(email, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
-  sendOTPEmail(email, otp).catch(err => console.error('Error resending email:', err));
-
-  res.status(200).json({ message: 'OTP resent successfully' });
-});
-
-// 4. Upload Avatar Route
-app.post('/api/auth/upload-avatar', protect, upload.single('image'), async (req, res) => {
-  const file = req.file;
-  const userId = getRequestUserId(req);
-
-  if (!userId || !file) {
-    return res.status(400).json({ error: 'Authentication and image file are required' });
-  }
+app.post('/api/auth/resend-otp', async (req, res) => {
+  let { email } = req.body;
 
   try {
-    const fileName = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
-    const { error: storageError } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, file.buffer, { contentType: file.mimetype, upsert: true });
+    email = (email || '').toString().trim().toLowerCase();
 
-    if (storageError) throw storageError;
+    const pendingRegistration = pendingRegistrationStore.get(email);
 
-    const avatarUrl = await resolveAvatarUrl(fileName);
-
-    const { error: updateError } = await supabase
-      .from('students')
-      .update({ profile_photo_url: fileName })
-      .eq('user_id', userId);
-
-    if (updateError) {
-      console.warn('Avatar URL was uploaded but not saved to students table:', updateError.message);
+    if (!pendingRegistration) {
+      return res.status(400).json({ error: 'No pending registration found. Please register again.' });
     }
 
-    res.status(200).json({ message: 'Upload successful', avatarUrl });
+    if (Date.now() > pendingRegistration.expiresAt) {
+      pendingRegistrationStore.delete(email);
+      otpStore.delete(email);
+      return res.status(400).json({ error: 'Pending registration expired. Please register again.' });
+    }
+
+    const otp = generateOTP();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+
+    pendingRegistrationStore.set(email, {
+      ...pendingRegistration,
+      expiresAt,
+    });
+
+    otpStore.set(email, { otp, expiresAt });
+
+    await sendOTPEmail(email, otp);
+
+    return res.status(200).json({ message: 'OTP resent successfully' });
   } catch (error) {
-    console.error('Upload Error:', error);
-    res.status(500).json({ error: 'Failed to upload image' });
+    console.error('RESEND OTP ROUTE ERROR:', error);
+    return res.status(500).json({
+      error: error.message || 'Failed to resend OTP',
+    });
   }
+});
+
+// 4. Cancel Registration Route
+app.post('/api/auth/cancel-registration', async (req, res) => {
+  let { email } = req.body;
+
+  email = (email || '').toString().trim().toLowerCase();
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  otpStore.delete(email);
+  pendingRegistrationStore.delete(email);
+
+  return res.status(200).json({
+    message: 'Pending registration cancelled successfully',
+  });
 });
 
 // 5. Login Route

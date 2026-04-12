@@ -24,13 +24,18 @@ class RegistrationResult {
   final String userId;
   final String studentId;
 
-  const RegistrationResult({required this.userId, required this.studentId});
+  const RegistrationResult({
+    required this.userId,
+    required this.studentId,
+  });
 }
 
 class AuthService {
-  AuthService({ApiClient? apiClient, SessionService? sessionService})
-    : _apiClient = apiClient ?? ApiClient(),
-      _sessionService = sessionService ?? const SessionService();
+  AuthService({
+    ApiClient? apiClient,
+    SessionService? sessionService,
+  })  : _apiClient = apiClient ?? ApiClient(),
+        _sessionService = sessionService ?? const SessionService();
 
   final ApiClient _apiClient;
   final SessionService _sessionService;
@@ -50,6 +55,7 @@ class AuthService {
     );
 
     final user = (response['user'] as Map<String, dynamic>?) ?? {};
+
     return RegistrationResult(
       userId: user['user_id']?.toString() ?? '',
       studentId: user['student_id']?.toString() ?? studentId.trim(),
@@ -62,7 +68,10 @@ class AuthService {
   }) async {
     final response = await _apiClient.postJson(
       '/api/auth/verify-otp',
-      body: {'email': email.trim(), 'otp': otp.trim()},
+      body: {
+        'email': email.trim(),
+        'otp': otp.trim(),
+      },
     );
 
     return await _saveAndBuildAuthResult(response);
@@ -71,8 +80,44 @@ class AuthService {
   Future<void> resendOtp(String email) async {
     await _apiClient.postJson(
       '/api/auth/resend-otp',
-      body: {'email': email.trim()},
+      body: {
+        'email': email.trim(),
+      },
     );
+  }
+
+  Future<void> cancelRegistration(String email) async {
+    await _apiClient.postJson(
+      '/api/auth/cancel-registration',
+      body: {
+        'email': email.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> setupProfile({
+    required String firstName,
+    String? middleName,
+    required String lastName,
+    required String courseCode,
+    required int yearLevel,
+    required String barangay,
+    required String phoneNumber,
+  }) async {
+    final response = await _apiClient.postJson(
+      '/api/profile/setup',
+      body: {
+        'first_name': firstName.trim(),
+        'middle_name': (middleName ?? '').trim(),
+        'last_name': lastName.trim(),
+        'course_code': courseCode.trim(),
+        'year_level': yearLevel,
+        'barangay': barangay.trim(),
+        'phone_number': phoneNumber.trim(),
+      },
+    );
+
+    return response;
   }
 
   Future<AuthResult> login({
@@ -81,7 +126,10 @@ class AuthService {
   }) async {
     final response = await _apiClient.postJson(
       '/api/auth/login',
-      body: {'student_id': studentId.trim(), 'password': password},
+      body: {
+        'student_id': studentId.trim(),
+        'password': password,
+      },
     );
 
     return await _saveAndBuildAuthResult(response);
@@ -90,7 +138,9 @@ class AuthService {
   Future<void> requestPasswordReset(String email) async {
     await _apiClient.postJson(
       '/api/auth/forgot-password',
-      body: {'email': email.trim()},
+      body: {
+        'email': email.trim(),
+      },
     );
   }
 
@@ -98,6 +148,7 @@ class AuthService {
     Map<String, dynamic> response,
   ) async {
     final user = (response['user'] as Map<String, dynamic>?) ?? {};
+
     final result = AuthResult(
       token: response['token']?.toString() ?? '',
       userId: user['user_id']?.toString() ?? '',

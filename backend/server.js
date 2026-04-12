@@ -2795,21 +2795,134 @@ app.post('/api/auth/resend-otp', async (req, res) => {
 });
 
 // 4. Cancel Registration Route
-app.post('/api/auth/cancel-registration', async (req, res) => {
-  let { email } = req.body;
+app.post('/api/profile/setup', protect, async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
 
-  email = (email || '').toString().trim().toLowerCase();
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+    const {
+      first_name,
+      middle_name,
+      last_name,
+      course_code,
+      year_level,
+      barangay,
+      phone_number,
+    } = req.body;
+
+    if (!first_name || !last_name || !course_code) {
+      return res.status(400).json({
+        error: 'First name, last name, and course code are required.',
+      });
+    }
+
+    const courseId = await resolveCourseIdByCode(course_code);
+
+    const userContext = await loadStudentProfileContextByUserId(userId);
+    const accountStudentId =
+      userContext?.student?.pdm_id ||
+      userContext?.user?.username ||
+      null;
+
+    if (!accountStudentId) {
+      return res.status(400).json({
+        error: 'Student ID is missing from the authenticated account.',
+      });
+    }
+
+    const studentPayload = {
+      user_id: userId,
+      pdm_id: accountStudentId,
+      first_name: String(first_name).trim(),
+      middle_name: middle_name ? String(middle_name).trim() : null,
+      last_name: String(last_name).trim(),
+      barangay: barangay ? String(barangay).trim() : null,
+      year_level: year_level ?? null,
+      course_id: courseId,
+      gwa: null,
+      is_archived: false,
+    };
+
+    const { data: existingStudent, error: existingStudentError } = await supabase
+      .from('students')
+      .select('student_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingStudentError) {
+      throw existingStudentError;
+    }
+
+    let studentRecord = existingStudent;
+
+    if (existingStudent?.student_id) {
+      const { data: updatedStudent, error: updateStudentError } = await supabase
+        .from('students')
+        .update(studentPayload)
+        .eq('student_id', existingStudent.student_id)
+        .select('student_id')
+        .single();
+
+      if (updateStudentError) {
+        throw updateStudentError;
+      }
+
+      studentRecord = updatedStudent;
+    } else {
+      const { data: insertedStudent, error: insertStudentError } = await supabase
+        .from('students')
+        .insert([studentPayload])
+        .select('student_id')
+        .single();
+
+      if (insertStudentError) {
+        throw insertStudentError;
+      }
+
+      studentRecord = insertedStudent;
+    }
+
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({
+        phone_number: phone_number ? String(phone_number).trim() : null,
+      })
+      .eq('user_id', userId);
+
+    if (userUpdateError) {
+      throw userUpdateError;
+    }
+
+    const { error: profileUpsertError } = await supabase
+      .from('student_profiles')
+      .upsert(
+        [
+          {
+            student_id: studentRecord.student_id,
+          },
+        ],
+        { onConflict: 'student_id' }
+      );
+
+    if (profileUpsertError) {
+      throw profileUpsertError;
+    }
+
+    const refreshedContext = await loadStudentProfileContextByUserId(userId);
+
+    return res.status(200).json({
+      message: 'Profile setup completed successfully.',
+      ...(await buildMyProfileResponse(refreshedContext)),
+    });
+  } catch (error) {
+    console.error('PROFILE SETUP ROUTE ERROR:', error);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to complete profile setup.',
+    });
   }
-
-  otpStore.delete(email);
-  pendingRegistrationStore.delete(email);
-
-  return res.status(200).json({
-    message: 'Pending registration cancelled successfully',
-  });
 });
 
 // 5. Login Route

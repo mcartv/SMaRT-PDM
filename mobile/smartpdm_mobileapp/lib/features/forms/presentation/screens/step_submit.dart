@@ -69,7 +69,7 @@ class _StepSubmitState extends State<StepSubmit> {
             ),
             padding: const EdgeInsets.all(16),
             child: const Text(
-              'This will save your base application now so you can immediately start uploading scholarship requirements. Scholarship program selection can still be completed later.',
+              'Submitting this form will create your scholarship application for the selected opening. After submission, upload the required documents from Documents to continue the review process.',
               style: TextStyle(
                 fontSize: 12,
                 color: Color(0xFF7A5C2E),

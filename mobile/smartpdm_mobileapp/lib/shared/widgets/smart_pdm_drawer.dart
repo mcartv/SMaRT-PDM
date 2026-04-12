@@ -17,15 +17,19 @@ class SmartPdmDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final drawerBackground =
-        isDark ? const Color(0xFF2D1E12) : const Color(0xFFFFFBF6);
-    final headerBackground =
-        isDark ? const Color(0xFF3A2718) : AppColors.gold.withOpacity(0.18);
+    final drawerBackground = isDark
+        ? const Color(0xFF2D1E12)
+        : const Color(0xFFFFFBF6);
+    final headerBackground = isDark
+        ? const Color(0xFF3A2718)
+        : AppColors.gold.withOpacity(0.18);
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor =
-        isDark ? Colors.white70 : AppColors.brown.withOpacity(0.72);
-    final sectionColor =
-        isDark ? Colors.white70 : AppColors.brown.withOpacity(0.6);
+    final subtitleColor = isDark
+        ? Colors.white70
+        : AppColors.brown.withOpacity(0.72);
+    final sectionColor = isDark
+        ? Colors.white70
+        : AppColors.brown.withOpacity(0.6);
     final itemTextColor = isDark ? Colors.white : AppColors.darkBrown;
     final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
 
@@ -41,9 +45,7 @@ class SmartPdmDrawer extends StatelessWidget {
               AppNavigator.goToTopLevel(context, AppRoutes.profile);
             },
             child: DrawerHeader(
-              decoration: BoxDecoration(
-                color: headerBackground,
-              ),
+              decoration: BoxDecoration(color: headerBackground),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -56,7 +58,9 @@ class SmartPdmDrawer extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.darkBrown : AppColors.darkBrown,
+                        color: isDark
+                            ? AppColors.darkBrown
+                            : AppColors.darkBrown,
                       ),
                     ),
                   ),
@@ -71,10 +75,7 @@ class SmartPdmDrawer extends StatelessWidget {
                   ),
                   Text(
                     isScholar ? 'Approved Scholar' : 'Applicant',
-                    style: TextStyle(
-                      color: subtitleColor,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: subtitleColor, fontSize: 12),
                   ),
                 ],
               ),
@@ -98,7 +99,7 @@ class SmartPdmDrawer extends StatelessWidget {
             context: context,
             icon: Icons.assignment,
             label: 'Apply for Scholarship',
-            route: AppRoutes.newApplicant,
+            route: AppRoutes.scholarshipOpenings,
           ),
           _buildDrawerItem(
             context: context,
@@ -154,10 +155,7 @@ class SmartPdmDrawer extends StatelessWidget {
           ],
 
           // Divider
-          Divider(
-            height: 24,
-            color: isDark ? Colors.white12 : null,
-          ),
+          Divider(height: 24, color: isDark ? Colors.white12 : null),
 
           // Account Section
           Padding(
@@ -259,12 +257,7 @@ class SmartPdmDrawer extends StatelessWidget {
 
     return ListTile(
       leading: Icon(icon, color: iconColor),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-        ),
-      ),
+      title: Text(label, style: TextStyle(color: textColor)),
       iconColor: iconColor,
       textColor: textColor,
       onTap: () {
@@ -290,12 +283,7 @@ class SmartPdmDrawer extends StatelessWidget {
 
     return ListTile(
       leading: Icon(icon, color: iconColor),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-        ),
-      ),
+      title: Text(label, style: TextStyle(color: textColor)),
       iconColor: iconColor,
       textColor: textColor,
       onTap: onTap,

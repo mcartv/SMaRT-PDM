@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/features/scholar/data/services/payout_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
@@ -15,79 +16,93 @@ class PayoutScheduleScreen extends StatefulWidget {
 }
 
 class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
-  String _selectedScholarView = 'Payout Schedule';
+  final PayoutService _payoutService = PayoutService();
 
-  final List<Map<String, dynamic>> payouts = [
-    {
-      'month': 'August 2025',
-      'amount': 'PHP 15,000',
-      'status': 'Paid',
-      'date': 'August 15, 2025',
-      'reference': 'REF-2025-0801',
-    },
-    {
-      'month': 'September 2025',
-      'amount': 'PHP 15,000',
-      'status': 'Approved',
-      'date': 'Expected Sep 15, 2025',
-      'reference': 'REF-2025-0902',
-    },
-    {
-      'month': 'October 2025',
-      'amount': 'PHP 15,000',
-      'status': 'Processing',
-      'date': 'Expected Oct 15, 2025',
-      'reference': 'REF-2025-1003',
-    },
-    {
-      'month': 'November 2025',
-      'amount': 'PHP 15,000',
-      'status': 'Pending',
-      'date': 'Expected Nov 15, 2025',
-      'reference': '-',
-    },
-  ];
+  String _selectedScholarView = 'Payout Schedule';
+  bool _loading = true;
+  String? _error;
+  List<MobilePayoutItem> _payouts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPayouts();
+  }
+
+  Future<void> _loadPayouts() async {
+    try {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+
+      final items = await _payoutService.fetchMyPayouts();
+
+      if (!mounted) return;
+      setState(() {
+        _payouts = items;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
 
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Paid':
+    switch (status.toLowerCase()) {
+      case 'released':
+      case 'paid':
+      case 'completed':
         return Colors.green;
-      case 'Approved':
+      case 'approved':
         return Colors.blue;
-      case 'Processing':
+      case 'processing':
+      case 'on hold':
         return Colors.orange;
-      case 'Pending':
-        return Colors.grey;
+      case 'absent':
+        return Colors.red;
+      case 'pending':
       default:
         return Colors.grey;
     }
   }
 
   IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'Paid':
+    switch (status.toLowerCase()) {
+      case 'released':
+      case 'paid':
+      case 'completed':
         return Icons.check_circle;
-      case 'Approved':
+      case 'approved':
         return Icons.verified;
-      case 'Processing':
+      case 'processing':
+      case 'on hold':
         return Icons.schedule;
-      case 'Pending':
-        return Icons.schedule;
+      case 'absent':
+        return Icons.cancel;
+      case 'pending':
       default:
-        return Icons.help;
+        return Icons.schedule;
     }
+  }
+
+  String _formatAmount(double value) {
+    return 'PHP ${value.toStringAsFixed(0)}';
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final sectionCardColor = isDark
-        ? const Color(0xFF2D1E12)
-        : Colors.blue[50]!;
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
     final subtitleColor = isDark ? Colors.white70 : Colors.grey;
-    final iconAccent = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -100,206 +115,237 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
       selectedIndex: 1,
       showBottomNav: widget.showBottomNav,
       showDrawer: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ScholarNavChips(
-              selectedLabel: _selectedScholarView,
-              onTap: (label) {
-                setState(() {
-                  _selectedScholarView = label;
-                });
+      child: RefreshIndicator(
+        onRefresh: _loadPayouts,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ScholarNavChips(
+                selectedLabel: _selectedScholarView,
+                onTap: (label) {
+                  setState(() {
+                    _selectedScholarView = label;
+                  });
 
-                switch (label) {
-                  case 'Payout Schedule':
-                    AppNavigator.goToTopLevel(context, AppRoutes.payouts);
-                    break;
-                  case 'Renewal Documents':
-                    Navigator.pushNamed(context, AppRoutes.renewalDocuments);
-                    break;
-                  case 'RO Assignment':
-                    Navigator.pushNamed(context, AppRoutes.roAssignment);
-                    break;
-                  case 'RO Completion':
-                    Navigator.pushNamed(context, AppRoutes.roCompletion);
-                    break;
-                }
-              },
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Payment Schedule',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: titleColor,
+                  switch (label) {
+                    case 'Payout Schedule':
+                      AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+                      break;
+                    case 'Renewal Documents':
+                      Navigator.pushNamed(context, AppRoutes.renewalDocuments);
+                      break;
+                    case 'RO Assignment':
+                      Navigator.pushNamed(context, AppRoutes.roAssignment);
+                      break;
+                    case 'RO Completion':
+                      Navigator.pushNamed(context, AppRoutes.roCompletion);
+                      break;
+                  }
+                },
               ),
-            ),
-            const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: payouts.length,
-              itemBuilder: (context, index) {
-                final payout = payouts[index];
-                return Card(
+              const SizedBox(height: 20),
+              Text(
+                'Payment Schedule',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: titleColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              if (_loading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_error != null)
+                Card(
                   color: cardColor,
-                  margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(
-                                  payout['status'],
-                                ).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                _getStatusIcon(payout['status']),
-                                color: _getStatusColor(payout['status']),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    payout['month'],
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: titleColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    payout['date'],
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: subtitleColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  payout['amount'],
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: titleColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _getStatusColor(
-                                      payout['status'],
-                                    ).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    payout['status'],
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: _getStatusColor(payout['status']),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (payout['reference'] != '-')
-                          Text(
-                            'Reference: ${payout['reference']}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: subtitleColor,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            Card(
-              color: sectionCardColor,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.account_balance, color: iconAccent),
-                        const SizedBox(width: 8),
                         Text(
-                          'Bank Details',
+                          'Failed to load payout schedule.',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
                             color: titleColor,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: subtitleColor),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _loadPayouts,
+                          child: const Text('Retry'),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Bank: BDO Unibank',
-                      style: TextStyle(fontSize: 13, color: titleColor),
+                  ),
+                )
+              else if (_payouts.isEmpty)
+                Card(
+                  color: cardColor,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'No payout schedule available yet.',
+                      style: TextStyle(color: subtitleColor),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Account Name: John Doe',
-                      style: TextStyle(fontSize: 13, color: titleColor),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Account Number: ****5678',
-                      style: TextStyle(fontSize: 13, color: titleColor),
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Update bank details feature'),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        'Update Bank Details',
-                        style: TextStyle(color: iconAccent),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _payouts.length,
+                  itemBuilder: (context, index) {
+                    final payout = _payouts[index];
+                    return Card(
+                      color: cardColor,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: _getStatusColor(payout.status).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    _getStatusIcon(payout.status),
+                                    color: _getStatusColor(payout.status),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        payout.title,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: titleColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        payout.programName,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: subtitleColor,
+                                        ),
+                                      ),
+                                      if ((payout.benefactorName ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          payout.benefactorName!,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: subtitleColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      _formatAmount(payout.amount),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: titleColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _getStatusColor(payout.status).withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        payout.status,
+                                        style: TextStyle(
+                                          color: _getStatusColor(payout.status),
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Divider(color: Colors.grey.withOpacity(0.2)),
+                            const SizedBox(height: 10),
+                            _infoRow('Payout Date', payout.payoutDate.isEmpty ? 'TBA' : payout.payoutDate, subtitleColor),
+                            _infoRow('Semester', payout.semester.isEmpty ? '-' : payout.semester, subtitleColor),
+                            _infoRow('School Year', payout.schoolYear.isEmpty ? '-' : payout.schoolYear, subtitleColor),
+                            _infoRow('Payment Mode', payout.paymentMode.isEmpty ? '-' : payout.paymentMode, subtitleColor),
+                            _infoRow('Batch Status', payout.batchStatus.isEmpty ? '-' : payout.batchStatus, subtitleColor),
+                            _infoRow('Reference', payout.reference.isEmpty ? '-' : payout.reference, subtitleColor),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
               ),
             ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 12, color: color),
+            ),
+          ),
+        ],
       ),
     );
   }

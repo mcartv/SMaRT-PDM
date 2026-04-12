@@ -77,10 +77,10 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
                 icon: Icons.assignment_late_outlined,
                 title: 'No application status yet',
                 message:
-                    'You have not submitted your application form yet, so there is no application status to track.',
-                primaryActionLabel: 'Open Application Form',
+                    'You have not submitted a scholarship application yet, so there is no application status to track.',
+                primaryActionLabel: 'View Scholarship Openings',
                 onPrimaryAction: () =>
-                    Navigator.pushNamed(context, AppRoutes.newApplicant),
+                    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
               )
             else
               _StatusSummaryView(summary: _summary!),
@@ -161,7 +161,7 @@ class _StatusSummaryView extends StatelessWidget {
     }
 
     if (documentStatus == 'Missing Docs') {
-      return 'Your base application form is on file. Upload the required scholarship documents so the review can proceed.';
+      return 'Your application is on file. Upload the required scholarship documents so the review can proceed.';
     }
 
     if (documentStatus == 'Under Review') {
@@ -223,9 +223,11 @@ class _StatusSummaryView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  summary.programName?.trim().isNotEmpty == true
+                  summary.openingTitle?.trim().isNotEmpty == true
+                      ? summary.openingTitle!
+                      : summary.programName?.trim().isNotEmpty == true
                       ? summary.programName!
-                      : 'Base Application',
+                      : 'Scholarship Application',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,

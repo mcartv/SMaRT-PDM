@@ -716,7 +716,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           onTap: () {
                             Navigator.pushNamed(
                               context,
-                              AppRoutes.newApplicant,
+                              AppRoutes.scholarshipOpenings,
                             );
                           },
                         ),
@@ -832,7 +832,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           ),
                           title: const Text('Upload Scholarship Requirements'),
                           subtitle: Text(
-                            'Upload your scholarship requirements after submitting the base application form',
+                            'Upload your scholarship requirements after submitting an opening-specific application',
                             style: TextStyle(color: _subtitleColor),
                           ),
                           trailing: Icon(

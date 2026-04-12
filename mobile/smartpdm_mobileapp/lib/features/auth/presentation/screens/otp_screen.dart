@@ -134,7 +134,7 @@ class _OtpScreenState extends State<OtpScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const CompleteProfileScreen(),
+          builder: (_) => CompleteProfileScreen(),
         ),
       );
     } on TimeoutException {

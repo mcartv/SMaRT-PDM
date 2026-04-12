@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
 
@@ -50,15 +51,26 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       final courses = await _authService.fetchCourses();
 
       if (!mounted) return;
+
       setState(() {
         _courses = courses;
         _isLoadingCourses = false;
       });
+
+      debugPrint('COURSES LOADED: ${courses.length}');
+      for (final course in courses) {
+        debugPrint('COURSE: ${course.label}');
+      }
     } catch (e) {
+      debugPrint('COURSE LOAD ERROR: $e');
+
       if (!mounted) return;
+
       setState(() {
+        _courses = [];
         _isLoadingCourses = false;
       });
+
       _showMessage('Failed to load courses: $e', isError: true);
     }
   }
@@ -87,7 +99,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     }
 
     final text = value.trim();
-    if (text.length < 2) return '$field is too short';
+    if (text.length < 2) {
+      return '$field is too short';
+    }
+
     if (!RegExp(r"^[a-zA-ZñÑ\s.'-]+$").hasMatch(text)) {
       return 'Enter a valid $field';
     }
@@ -126,7 +141,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       await _authService.setupProfile(
@@ -142,12 +159,19 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       if (!mounted) return;
 
       _showMessage('Profile completed successfully.');
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.home,
+        (route) => false,
+      );
     } catch (e) {
       _showMessage(e.toString(), isError: true);
     } finally {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -198,6 +222,68 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         inputFormatters: inputFormatters,
         textCapitalization: textCapitalization,
         decoration: _inputDecoration(label, hintText: hintText),
+      ),
+    );
+  }
+
+  Widget _buildCourseDropdown() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<CourseOption>(
+        initialValue: _selectedCourse,
+        isExpanded: true,
+        decoration: _inputDecoration(
+          'Course',
+          hintText: _isLoadingCourses
+              ? 'Loading courses...'
+              : (_courses.isEmpty ? 'No courses available' : 'Select your course'),
+        ),
+        items: _courses
+            .map(
+              (course) => DropdownMenuItem<CourseOption>(
+                value: course,
+                child: Text(
+                  course.label,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: (_isLoadingCourses || _courses.isEmpty)
+            ? null
+            : (value) {
+                setState(() {
+                  _selectedCourse = value;
+                });
+              },
+        validator: (value) => value == null ? 'Course is required' : null,
+      ),
+    );
+  }
+
+  Widget _buildYearLevelDropdown() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<int>(
+        initialValue: _selectedYearLevel,
+        decoration: _inputDecoration(
+          'Year Level',
+          hintText: 'Select your year level',
+        ),
+        items: _yearLevels
+            .map(
+              (year) => DropdownMenuItem<int>(
+                value: year,
+                child: Text('Year $year'),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          setState(() {
+            _selectedYearLevel = value;
+          });
+        },
+        validator: (value) => value == null ? 'Year level is required' : null,
       ),
     );
   }
@@ -265,7 +351,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 28),
-
                       _buildTextField(
                         label: 'First Name',
                         controller: _firstNameController,
@@ -282,59 +367,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         controller: _lastNameController,
                         validator: (v) => _nameValidator(v, 'Last name'),
                       ),
-
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: DropdownButtonFormField<CourseOption>(
-                          value: _selectedCourse,
-                          isExpanded: true,
-                          decoration: _inputDecoration('Course'),
-                          items: _courses
-                              .map(
-                                (course) => DropdownMenuItem<CourseOption>(
-                                  value: course,
-                                  child: Text(
-                                    course.label,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: _isLoadingCourses
-                              ? null
-                              : (value) {
-                                  setState(() {
-                                    _selectedCourse = value;
-                                  });
-                                },
-                          validator: (value) =>
-                              value == null ? 'Course is required' : null,
-                        ),
-                      ),
-
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: DropdownButtonFormField<int>(
-                          value: _selectedYearLevel,
-                          decoration: _inputDecoration('Year Level'),
-                          items: _yearLevels
-                              .map(
-                                (year) => DropdownMenuItem<int>(
-                                  value: year,
-                                  child: Text('Year $year'),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedYearLevel = value;
-                            });
-                          },
-                          validator: (value) =>
-                              value == null ? 'Year level is required' : null,
-                        ),
-                      ),
-
+                      _buildCourseDropdown(),
+                      _buildYearLevelDropdown(),
                       _buildTextField(
                         label: 'Barangay',
                         controller: _barangayController,
@@ -353,14 +387,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           LengthLimitingTextInputFormatter(16),
                         ],
                       ),
-
                       const SizedBox(height: 8),
-
                       SizedBox(
                         height: 52,
                         child: ElevatedButton(
-                          onPressed:
-                              (_isLoading || _isLoadingCourses) ? null : _saveProfile,
+                          onPressed: (_isLoading || _isLoadingCourses)
+                              ? null
+                              : _saveProfile,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: accentColor,
                             foregroundColor: Colors.white,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/shell/presentation/screens/top_level_shell_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/announcements_screen.dart';
+import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/applicant_access_gate.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/applicant_documents_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/new_applicant_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholar_renewal_requirements_screen.dart';
@@ -11,6 +12,7 @@ import 'package:smartpdm_mobileapp/features/auth/presentation/screens/complete_p
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/login_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/otp_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/profile_completion_gate.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/register_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/splash_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/faqs_screen.dart';
@@ -44,16 +46,16 @@ class AppRouter {
         return _buildRoute(settings, (_) => const ChangeEmailScreen());
 
       case AppRoutes.completeProfile:
-        return _buildRoute(settings, (_) => const CompleteProfileScreen());
+        return _buildRoute(settings, (_) => CompleteProfileScreen());
 
       case AppRoutes.home:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
           (_) => const TopLevelShellScreen(initialIndex: 0),
         );
 
       case AppRoutes.payouts:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
           (_) => const ScholarAccessGate(
             child: TopLevelShellScreen(initialIndex: 1),
@@ -61,84 +63,117 @@ class AppRouter {
         );
 
       case AppRoutes.notifications:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
           (_) => const TopLevelShellScreen(initialIndex: 2),
         );
 
       case AppRoutes.profile:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
           (_) => const TopLevelShellScreen(initialIndex: 3),
         );
 
       case AppRoutes.newApplicant:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
-          (context) => _buildNewApplicantScreen(context, settings),
+          (context) => ApplicantAccessGate(
+            child: _buildNewApplicantScreen(context, settings),
+          ),
         );
 
       case AppRoutes.application:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
-          (_) => const _PlaceholderScreen(title: 'Application'),
+          (_) => const ApplicantAccessGate(
+            child: _PlaceholderScreen(title: 'Application'),
+          ),
         );
 
       case AppRoutes.documents:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
-          (context) => _buildApplicantDocumentsScreen(context, settings),
+          (context) => ApplicantAccessGate(
+            child: _buildApplicantDocumentsScreen(context, settings),
+          ),
         );
 
       case AppRoutes.renewalDocuments:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
           (_) => const ScholarRenewalRequirementsScreen(),
         );
 
       case AppRoutes.status:
-        return _buildRoute(settings, (_) => const StatusTrackingScreen());
+        return _buildProtectedRoute(
+          settings,
+          (_) => const ApplicantAccessGate(
+            child: StatusTrackingScreen(),
+          ),
+        );
 
       case AppRoutes.announcements:
-        return _buildRoute(settings, (_) => const AnnouncementsScreen());
+        return _buildProtectedRoute(
+          settings,
+          (_) => const AnnouncementsScreen(),
+        );
 
       case AppRoutes.about:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
           (_) => const _PlaceholderScreen(title: 'About PDM/OSFA'),
         );
 
       case AppRoutes.faqs:
-        return _buildRoute(settings, (_) => const FaqsScreen());
+        return _buildProtectedRoute(
+          settings,
+          (_) => const FaqsScreen(),
+        );
 
       case AppRoutes.messaging:
-        return _buildRoute(settings, (_) => const MessagingScreen());
+        return _buildProtectedRoute(
+          settings,
+          (_) => const MessagingScreen(),
+        );
 
       case AppRoutes.roAssignment:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
-          (_) => const ScholarAccessGate(child: ROAssignmentScreen()),
+          (_) => const ScholarAccessGate(
+            child: ROAssignmentScreen(),
+          ),
         );
 
       case AppRoutes.roCompletion:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
-          (_) => const ScholarAccessGate(child: ROCompletionScreen()),
+          (_) => const ScholarAccessGate(
+            child: ROCompletionScreen(),
+          ),
         );
 
       case AppRoutes.tickets:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
-          (_) => const ScholarAccessGate(child: ReportTicketScreen()),
+          (_) => const ScholarAccessGate(
+            child: ReportTicketScreen(),
+          ),
         );
 
       case AppRoutes.success:
-        return _buildRoute(settings, (_) => const SuccessScreen());
+        return _buildProtectedRoute(
+          settings,
+          (_) => const ApplicantAccessGate(
+            child: SuccessScreen(),
+          ),
+        );
 
       case AppRoutes.scholarshipOpenings:
-        return _buildRoute(
+        return _buildProtectedRoute(
           settings,
-          (_) => const ScholarshipOpeningsScreen(),
+          (_) => const ApplicantAccessGate(
+            child: ScholarshipOpeningsScreen(),
+          ),
         );
 
       default:
@@ -181,6 +216,18 @@ class AppRouter {
     return MaterialPageRoute<void>(
       builder: builder,
       settings: settings,
+    );
+  }
+
+  static MaterialPageRoute<void> _buildProtectedRoute(
+    RouteSettings settings,
+    WidgetBuilder builder,
+  ) {
+    return MaterialPageRoute<void>(
+      settings: settings,
+      builder: (context) => ProfileCompletionGate(
+        child: builder(context),
+      ),
     );
   }
 }

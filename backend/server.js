@@ -34,9 +34,35 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
-// CRITICAL: Use your `service_role` secret key here, NOT the `anon` / publishable key.
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// KEEP ONLY THIS ONE
+app.get('/api/courses', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('academic_course')
+      .select('course_id, course_code, course_name')
+      .eq('is_archived', false)
+      .order('course_code', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    const items = (data || []).map((course) => ({
+      course_id: course.course_id,
+      course_code: course.course_code,
+      course_name: course.course_name,
+      label: `${course.course_code} - ${course.course_name}`,
+    }));
+
+    return res.status(200).json({ items });
+  } catch (error) {
+    console.error('GET COURSES ERROR:', error);
+    return res.status(500).json({ error: 'Failed to fetch courses' });
+  }
+});
 
 notificationService.configureNotificationService({ io, supabase });
 messageService.configureMessageService({ io, supabase });
@@ -395,7 +421,18 @@ async function refreshApplicationDocumentStatus(applicationId, uploadedBy) {
 async function resolveStudentByUserId(userId) {
   const { data: studentRecord, error } = await supabase
     .from('students')
-    .select('student_id, user_id, pdm_id, first_name, last_name, course_id, profile_photo_url')
+    .select(`
+      student_id,
+      user_id,
+      pdm_id,
+      first_name,
+      middle_name,
+      last_name,
+      barangay,
+      year_level,
+      course_id,
+      profile_photo_url
+    `)
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -492,7 +529,10 @@ async function buildMyProfileResponse(context = {}) {
       user_id: user.user_id ?? null,
       student_id: student.pdm_id || user.username || null,
       first_name: student.first_name ?? null,
+      middle_name: student.middle_name ?? null,
       last_name: student.last_name ?? null,
+      year_level: student.year_level ?? null,
+      barangay: student.barangay ?? null,
       email: user.email ?? null,
       phone_number: user.phone_number ?? null,
       avatar_url: avatarUrl,

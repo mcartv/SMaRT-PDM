@@ -18,7 +18,6 @@ import {
   Table2,
   ChevronLeft,
   ChevronRight,
-  FileText,
 } from 'lucide-react';
 
 const C = {
@@ -51,11 +50,37 @@ function formatDate(value) {
   });
 }
 
+function getComputedFilledSlots(opening) {
+  const qualifiedCount =
+    opening?.qualified_count !== undefined && opening?.qualified_count !== null
+      ? Number(opening.qualified_count)
+      : null;
+
+  const storedFilledSlots =
+    opening?.filled_slots !== undefined && opening?.filled_slots !== null
+      ? Number(opening.filled_slots)
+      : null;
+
+  if (qualifiedCount !== null && !Number.isNaN(qualifiedCount)) {
+    return qualifiedCount;
+  }
+
+  if (storedFilledSlots !== null && !Number.isNaN(storedFilledSlots)) {
+    return storedFilledSlots;
+  }
+
+  return 0;
+}
+
+function getComputedRemainingSlots(opening) {
+  const allocated = Number(opening?.allocated_slots || opening?.slot_count || 0);
+  const filled = getComputedFilledSlots(opening);
+  return Math.max(0, allocated - filled);
+}
+
 function getOpeningStatusMeta(opening) {
   const raw = (opening?.posting_status || opening?.status || '').toLowerCase();
-  const allocated = Number(opening?.allocated_slots || opening?.slot_count || 0);
-  const filled = Number(opening?.filled_slots || opening?.qualified_count || 0);
-  const remainingSlots = Math.max(0, allocated - filled);
+  const remainingSlots = getComputedRemainingSlots(opening);
 
   if (raw === 'draft') {
     return { label: 'Draft', bg: '#f5f5f4', color: '#57534e' };
@@ -476,7 +501,7 @@ export default function ApplicationReview() {
             {pageData.map((opening) => {
               const statusMeta = getOpeningStatusMeta(opening);
               const allocatedSlots = Number(opening.allocated_slots || opening.slot_count || 0);
-              const filledSlots = Number(opening.filled_slots || opening.qualified_count || 0);
+              const filledSlots = getComputedFilledSlots(opening);
               const applicationCount = Number(opening.application_count || 0);
               const pendingCount = Number(opening.pending_count || 0);
               const reviewCount = Number(opening.review_count || 0);

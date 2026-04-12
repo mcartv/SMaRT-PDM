@@ -7,9 +7,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
-    Plus, Search, Loader2, CalendarDays, Users, FolderOpen,
-    Pencil, Archive, X, CheckCircle2, Clock3,
-    Sparkles, Megaphone, Layers3, EyeOff, Building2, FileText, RefreshCw
+    Plus,
+    Search,
+    Loader2,
+    CalendarDays,
+    FolderOpen,
+    Pencil,
+    Archive,
+    X,
+    CheckCircle2,
+    Clock3,
+    Sparkles,
+    Megaphone,
+    Layers3,
+    EyeOff,
+    RefreshCw,
+    Users,
 } from 'lucide-react';
 
 const C = {
@@ -33,62 +46,12 @@ const STATUS_META = {
     open: { label: 'Open', color: C.green, bg: C.greenSoft },
     closed: { label: 'Closed', color: C.red, bg: C.redSoft },
     archived: { label: 'Archived', color: '#57534e', bg: '#f5f5f4' },
+    filled: { label: 'Filled', color: '#92400e', bg: '#FEF3C7' },
 };
-
-function fmtDate(v) {
-    if (!v) return 'N/A';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return v;
-    return d.toLocaleDateString();
-}
 
 function fmtMoney(v) {
     const n = Number(v || 0);
     return `₱${n.toLocaleString()}`;
-}
-
-function getTodayLocalISO() {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    const local = new Date(now.getTime() - offset * 60 * 1000);
-    return local.toISOString().split('T')[0];
-}
-
-function isWeekend(dateStr) {
-    if (!dateStr) return false;
-    const date = new Date(`${dateStr}T00:00:00`);
-    const day = date.getDay();
-    return day === 0 || day === 6;
-}
-
-function isPastDate(dateStr) {
-    if (!dateStr) return false;
-    const today = getTodayLocalISO();
-    return dateStr < today;
-}
-
-function isInvalidSelectableDate(dateStr) {
-    return isPastDate(dateStr) || isWeekend(dateStr);
-}
-
-function deriveOpeningStatus(payload, existingStatus = '') {
-    const normalizedExisting = String(existingStatus || '').toLowerCase();
-
-    if (normalizedExisting === 'archived') {
-        return 'archived';
-    }
-
-    const today = getTodayLocalISO();
-
-    const hasRequiredFields =
-        !!payload.opening_title &&
-        !!payload.application_start &&
-        !!payload.application_end;
-
-    if (!hasRequiredFields) return 'draft';
-    if (payload.application_end < today) return 'closed';
-
-    return 'open';
 }
 
 function normalizeAudience(value) {
@@ -111,14 +74,10 @@ function normalizeAudience(value) {
 function deriveTargetAudience(source) {
     const normalized = normalizeAudience(source?.target_audience);
 
-    if (normalized) {
-        return normalized;
-    }
+    if (normalized) return normalized;
 
-    // Fallback: check if it's a TES program
     const joined = [
         source?.program_name,
-        source?.benefactor_name,
         source?.benefactor_name,
         source?.opening_title,
     ]
@@ -137,6 +96,29 @@ function targetAudienceLabel(value) {
     if (normalized === 'Applicants') return 'Applicants';
     if (normalized === 'Scholars') return 'Scholars';
     return normalized || 'Applicants';
+}
+
+function deriveOpeningStatus(payload, existingStatus = '') {
+    const normalizedExisting = String(existingStatus || '').toLowerCase();
+
+    if (normalizedExisting === 'archived') return 'archived';
+    if (normalizedExisting === 'closed') return 'closed';
+
+    const hasRequiredFields =
+        !!payload.opening_title &&
+        !!payload.program_id &&
+        !!payload.semester &&
+        !!payload.academic_year &&
+        Number(payload.allocated_slots || 0) > 0;
+
+    if (!hasRequiredFields) return 'draft';
+
+    const allocated = Number(payload.allocated_slots || 0);
+    const filled = Number(payload.filled_slots_preview ?? 0);
+
+    if (allocated > 0 && filled >= allocated) return 'filled';
+
+    return 'open';
 }
 
 function StatCard({ label, value, icon: Icon, accent, soft }) {
@@ -184,73 +166,22 @@ function OpeningModal({
 
     const isEdit = mode === 'edit';
     const title = isEdit ? 'Edit Scholarship Opening' : 'Open Program for New Batch';
-    const today = getTodayLocalISO();
-    const previewStatus = deriveOpeningStatus(form);
+    const previewStatus = deriveOpeningStatus(form, form.posting_status);
 
     const allocatedSlots = Number(form.allocated_slots) || 0;
-    const totalFinancial = Number(form.total_financial_allocation) || 0;
-    const perScholarFinancial = allocatedSlots > 0 && totalFinancial > 0
-        ? Math.floor(totalFinancial / allocatedSlots)
-        : 0;
+    const totalFinancial = Number(form.financial_allocation) || 0;
+    const perScholarFinancial =
+        allocatedSlots > 0 && totalFinancial > 0
+            ? Math.floor(totalFinancial / allocatedSlots)
+            : 0;
 
-    const handleAllocatedSlotsChange = (value) => {
-        const slots = Number(value) || 0;
-        setForm((prev) => ({
-            ...prev,
-            allocated_slots: value,
-            financial_allocation:
-                slots > 0 && prev.total_financial_allocation
-                    ? Math.floor(Number(prev.total_financial_allocation) / slots)
-                    : prev.financial_allocation,
-        }));
-    };
-
-    const handleTotalFinancialChange = (value) => {
-        const total = Number(value) || 0;
-        const slots = Number(form.allocated_slots) || 0;
-        setForm((prev) => ({
-            ...prev,
-            total_financial_allocation: value,
-            financial_allocation:
-                slots > 0 && total > 0
-                    ? Math.floor(total / slots)
-                    : prev.financial_allocation,
-        }));
-    };
-
-    const handleDateChange = (field, value) => {
-        if (!value) {
-            setForm((prev) => ({ ...prev, [field]: '' }));
-            return;
-        }
-
-        if (isInvalidSelectableDate(value)) {
-            alert('Past dates and weekends are not allowed.');
-            return;
-        }
-
-        setForm((prev) => {
-            const next = { ...prev, [field]: value };
-
-            if (field === 'application_start' && next.application_end && next.application_end < value) {
-                next.application_end = '';
-            }
-
-            if (field === 'screening_start' && next.screening_end && next.screening_end < value) {
-                next.screening_end = '';
-            }
-
-            return next;
-        });
-    };
-
-    // Get audience display label
     const audienceLabel = targetAudienceLabel(form.target_audience);
-    const audienceTooltip = audienceLabel === 'Scholars & Applicants'
-        ? 'Visible to both scholars and applicants'
-        : audienceLabel === 'Scholars'
-            ? 'Visible only to existing scholars'
-            : 'Visible only to new applicants';
+    const audienceTooltip =
+        audienceLabel === 'Scholars & Applicants'
+            ? 'Visible to both scholars and applicants'
+            : audienceLabel === 'Scholars'
+                ? 'Visible only to existing scholars'
+                : 'Visible only to new applicants';
 
     return (
         <div
@@ -267,7 +198,7 @@ function OpeningModal({
                         <p className="text-xs text-stone-500 mt-0.5">
                             {isEdit
                                 ? 'Update this scholarship opening'
-                                : 'Create a live application cycle from the selected scholarship program template'}
+                                : 'Create a live scholarship opening from the selected template'}
                         </p>
                     </div>
 
@@ -306,7 +237,9 @@ function OpeningModal({
                                                 ? 'border-green-200 bg-green-50 text-green-700'
                                                 : previewStatus === 'closed'
                                                     ? 'border-red-200 bg-red-50 text-red-700'
-                                                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                                                    : previewStatus === 'filled'
+                                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                        : 'border-stone-200 bg-white text-stone-600'
                                                 }`}
                                         >
                                             Auto Status: {STATUS_META[previewStatus]?.label || 'Draft'}
@@ -325,15 +258,6 @@ function OpeningModal({
                                     <p className="text-xs text-stone-500 mt-1">
                                         {template.description || 'No default description set.'}
                                     </p>
-
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                            GWA ≤ {template.gwa_threshold ?? 'N/A'}
-                                        </Badge>
-                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                            {template.renewal_cycle || 'No Renewal'}
-                                        </Badge>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -342,12 +266,15 @@ function OpeningModal({
                     <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                         <p className="text-sm font-medium text-stone-800">Status is automatic</p>
                         <p className="text-xs text-stone-500 mt-1">
-                            Draft if incomplete, Open if complete and active, Closed if the application end date has already passed.
+                            Draft if incomplete, Filled if all slots are taken, otherwise Open unless archived or closed manually.
                         </p>
                     </div>
 
                     <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Opening Information</h4>
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">
+                            Opening Information
+                        </h4>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
@@ -356,117 +283,62 @@ function OpeningModal({
                                 <Input
                                     value={form.opening_title}
                                     onChange={(e) => setForm((prev) => ({ ...prev, opening_title: e.target.value }))}
-                                    placeholder="e.g. AY 2026–2027 First Semester Intake"
+                                    placeholder="e.g. Kaizen First Semester Opening"
                                     className="h-10 rounded-lg border-stone-200 text-sm"
                                 />
-                                <p className="text-[10px] text-stone-400">A descriptive title for this scholarship opening batch.</p>
                             </div>
 
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                     Target Audience
                                 </label>
-                                <div className="relative">
-                                    <Input
-                                        value={audienceLabel}
-                                        readOnly
-                                        className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium pr-8"
-                                        style={{ color: C.brownMid }}
-                                    />
-                                    <Users className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                                </div>
-                                <p className="text-[10px] text-stone-400">
-                                    Inherited from the benefactor template. {audienceTooltip.toLowerCase()}.
-                                </p>
+                                <Input
+                                    value={audienceLabel}
+                                    readOnly
+                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
+                                    style={{ color: C.brownMid }}
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Semester
+                                </label>
+                                <Select
+                                    value={form.semester}
+                                    onValueChange={(value) => setForm((prev) => ({ ...prev, semester: value }))}
+                                >
+                                    <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                                        <SelectValue placeholder="Select semester" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1st Semester">1st Semester</SelectItem>
+                                        <SelectItem value="2nd Semester">2nd Semester</SelectItem>
+                                        <SelectItem value="Summer">Summer</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Academic Year
+                                </label>
+                                <Input
+                                    value={form.academic_year}
+                                    onChange={(e) => setForm((prev) => ({ ...prev, academic_year: e.target.value }))}
+                                    placeholder="e.g. 2026-2027"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
                             </div>
                         </div>
                     </div>
 
                     <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Application Period</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Application Start
-                                </label>
-                                <Input
-                                    type="date"
-                                    min={today}
-                                    value={form.application_start}
-                                    onChange={(e) => handleDateChange('application_start', e.target.value)}
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
-                                />
-                                <p className="text-[10px] text-stone-400">Weekdays only. Past dates are blocked.</p>
-                            </div>
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">
+                            Financial and Slot Information
+                        </h4>
 
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Application End
-                                </label>
-                                <Input
-                                    type="date"
-                                    min={form.application_start || today}
-                                    value={form.application_end}
-                                    onChange={(e) => handleDateChange('application_end', e.target.value)}
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
-                                />
-                                <p className="text-[10px] text-stone-400">Must be on or after application start.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Screening Period</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Screening Start
-                                </label>
-                                <Input
-                                    type="date"
-                                    min={form.application_end || today}
-                                    value={form.screening_start}
-                                    onChange={(e) => handleDateChange('screening_start', e.target.value)}
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
-                                />
-                                <p className="text-[10px] text-stone-400">Should not be earlier than application end.</p>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Screening End
-                                </label>
-                                <Input
-                                    type="date"
-                                    min={form.screening_start || form.application_end || today}
-                                    value={form.screening_end}
-                                    onChange={(e) => handleDateChange('screening_end', e.target.value)}
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
-                                />
-                                <p className="text-[10px] text-stone-400">Must be on or after screening start.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Financial Information</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Total Financial Allocation (₱)
-                                </label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    step="1000"
-                                    value={form.total_financial_allocation}
-                                    onChange={(e) => handleTotalFinancialChange(e.target.value)}
-                                    placeholder="0.00"
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
-                                />
-                                <p className="text-[10px] text-stone-400">Total budget for this opening.</p>
-                            </div>
-
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                     Allocated Slots
@@ -475,11 +347,25 @@ function OpeningModal({
                                     type="number"
                                     min="0"
                                     value={form.allocated_slots}
-                                    onChange={(e) => handleAllocatedSlotsChange(e.target.value)}
+                                    onChange={(e) => setForm((prev) => ({ ...prev, allocated_slots: e.target.value }))}
                                     placeholder="0"
                                     className="h-10 rounded-lg border-stone-200 text-sm"
                                 />
-                                <p className="text-[10px] text-stone-400">Number of scholars to be funded.</p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Total Financial Allocation (₱)
+                                </label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="1000"
+                                    value={form.financial_allocation}
+                                    onChange={(e) => setForm((prev) => ({ ...prev, financial_allocation: e.target.value }))}
+                                    placeholder="0"
+                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                />
                             </div>
 
                             <div className="space-y-1.5">
@@ -488,38 +374,33 @@ function OpeningModal({
                                 </label>
                                 <Input
                                     type="number"
-                                    min="0"
-                                    value={form.financial_allocation}
                                     readOnly
+                                    value={perScholarFinancial}
                                     className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
                                     style={{ color: C.brownMid }}
                                 />
-                                <p className="text-[10px] text-stone-400">Auto-calculated: Total ÷ Slots</p>
                             </div>
                         </div>
 
-                        {allocatedSlots > 0 && totalFinancial > 0 && (
-                            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
-                                <p className="text-xs text-emerald-700">
-                                    <span className="font-semibold">Summary:</span> ₱{totalFinancial.toLocaleString()} total budget for {allocatedSlots} slots = ₱{perScholarFinancial.toLocaleString()} per scholar.
-                                </p>
-                            </div>
-                        )}
+                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+                            <p className="text-xs text-emerald-700">
+                                <span className="font-semibold">Allocated Slots:</span> {allocatedSlots}
+                                {' · '}
+                                <span className="font-semibold">Per Scholar:</span> ₱{perScholarFinancial.toLocaleString()}
+                            </p>
+                        </div>
                     </div>
 
                     <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">Opening Notes</h4>
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                Opening Notes / Instructions
-                            </label>
-                            <Textarea
-                                value={form.announcement_text}
-                                onChange={(e) => setForm((prev) => ({ ...prev, announcement_text: e.target.value }))}
-                                placeholder="Instructions for this batch, submission reminders, special conditions, and admin notes..."
-                                className="min-h-[120px] rounded-lg border-stone-200 text-sm resize-none"
-                            />
-                        </div>
+                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">
+                            Opening Notes
+                        </h4>
+                        <Textarea
+                            value={form.announcement_text}
+                            onChange={(e) => setForm((prev) => ({ ...prev, announcement_text: e.target.value }))}
+                            placeholder="Instructions, reminders, notes, or conditions..."
+                            className="min-h-[120px] rounded-lg border-stone-200 text-sm resize-none"
+                        />
                     </div>
                 </div>
 
@@ -531,9 +412,16 @@ function OpeningModal({
                     >
                         Cancel
                     </Button>
+
                     <Button
                         onClick={onSave}
-                        disabled={saving || !form.opening_title || !form.application_start || !form.application_end}
+                        disabled={
+                            saving ||
+                            !form.opening_title ||
+                            !form.semester ||
+                            !form.academic_year ||
+                            !form.program_id
+                        }
                         className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
                         style={{ background: C.brownMid }}
                     >
@@ -609,7 +497,7 @@ export default function ScholarshipOpenings() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All Statuses');
     const [programFilter, setProgramFilter] = useState('All Programs');
-    const [audienceFilter, setAudienceFilter] = useState('All Audiences'); // NEW: audience filter
+    const [audienceFilter, setAudienceFilter] = useState('All Audiences');
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -622,14 +510,13 @@ export default function ScholarshipOpenings() {
     const emptyForm = {
         program_id: '',
         opening_title: '',
-        application_start: '',
-        application_end: '',
-        screening_start: '',
-        screening_end: '',
+        semester: '',
+        academic_year: '',
         allocated_slots: '',
-        total_financial_allocation: '',
+        filled_slots_preview: 0,
         financial_allocation: '',
         announcement_text: '',
+        posting_status: 'draft',
         target_audience: 'Applicants',
     };
 
@@ -687,26 +574,14 @@ export default function ScholarshipOpenings() {
         return openings.filter((o) => {
             const status = String(o.posting_status || '').toLowerCase();
 
-            const noDates =
-                !o.application_start &&
-                !o.application_end &&
-                !o.screening_start &&
-                !o.screening_end;
-
-            const noNumbers =
+            const noCoreData =
+                !o.opening_title &&
+                !o.program_name &&
                 Number(o.allocated_slots || 0) === 0 &&
                 Number(o.financial_allocation || 0) === 0;
 
-            const brokenOrganization =
-                !o.benefactor_name ||
-                o.benefactor_name === 'Benefactor N/A' ||
-                o.benefactor_name === 'Organization N/A' ||
-                o.benefactor_name === 'Unknown Organization';
-
-            const junkRow = noDates && noNumbers && brokenOrganization;
-
-            if (junkRow) return false;
-            if (status === 'archived' && noDates && noNumbers) return false;
+            if (noCoreData) return false;
+            if (status === 'archived' && !o.opening_title) return false;
 
             return true;
         });
@@ -727,7 +602,9 @@ export default function ScholarshipOpenings() {
                     !q ||
                     (o.opening_title || '').toLowerCase().includes(q) ||
                     (o.program_name || '').toLowerCase().includes(q) ||
-                    (o.benefactor_name || '').toLowerCase().includes(q);
+                    (o.benefactor_name || '').toLowerCase().includes(q) ||
+                    (o.semester || '').toLowerCase().includes(q) ||
+                    (o.academic_year || '').toLowerCase().includes(q);
 
                 const matchStatus =
                     statusFilter === 'All Statuses' ||
@@ -748,9 +625,7 @@ export default function ScholarshipOpenings() {
                 const aCreated = a?.created_at ? new Date(a.created_at).getTime() : 0;
                 const bCreated = b?.created_at ? new Date(b.created_at).getTime() : 0;
 
-                if (bCreated !== aCreated) {
-                    return bCreated - aCreated;
-                }
+                if (bCreated !== aCreated) return bCreated - aCreated;
 
                 const aUpdated = a?.updated_at ? new Date(a.updated_at).getTime() : 0;
                 const bUpdated = b?.updated_at ? new Date(b.updated_at).getTime() : 0;
@@ -784,16 +659,14 @@ export default function ScholarshipOpenings() {
             setActiveTemplate(template);
             setForm({
                 program_id: existingDraft.program_id || template.program_id,
-                opening_title: existingDraft.opening_title || `${template.program_name} AY ${currentYear}-${currentYear + 1}`,
-                application_start: existingDraft.application_start ? String(existingDraft.application_start).slice(0, 10) : '',
-                application_end: existingDraft.application_end ? String(existingDraft.application_end).slice(0, 10) : '',
-                screening_start: existingDraft.screening_start ? String(existingDraft.screening_start).slice(0, 10) : '',
-                screening_end: existingDraft.screening_end ? String(existingDraft.screening_end).slice(0, 10) : '',
+                opening_title: existingDraft.opening_title || `${template.program_name} ${currentYear}-${currentYear + 1}`,
+                semester: existingDraft.semester || '',
+                academic_year: existingDraft.academic_year || `${currentYear}-${currentYear + 1}`,
                 allocated_slots: existingDraft.allocated_slots ?? '',
-                total_financial_allocation:
-                    Number(existingDraft.allocated_slots || 0) * Number(existingDraft.financial_allocation || 0) || '',
+                filled_slots_preview: existingDraft.qualified_count ?? existingDraft.filled_slots ?? 0,
                 financial_allocation: existingDraft.financial_allocation ?? '',
                 announcement_text: existingDraft.announcement_text ?? template.description ?? '',
+                posting_status: existingDraft.posting_status || 'draft',
                 target_audience: deriveTargetAudience(existingDraft),
             });
             setModalOpen(true);
@@ -805,23 +678,20 @@ export default function ScholarshipOpenings() {
         setActiveTemplate(template);
         setForm({
             program_id: template.program_id,
-            opening_title: `${template.program_name} AY ${currentYear}-${currentYear + 1}`,
-            application_start: '',
-            application_end: '',
-            screening_start: '',
-            screening_end: '',
+            opening_title: `${template.program_name} ${currentYear}-${currentYear + 1}`,
+            semester: '',
+            academic_year: `${currentYear}-${currentYear + 1}`,
             allocated_slots: '',
-            total_financial_allocation: '',
+            filled_slots_preview: 0,
             financial_allocation: '',
             announcement_text: template.description || '',
+            posting_status: 'draft',
             target_audience: computedAudience,
         });
         setModalOpen(true);
     };
 
     const openEditModal = (opening) => {
-        const totalFromPerScholar = Number(opening.allocated_slots || 0) * Number(opening.financial_allocation || 0);
-
         setModalMode('edit');
         setEditingOpeningId(opening.opening_id);
         setActiveTemplate(
@@ -831,67 +701,63 @@ export default function ScholarshipOpenings() {
         setForm({
             program_id: opening.program_id || '',
             opening_title: opening.opening_title || '',
-            application_start: opening.application_start ? String(opening.application_start).slice(0, 10) : '',
-            application_end: opening.application_end ? String(opening.application_end).slice(0, 10) : '',
-            screening_start: opening.screening_start ? String(opening.screening_start).slice(0, 10) : '',
-            screening_end: opening.screening_end ? String(opening.screening_end).slice(0, 10) : '',
+            semester: opening.semester || '',
+            academic_year: opening.academic_year || '',
             allocated_slots: opening.allocated_slots ?? '',
-            total_financial_allocation: totalFromPerScholar || '',
+            filled_slots_preview: opening.qualified_count ?? opening.filled_slots ?? 0,
             financial_allocation: opening.financial_allocation ?? '',
             announcement_text: opening.announcement_text || '',
+            posting_status: opening.posting_status || 'draft',
             target_audience: deriveTargetAudience(opening),
         });
+
         setModalOpen(true);
     };
 
     const handleSaveOpening = async () => {
         try {
-            const datesToCheck = [
-                { key: 'application_start', label: 'Application Start' },
-                { key: 'application_end', label: 'Application End' },
-                { key: 'screening_start', label: 'Screening Start' },
-                { key: 'screening_end', label: 'Screening End' },
-            ];
-
-            for (const item of datesToCheck) {
-                const value = form[item.key];
-                if (value && isInvalidSelectableDate(value)) {
-                    alert(`${item.label} cannot be a past date or weekend.`);
-                    return;
-                }
-            }
-
-            if (form.application_start && form.application_end && form.application_end < form.application_start) {
-                alert('Application End cannot be earlier than Application Start.');
+            if (!form.program_id) {
+                alert('Program is required.');
                 return;
             }
 
-            if (form.screening_start && form.screening_end && form.screening_end < form.screening_start) {
-                alert('Screening End cannot be earlier than Screening Start.');
+            if (!form.opening_title?.trim()) {
+                alert('Opening title is required.');
                 return;
             }
 
-            if (form.application_end && form.screening_start && form.screening_start < form.application_end) {
-                alert('Screening Start cannot be earlier than Application End.');
+            if (!form.semester) {
+                alert('Semester is required.');
                 return;
             }
+
+            if (!form.academic_year?.trim()) {
+                alert('Academic year is required.');
+                return;
+            }
+
+            const allocatedSlots = Number(form.allocated_slots || 0);
+            const financialAllocation = Number(form.financial_allocation || 0);
+            const perScholarAmount =
+                allocatedSlots > 0 && financialAllocation > 0
+                    ? Math.floor(financialAllocation / allocatedSlots)
+                    : 0;
 
             setSaving(true);
 
             const payload = {
                 program_id: form.program_id,
-                opening_title: form.opening_title,
-                application_start: form.application_start,
-                application_end: form.application_end,
-                screening_start: form.screening_start || null,
-                screening_end: form.screening_end || null,
-                allocated_slots: Number(form.allocated_slots || 0),
-                financial_allocation: Number(form.financial_allocation || 0),
-                announcement_text: form.announcement_text || null,
+                opening_title: form.opening_title.trim(),
+                semester: form.semester,
+                academic_year: form.academic_year.trim(),
+                allocated_slots: allocatedSlots,
+                financial_allocation: financialAllocation,
+                per_scholar_amount: perScholarAmount,
+                announcement_text: form.announcement_text?.trim() || null,
                 target_audience: normalizeAudience(form.target_audience) || 'Applicants',
             };
 
-            payload.posting_status = deriveOpeningStatus(payload);
+            payload.posting_status = deriveOpeningStatus(form, form.posting_status);
 
             const isEdit = modalMode === 'edit' && editingOpeningId;
             const url = isEdit
@@ -969,6 +835,8 @@ export default function ScholarshipOpenings() {
             posting_status: newOpeningForPrompt.posting_status || '',
             opening_id: newOpeningForPrompt.opening_id || '',
             program_id: newOpeningForPrompt.program_id || '',
+            semester: newOpeningForPrompt.semester || '',
+            academic_year: newOpeningForPrompt.academic_year || '',
             target_audience: normalizeAudience(newOpeningForPrompt.target_audience) || deriveTargetAudience(newOpeningForPrompt),
         });
 
@@ -1018,7 +886,7 @@ export default function ScholarshipOpenings() {
                 <div>
                     <h1 className="text-xl font-semibold text-stone-900">Scholarship Openings</h1>
                     <p className="text-sm text-stone-500">
-                        Open scholarship programs for a new application cycle and manage their status.
+                        Open scholarship programs for a new semester and academic year.
                     </p>
                 </div>
 
@@ -1078,7 +946,7 @@ export default function ScholarshipOpenings() {
                         <EmptyState
                             icon={FolderOpen}
                             title="No published templates found"
-                            subtitle="Create and publish benefactor templates in Maintenance first."
+                            subtitle="Create and publish scholarship programs first."
                         />
                     ) : (
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1108,15 +976,6 @@ export default function ScholarshipOpenings() {
                                             <p className="text-xs text-stone-500 mt-1 leading-relaxed">
                                                 {template.description || 'No description available.'}
                                             </p>
-
-                                            <div className="flex flex-wrap gap-2 mt-3">
-                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                                    GWA ≤ {template.gwa_threshold ?? 'N/A'}
-                                                </Badge>
-                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                                    {template.renewal_cycle || 'No Renewal'}
-                                                </Badge>
-                                            </div>
                                         </div>
 
                                         <Button
@@ -1140,7 +999,7 @@ export default function ScholarshipOpenings() {
                 <div className="relative flex-1 min-w-[240px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
                     <Input
-                        placeholder="Search by opening title, program, or benefactor..."
+                        placeholder="Search by opening title, program, benefactor, semester, or academic year..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
@@ -1155,12 +1014,12 @@ export default function ScholarshipOpenings() {
                         <SelectItem value="All Statuses">All Statuses</SelectItem>
                         <SelectItem value="open">Open</SelectItem>
                         <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="filled">Filled</SelectItem>
                         <SelectItem value="closed">Closed</SelectItem>
                         <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>
                 </Select>
 
-                {/* NEW: Audience Filter */}
                 <Select value={audienceFilter} onValueChange={setAudienceFilter}>
                     <SelectTrigger className="w-[170px] h-9 rounded-lg border-stone-200 text-sm">
                         <SelectValue placeholder="Target Audience" />
@@ -1209,7 +1068,7 @@ export default function ScholarshipOpenings() {
                     <div>
                         <CardTitle className="text-sm font-semibold text-stone-800">Opening Registry</CardTitle>
                         <CardDescription className="text-xs">
-                            Active, draft, closed, and archived scholarship openings.
+                            Active, draft, filled, closed, and archived scholarship openings.
                         </CardDescription>
                     </div>
                 </CardHeader>
@@ -1228,6 +1087,10 @@ export default function ScholarshipOpenings() {
                                 const meta = STATUS_META[status] || STATUS_META.draft;
                                 const audience = normalizeAudience(opening.target_audience) || 'Applicants';
                                 const audienceLabelValue = targetAudienceLabel(audience);
+
+                                const allocatedSlots = Number(opening.allocated_slots || 0);
+                                const filledSlots = Number(opening.qualified_count ?? opening.filled_slots ?? 0);
+                                const availableSlots = Math.max(allocatedSlots - filledSlots, 0);
 
                                 return (
                                     <div
@@ -1270,32 +1133,44 @@ export default function ScholarshipOpenings() {
                                                     {opening.benefactor_name || 'No Benefactor'}
                                                 </p>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 mt-3">
                                                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Application Period</p>
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Semester</p>
                                                         <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {fmtDate(opening.application_start)} - {fmtDate(opening.application_end)}
+                                                            {opening.semester || 'N/A'}
                                                         </p>
                                                     </div>
 
                                                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Screening Period</p>
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Academic Year</p>
                                                         <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {fmtDate(opening.screening_start)} - {fmtDate(opening.screening_end)}
+                                                            {opening.academic_year || 'N/A'}
                                                         </p>
                                                     </div>
 
                                                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
                                                         <p className="text-[10px] uppercase tracking-wide text-stone-400">Allocated Slots</p>
                                                         <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {Number(opening.allocated_slots || 0).toLocaleString()}
+                                                            {allocatedSlots.toLocaleString()}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Available Slots</p>
+                                                        <p className="text-xs font-medium text-stone-800 mt-1">
+                                                            {availableSlots.toLocaleString()}
                                                         </p>
                                                     </div>
 
                                                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
                                                         <p className="text-[10px] uppercase tracking-wide text-stone-400">Per Scholar</p>
                                                         <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {fmtMoney(opening.financial_allocation)}
+                                                            {fmtMoney(
+                                                                opening.per_scholar_amount ??
+                                                                (allocatedSlots > 0
+                                                                    ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
+                                                                    : 0)
+                                                            )}
                                                         </p>
                                                     </div>
                                                 </div>

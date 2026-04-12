@@ -30,6 +30,34 @@ class RegistrationResult {
   });
 }
 
+class CourseOption {
+  final String courseId;
+  final String courseCode;
+  final String courseName;
+  final String label;
+
+  const CourseOption({
+    required this.courseId,
+    required this.courseCode,
+    required this.courseName,
+    required this.label,
+  });
+
+  factory CourseOption.fromJson(Map<String, dynamic> json) {
+    final courseCode = (json['course_code']?.toString() ?? '').trim();
+    final courseName = (json['course_name']?.toString() ?? '').trim();
+
+    return CourseOption(
+      courseId: json['course_id']?.toString() ?? '',
+      courseCode: courseCode,
+      courseName: courseName,
+      label: (json['label']?.toString() ?? '').trim().isNotEmpty
+          ? json['label'].toString().trim()
+          : '$courseCode - $courseName',
+    );
+  }
+}
+
 class AuthService {
   AuthService({
     ApiClient? apiClient,
@@ -93,6 +121,15 @@ class AuthService {
         'email': email.trim(),
       },
     );
+  }
+
+  Future<List<CourseOption>> fetchCourses() async {
+    final response = await _apiClient.getObject('/api/courses');
+    final items = (response['items'] as List<dynamic>? ?? []);
+
+    return items
+        .map((item) => CourseOption.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<Map<String, dynamic>> setupProfile({

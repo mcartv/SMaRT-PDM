@@ -44,6 +44,22 @@ io.use(authenticateSocket);
 // Temporary in-memory store for OTPs (e.g., { "user@email.com": { otp: "123456", expiresAt: 171146... } })
 // In production, you could also save this to a 'otps' table in Supabase.
 const otpStore = new Map();
+const APPLICATION_DRAFT_TABLE = 'application_form_drafts';
+const ACTIVE_APPLICATION_STATUSES = new Set([
+  'pending',
+  'pending review',
+  'submitted',
+  'review',
+  'under review',
+  'for review',
+  'interview',
+  'qualified',
+  'approved',
+  'accepted',
+  'waiting',
+  'waitlisted',
+  'requires reupload',
+]);
 
 // Configure the email sender
 const transporter = nodemailer.createTransport({
@@ -135,6 +151,12 @@ function getRequestUserId(req) {
   return req.user?.user_id || req.user?.userId || null;
 }
 
+function createHttpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
 const APPLICATION_DOCUMENT_DEFINITIONS = [
   {
     id: 'survey_form',
@@ -185,6 +207,21 @@ function normalizeLookupValue(value) {
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function isTesProgramName(programName = '') {
+  const normalized = normalizeLookupValue(programName);
+  return normalized === 'tes' || normalized.includes('tertiary education subsidy');
+}
+
+function isActiveApplicationRecord(application = {}) {
+  if (application.is_disqualified === true) {
+    return false;
+  }
+
+  return ACTIVE_APPLICATION_STATUSES.has(
+    normalizeLookupValue(application.application_status)
+  );
 }
 
 function inferDocumentKey(document = {}) {
@@ -282,11 +319,11 @@ function resolveApplicationDocumentDefinition(documentKey = '') {
   }) || null;
 }
 
-async function listApplicationDocuments({ applicationId, studentId }) {
+async function listApplicationDocuments({ applicationId, uploadedBy }) {
   const { data, error } = await supabase
     .from('application_documents')
     .select('*')
-    .eq('student_id', studentId)
+    .eq('uploaded_by', uploadedBy)
     .eq('application_id', applicationId)
     .order('created_at', { ascending: true });
 
@@ -297,8 +334,11 @@ async function listApplicationDocuments({ applicationId, studentId }) {
   return data || [];
 }
 
-async function ensureApplicationDocumentPlaceholders(applicationId, studentId) {
-  const existingDocuments = await listApplicationDocuments({ applicationId, studentId });
+async function ensureApplicationDocumentPlaceholders(applicationId, uploadedBy) {
+  const existingDocuments = await listApplicationDocuments({
+    applicationId,
+    uploadedBy,
+  });
   const existingTypes = new Set(
     existingDocuments
       .map((document) => document.document_type)
@@ -309,7 +349,7 @@ async function ensureApplicationDocumentPlaceholders(applicationId, studentId) {
     .filter((documentDefinition) => !existingTypes.has(documentDefinition.name))
     .map((documentDefinition) => ({
       application_id: applicationId,
-      student_id: studentId,
+      uploaded_by: uploadedBy,
       document_type: documentDefinition.name,
       is_submitted: false,
       file_url: null,
@@ -329,11 +369,14 @@ async function ensureApplicationDocumentPlaceholders(applicationId, studentId) {
     throw error;
   }
 
-  return listApplicationDocuments({ applicationId, studentId });
+  return listApplicationDocuments({ applicationId, uploadedBy });
 }
 
-async function refreshApplicationDocumentStatus(applicationId, studentId) {
-  const savedDocuments = await listApplicationDocuments({ applicationId, studentId });
+async function refreshApplicationDocumentStatus(applicationId, uploadedBy) {
+  const savedDocuments = await listApplicationDocuments({
+    applicationId,
+    uploadedBy,
+  });
   const nextDocumentStatus = deriveApplicationDocumentStatus(savedDocuments || []);
   const { error: applicationStatusError } = await supabase
     .from('applications')
@@ -559,7 +602,102 @@ async function listSupportTicketsForAdmin() {
   return (data || []).map(mapSupportTicketRow);
 }
 
-async function resolveLatestBaseApplicationForUser(userId) {
+async function resolveScholarRecordForStudent(studentId) {
+  if (!studentId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('scholars')
+    .select('scholar_id, student_id, application_id, program_id, status')
+    .eq('student_id', studentId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function resolveOpeningById(openingId) {
+  if (!openingId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('program_openings')
+    .select(`
+      opening_id,
+      program_id,
+      opening_title,
+      announcement_text,
+      posting_status,
+      created_at,
+      updated_at,
+      scholarship_program (
+        program_id,
+        program_name
+      )
+    `)
+    .eq('opening_id', openingId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function resolveApplicantDraftByUserId(userId) {
+  const { data, error } = await supabase
+    .from(APPLICATION_DRAFT_TABLE)
+    .select('draft_id, user_id, opening_id, payload, created_at, updated_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function upsertApplicantDraftByUserId(userId, { openingId, payload }) {
+  const { data, error } = await supabase
+    .from(APPLICATION_DRAFT_TABLE)
+    .upsert(
+      {
+        user_id: userId,
+        opening_id: openingId,
+        payload,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    )
+    .select('draft_id, user_id, opening_id, payload, created_at, updated_at')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function clearApplicantDraftByUserId(userId) {
+  const { error } = await supabase
+    .from(APPLICATION_DRAFT_TABLE)
+    .delete()
+    .eq('user_id', userId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function resolveLatestOpeningApplicationForUser(userId) {
   const studentRecord = await resolveStudentByUserId(userId);
   if (!studentRecord) {
     return null;
@@ -567,9 +705,11 @@ async function resolveLatestBaseApplicationForUser(userId) {
 
   const { data: applicationRecords, error } = await supabase
     .from('applications')
-    .select('application_id, student_id, program_id, application_status, document_status, submission_date, is_disqualified')
+    .select(
+      'application_id, student_id, program_id, opening_id, application_status, document_status, submission_date, is_disqualified'
+    )
     .eq('student_id', studentRecord.student_id)
-    .eq('is_disqualified', false)
+    .not('opening_id', 'is', null)
     .order('submission_date', { ascending: false, nullsFirst: false })
     .limit(1);
 
@@ -577,9 +717,10 @@ async function resolveLatestBaseApplicationForUser(userId) {
     throw error;
   }
 
-  const applicationRecord = Array.isArray(applicationRecords) && applicationRecords.length > 0
-    ? applicationRecords[0]
-    : null;
+  const applicationRecord =
+    Array.isArray(applicationRecords) && applicationRecords.length > 0
+      ? applicationRecords[0]
+      : null;
 
   if (!applicationRecord) {
     return null;
@@ -591,7 +732,56 @@ async function resolveLatestBaseApplicationForUser(userId) {
   };
 }
 
-async function fetchLatestOpenProgramOpening() {
+async function resolveActiveOpeningApplicationForUser(userId) {
+  const studentRecord = await resolveStudentByUserId(userId);
+  if (!studentRecord) {
+    return null;
+  }
+
+  const [scholarRecord, applicationResult] = await Promise.all([
+    resolveScholarRecordForStudent(studentRecord.student_id),
+    supabase
+      .from('applications')
+      .select(
+        'application_id, student_id, program_id, opening_id, application_status, document_status, submission_date, is_disqualified'
+      )
+      .eq('student_id', studentRecord.student_id)
+      .not('opening_id', 'is', null)
+      .order('submission_date', { ascending: false, nullsFirst: false })
+      .limit(25),
+  ]);
+
+  if (applicationResult.error) {
+    throw applicationResult.error;
+  }
+
+  const activeApplication = (applicationResult.data || []).find((application) => {
+    if (
+      scholarRecord?.application_id &&
+      scholarRecord.application_id === application.application_id
+    ) {
+      return false;
+    }
+
+    return isActiveApplicationRecord(application);
+  });
+
+  if (!activeApplication) {
+    return null;
+  }
+
+  return {
+    student: studentRecord,
+    application: activeApplication,
+  };
+}
+
+async function fetchVisibleProgramOpeningsForUser(userId) {
+  const studentRecord = await resolveStudentByUserId(userId);
+  const scholarRecord = studentRecord?.student_id
+    ? await resolveScholarRecordForStudent(studentRecord.student_id)
+    : null;
+
   const { data, error } = await supabase
     .from('program_openings')
     .select(`
@@ -599,33 +789,811 @@ async function fetchLatestOpenProgramOpening() {
       program_id,
       opening_title,
       announcement_text,
+      posting_status,
       created_at,
+      updated_at,
       scholarship_program (
         program_id,
         program_name
       )
     `)
     .eq('posting_status', 'open')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
 
   if (error) {
     throw error;
   }
 
-  if (!data) {
+  const visibleOpenings = (data || []).filter((opening) => {
+    if (!scholarRecord) {
+      return true;
+    }
+
+    return isTesProgramName(opening.scholarship_program?.program_name || '');
+  });
+
+  return {
+    items: visibleOpenings,
+    scholarRecord,
+  };
+}
+
+function mapApplicantOpening(opening, {
+  activeApplication = null,
+  draft = null,
+} = {}) {
+  const isTes = isTesProgramName(opening.scholarship_program?.program_name || '');
+  const isActiveOpening = activeApplication?.opening_id === opening.opening_id;
+  const isDraftOpening = draft?.opening_id === opening.opening_id;
+
+  let canApply = true;
+  let applyLabel = 'Start Application';
+
+  if (isActiveOpening) {
+    applyLabel = 'Open Documents';
+  } else if (activeApplication?.application_id) {
+    canApply = false;
+    applyLabel = 'Application In Progress';
+  } else if (isDraftOpening) {
+    applyLabel = 'Continue Draft';
+  }
+
+  return {
+    opening_id: opening.opening_id,
+    program_id: opening.program_id,
+    opening_title: opening.opening_title || 'Scholarship Opening',
+    program_name: opening.scholarship_program?.program_name || 'Scholarship Program',
+    application_start: '',
+    application_end: '',
+    posting_status: opening.posting_status || 'open',
+    announcement_text: opening.announcement_text || '',
+    is_tes: isTes,
+    has_applied: !!isActiveOpening,
+    can_reapply: false,
+    can_apply: canApply,
+    apply_label: applyLabel,
+    benefactor_name: null,
+    existing_application_id: isActiveOpening
+      ? activeApplication.application_id
+      : null,
+  };
+}
+
+async function buildApplicantOpeningsPayload(userId) {
+  const [draft, activeApplicationResult, visibleOpeningsResult] = await Promise.all([
+    resolveApplicantDraftByUserId(userId),
+    resolveActiveOpeningApplicationForUser(userId),
+    fetchVisibleProgramOpeningsForUser(userId),
+  ]);
+
+  const items = [...visibleOpeningsResult.items];
+  const existingIds = new Set(items.map((opening) => opening.opening_id));
+
+  if (
+    activeApplicationResult?.application?.opening_id &&
+    !existingIds.has(activeApplicationResult.application.opening_id)
+  ) {
+    const activeOpening = await resolveOpeningById(
+      activeApplicationResult.application.opening_id
+    );
+
+    if (activeOpening) {
+      items.unshift(activeOpening);
+    }
+  }
+
+  const mappedItems = items.map((opening) =>
+    mapApplicantOpening(opening, {
+      activeApplication: activeApplicationResult?.application || null,
+      draft,
+    })
+  );
+
+  const draftOpening = draft?.opening_id
+    ? await resolveOpeningById(draft.opening_id)
+    : null;
+
+  return {
+    hasSavedDraft: !!draft,
+    draftOpeningId: draft?.opening_id || '',
+    draftOpeningTitle: draftOpening?.opening_title || '',
+    draftProgramName: draftOpening?.scholarship_program?.program_name || '',
+    activeApplicationId:
+      activeApplicationResult?.application?.application_id || '',
+    activeOpeningId: activeApplicationResult?.application?.opening_id || '',
+    isApprovedScholar: !!visibleOpeningsResult.scholarRecord,
+    items: mappedItems,
+  };
+}
+
+async function fetchLatestVisibleProgramOpeningForUser(userId) {
+  const { items } = await fetchVisibleProgramOpeningsForUser(userId);
+  const latestOpening = items.length > 0 ? items[0] : null;
+
+  if (!latestOpening) {
     return null;
   }
 
   return {
-    opening_id: data.opening_id,
-    program_id: data.program_id,
-    opening_title: data.opening_title || 'Scholarship Opening',
-    announcement_text: data.announcement_text || '',
-    created_at: data.created_at || null,
-    program_name: data.scholarship_program?.program_name || null,
+    opening_id: latestOpening.opening_id,
+    program_id: latestOpening.program_id,
+    opening_title: latestOpening.opening_title || 'Scholarship Opening',
+    announcement_text: latestOpening.announcement_text || '',
+    created_at: latestOpening.created_at || null,
+    program_name: latestOpening.scholarship_program?.program_name || null,
   };
+}
+
+async function fetchAvailableOpeningsForMobile(userId) {
+  const context = await loadStudentProfileContextByUserId(userId);
+  const latestApplication = await resolveLatestBaseApplicationForUser(userId);
+
+  const { data, error } = await supabase
+    .from('program_openings')
+    .select(`
+      opening_id,
+      program_id,
+      opening_title,
+      announcement_text,
+      posting_status,
+      allocated_slots,
+      financial_allocation,
+      per_scholar_amount,
+      created_at,
+      scholarship_program (
+        program_id,
+        program_name,
+        benefactor_id
+      )
+    `)
+    .eq('posting_status', 'open')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+
+  const benefactorIds = rows
+    .map((row) => row?.scholarship_program?.benefactor_id)
+    .filter(Boolean);
+
+  let benefactorMap = {};
+  if (benefactorIds.length > 0) {
+    const { data: benefactors, error: benefactorError } = await supabase
+      .from('benefactors')
+      .select('benefactor_id, benefactor_name')
+      .in('benefactor_id', benefactorIds);
+
+    if (benefactorError) {
+      throw benefactorError;
+    }
+
+    benefactorMap = Object.fromEntries(
+      (benefactors || []).map((item) => [item.benefactor_id, item.benefactor_name])
+    );
+  }
+
+  const existingProgramId = latestApplication?.application?.program_id ?? null;
+  const existingApplicationId = latestApplication?.application?.application_id ?? null;
+
+  const items = rows.map((row) => {
+    const program = row.scholarship_program || {};
+    const hasApplied =
+      existingProgramId && String(existingProgramId) === String(row.program_id);
+
+    return {
+      opening_id: row.opening_id,
+      program_id: row.program_id,
+      opening_title: row.opening_title || 'Scholarship Opening',
+      program_name: program.program_name || 'Scholarship Program',
+      posting_status: row.posting_status || '',
+      announcement_text: row.announcement_text || '',
+      allocated_slots: row.allocated_slots ?? 0,
+      financial_allocation: row.financial_allocation ?? 0,
+      per_scholar_amount: row.per_scholar_amount ?? 0,
+      benefactor_name: benefactorMap[program.benefactor_id] || null,
+      has_applied: !!hasApplied,
+      can_reapply: false,
+      can_apply: !hasApplied,
+      apply_label: hasApplied ? 'Already Applied' : 'Apply Now',
+      existing_application_id: hasApplied ? existingApplicationId : null,
+      created_at: row.created_at || null,
+    };
+  });
+
+  return {
+    hasBaseApplicationProfile: !!context?.student?.student_id,
+    items,
+  };
+}
+
+async function buildSavedFormDataForMobile(userId) {
+  const context = await loadStudentProfileContextByUserId(userId);
+
+  if (!context) {
+    return {
+      has_saved_form: false,
+      account: {},
+      personal: {},
+      address: {},
+      contact: {},
+      family: {},
+      academic: {},
+      support: {},
+      discipline: {},
+      essays: {},
+    };
+  }
+
+  const user = context.user || {};
+  const student = context.student || {};
+  const profile = context.student_profile || {};
+  const course = context.course || {};
+
+  return {
+    has_saved_form: true,
+    account: {
+      user_id: user.user_id || '',
+      student_id: student.pdm_id || user.username || '',
+    },
+    personal: {
+      first_name: student.first_name || '',
+      middle_name: student.middle_name || '',
+      last_name: student.last_name || '',
+      maiden_name: profile.maiden_name || '',
+      age: '',
+      date_of_birth: profile.date_of_birth || '',
+      sex: profile.sex || '',
+      place_of_birth: profile.place_of_birth || '',
+      citizenship: profile.citizenship || '',
+      civil_status: profile.civil_status || '',
+      religion: profile.religion || '',
+    },
+    address: {
+      street: profile.street_address || '',
+      subdivision: profile.subdivision || '',
+      barangay: student.barangay || '',
+      city_municipality: profile.city || '',
+      province: profile.province || '',
+      zip_code: profile.zip_code || '',
+    },
+    contact: {
+      landline: profile.landline_number || '',
+      mobile_number: user.phone_number || '',
+      email: user.email || '',
+    },
+    family: {
+      father: {},
+      mother: {},
+      sibling: {},
+      guardian: {},
+    },
+    academic: {
+      current_course: course.course_code || '',
+      current_course_code: course.course_code || '',
+      student_number: student.pdm_id || '',
+      lrn: profile.learners_reference_number || '',
+    },
+    support: {},
+    discipline: {},
+    essays: {},
+  };
+}
+
+async function buildCurrentRenewalForMobile(userId) {
+  const studentRecord = await resolveStudentByUserId(userId);
+
+  if (!studentRecord?.student_id) {
+    return {
+      renewal: {
+        renewal_id: '',
+        scholar_id: '',
+        student_id: '',
+        program_id: '',
+        semester_label: '',
+        school_year_label: '',
+        renewal_status: 'Pending Submission',
+        document_status: 'Missing Docs',
+        admin_comment: null,
+        submitted_at: null,
+        reviewed_at: null,
+      },
+      documents: [],
+      scholar: {
+        program_name: 'Scholarship',
+        benefactor_name: null,
+      },
+      student: {
+        name: 'Scholar',
+        pdm_id: '',
+      },
+      cycle: {
+        semester_label: '',
+        school_year_label: '',
+      },
+    };
+  }
+
+  const { data: scholarRecord, error: scholarError } = await supabase
+    .from('scholars')
+    .select(`
+      scholar_id,
+      program_id,
+      scholarship_program (
+        program_name,
+        benefactor_id
+      )
+    `)
+    .eq('student_id', studentRecord.student_id)
+    .maybeSingle();
+
+  if (scholarError) {
+    throw scholarError;
+  }
+
+  let benefactorName = null;
+  const benefactorId = scholarRecord?.scholarship_program?.benefactor_id;
+  if (benefactorId) {
+    const { data: benefactorRow, error: benefactorError } = await supabase
+      .from('benefactors')
+      .select('benefactor_name')
+      .eq('benefactor_id', benefactorId)
+      .maybeSingle();
+
+    if (benefactorError) {
+      throw benefactorError;
+    }
+
+    benefactorName = benefactorRow?.benefactor_name || null;
+  }
+
+  const now = new Date();
+  const semesterLabel = now.getMonth() < 6 ? 'Second Semester' : 'First Semester';
+  const schoolYearLabel =
+    now.getMonth() < 6
+      ? `${now.getFullYear() - 1}-${now.getFullYear()}`
+      : `${now.getFullYear()}-${now.getFullYear() + 1}`;
+
+  return {
+    renewal: {
+      renewal_id: '',
+      scholar_id: scholarRecord?.scholar_id || '',
+      student_id: studentRecord.student_id || '',
+      program_id: scholarRecord?.program_id || '',
+      semester_label: semesterLabel,
+      school_year_label: schoolYearLabel,
+      renewal_status: 'Pending Submission',
+      document_status: 'Missing Docs',
+      admin_comment: null,
+      submitted_at: null,
+      reviewed_at: null,
+    },
+    documents: [],
+    scholar: {
+      program_name: scholarRecord?.scholarship_program?.program_name || 'Scholarship',
+      benefactor_name: benefactorName,
+    },
+    student: {
+      name: `${studentRecord.first_name || ''} ${studentRecord.last_name || ''}`.trim() || 'Scholar',
+      pdm_id: studentRecord.pdm_id || '',
+    },
+    cycle: {
+      semester_label: semesterLabel,
+      school_year_label: schoolYearLabel,
+    },
+  };
+}
+
+async function fetchMyPayoutSchedules(userId) {
+  const studentRecord = await resolveStudentByUserId(userId);
+
+  if (!studentRecord?.student_id) {
+    return { items: [] };
+  }
+
+  const { data: scholarRecord, error: scholarError } = await supabase
+    .from('scholars')
+    .select('scholar_id')
+    .eq('student_id', studentRecord.student_id)
+    .maybeSingle();
+
+  if (scholarError) {
+    throw scholarError;
+  }
+
+  if (!scholarRecord?.scholar_id) {
+    return { items: [] };
+  }
+
+  const { data, error } = await supabase
+    .from('payout_batch_scholars')
+    .select(`
+      payout_entry_id,
+      amount_received,
+      release_status,
+      payout_batches (
+        payout_batch_id,
+        payout_title,
+        payout_date,
+        semester,
+        school_year,
+        payment_mode,
+        batch_status,
+        program_id
+      )
+    `)
+    .eq('scholar_id', scholarRecord.scholar_id);
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const programIds = rows
+    .map((row) => row?.payout_batches?.program_id)
+    .filter(Boolean);
+
+  let programMap = {};
+  if (programIds.length > 0) {
+    const { data: programs, error: programError } = await supabase
+      .from('scholarship_program')
+      .select('program_id, program_name, benefactor_id')
+      .in('program_id', programIds);
+
+    if (programError) {
+      throw programError;
+    }
+
+    const benefactorIds = (programs || [])
+      .map((item) => item.benefactor_id)
+      .filter(Boolean);
+
+    let benefactorMap = {};
+    if (benefactorIds.length > 0) {
+      const { data: benefactors, error: benefactorError } = await supabase
+        .from('benefactors')
+        .select('benefactor_id, benefactor_name')
+        .in('benefactor_id', benefactorIds);
+
+      if (benefactorError) {
+        throw benefactorError;
+      }
+
+      benefactorMap = Object.fromEntries(
+        (benefactors || []).map((item) => [item.benefactor_id, item.benefactor_name])
+      );
+    }
+
+    programMap = Object.fromEntries(
+      (programs || []).map((item) => [
+        item.program_id,
+        {
+          program_name: item.program_name,
+          benefactor_name: benefactorMap[item.benefactor_id] || null,
+        },
+      ])
+    );
+  }
+
+  const items = rows
+    .map((row) => {
+      const batch = row.payout_batches || {};
+      const programInfo = programMap[batch.program_id] || {};
+
+      return {
+        payout_entry_id: row.payout_entry_id,
+        payout_batch_id: batch.payout_batch_id || '',
+        title: batch.payout_title || 'Scholarship Payout',
+        amount: row.amount_received || 0,
+        status: row.release_status || 'Pending',
+        payout_date: batch.payout_date || '',
+        semester: batch.semester || '',
+        school_year: batch.school_year || '',
+        payment_mode: batch.payment_mode || '',
+        batch_status: batch.batch_status || '',
+        program_name: programInfo.program_name || 'Scholarship Program',
+        benefactor_name: programInfo.benefactor_name || null,
+        reference: batch.payout_batch_id || '',
+      };
+    })
+    .sort((a, b) => {
+      const aDate = a.payout_date || '';
+      const bDate = b.payout_date || '';
+      return bDate.localeCompare(aDate);
+    });
+
+  return { items };
+}
+
+async function buildSavedFormDataForMobile(userId) {
+  const context = await loadStudentProfileContextByUserId(userId);
+
+  if (!context) {
+    return {
+      has_saved_form: false,
+      account: {},
+      personal: {},
+      address: {},
+      contact: {},
+      family: {},
+      academic: {},
+      support: {},
+      discipline: {},
+      essays: {},
+    };
+  }
+
+  const user = context.user || {};
+  const student = context.student || {};
+  const profile = context.student_profile || {};
+  const course = context.course || {};
+
+  return {
+    has_saved_form: true,
+    account: {
+      user_id: user.user_id || '',
+      student_id: student.pdm_id || user.username || '',
+    },
+    personal: {
+      first_name: student.first_name || '',
+      middle_name: student.middle_name || '',
+      last_name: student.last_name || '',
+      maiden_name: profile.maiden_name || '',
+      age: '',
+      date_of_birth: profile.date_of_birth || '',
+      sex: profile.sex || '',
+      place_of_birth: profile.place_of_birth || '',
+      citizenship: profile.citizenship || '',
+      civil_status: profile.civil_status || '',
+      religion: profile.religion || '',
+    },
+    address: {
+      street: profile.street_address || '',
+      subdivision: profile.subdivision || '',
+      barangay: student.barangay || '',
+      city_municipality: profile.city || '',
+      province: profile.province || '',
+      zip_code: profile.zip_code || '',
+    },
+    contact: {
+      landline: profile.landline_number || '',
+      mobile_number: user.phone_number || '',
+      email: user.email || '',
+    },
+    family: {
+      father: {},
+      mother: {},
+      sibling: {},
+      guardian: {},
+    },
+    academic: {
+      current_course: course.course_code || '',
+      student_number: student.pdm_id || '',
+      lrn: profile.learners_reference_number || '',
+    },
+    support: {},
+    discipline: {},
+    essays: {},
+  };
+}
+
+async function buildCurrentRenewalForMobile(userId) {
+  const studentRecord = await resolveStudentByUserId(userId);
+
+  if (!studentRecord?.student_id) {
+    return {
+      renewal: {
+        renewal_id: '',
+        scholar_id: '',
+        student_id: '',
+        program_id: '',
+        semester_label: '',
+        school_year_label: '',
+        renewal_status: 'Pending Submission',
+        document_status: 'Missing Docs',
+        admin_comment: null,
+        submitted_at: null,
+        reviewed_at: null,
+      },
+      documents: [],
+      scholar: {
+        program_name: 'Scholarship',
+        benefactor_name: null,
+      },
+      student: {
+        name: 'Scholar',
+        pdm_id: '',
+      },
+      cycle: {
+        semester_label: '',
+        school_year_label: '',
+      },
+    };
+  }
+
+  const { data: scholarRecord, error: scholarError } = await supabase
+    .from('scholars')
+    .select(`
+      scholar_id,
+      program_id,
+      scholarship_program (
+        program_name,
+        benefactor_id
+      )
+    `)
+    .eq('student_id', studentRecord.student_id)
+    .maybeSingle();
+
+  if (scholarError) {
+    throw scholarError;
+  }
+
+  let benefactorName = null;
+  const benefactorId = scholarRecord?.scholarship_program?.benefactor_id;
+  if (benefactorId) {
+    const { data: benefactorRow } = await supabase
+      .from('benefactors')
+      .select('benefactor_name')
+      .eq('benefactor_id', benefactorId)
+      .maybeSingle();
+
+    benefactorName = benefactorRow?.benefactor_name || null;
+  }
+
+  const now = new Date();
+  const semesterLabel = now.getMonth() < 6 ? 'Second Semester' : 'First Semester';
+  const schoolYearLabel =
+    now.getMonth() < 6
+      ? `${now.getFullYear() - 1}-${now.getFullYear()}`
+      : `${now.getFullYear()}-${now.getFullYear() + 1}`;
+
+  return {
+    renewal: {
+      renewal_id: '',
+      scholar_id: scholarRecord?.scholar_id || '',
+      student_id: studentRecord.student_id || '',
+      program_id: scholarRecord?.program_id || '',
+      semester_label: semesterLabel,
+      school_year_label: schoolYearLabel,
+      renewal_status: 'Pending Submission',
+      document_status: 'Missing Docs',
+      admin_comment: null,
+      submitted_at: null,
+      reviewed_at: null,
+    },
+    documents: [],
+    scholar: {
+      program_name: scholarRecord?.scholarship_program?.program_name || 'Scholarship',
+      benefactor_name: benefactorName,
+    },
+    student: {
+      name: `${studentRecord.first_name || ''} ${studentRecord.last_name || ''}`.trim() || 'Scholar',
+      pdm_id: studentRecord.pdm_id || '',
+    },
+    cycle: {
+      semester_label: semesterLabel,
+      school_year_label: schoolYearLabel,
+    },
+  };
+}
+
+async function fetchMyPayoutSchedules(userId) {
+  const studentRecord = await resolveStudentByUserId(userId);
+
+  if (!studentRecord?.student_id) {
+    return { items: [] };
+  }
+
+  const { data: scholarRecord, error: scholarError } = await supabase
+    .from('scholars')
+    .select('scholar_id')
+    .eq('student_id', studentRecord.student_id)
+    .maybeSingle();
+
+  if (scholarError) {
+    throw scholarError;
+  }
+
+  if (!scholarRecord?.scholar_id) {
+    return { items: [] };
+  }
+
+  const { data, error } = await supabase
+    .from('payout_batch_scholars')
+    .select(`
+      payout_entry_id,
+      amount_received,
+      release_status,
+      payout_batches (
+        payout_batch_id,
+        payout_title,
+        payout_date,
+        semester,
+        school_year,
+        payment_mode,
+        batch_status,
+        program_id
+      )
+    `)
+    .eq('scholar_id', scholarRecord.scholar_id);
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const programIds = rows
+    .map((row) => row?.payout_batches?.program_id)
+    .filter(Boolean);
+
+  let programMap = {};
+  if (programIds.length > 0) {
+    const { data: programs, error: programError } = await supabase
+      .from('scholarship_program')
+      .select('program_id, program_name, benefactor_id')
+      .in('program_id', programIds);
+
+    if (programError) {
+      throw programError;
+    }
+
+    const benefactorIds = (programs || [])
+      .map((item) => item.benefactor_id)
+      .filter(Boolean);
+
+    let benefactorMap = {};
+    if (benefactorIds.length > 0) {
+      const { data: benefactors, error: benefactorError } = await supabase
+        .from('benefactors')
+        .select('benefactor_id, benefactor_name')
+        .in('benefactor_id', benefactorIds);
+
+      if (benefactorError) {
+        throw benefactorError;
+      }
+
+      benefactorMap = Object.fromEntries(
+        (benefactors || []).map((item) => [item.benefactor_id, item.benefactor_name])
+      );
+    }
+
+    programMap = Object.fromEntries(
+      (programs || []).map((item) => [
+        item.program_id,
+        {
+          program_name: item.program_name,
+          benefactor_name: benefactorMap[item.benefactor_id] || null,
+        },
+      ])
+    );
+  }
+
+  const items = rows
+    .map((row) => {
+      const batch = row.payout_batches || {};
+      const programInfo = programMap[batch.program_id] || {};
+
+      return {
+        payout_entry_id: row.payout_entry_id,
+        payout_batch_id: batch.payout_batch_id || '',
+        title: batch.payout_title || 'Scholarship Payout',
+        amount: row.amount_received || 0,
+        status: row.release_status || 'Pending',
+        payout_date: batch.payout_date || '',
+        semester: batch.semester || '',
+        school_year: batch.school_year || '',
+        payment_mode: batch.payment_mode || '',
+        batch_status: batch.batch_status || '',
+        program_name: programInfo.program_name || 'Scholarship Program',
+        benefactor_name: programInfo.benefactor_name || null,
+        reference: batch.payout_batch_id || '',
+      };
+    })
+    .sort((a, b) => String(b.payout_date).compareTo(String(a.payout_date)));
+
+  return { items };
 }
 
 async function buildApplicantDocumentPackage({
@@ -637,8 +1605,14 @@ async function buildApplicantDocumentPackage({
   return {
     application: details.application,
     context: {
-      opening_id: context.opening_id ?? '',
-      opening_title: context.opening_title ?? 'Scholarship Requirements',
+      opening_id:
+        context.opening_id ??
+        details.application?.opening_id ??
+        '',
+      opening_title:
+        context.opening_title ??
+        details.application?.opening_title ??
+        'Scholarship Requirements',
       program_name:
         context.program_name ||
         details.student?.program_name ||
@@ -649,14 +1623,14 @@ async function buildApplicantDocumentPackage({
 }
 
 async function buildApplicantStatusSummaryForUser(userId) {
-  const activeApplication = await resolveLatestBaseApplicationForUser(userId);
+  const latestApplication = await resolveLatestOpeningApplicationForUser(userId);
 
-  if (!activeApplication?.application?.application_id) {
+  if (!latestApplication?.application?.application_id) {
     return { has_application: false };
   }
 
   const details = await buildApplicationDetails(
-    activeApplication.application.application_id
+    latestApplication.application.application_id
   );
 
   return {
@@ -667,6 +1641,8 @@ async function buildApplicantStatusSummaryForUser(userId) {
       document_status: details.application?.document_status ?? null,
       submission_date: details.application?.submission_date ?? null,
       program_id: details.application?.program_id ?? null,
+      opening_id: details.application?.opening_id ?? null,
+      opening_title: details.application?.opening_title ?? null,
       program_name: details.student?.program_name ?? 'Unassigned Application',
     },
   };
@@ -674,7 +1650,7 @@ async function buildApplicantStatusSummaryForUser(userId) {
 
 async function uploadApplicationDocumentFile({
   applicationId,
-  studentId,
+  uploadedBy,
   documentKey,
   file,
 }) {
@@ -691,7 +1667,7 @@ async function uploadApplicationDocumentFile({
     throw error;
   }
 
-  await ensureApplicationDocumentPlaceholders(applicationId, studentId);
+  await ensureApplicationDocumentPlaceholders(applicationId, uploadedBy);
 
   const sanitizedFileName = (file.originalname || 'document')
     .replace(/[^a-zA-Z0-9._-]+/g, '_');
@@ -718,11 +1694,14 @@ async function uploadApplicationDocumentFile({
     .from('application_documents')
     .update({
       is_submitted: true,
+      file_name: sanitizedFileName,
+      file_path: fileName,
       file_url: fileUrl,
       submitted_at: new Date().toISOString(),
       remarks: null,
+      notes: null,
     })
-    .eq('student_id', studentId)
+    .eq('uploaded_by', uploadedBy)
     .eq('application_id', applicationId)
     .eq('document_type', definition.name);
 
@@ -730,7 +1709,7 @@ async function uploadApplicationDocumentFile({
     throw documentUpdateError;
   }
 
-  await refreshApplicationDocumentStatus(applicationId, studentId);
+  await refreshApplicationDocumentStatus(applicationId, uploadedBy);
 
   return buildApplicantDocumentPackage({ applicationId });
 }
@@ -844,6 +1823,7 @@ async function buildApplicationDetails(applicationId) {
       application_id,
       student_id,
       program_id,
+      opening_id,
       application_status,
       document_status,
       submission_date,
@@ -874,6 +1854,9 @@ async function buildApplicationDetails(applicationId) {
   }
 
   const student = applicationRecord.students || {};
+  const openingRecord = applicationRecord.opening_id
+    ? await resolveOpeningById(applicationRecord.opening_id)
+    : null;
 
   let userContact = { email: null, phone_number: null };
   if (student.user_id) {
@@ -984,6 +1967,8 @@ async function buildApplicationDetails(applicationId) {
       application_id: applicationRecord.application_id,
       student_id: applicationRecord.student_id,
       program_id: applicationRecord.program_id,
+      opening_id: applicationRecord.opening_id ?? null,
+      opening_title: openingRecord?.opening_title ?? null,
       application_status: applicationRecord.application_status,
       document_status: applicationRecord.document_status,
       submission_date: applicationRecord.submission_date,
@@ -1010,6 +1995,516 @@ async function buildApplicationDetails(applicationId) {
     education_records: educationRecordsResult.data ?? [],
     documents,
   };
+}
+
+async function resolveUserAccountRecord(userId) {
+  if (!userId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('user_id, username, email, phone_number')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function resolveCourseIdByCode(courseCode) {
+  if (!courseCode) {
+    return null;
+  }
+
+  const { data: courseData, error: courseError } = await supabase
+    .from('academic_course')
+    .select('course_id, course_code')
+    .eq('course_code', courseCode)
+    .maybeSingle();
+
+  if (courseError) {
+    throw courseError;
+  }
+
+  if (!courseData) {
+    const error = new Error('Selected course is invalid.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return courseData.course_id;
+}
+
+async function persistApplicantProfileSubmission(payload = {}) {
+  const {
+    account = {},
+    personal = {},
+    address = {},
+    contact = {},
+    family = {},
+    academic = {},
+    support = {},
+    discipline = {},
+    essays = {},
+  } = payload;
+
+  if (!account.user_id || !account.student_id || !contact.email) {
+    const error = new Error('Missing required account details.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (
+    academic.student_number &&
+    academic.student_number.trim() &&
+    academic.student_number.trim() !== account.student_id
+  ) {
+    const error = new Error(
+      'Student number must match the logged-in student ID.'
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const courseId = await resolveCourseIdByCode(academic.current_course_code);
+
+  const studentPayload = {
+    user_id: account.user_id,
+    pdm_id: account.student_id,
+    first_name: personal.first_name ?? '',
+    middle_name: personal.middle_name ?? null,
+    last_name: personal.last_name ?? '',
+    barangay: address.barangay ?? null,
+    year_level: academic.current_year_level ?? null,
+    course_id: courseId,
+    gwa: null,
+    is_archived: false,
+  };
+
+  const { data: existingStudent, error: studentFetchError } = await supabase
+    .from('students')
+    .select('student_id')
+    .eq('user_id', account.user_id)
+    .maybeSingle();
+
+  if (studentFetchError) {
+    throw studentFetchError;
+  }
+
+  let studentRecord = existingStudent;
+  if (existingStudent) {
+    const { data: updatedStudent, error: studentUpdateError } = await supabase
+      .from('students')
+      .update(studentPayload)
+      .eq('student_id', existingStudent.student_id)
+      .select('student_id')
+      .single();
+
+    if (studentUpdateError) {
+      throw studentUpdateError;
+    }
+
+    studentRecord = updatedStudent;
+  } else {
+    const { data: insertedStudent, error: studentInsertError } = await supabase
+      .from('students')
+      .insert([studentPayload])
+      .select('student_id')
+      .single();
+
+    if (studentInsertError) {
+      throw studentInsertError;
+    }
+
+    studentRecord = insertedStudent;
+  }
+
+  const { error: userUpdateError } = await supabase
+    .from('users')
+    .update({
+      email: contact.email,
+      phone_number: contact.mobile_number ?? null,
+    })
+    .eq('user_id', account.user_id);
+
+  if (userUpdateError) {
+    throw userUpdateError;
+  }
+
+  const buildStreetAddress = [
+    address.unit_bldg_no ?? address.block,
+    address.house_lot_block_no ?? address.lot,
+    address.street,
+  ]
+    .filter((value) => !!value && value.toString().trim().length > 0)
+    .join(', ');
+
+  const studentProfilePayload = {
+    student_id: studentRecord.student_id,
+    date_of_birth: personal.date_of_birth ?? null,
+    place_of_birth: personal.place_of_birth ?? null,
+    sex: personal.sex ?? null,
+    civil_status: personal.civil_status ?? null,
+    maiden_name: personal.maiden_name ?? null,
+    religion: personal.religion ?? null,
+    citizenship: personal.citizenship ?? 'Filipino',
+    street_address: buildStreetAddress || null,
+    subdivision: address.subdivision ?? null,
+    city: address.city_municipality ?? null,
+    province: address.province ?? null,
+    zip_code: address.zip_code ?? null,
+    landline_number: contact.landline ?? null,
+    learners_reference_number: academic.lrn ?? null,
+    financial_support_type: support.financial_support ?? null,
+    financial_support_other:
+      support.financial_support === 'Other'
+        ? support.scholarship_others_specify ?? null
+        : null,
+    has_prior_scholarship: support.scholarship_history ?? false,
+    prior_scholarship_details: support.scholarship_details ?? null,
+    has_disciplinary_record: discipline.disciplinary_action ?? false,
+    disciplinary_details: discipline.disciplinary_explanation ?? null,
+    self_description: essays.describe_yourself_essay ?? null,
+    aims_and_ambitions: essays.aims_and_ambition_essay ?? null,
+    applicant_signature_url: null,
+    guardian_signature_url: null,
+  };
+
+  const { error: profileError } = await supabase
+    .from('student_profiles')
+    .upsert([studentProfilePayload], { onConflict: 'student_id' });
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  const familyResidencyMap = buildFamilyResidencyByRelation(
+    family.parent_native_status,
+    family.parent_marilao_residency_duration,
+    family.parent_previous_town_province
+  );
+
+  const familyRows = [
+    {
+      relation: 'Father',
+      last_name: normalizeNullableText(family.father?.last_name),
+      first_name: normalizeNullableText(family.father?.first_name),
+      middle_name: normalizeNullableText(family.father?.middle_name),
+      mobile_number: normalizeNullableText(family.father?.mobile),
+      address: normalizeNullableText(family.parent_guardian_address),
+      highest_educational_attainment: normalizeEducationalAttainment(
+        family.father?.educational_attainment
+      ),
+      occupation: normalizeNullableText(family.father?.occupation),
+      company_name_address: normalizeNullableText(
+        family.father?.company_name_and_address
+      ),
+      ...familyResidencyMap.Father,
+    },
+    {
+      relation: 'Mother',
+      last_name: normalizeNullableText(family.mother?.last_name),
+      first_name: normalizeNullableText(family.mother?.first_name),
+      middle_name: normalizeNullableText(family.mother?.middle_name),
+      mobile_number: normalizeNullableText(family.mother?.mobile),
+      address: normalizeNullableText(family.parent_guardian_address),
+      highest_educational_attainment: normalizeEducationalAttainment(
+        family.mother?.educational_attainment
+      ),
+      occupation: normalizeNullableText(family.mother?.occupation),
+      company_name_address: normalizeNullableText(
+        family.mother?.company_name_and_address
+      ),
+      ...familyResidencyMap.Mother,
+    },
+    {
+      relation: 'Sibling',
+      last_name: normalizeNullableText(family.sibling?.last_name),
+      first_name: normalizeNullableText(family.sibling?.first_name),
+      middle_name: normalizeNullableText(family.sibling?.middle_name),
+      mobile_number: normalizeNullableText(family.sibling?.mobile),
+      address: null,
+      highest_educational_attainment: null,
+      occupation: null,
+      company_name_address: null,
+      ...familyResidencyMap.Sibling,
+    },
+    {
+      relation: 'Guardian',
+      last_name: normalizeNullableText(family.guardian?.last_name),
+      first_name: normalizeNullableText(family.guardian?.first_name),
+      middle_name: normalizeNullableText(family.guardian?.middle_name),
+      mobile_number: normalizeNullableText(family.guardian?.mobile),
+      address: normalizeNullableText(family.parent_guardian_address),
+      highest_educational_attainment: normalizeEducationalAttainment(
+        family.guardian?.educational_attainment
+      ),
+      occupation: normalizeNullableText(family.guardian?.occupation),
+      company_name_address: normalizeNullableText(
+        family.guardian?.company_name_and_address
+      ),
+      ...familyResidencyMap.Guardian,
+    },
+  ];
+
+  for (const row of familyRows) {
+    const { data: existingFamilyRows, error: familyFetchError } = await supabase
+      .from('student_family')
+      .select('family_id')
+      .eq('student_id', studentRecord.student_id)
+      .eq('relation', row.relation);
+
+    if (familyFetchError) {
+      throw familyFetchError;
+    }
+
+    if ((existingFamilyRows || []).length > 0) {
+      const { error: familyUpdateError } = await supabase
+        .from('student_family')
+        .update({
+          last_name: row.last_name,
+          first_name: row.first_name,
+          middle_name: row.middle_name,
+          mobile_number: row.mobile_number,
+          address: row.address,
+          highest_educational_attainment: row.highest_educational_attainment,
+          occupation: row.occupation,
+          company_name_address: row.company_name_address,
+          is_marilao_native: row.is_marilao_native,
+          years_as_resident: row.years_as_resident,
+          origin_province: row.origin_province,
+        })
+        .eq('student_id', studentRecord.student_id)
+        .eq('relation', row.relation);
+
+      if (familyUpdateError) {
+        throw familyUpdateError;
+      }
+    } else {
+      const { error: familyInsertError } = await supabase
+        .from('student_family')
+        .insert([
+          {
+            student_id: studentRecord.student_id,
+            relation: row.relation,
+            last_name: row.last_name,
+            first_name: row.first_name,
+            middle_name: row.middle_name,
+            mobile_number: row.mobile_number,
+            address: row.address,
+            highest_educational_attainment: row.highest_educational_attainment,
+            occupation: row.occupation,
+            company_name_address: row.company_name_address,
+            is_marilao_native: row.is_marilao_native,
+            years_as_resident: row.years_as_resident,
+            origin_province: row.origin_province,
+          },
+        ]);
+
+      if (familyInsertError) {
+        throw familyInsertError;
+      }
+    }
+  }
+
+  const educationRows = [
+    {
+      education_level: 'Elementary',
+      school_name: academic.elementary_school ?? null,
+      school_address: academic.elementary_address ?? null,
+      honors_awards: academic.elementary_honors ?? null,
+      club_organization: academic.elementary_club ?? null,
+      year_graduated: academic.elementary_year_graduated ?? null,
+    },
+    {
+      education_level: 'High School',
+      school_name: academic.high_school_school ?? null,
+      school_address: academic.high_school_address ?? null,
+      honors_awards: academic.high_school_honors ?? null,
+      club_organization: academic.high_school_club ?? null,
+      year_graduated: academic.high_school_year_graduated ?? null,
+    },
+    {
+      education_level: 'Senior High School',
+      school_name: academic.senior_high_school ?? null,
+      school_address: academic.senior_high_address ?? null,
+      honors_awards: academic.senior_high_honors ?? null,
+      club_organization: academic.senior_high_club ?? null,
+      year_graduated: academic.senior_high_year_graduated ?? null,
+    },
+    {
+      education_level: 'College',
+      school_name: academic.college_school ?? null,
+      school_address: academic.college_address ?? null,
+      honors_awards: academic.college_honors ?? null,
+      club_organization: academic.college_club ?? null,
+      year_graduated: academic.college_year_graduated ?? null,
+    },
+  ].map((row) => ({
+    student_id: studentRecord.student_id,
+    ...row,
+  }));
+
+  const { error: educationError } = await supabase
+    .from('student_education')
+    .upsert(educationRows, { onConflict: 'student_id,education_level' });
+
+  if (educationError) {
+    throw educationError;
+  }
+
+  return {
+    studentRecord,
+    account,
+    contact,
+    studentProfilePayload,
+    familyRows,
+    educationRows,
+  };
+}
+
+async function buildApplicationSubmissionResponse({
+  applicationId,
+  studentRecord,
+  account,
+  contact,
+  studentProfilePayload,
+  familyRows,
+  educationRows,
+  message,
+}) {
+  const detailedApplication = await buildApplicationDetails(applicationId);
+
+  return {
+    message,
+    application: detailedApplication.application ?? null,
+    student: detailedApplication.student ?? {
+      id: studentRecord.student_id,
+      pdm_id: account.student_id,
+      email: contact.email,
+      phone: contact.mobile_number ?? null,
+    },
+    student_profile: detailedApplication.student_profile ?? studentProfilePayload,
+    family_members: detailedApplication.family_members ?? familyRows,
+    education_records: detailedApplication.education_records ?? educationRows,
+    documents: detailedApplication.documents ?? [],
+  };
+}
+
+async function submitApplicantOpeningApplication({
+  userId,
+  openingId,
+  incomingPayload = {},
+}) {
+  const opening = await resolveOpeningById(openingId);
+
+  if (!opening) {
+    throw createHttpError(404, 'Scholarship opening not found.');
+  }
+
+  if ((opening.posting_status || '').toLowerCase() !== 'open') {
+    throw createHttpError(
+      409,
+      'This scholarship opening is no longer accepting applications.'
+    );
+  }
+
+  const studentRecord = await resolveStudentByUserId(userId);
+  const scholarRecord = studentRecord?.student_id
+    ? await resolveScholarRecordForStudent(studentRecord.student_id)
+    : null;
+
+  if (
+    scholarRecord &&
+    !isTesProgramName(opening.scholarship_program?.program_name || '')
+  ) {
+    throw createHttpError(
+      403,
+      'Approved scholars can only apply to TES scholarship openings.'
+    );
+  }
+
+  const activeApplication = await resolveActiveOpeningApplicationForUser(userId);
+  if (activeApplication?.application?.application_id) {
+    throw createHttpError(
+      409,
+      'You already have an active scholarship application. Finish that application before starting a new one.'
+    );
+  }
+
+  const userRecord = await resolveUserAccountRecord(userId);
+  const normalizedPayload = {
+    ...incomingPayload,
+    account: {
+      ...(incomingPayload.account ?? {}),
+      user_id: userId,
+      student_id: incomingPayload.account?.student_id || userRecord?.username || '',
+    },
+    contact: {
+      ...(incomingPayload.contact ?? {}),
+      email:
+        incomingPayload.contact?.email ||
+        incomingPayload.account?.email ||
+        userRecord?.email ||
+        '',
+    },
+  };
+
+  if (
+    incomingPayload.account?.user_id &&
+    incomingPayload.account.user_id !== userId
+  ) {
+    throw createHttpError(
+      403,
+      'The submitted account does not match the logged-in user.'
+    );
+  }
+
+  const persisted = await persistApplicantProfileSubmission(normalizedPayload);
+  const submissionDate = new Date().toISOString();
+
+  const { data: applicationRecord, error: applicationInsertError } =
+    await supabase
+      .from('applications')
+      .insert([
+        {
+          student_id: persisted.studentRecord.student_id,
+          opening_id: opening.opening_id,
+          program_id: opening.program_id,
+          application_status: 'Pending Review',
+          submission_date: submissionDate,
+          document_status: 'Missing Docs',
+          is_disqualified: false,
+        },
+      ])
+      .select('application_id')
+      .single();
+
+  if (applicationInsertError) {
+    throw applicationInsertError;
+  }
+
+  await ensureApplicationDocumentPlaceholders(
+    applicationRecord.application_id,
+    persisted.studentRecord.student_id
+  );
+  await clearApplicantDraftByUserId(userId);
+
+  return buildApplicationSubmissionResponse({
+    applicationId: applicationRecord.application_id,
+    studentRecord: persisted.studentRecord,
+    account: persisted.account,
+    contact: persisted.contact,
+    studentProfilePayload: persisted.studentProfilePayload,
+    familyRows: persisted.familyRows,
+    educationRows: persisted.educationRows,
+    message:
+      'Application submitted successfully. You can now upload your scholarship requirements.',
+  });
 }
 
 async function sendOTPEmail(userEmail, otpCode) {
@@ -1363,15 +2858,69 @@ app.get('/api/notifications', protect, async (req, res) => {
   }
 });
 
+app.get('/api/openings', protect, async (req, res) => {
+  try {
+    const payload = await buildApplicantOpeningsPayload(getRequestUserId(req));
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('OPENINGS ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load scholarship openings.',
+    });
+  }
+});
+
 app.get('/api/openings/latest', protect, async (req, res) => {
   try {
-    const latestOpening = await fetchLatestOpenProgramOpening();
+    const latestOpening = await fetchLatestVisibleProgramOpeningForUser(
+      getRequestUserId(req)
+    );
     res.status(200).json({ item: latestOpening });
   } catch (error) {
     console.error('LATEST OPENING ROUTE ERROR:', error);
     res.status(500).json({
       error: error.message || 'Failed to load the latest scholarship opening.',
     });
+  }
+});
+
+app.get('/api/openings', protect, async (req, res) => {
+  try {
+    const payload = await fetchAvailableOpeningsForMobile(req.user.user_id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('OPENINGS ROUTE ERROR:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/applications/me/form-data', protect, async (req, res) => {
+  try {
+    const payload = await buildSavedFormDataForMobile(req.user.user_id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('FORM DATA ERROR:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/renewals/me/current', protect, async (req, res) => {
+  try {
+    const payload = await buildCurrentRenewalForMobile(req.user.user_id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('RENEWAL ERROR:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/payouts/me', protect, async (req, res) => {
+  try {
+    const payload = await fetchMyPayoutSchedules(req.user.user_id);
+    res.status(200).json(payload);
+  } catch (error) {
+    console.error('PAYOUT ERROR:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -1805,13 +3354,115 @@ app.get('/api/scholarship-programs', async (req, res) => {
   res.status(200).json(data ?? []);
 });
 
+app.get('/api/applications/me/form-data', protect, async (req, res) => {
+  try {
+    const draft = await resolveApplicantDraftByUserId(getRequestUserId(req));
+
+    if (!draft) {
+      return res.status(200).json({ has_saved_form: false });
+    }
+
+    const payload =
+      draft.payload && typeof draft.payload === 'object' ? draft.payload : {};
+    const opening = draft.opening_id
+      ? await resolveOpeningById(draft.opening_id)
+      : null;
+
+    res.status(200).json({
+      has_saved_form: true,
+      ...payload,
+      opening: {
+        opening_id: opening?.opening_id || draft.opening_id || '',
+        opening_title: opening?.opening_title || '',
+        program_name: opening?.scholarship_program?.program_name || '',
+      },
+      draft_updated_at: draft.updated_at || draft.created_at || null,
+    });
+  } catch (error) {
+    console.error('APPLICATION FORM DATA ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to load your saved application draft.',
+    });
+  }
+});
+
+app.put('/api/applications/me/form-data', protect, async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const openingId = req.body?.opening?.opening_id?.toString().trim();
+
+    if (!openingId) {
+      return res.status(400).json({
+        error: 'opening.opening_id is required to save an application draft.',
+      });
+    }
+
+    const opening = await resolveOpeningById(openingId);
+    if (!opening) {
+      return res.status(404).json({ error: 'Scholarship opening not found.' });
+    }
+
+    if ((opening.posting_status || '').toLowerCase() !== 'open') {
+      return res.status(409).json({
+        error: 'This scholarship opening is no longer accepting applications.',
+      });
+    }
+
+    const studentRecord = await resolveStudentByUserId(userId);
+    const scholarRecord = studentRecord?.student_id
+      ? await resolveScholarRecordForStudent(studentRecord.student_id)
+      : null;
+
+    if (
+      scholarRecord &&
+      !isTesProgramName(opening.scholarship_program?.program_name || '')
+    ) {
+      return res.status(403).json({
+        error: 'Approved scholars can only access TES scholarship openings.',
+      });
+    }
+
+    const activeApplication = await resolveActiveOpeningApplicationForUser(userId);
+    if (activeApplication?.application?.application_id) {
+      return res.status(409).json({
+        error:
+          'You already have an active scholarship application. Finish that application before starting a new one.',
+      });
+    }
+
+    await upsertApplicantDraftByUserId(userId, {
+      openingId,
+      payload: req.body ?? {},
+    });
+
+    res.status(200).json({
+      message: 'Application draft saved.',
+      has_saved_form: true,
+      opening: {
+        opening_id: opening.opening_id,
+        opening_title: opening.opening_title || '',
+        program_name: opening.scholarship_program?.program_name || '',
+      },
+    });
+  } catch (error) {
+    console.error('APPLICATION FORM SAVE ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to save your application draft.',
+    });
+  }
+});
+
 app.get('/api/applications/me/documents', protect, async (req, res) => {
   try {
-    const activeApplication = await resolveLatestBaseApplicationForUser(req.user.user_id);
+    const activeApplication = await resolveActiveOpeningApplicationForUser(
+      getRequestUserId(req)
+    );
 
     if (!activeApplication?.application?.application_id) {
-      return res.status(404).json({
-        error: 'Complete and submit your application form first before uploading scholarship requirements.',
+      const draft = await resolveApplicantDraftByUserId(getRequestUserId(req));
+      return res.status(draft ? 409 : 404).json({
+        error:
+          'Choose a scholarship opening and submit your application first before uploading scholarship requirements.',
       });
     }
 
@@ -1842,17 +3493,21 @@ app.get('/api/applications/me/status-summary', protect, async (req, res) => {
 
 app.post('/api/applications/me/documents/:documentKey/upload', protect, upload.single('document'), async (req, res) => {
   try {
-    const activeApplication = await resolveLatestBaseApplicationForUser(req.user.user_id);
+    const activeApplication = await resolveActiveOpeningApplicationForUser(
+      getRequestUserId(req)
+    );
 
     if (!activeApplication?.application?.application_id) {
-      return res.status(404).json({
-        error: 'Complete and submit your application form first before uploading scholarship requirements.',
+      const draft = await resolveApplicantDraftByUserId(getRequestUserId(req));
+      return res.status(draft ? 409 : 404).json({
+        error:
+          'Choose a scholarship opening and submit your application first before uploading scholarship requirements.',
       });
     }
 
     const payload = await uploadApplicationDocumentFile({
       applicationId: activeApplication.application.application_id,
-      studentId: activeApplication.student.student_id,
+      uploadedBy: activeApplication.student.student_id,
       documentKey: req.params.documentKey,
       file: req.file,
     });
@@ -1866,546 +3521,51 @@ app.post('/api/applications/me/documents/:documentKey/upload', protect, upload.s
   }
 });
 
-app.post('/api/applications', async (req, res) => {
-  const {
-    account = {},
-    application = {},
-    personal = {},
-    address = {},
-    contact = {},
-    family = {},
-    academic = {},
-    support = {},
-    discipline = {},
-    essays = {},
-    certification = {},
-    documents = {},
-  } = req.body ?? {};
+app.post('/api/openings/:openingId/apply', protect, async (req, res) => {
+  try {
+    const responsePayload = await submitApplicantOpeningApplication({
+      userId: getRequestUserId(req),
+      openingId: req.params.openingId,
+      incomingPayload: req.body ?? {},
+    });
 
-  if (!account.user_id || !account.student_id || !contact.email) {
-    return res.status(400).json({ error: 'Missing required account details.' });
+    res.status(200).json(responsePayload);
+  } catch (error) {
+    console.error('OPENING APPLICATION ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to submit your scholarship application.',
+    });
   }
+});
 
-  if (
-    academic.student_number &&
-    academic.student_number.trim() &&
-    academic.student_number.trim() !== account.student_id
-  ) {
-    return res.status(400).json({ error: 'Student number must match the logged-in student ID.' });
+app.post('/api/applications', protect, async (req, res) => {
+  try {
+    const openingId =
+      req.body?.opening?.opening_id ||
+      req.body?.opening_id ||
+      req.body?.application?.opening_id ||
+      '';
+
+    if (!openingId) {
+      return res.status(409).json({
+        error:
+          'Choose a scholarship opening before submitting your application.',
+      });
+    }
+
+    const responsePayload = await submitApplicantOpeningApplication({
+      userId: getRequestUserId(req),
+      openingId,
+      incomingPayload: req.body ?? {},
+    });
+
+    res.status(200).json(responsePayload);
+  } catch (error) {
+    console.error('LEGACY APPLICATION ROUTE ERROR:', error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to submit your scholarship application.',
+    });
   }
-
-  if (application.program_id) {
-    const { data: programData, error: programError } = await supabase
-      .from('scholarship_program')
-      .select('program_id')
-      .eq('program_id', application.program_id)
-      .maybeSingle();
-
-    if (programError) {
-      console.error('Scholarship program lookup error:', programError);
-      return res.status(500).json({ error: 'Failed to validate scholarship program.' });
-    }
-
-    if (!programData) {
-      return res.status(400).json({ error: 'Selected scholarship program is invalid.' });
-    }
-  }
-
-  let courseId = null;
-  if (academic.current_course_code) {
-    const { data: courseData, error: courseError } = await supabase
-      .from('academic_course')
-      .select('course_id, course_code')
-      .eq('course_code', academic.current_course_code)
-      .maybeSingle();
-
-    if (courseError) {
-      console.error('Course lookup error:', courseError);
-      return res.status(500).json({ error: 'Failed to validate course.' });
-    }
-
-    if (!courseData) {
-      return res.status(400).json({ error: 'Selected course is invalid.' });
-    }
-
-    courseId = courseData.course_id;
-  }
-
-  const studentPayload = {
-    user_id: account.user_id,
-    pdm_id: account.student_id,
-    first_name: personal.first_name ?? '',
-    middle_name: personal.middle_name ?? null,
-    last_name: personal.last_name ?? '',
-    barangay: address.barangay ?? null,
-    year_level: academic.current_year_level ?? null,
-    course_id: courseId,
-    gwa: null,
-    is_archived: false,
-  };
-
-  const { data: existingStudent, error: studentFetchError } = await supabase
-    .from('students')
-    .select('student_id')
-    .eq('user_id', account.user_id)
-    .maybeSingle();
-
-  if (studentFetchError) {
-    console.error('Student fetch error:', studentFetchError);
-    return res.status(500).json({ error: 'Failed to load student profile.' });
-  }
-
-  let studentRecord = existingStudent;
-  if (existingStudent) {
-    const { data: updatedStudent, error: studentUpdateError } = await supabase
-      .from('students')
-      .update(studentPayload)
-      .eq('student_id', existingStudent.student_id)
-      .select('student_id')
-      .single();
-
-    if (studentUpdateError) {
-      console.error('Student update error:', studentUpdateError);
-      return res.status(500).json({ error: 'Failed to update student profile.' });
-    }
-
-    studentRecord = updatedStudent;
-  } else {
-    const { data: insertedStudent, error: studentInsertError } = await supabase
-      .from('students')
-      .insert([studentPayload])
-      .select('student_id')
-      .single();
-
-    if (studentInsertError) {
-      console.error('Student insert error:', studentInsertError);
-      return res.status(500).json({ error: 'Failed to create student profile.' });
-    }
-
-    studentRecord = insertedStudent;
-  }
-
-  const { error: userUpdateError } = await supabase
-    .from('users')
-    .update({
-      email: contact.email,
-      phone_number: contact.mobile_number ?? null,
-    })
-    .eq('user_id', account.user_id);
-
-  if (userUpdateError) {
-    console.error('User contact update error:', userUpdateError);
-    return res.status(500).json({ error: 'Failed to update account contact information.' });
-  }
-
-  let savedApplication = null;
-  let applicationId = null;
-  if (application.program_id) {
-    const { data: existingApplication, error: existingApplicationError } = await supabase
-      .from('applications')
-      .select('application_id, application_status, document_status, evaluator_id')
-      .eq('student_id', studentRecord.student_id)
-      .eq('program_id', application.program_id)
-      .in('application_status', ['Pending Review', 'Interview'])
-      .eq('is_disqualified', false)
-      .maybeSingle();
-
-    if (existingApplicationError) {
-      console.error('Existing application lookup error:', existingApplicationError);
-      return res.status(500).json({ error: 'Failed to load existing application.' });
-    }
-
-    if (existingApplication) {
-      const { data: updatedApplication, error: updateError } = await supabase
-        .from('applications')
-        .update({
-          student_id: studentRecord.student_id,
-          program_id: application.program_id,
-          submission_date: new Date().toISOString(),
-        })
-        .eq('application_id', existingApplication.application_id)
-        .select('application_id, application_status, submission_date, document_status')
-        .single();
-
-      if (updateError) {
-        console.error('Application update error:', updateError);
-        return res.status(500).json({ error: updateError.message || 'Failed to update application.' });
-      }
-
-      savedApplication = updatedApplication;
-    } else {
-      const { data: insertedApplication, error: insertError } = await supabase
-        .from('applications')
-        .insert([{
-          student_id: studentRecord.student_id,
-          program_id: application.program_id,
-          application_status: 'Pending Review',
-          submission_date: new Date().toISOString(),
-          document_status: 'Missing Docs',
-        }])
-        .select('application_id, application_status, submission_date, document_status')
-        .single();
-
-      if (insertError) {
-        console.error('Application insert error:', insertError);
-        return res.status(500).json({ error: insertError.message || 'Failed to submit application.' });
-      }
-
-      savedApplication = insertedApplication;
-    }
-
-    applicationId = savedApplication.application_id;
-  } else {
-    const { data: existingBaseApplication, error: existingBaseApplicationError } = await supabase
-      .from('applications')
-      .select('application_id, application_status, submission_date, document_status')
-      .eq('student_id', studentRecord.student_id)
-      .is('program_id', null)
-      .in('application_status', ['Pending Review', 'Interview'])
-      .eq('is_disqualified', false)
-      .maybeSingle();
-
-    if (existingBaseApplicationError) {
-      console.error('Existing base application lookup error:', existingBaseApplicationError);
-      return res.status(500).json({ error: 'Failed to load saved base application.' });
-    }
-
-    if (existingBaseApplication) {
-      const { data: updatedBaseApplication, error: updateBaseError } = await supabase
-        .from('applications')
-        .update({
-          student_id: studentRecord.student_id,
-          submission_date: new Date().toISOString(),
-        })
-        .eq('application_id', existingBaseApplication.application_id)
-        .select('application_id, application_status, submission_date, document_status')
-        .single();
-
-      if (updateBaseError) {
-        console.error('Base application update error:', updateBaseError);
-        return res.status(500).json({ error: updateBaseError.message || 'Failed to update your base application.' });
-      }
-
-      savedApplication = updatedBaseApplication;
-    } else {
-      const { data: insertedBaseApplication, error: insertBaseError } = await supabase
-        .from('applications')
-        .insert([{
-          student_id: studentRecord.student_id,
-          program_id: null,
-          application_status: 'Pending Review',
-          submission_date: new Date().toISOString(),
-          document_status: 'Missing Docs',
-        }])
-        .select('application_id, application_status, submission_date, document_status')
-        .single();
-
-      if (insertBaseError) {
-        console.error('Base application insert error:', insertBaseError);
-        return res.status(500).json({ error: insertBaseError.message || 'Failed to submit your base application.' });
-      }
-
-      savedApplication = insertedBaseApplication;
-    }
-
-    applicationId = savedApplication.application_id;
-  }
-
-  const buildStreetAddress = [
-    address.unit_bldg_no ?? address.block,
-    address.house_lot_block_no ?? address.lot,
-    address.street,
-  ]
-    .filter((value) => !!value && value.toString().trim().length > 0)
-    .join(', ');
-
-  const studentProfilePayload = {
-    student_id: studentRecord.student_id,
-    date_of_birth: personal.date_of_birth ?? null,
-    place_of_birth: personal.place_of_birth ?? null,
-    sex: personal.sex ?? null,
-    civil_status: personal.civil_status ?? null,
-    maiden_name: personal.maiden_name ?? null,
-    religion: personal.religion ?? null,
-    citizenship: personal.citizenship ?? 'Filipino',
-    street_address: buildStreetAddress || null,
-    subdivision: address.subdivision ?? null,
-    city: address.city_municipality ?? null,
-    province: address.province ?? null,
-    zip_code: address.zip_code ?? null,
-    landline_number: contact.landline ?? null,
-    learners_reference_number: academic.lrn ?? null,
-    financial_support_type: support.financial_support ?? null,
-    financial_support_other:
-      support.financial_support === 'Other'
-        ? support.scholarship_others_specify ?? null
-        : null,
-    has_prior_scholarship: support.scholarship_history ?? false,
-    prior_scholarship_details: support.scholarship_details ?? null,
-    has_disciplinary_record: discipline.disciplinary_action ?? false,
-    disciplinary_details: discipline.disciplinary_explanation ?? null,
-    self_description: essays.describe_yourself_essay ?? null,
-    aims_and_ambitions: essays.aims_and_ambition_essay ?? null,
-    applicant_signature_url: null,
-    guardian_signature_url: null,
-  };
-
-  const { error: profileError } = await supabase
-    .from('student_profiles')
-    .upsert([studentProfilePayload], { onConflict: 'student_id' });
-
-  if (profileError) {
-    console.error('Student profile upsert error:', profileError);
-    return res.status(500).json({ error: profileError.message || 'Failed to save student profile.' });
-  }
-
-  const familyResidencyMap = buildFamilyResidencyByRelation(
-    family.parent_native_status,
-    family.parent_marilao_residency_duration,
-    family.parent_previous_town_province
-  );
-
-  const familyRows = [
-    {
-      relation: 'Father',
-      last_name: normalizeNullableText(family.father?.last_name),
-      first_name: normalizeNullableText(family.father?.first_name),
-      middle_name: normalizeNullableText(family.father?.middle_name),
-      mobile_number: normalizeNullableText(family.father?.mobile),
-      address: normalizeNullableText(family.parent_guardian_address),
-      highest_educational_attainment: normalizeEducationalAttainment(
-        family.father?.educational_attainment
-      ),
-      occupation: normalizeNullableText(family.father?.occupation),
-      company_name_address: normalizeNullableText(
-        family.father?.company_name_and_address
-      ),
-      ...familyResidencyMap.Father,
-    },
-    {
-      relation: 'Mother',
-      last_name: normalizeNullableText(family.mother?.last_name),
-      first_name: normalizeNullableText(family.mother?.first_name),
-      middle_name: normalizeNullableText(family.mother?.middle_name),
-      mobile_number: normalizeNullableText(family.mother?.mobile),
-      address: normalizeNullableText(family.parent_guardian_address),
-      highest_educational_attainment: normalizeEducationalAttainment(
-        family.mother?.educational_attainment
-      ),
-      occupation: normalizeNullableText(family.mother?.occupation),
-      company_name_address: normalizeNullableText(
-        family.mother?.company_name_and_address
-      ),
-      ...familyResidencyMap.Mother,
-    },
-    {
-      relation: 'Sibling',
-      last_name: normalizeNullableText(family.sibling?.last_name),
-      first_name: normalizeNullableText(family.sibling?.first_name),
-      middle_name: normalizeNullableText(family.sibling?.middle_name),
-      mobile_number: normalizeNullableText(family.sibling?.mobile),
-      address: null,
-      highest_educational_attainment: null,
-      occupation: null,
-      company_name_address: null,
-      ...familyResidencyMap.Sibling,
-    },
-    {
-      relation: 'Guardian',
-      last_name: normalizeNullableText(family.guardian?.last_name),
-      first_name: normalizeNullableText(family.guardian?.first_name),
-      middle_name: normalizeNullableText(family.guardian?.middle_name),
-      mobile_number: normalizeNullableText(family.guardian?.mobile),
-      address: normalizeNullableText(family.parent_guardian_address),
-      highest_educational_attainment: normalizeEducationalAttainment(
-        family.guardian?.educational_attainment
-      ),
-      occupation: normalizeNullableText(family.guardian?.occupation),
-      company_name_address: normalizeNullableText(
-        family.guardian?.company_name_and_address
-      ),
-      ...familyResidencyMap.Guardian,
-    },
-  ];
-
-  for (const row of familyRows) {
-    const { data: existingFamilyRows, error: familyFetchError } = await supabase
-      .from('student_family')
-      .select('family_id')
-      .eq('student_id', studentRecord.student_id)
-      .eq('relation', row.relation);
-
-    if (familyFetchError) {
-      console.error('Student family fetch error:', familyFetchError);
-      return res.status(500).json({ error: familyFetchError.message || 'Failed to load student family records.' });
-    }
-
-    if ((existingFamilyRows || []).length > 0) {
-      const { error: familyUpdateError } = await supabase
-        .from('student_family')
-        .update({
-          last_name: row.last_name,
-          first_name: row.first_name,
-          middle_name: row.middle_name,
-          mobile_number: row.mobile_number,
-          address: row.address,
-          highest_educational_attainment: row.highest_educational_attainment,
-          occupation: row.occupation,
-          company_name_address: row.company_name_address,
-          is_marilao_native: row.is_marilao_native,
-          years_as_resident: row.years_as_resident,
-          origin_province: row.origin_province,
-        })
-        .eq('student_id', studentRecord.student_id)
-        .eq('relation', row.relation);
-
-      if (familyUpdateError) {
-        console.error('Student family update error:', familyUpdateError);
-        return res.status(500).json({ error: familyUpdateError.message || 'Failed to update student family records.' });
-      }
-    } else {
-      const { error: familyInsertError } = await supabase
-        .from('student_family')
-        .insert([{
-          student_id: studentRecord.student_id,
-          relation: row.relation,
-          last_name: row.last_name,
-          first_name: row.first_name,
-          middle_name: row.middle_name,
-          mobile_number: row.mobile_number,
-          address: row.address,
-          highest_educational_attainment: row.highest_educational_attainment,
-          occupation: row.occupation,
-          company_name_address: row.company_name_address,
-          is_marilao_native: row.is_marilao_native,
-          years_as_resident: row.years_as_resident,
-          origin_province: row.origin_province,
-        }]);
-
-      if (familyInsertError) {
-        console.error('Student family insert error:', familyInsertError);
-        return res.status(500).json({ error: familyInsertError.message || 'Failed to create student family records.' });
-      }
-    }
-  }
-
-  const educationRows = [
-    {
-      education_level: 'Elementary',
-      school_name: academic.elementary_school ?? null,
-      school_address: academic.elementary_address ?? null,
-      honors_awards: academic.elementary_honors ?? null,
-      club_organization: academic.elementary_club ?? null,
-      year_graduated: academic.elementary_year_graduated ?? null,
-    },
-    {
-      education_level: 'High School',
-      school_name: academic.high_school_school ?? null,
-      school_address: academic.high_school_address ?? null,
-      honors_awards: academic.high_school_honors ?? null,
-      club_organization: academic.high_school_club ?? null,
-      year_graduated: academic.high_school_year_graduated ?? null,
-    },
-    {
-      education_level: 'Senior High School',
-      school_name: academic.senior_high_school ?? null,
-      school_address: academic.senior_high_address ?? null,
-      honors_awards: academic.senior_high_honors ?? null,
-      club_organization: academic.senior_high_club ?? null,
-      year_graduated: academic.senior_high_year_graduated ?? null,
-    },
-    {
-      education_level: 'College',
-      school_name: academic.college_school ?? null,
-      school_address: academic.college_address ?? null,
-      honors_awards: academic.college_honors ?? null,
-      club_organization: academic.college_club ?? null,
-      year_graduated: academic.college_year_graduated ?? null,
-    },
-  ].map((row) => ({
-    student_id: studentRecord.student_id,
-    ...row,
-  }));
-
-  const { error: educationError } = await supabase
-    .from('student_education')
-    .upsert(educationRows, { onConflict: 'student_id,education_level' });
-
-  if (educationError) {
-    console.error('Student education upsert error:', educationError);
-    return res.status(500).json({ error: educationError.message || 'Failed to save student education records.' });
-  }
-
-  if (applicationId) {
-    try {
-      await ensureApplicationDocumentPlaceholders(applicationId, studentRecord.student_id);
-    } catch (placeholderDocumentError) {
-      console.error('Application document placeholder upsert error:', placeholderDocumentError);
-      return res.status(500).json({ error: placeholderDocumentError.message || 'Failed to prepare application documents.' });
-    }
-
-    const submittedDocuments = Array.isArray(documents.records) ? documents.records : [];
-    if (submittedDocuments.length > 0) {
-      for (const document of submittedDocuments) {
-        const targetDocumentType = document.document_type || document.name || null;
-        if (!targetDocumentType) continue;
-
-        const { error: documentUpdateError } = await supabase
-          .from('application_documents')
-          .update({
-            is_submitted: !!document.file_url,
-            file_url: document.file_url ?? null,
-            submitted_at: document.file_url ? (document.uploaded_at ?? new Date().toISOString()) : null,
-            remarks: document.notes ?? null,
-          })
-          .eq('application_id', applicationId)
-          .eq('document_type', targetDocumentType);
-
-        if (documentUpdateError) {
-          console.error('Application document update error:', documentUpdateError);
-          return res.status(500).json({ error: documentUpdateError.message || 'Failed to save uploaded documents.' });
-        }
-      }
-
-      try {
-        await refreshApplicationDocumentStatus(applicationId, studentRecord.student_id);
-      } catch (applicationStatusError) {
-        console.error('Application document status update error:', applicationStatusError);
-        return res.status(500).json({ error: applicationStatusError.message || 'Failed to update application document status.' });
-      }
-    }
-  }
-
-  let detailedApplication = null;
-  if (applicationId) {
-    try {
-      detailedApplication = await buildApplicationDetails(applicationId);
-    } catch (detailError) {
-      console.error('Application detail build error:', detailError);
-      return res.status(500).json({ error: detailError.message || 'Application saved but failed to load the response.' });
-    }
-  }
-
-  res.status(200).json({
-    message: applicationId
-      ? 'Application submitted successfully. You can now upload your scholarship requirements.'
-      : 'Profile details saved successfully. Scholarship program selection is temporarily unavailable.',
-    application: detailedApplication?.application ?? null,
-    student: detailedApplication?.student ?? {
-      id: studentRecord.student_id,
-      pdm_id: account.student_id,
-      email: contact.email,
-      phone: contact.mobile_number ?? null,
-    },
-    student_profile: detailedApplication?.student_profile ?? studentProfilePayload,
-    family_members: detailedApplication?.family_members ?? familyRows,
-    education_records: detailedApplication?.education_records ?? educationRows,
-    documents: detailedApplication?.documents ?? [],
-    certification: {
-      certification_read: certification.certification_read ?? false,
-      agree: certification.agree ?? false,
-    },
-  });
 });
 
 app.get('/api/applications/:id', async (req, res) => {

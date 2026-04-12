@@ -56,10 +56,22 @@ class ProgramOpening {
 
 class ProgramOpeningsResult {
   const ProgramOpeningsResult({
-    required this.hasBaseApplicationProfile,
+    required this.hasSavedDraft,
+    required this.draftOpeningId,
+    required this.draftOpeningTitle,
+    required this.draftProgramName,
+    required this.activeApplicationId,
+    required this.activeOpeningId,
+    required this.isApprovedScholar,
     required this.items,
   });
 
-  final bool hasBaseApplicationProfile;
+  final bool hasSavedDraft;
+  final String draftOpeningId;
+  final String draftOpeningTitle;
+  final String draftProgramName;
+  final String activeApplicationId;
+  final String activeOpeningId;
+  final bool isApprovedScholar;
   final List<ProgramOpening> items;
 }

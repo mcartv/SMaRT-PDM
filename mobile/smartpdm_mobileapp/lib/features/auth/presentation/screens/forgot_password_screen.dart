@@ -457,11 +457,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         RegExp(r'\d').hasMatch(password);
 
     if (!hasLongLength && !hasStrongMixedRule) {
-      return 'Password should be at least 15 characters OR at least 8 characters including a number and a lowercase letter.';
+      return 'Password should be at least 8 characters including a number and a lowercase letter.';
     }
 
     if (_commonPasswords.contains(password.toLowerCase())) {
-      return 'Password may be compromised. Password is in a list of passwords commonly used on other websites.';
+      return 'Password is in a list of passwords commonly used on other websites.';
     }
 
     return null;

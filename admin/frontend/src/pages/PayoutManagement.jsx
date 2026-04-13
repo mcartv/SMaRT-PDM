@@ -15,7 +15,6 @@ import {
   Search,
   Eye,
   Users,
-  GraduationCap,
   Building2
 } from 'lucide-react';
 
@@ -43,6 +42,35 @@ function getAuthHeaders(json = true) {
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     Authorization: `Bearer ${token}`,
   };
+}
+
+function normalizeId(value) {
+  return value == null ? '' : String(value).trim();
+}
+
+function belongsToOpening(item, openingId) {
+  const target = normalizeId(openingId);
+  if (!target) return true;
+
+  const candidates = [
+    item?.opening_id,
+    item?.openingId,
+    item?.program_opening_id,
+    item?.programOpeningId,
+    item?.opening?.opening_id,
+    item?.batch_opening_id,
+  ].map(normalizeId);
+
+  return candidates.includes(target);
+}
+
+function filterScholarsByOpening(scholars = [], openingId) {
+  const target = normalizeId(openingId);
+  if (!target) return Array.isArray(scholars) ? scholars : [];
+
+  return (Array.isArray(scholars) ? scholars : []).filter((scholar) =>
+    belongsToOpening(scholar, target)
+  );
 }
 
 export default function PayoutManagement() {
@@ -130,7 +158,12 @@ export default function PayoutManagement() {
       const scholars = Array.isArray(data?.scholars) ? data.scholars : [];
       const opening = data?.opening || null;
 
-      setEligiblePayload({ opening, scholars });
+      const filteredScholars = filterScholarsByOpening(
+        scholars,
+        openingId || opening?.opening_id
+      );
+
+      setEligiblePayload({ opening, scholars: filteredScholars });
 
       setForm(prev => ({
         ...prev,
@@ -138,7 +171,7 @@ export default function PayoutManagement() {
         school_year: opening?.school_year || '',
         payout_title: opening?.opening_title || '',
         amount_per_scholar: opening?.amount_per_scholar ?? '',
-        scholar_ids: scholars.map(s => s.scholar_id),
+        scholar_ids: filteredScholars.map(s => s.scholar_id),
       }));
     } catch (err) {
       console.error('OPENING ELIGIBILITY LOAD ERROR:', err);
@@ -194,6 +227,21 @@ export default function PayoutManagement() {
   const selectedOpeningDetails = useMemo(() => {
     return openings.find(o => o.opening_id === form.opening_id) || eligiblePayload.opening || null;
   }, [openings, form.opening_id, eligiblePayload.opening]);
+
+  const filteredEligibleScholars = useMemo(() => {
+    return filterScholarsByOpening(
+      eligiblePayload.scholars,
+      form.opening_id || selectedOpeningDetails?.opening_id
+    );
+  }, [eligiblePayload.scholars, form.opening_id, selectedOpeningDetails]);
+
+  const filteredSelectedBatchScholars = useMemo(() => {
+    if (!selectedBatch) return [];
+    return filterScholarsByOpening(
+      selectedBatch.scholars,
+      selectedBatch.opening_id
+    );
+  }, [selectedBatch]);
 
   const toggleScholar = (scholarId) => {
     setForm(prev => {
@@ -346,7 +394,7 @@ export default function PayoutManagement() {
   };
 
   const renderBatchCard = (b) => {
-    const scholars = Array.isArray(b.scholars) ? b.scholars : [];
+    const scholars = filterScholarsByOpening(b.scholars, b.opening_id);
     const released = scholars.filter(s => s.release_status === 'Released').length;
     const absent = scholars.filter(s => s.release_status === 'Absent').length;
     const onHold = scholars.filter(s => s.release_status === 'On Hold').length;
@@ -534,7 +582,7 @@ export default function PayoutManagement() {
                         <option value="">Select opening</option>
                         {openings.map((o) => (
                           <option key={o.opening_id} value={o.opening_id}>
-                            {o.opening_title} — {o.benefactor_name || o.benefactor_name || 'No Benefactor'}
+                            {o.opening_title} — {o.benefactor_name || 'No Benefactor'}
                           </option>
                         ))}
                       </select>
@@ -544,11 +592,14 @@ export default function PayoutManagement() {
                       <ReadOnlyField label="Program" value={selectedOpeningDetails?.program_name || '—'} />
                       <ReadOnlyField label="Benefactor" value={selectedOpeningDetails?.benefactor_name || '—'} />
                       <ReadOnlyField label="Opening Status" value={selectedOpeningDetails?.status || '—'} />
-                      <ReadOnlyField label="Amount per Scholar" value={
-                        form.amount_per_scholar !== ''
-                          ? `₱${Number(form.amount_per_scholar || 0).toLocaleString()}`
-                          : '—'
-                      } />
+                      <ReadOnlyField
+                        label="Amount per Scholar"
+                        value={
+                          form.amount_per_scholar !== ''
+                            ? `₱${Number(form.amount_per_scholar || 0).toLocaleString()}`
+                            : '—'
+                        }
+                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -649,12 +700,12 @@ export default function PayoutManagement() {
                   </div>
 
                   <div className="max-h-[320px] overflow-auto rounded-xl border">
-                    {eligiblePayload.scholars.length === 0 ? (
+                    {filteredEligibleScholars.length === 0 ? (
                       <div className="p-6 text-sm text-stone-400">
                         Select an opening to load eligible scholars.
                       </div>
                     ) : (
-                      eligiblePayload.scholars.map((s) => {
+                      filteredEligibleScholars.map((s) => {
                         const checked = form.scholar_ids.includes(s.scholar_id);
 
                         return (
@@ -723,14 +774,14 @@ export default function PayoutManagement() {
             </div>
 
             <div className="p-6 space-y-4">
-              {(selectedBatch.scholars || []).length === 0 ? (
+              {filteredSelectedBatchScholars.length === 0 ? (
                 <Card className="border-stone-200">
                   <CardContent className="p-6 text-sm text-stone-400">
-                    No scholars found in this payout batch.
+                    No scholars found in this payout batch for the selected opening.
                   </CardContent>
                 </Card>
               ) : (
-                selectedBatch.scholars.map((entry) => (
+                filteredSelectedBatchScholars.map((entry) => (
                   <Card key={entry.payout_entry_id} className="border-stone-200">
                     <CardContent className="p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                       <div className="min-w-0">

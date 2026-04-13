@@ -30,6 +30,13 @@ async function fetchPayoutBatches() {
                         'scholar_id', pbs.scholar_id,
                         'amount_received', pbs.amount_received,
                         'release_status', pbs.release_status,
+                        'student_id', s.student_id,
+                        'program_id', s.program_id,
+                        'application_id', s.application_id,
+                        'opening_id', a.opening_id,
+                        'batch_year', s.batch_year,
+                        'status', s.status,
+                        'pdm_id', st.pdm_id,
                         'student_name', CONCAT(st.last_name, ', ', st.first_name)
                     )
                 ) FILTER (WHERE pbs.payout_entry_id IS NOT NULL),
@@ -45,6 +52,8 @@ async function fetchPayoutBatches() {
             ON pb.payout_batch_id = pbs.payout_batch_id
         LEFT JOIN scholars s
             ON pbs.scholar_id = s.scholar_id
+        LEFT JOIN applications a
+            ON s.application_id = a.application_id
         LEFT JOIN students st
             ON s.student_id = st.student_id
 
@@ -81,19 +90,16 @@ async function fetchPayoutOpenings() {
             po.opening_id,
             po.program_id,
             po.created_at,
+            po.opening_title,
+            po.semester,
+            po.academic_year AS school_year,
+            po.per_scholar_amount AS amount_per_scholar,
+            po.posting_status AS status,
+            po.allocated_slots,
+            po.filled_slots,
 
             sp.program_name,
-            b.benefactor_name,
-
-            CONCAT(
-                COALESCE(sp.program_name, 'Program'),
-                ' Opening'
-            ) AS opening_title,
-
-            5000::numeric AS amount_per_scholar,
-            NULL::text AS semester,
-            NULL::text AS school_year,
-            'Available'::text AS status
+            b.benefactor_name
 
         FROM program_openings po
         LEFT JOIN scholarship_program sp
@@ -116,19 +122,14 @@ async function fetchEligibleScholarsByOpening(openingId) {
         SELECT
             po.opening_id,
             po.program_id,
+            po.opening_title,
+            po.semester,
+            po.academic_year AS school_year,
+            po.per_scholar_amount AS amount_per_scholar,
+            po.posting_status AS status,
 
             sp.program_name,
-            b.benefactor_name,
-
-            CONCAT(
-                COALESCE(sp.program_name, 'Program'),
-                ' Opening'
-            ) AS opening_title,
-
-            5000::numeric AS amount_per_scholar,
-            NULL::text AS semester,
-            NULL::text AS school_year,
-            'Available'::text AS status
+            b.benefactor_name
 
         FROM program_openings po
         LEFT JOIN scholarship_program sp
@@ -150,18 +151,27 @@ async function fetchEligibleScholarsByOpening(openingId) {
     const scholarQuery = `
         SELECT
             s.scholar_id,
+            s.student_id,
             s.program_id,
+            s.application_id,
             s.batch_year,
             s.status,
+            a.opening_id,
+            st.pdm_id,
             CONCAT(st.last_name, ', ', st.first_name) AS student_name
         FROM scholars s
+        INNER JOIN applications a
+            ON s.application_id = a.application_id
         INNER JOIN students st
             ON s.student_id = st.student_id
-        WHERE s.program_id = $1
+        WHERE a.opening_id = $1
+          AND a.application_status = 'Approved'
+          AND COALESCE(s.is_archived, FALSE) = FALSE
+          AND s.status = 'Active'
         ORDER BY st.last_name, st.first_name;
     `;
 
-    const scholarResult = await pool.query(scholarQuery, [opening.program_id]);
+    const scholarResult = await pool.query(scholarQuery, [openingId]);
 
     return {
         opening,
@@ -198,6 +208,10 @@ async function createPayoutBatchFromOpening({
         SELECT
             po.opening_id,
             po.program_id,
+            po.opening_title,
+            po.semester,
+            po.academic_year AS school_year,
+            po.per_scholar_amount AS amount_per_scholar,
             sp.program_name
         FROM program_openings po
         LEFT JOIN scholarship_program sp
@@ -214,7 +228,32 @@ async function createPayoutBatchFromOpening({
 
     const opening = openingResult.rows[0];
 
-    const amount = 5000; // TEMP until real amount column exists
+    const eligibleScholarQuery = `
+        SELECT
+            s.scholar_id
+        FROM scholars s
+        INNER JOIN applications a
+            ON s.application_id = a.application_id
+        WHERE a.opening_id = $1
+          AND a.application_status = 'Approved'
+          AND COALESCE(s.is_archived, FALSE) = FALSE
+          AND s.status = 'Active';
+    `;
+
+    const eligibleScholarResult = await pool.query(eligibleScholarQuery, [opening_id]);
+    const eligibleScholarIds = new Set(
+        eligibleScholarResult.rows.map((row) => row.scholar_id)
+    );
+
+    const invalidScholarIds = uniqueScholarIds.filter(
+        (id) => !eligibleScholarIds.has(id)
+    );
+
+    if (invalidScholarIds.length > 0) {
+        throw new Error('One or more selected scholars do not belong to the selected opening');
+    }
+
+    const amount = Number(opening.amount_per_scholar || 0);
     const totalAmount = amount * uniqueScholarIds.length;
 
     const client = await pool.connect();
@@ -241,9 +280,9 @@ async function createPayoutBatchFromOpening({
         `, [
             opening.opening_id,
             opening.program_id,
-            semester || null,
-            school_year || null,
-            payout_title || `${opening.program_name || 'Program'} Payout Batch`,
+            semester || opening.semester || null,
+            school_year || opening.school_year || null,
+            payout_title || opening.opening_title || `${opening.program_name || 'Program'} Payout Batch`,
             payout_date || new Date().toISOString().slice(0, 10),
             payment_mode || 'Cash',
             amount,

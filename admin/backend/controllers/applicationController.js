@@ -69,114 +69,26 @@ exports.uploadStudentDocument = async (req, res) => {
     }
 };
 
-exports.saveApplicationVerification = async (applicationId, payload, user) => {
-    const {
-        document_reviews = [],
-        summary = {},
-        final_comment = '',
-        verification_status = null,
-    } = payload || {};
+exports.saveApplicationVerification = async (req, res) => {
+    const { id } = req.params;
 
-    if (!Array.isArray(document_reviews)) {
-        throw new Error('document_reviews must be an array');
-    }
-
-    const reviewedBy = user?.userId || user?.user_id || null;
-    const reviewedAt = new Date().toISOString();
-
-    const reviewRows = document_reviews.map((doc) => ({
-        application_id: applicationId,
-        document_key: doc.document_key || doc.document_id || doc.id,
-        document_name: doc.name,
-        review_status: doc.status || 'pending',
-        admin_comment: doc.comment || '',
-        file_url: doc.url || null,
-        reviewed_by: reviewedBy,
-        reviewed_at: reviewedAt,
-        updated_at: reviewedAt,
-    }));
-
-    if (reviewRows.length > 0) {
-        const { error: reviewError } = await supabase
-            .from('application_document_reviews')
-            .upsert(reviewRows, {
-                onConflict: 'application_id,document_key',
-            });
-
-        if (reviewError) {
-            console.error('Supabase Review Upsert Error:', reviewError);
-            throw new Error(reviewError.message);
-        }
-    }
-
-    for (const doc of document_reviews) {
-        const normalizedDocumentType = normalizeDocumentType(
-            doc.document_key || doc.document_type || doc.id || doc.name
+    try {
+        const data = await applicationService.saveApplicationVerification(
+            id,
+            req.body,
+            req.user
         );
 
-        if (normalizedDocumentType === 'application_form') {
-            continue;
-        }
-
-        const documentTypeName =
-            DOCUMENT_TYPE_TO_NAME[normalizedDocumentType] || doc.document_type || doc.name;
-
-        if (!documentTypeName) continue;
-
-        const { error: submittedDocumentError } = await supabase
-            .from('application_documents')
-            .update({
-                is_submitted: !!doc.url,
-                file_url: doc.url || null,
-                submitted_at: doc.url ? reviewedAt : null,
-                notes: doc.comment || null,
-            })
-            .eq('application_id', applicationId)
-            .eq('document_type', documentTypeName);
-
-        if (submittedDocumentError) {
-            console.error(
-                'Supabase Submitted Document Update Error:',
-                submittedDocumentError
-            );
-            throw new Error(submittedDocumentError.message);
-        }
+        res.status(200).json({
+            message: 'Verification saved successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
+        res.status(500).json({
+            error: err.message || 'Failed to save verification',
+        });
     }
-
-    const nextDocumentStatus = deriveAggregateDocumentStatus(summary);
-
-    const applicationUpdatePayload = {
-        document_status: nextDocumentStatus,
-    };
-
-    if (verification_status === 'rejected') {
-        applicationUpdatePayload.application_status = 'Requires_Reupload';
-    }
-
-    const { data: updatedApplication, error: applicationUpdateError } = await supabase
-        .from('applications')
-        .update(applicationUpdatePayload)
-        .eq('application_id', applicationId)
-        .select()
-        .single();
-
-    if (applicationUpdateError) {
-        console.error('Supabase Application Update Error:', applicationUpdateError);
-        throw new Error(applicationUpdateError.message);
-    }
-
-    return {
-        application: updatedApplication,
-        summary: {
-            verified: Number(summary?.verified || 0),
-            uploaded: Number(summary?.uploaded || 0),
-            flagged: Number(summary?.flagged || 0),
-            reupload: Number(summary?.reupload || 0),
-            pending: Number(summary?.pending || 0),
-            progress: Number(summary?.progress || 0),
-        },
-        final_comment,
-    };
 };
 
 exports.assignApplicationProgram = async (req, res) => {

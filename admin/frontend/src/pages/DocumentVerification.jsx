@@ -80,9 +80,9 @@ const REQUIRED_DOCUMENTS = [
     aliases: ['certificate of indigency', 'indigency'],
   },
   {
-    id: 'letter_of_intent',
-    name: 'Letter of Intent',
-    aliases: ['letter of intent', 'intent letter', 'loi'],
+    id: 'letter_of_request',
+    name: 'Letter of Request',
+    aliases: ['letter of request', 'request letter', 'lor'],
   },
   {
     id: 'application_form',
@@ -257,12 +257,12 @@ function buildExtractedData(activeDoc, application) {
         },
       ];
 
-    case 'letter_of_intent':
+    case 'letter_of_request':
       return [
         ...base,
-        { label: 'Document Type', value: 'Letter of Intent', verified: true },
+        { label: 'Document Type', value: 'Letter of Request', verified: true },
         {
-          label: 'Intent Letter',
+          label: 'Request Letter',
           value: activeDoc.url ? 'Detected and ready for admin review' : 'No uploaded file detected',
           verified: !!activeDoc.url,
         },
@@ -396,21 +396,52 @@ function ApplicationFormPreview({ application }) {
   );
 }
 
+function getFileType(document = {}) {
+  const raw = (
+    document?.file_name ||
+    document?.url ||
+    document?.file_path ||
+    ''
+  ).toLowerCase();
+
+  if (
+    raw.endsWith('.png') ||
+    raw.endsWith('.jpg') ||
+    raw.endsWith('.jpeg') ||
+    raw.endsWith('.webp') ||
+    raw.endsWith('.gif')
+  ) {
+    return 'image';
+  }
+
+  if (raw.endsWith('.pdf')) {
+    return 'pdf';
+  }
+
+  return 'other';
+}
+
 function DocumentPreviewPanel({ activeDoc, application }) {
+  const fileType = getFileType(activeDoc);
+
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-stone-500" />
           <div>
-            <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
+            <h4 className="text-sm font-semibold text-stone-800">
+              {activeDoc?.name || 'Document'}
+            </h4>
             <p className="text-[11px] text-stone-400">
-              {activeDoc.id === 'application_form' ? 'Submitted text-based form' : 'Uploaded by student'}
+              {activeDoc?.id === 'application_form'
+                ? 'Submitted text-based form'
+                : 'Uploaded by student'}
             </p>
           </div>
         </div>
 
-        {activeDoc.url && activeDoc.id !== 'application_form' && (
+        {activeDoc?.url && activeDoc?.id !== 'application_form' && (
           <a
             href={activeDoc.url}
             target="_blank"
@@ -424,21 +455,47 @@ function DocumentPreviewPanel({ activeDoc, application }) {
       </div>
 
       <div className="p-4 min-h-[520px] flex items-center justify-center bg-stone-50/20">
-        {activeDoc.id === 'application_form' ? (
+        {activeDoc?.id === 'application_form' ? (
           <ApplicationFormPreview application={application} />
-        ) : activeDoc.url ? (
-          <iframe
-            src={activeDoc.url}
-            title={activeDoc.name}
-            className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
-          />
+        ) : activeDoc?.url ? (
+          fileType === 'image' ? (
+            <div className="w-full h-[520px] flex items-center justify-center rounded-lg border border-stone-200 bg-white overflow-auto">
+              <img
+                src={activeDoc.url}
+                alt={activeDoc.name}
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          ) : fileType === 'pdf' ? (
+            <object
+              data={activeDoc.url}
+              type="application/pdf"
+              className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
+            >
+              <iframe
+                src={activeDoc.url}
+                title={activeDoc.name}
+                className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
+              />
+            </object>
+          ) : (
+            <iframe
+              src={activeDoc.url}
+              title={activeDoc.name}
+              className="w-full h-[520px] rounded-lg border border-stone-200 bg-white"
+            />
+          )
         ) : (
           <div className="w-full max-w-sm bg-white rounded-xl p-8 text-center border border-stone-100 shadow-sm">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
               <FileText className="w-6 h-6 text-blue-500" />
             </div>
-            <h4 className="text-sm font-semibold text-stone-800">{activeDoc.name}</h4>
-            <p className="text-xs text-stone-400 mt-1">No file uploaded by student yet.</p>
+            <h4 className="text-sm font-semibold text-stone-800">
+              {activeDoc?.name || 'Document'}
+            </h4>
+            <p className="text-xs text-stone-400 mt-1">
+              No file uploaded by student yet.
+            </p>
           </div>
         )}
       </div>
@@ -975,8 +1032,8 @@ export default function DocumentVerification() {
                   key={d.id}
                   onClick={() => setDoc(d.id)}
                   className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${doc === d.id
-                      ? 'border-blue-800 text-blue-900 bg-white'
-                      : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
+                    ? 'border-blue-800 text-blue-900 bg-white'
+                    : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
                     }`}
                 >
                   {d.name}

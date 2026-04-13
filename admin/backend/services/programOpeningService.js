@@ -31,12 +31,32 @@ function derivePostingStatus(opening, counts = {}) {
     const hasRequiredFields =
         !!opening.opening_title &&
         !!opening.program_id &&
+        !!opening.period_id &&
         allocatedSlots > 0;
 
     if (!hasRequiredFields) return 'draft';
     if (filledSlots >= allocatedSlots && allocatedSlots > 0) return 'filled';
 
     return 'open';
+}
+
+async function resolveAcademicYearIdFromPeriod(periodId) {
+    const { data, error } = await supabase
+        .from('academic_period')
+        .select('academic_year_id')
+        .eq('period_id', periodId)
+        .single();
+
+    if (error) {
+        console.error('RESOLVE ACADEMIC YEAR FROM PERIOD ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    if (!data?.academic_year_id) {
+        throw new Error('Invalid academic period');
+    }
+
+    return data.academic_year_id;
 }
 
 function mapOpening(opening, counts = {}) {
@@ -53,6 +73,8 @@ function mapOpening(opening, counts = {}) {
 
     const program = opening.scholarship_program || null;
     const benefactor = program?.benefactors || null;
+    const academicYear = opening.academic_years || null;
+    const period = opening.academic_period || null;
 
     return {
         opening_id: opening.opening_id,
@@ -78,8 +100,12 @@ function mapOpening(opening, counts = {}) {
         program_is_archived: program?.is_archived ?? false,
         benefactor_is_archived: benefactor?.is_archived ?? false,
 
-        semester: opening.semester || null,
-        academic_year: opening.academic_year || null,
+        academic_year_id: opening.academic_year_id || academicYear?.academic_year_id || null,
+        period_id: opening.period_id || period?.period_id || null,
+        academic_year: academicYear?.label || null,
+        semester: period?.term || null,
+        academic_year_label: academicYear?.label || null,
+        period_term: period?.term || null,
 
         allocated_slots: allocatedSlots,
         filled_slots: effectiveFilledSlots,
@@ -173,8 +199,8 @@ function baseOpeningSelectQuery() {
             program_id,
             opening_title,
             announcement_text,
-            semester,
-            academic_year,
+            academic_year_id,
+            period_id,
             allocated_slots,
             filled_slots,
             financial_allocation,
@@ -183,6 +209,16 @@ function baseOpeningSelectQuery() {
             created_at,
             updated_at,
             is_archived,
+            academic_years (
+                academic_year_id,
+                label
+            ),
+            academic_period (
+                period_id,
+                academic_year_id,
+                term,
+                is_active
+            ),
             scholarship_program (
                 program_id,
                 benefactor_id,
@@ -358,8 +394,8 @@ exports.createProgramOpening = async (payload = {}) => {
         program_id,
         opening_title,
         announcement_text,
-        semester,
-        academic_year,
+        period_id,
+        academic_year_id,
         allocated_slots,
         filled_slots = 0,
         financial_allocation,
@@ -367,21 +403,9 @@ exports.createProgramOpening = async (payload = {}) => {
         posting_status,
     } = payload;
 
-    if (!program_id) {
-        throw new Error('Program ID is required');
-    }
-
-    if (!opening_title || !String(opening_title).trim()) {
-        throw new Error('Opening title is required');
-    }
-
-    if (!semester || !String(semester).trim()) {
-        throw new Error('Semester is required');
-    }
-
-    if (!academic_year || !String(academic_year).trim()) {
-        throw new Error('Academic year is required');
-    }
+    if (!program_id) throw new Error('Program ID is required');
+    if (!opening_title || !String(opening_title).trim()) throw new Error('Opening title is required');
+    if (!period_id) throw new Error('Academic period is required');
 
     if (toRequiredNumber(allocated_slots, 0) <= 0) {
         throw new Error('Allocated slots must be greater than 0');
@@ -391,12 +415,15 @@ exports.createProgramOpening = async (payload = {}) => {
         throw new Error('Filled slots cannot be greater than allocated slots');
     }
 
+    const resolvedAcademicYearId =
+        academic_year_id || (await resolveAcademicYearIdFromPeriod(period_id));
+
     const insertData = {
         program_id,
         opening_title: String(opening_title).trim(),
         announcement_text: announcement_text ? String(announcement_text).trim() : null,
-        semester: semester || null,
-        academic_year: academic_year || null,
+        period_id,
+        academic_year_id: resolvedAcademicYearId,
         allocated_slots: toRequiredNumber(allocated_slots, 0),
         filled_slots: toRequiredNumber(filled_slots, 0),
         financial_allocation: toNullableNumber(financial_allocation),
@@ -417,8 +444,8 @@ exports.createProgramOpening = async (payload = {}) => {
             program_id,
             opening_title,
             announcement_text,
-            semester,
-            academic_year,
+            academic_year_id,
+            period_id,
             allocated_slots,
             filled_slots,
             financial_allocation,
@@ -427,6 +454,16 @@ exports.createProgramOpening = async (payload = {}) => {
             created_at,
             updated_at,
             is_archived,
+            academic_years (
+                academic_year_id,
+                label
+            ),
+            academic_period (
+                period_id,
+                academic_year_id,
+                term,
+                is_active
+            ),
             scholarship_program (
                 program_id,
                 benefactor_id,
@@ -476,8 +513,8 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         program_id: payload.program_id ?? existing.program_id,
         opening_title: payload.opening_title ?? existing.opening_title,
         announcement_text: payload.announcement_text ?? existing.announcement_text,
-        semester: payload.semester ?? existing.semester,
-        academic_year: payload.academic_year ?? existing.academic_year,
+        period_id: payload.period_id ?? existing.period_id,
+        academic_year_id: payload.academic_year_id ?? existing.academic_year_id,
         allocated_slots: payload.allocated_slots ?? existing.allocated_slots,
         filled_slots: payload.filled_slots ?? existing.filled_slots ?? 0,
         financial_allocation: payload.financial_allocation ?? existing.financial_allocation,
@@ -485,13 +522,12 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         posting_status: payload.posting_status ?? existing.posting_status,
     };
 
-    if (!merged.program_id) {
-        throw new Error('Program ID is required');
-    }
+    if (!merged.program_id) throw new Error('Program ID is required');
+    if (!merged.opening_title || !String(merged.opening_title).trim()) throw new Error('Opening title is required');
+    if (!merged.period_id) throw new Error('Academic period is required');
 
-    if (!merged.opening_title || !String(merged.opening_title).trim()) {
-        throw new Error('Opening title is required');
-    }
+    const resolvedAcademicYearId =
+        merged.academic_year_id || (await resolveAcademicYearIdFromPeriod(merged.period_id));
 
     const updateData = {
         program_id: merged.program_id,
@@ -499,8 +535,8 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         announcement_text: merged.announcement_text
             ? String(merged.announcement_text).trim()
             : null,
-        semester: merged.semester || null,
-        academic_year: merged.academic_year || null,
+        period_id: merged.period_id,
+        academic_year_id: resolvedAcademicYearId,
         allocated_slots: toRequiredNumber(merged.allocated_slots, 0),
         filled_slots: toRequiredNumber(merged.filled_slots, 0),
         financial_allocation: toNullableNumber(merged.financial_allocation),
@@ -523,8 +559,8 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
             program_id,
             opening_title,
             announcement_text,
-            semester,
-            academic_year,
+            academic_year_id,
+            period_id,
             allocated_slots,
             filled_slots,
             financial_allocation,
@@ -533,6 +569,16 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
             created_at,
             updated_at,
             is_archived,
+            academic_years (
+                academic_year_id,
+                label
+            ),
+            academic_period (
+                period_id,
+                academic_year_id,
+                term,
+                is_active
+            ),
             scholarship_program (
                 program_id,
                 benefactor_id,
@@ -584,8 +630,8 @@ exports.closeProgramOpening = async (openingId) => {
             program_id,
             opening_title,
             announcement_text,
-            semester,
-            academic_year,
+            academic_year_id,
+            period_id,
             allocated_slots,
             filled_slots,
             financial_allocation,
@@ -594,6 +640,16 @@ exports.closeProgramOpening = async (openingId) => {
             created_at,
             updated_at,
             is_archived,
+            academic_years (
+                academic_year_id,
+                label
+            ),
+            academic_period (
+                period_id,
+                academic_year_id,
+                term,
+                is_active
+            ),
             scholarship_program (
                 program_id,
                 benefactor_id,

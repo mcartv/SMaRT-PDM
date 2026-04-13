@@ -98,6 +98,12 @@ function targetAudienceLabel(value) {
     return normalized || 'Applicants';
 }
 
+function formatPeriodLabel(period) {
+    const year = period?.academic_year_label || period?.academic_year || '';
+    const term = period?.term || period?.semester || '';
+    return [year, term].filter(Boolean).join(' · ');
+}
+
 function deriveOpeningStatus(payload, existingStatus = '') {
     const normalizedExisting = String(existingStatus || '').toLowerCase();
 
@@ -107,8 +113,8 @@ function deriveOpeningStatus(payload, existingStatus = '') {
     const hasRequiredFields =
         !!payload.opening_title &&
         !!payload.program_id &&
-        !!payload.semester &&
-        !!payload.academic_year &&
+        !!payload.period_id &&
+        !!payload.academic_year_id &&
         Number(payload.allocated_slots || 0) > 0;
 
     if (!hasRequiredFields) return 'draft';
@@ -158,6 +164,7 @@ function OpeningModal({
     form,
     setForm,
     template,
+    periods,
     onClose,
     onSave,
     saving,
@@ -182,6 +189,8 @@ function OpeningModal({
             : audienceLabel === 'Scholars'
                 ? 'Visible only to existing scholars'
                 : 'Visible only to new applicants';
+
+    const selectedPeriod = periods.find((p) => p.period_id === form.period_id) || null;
 
     return (
         <div
@@ -302,19 +311,36 @@ function OpeningModal({
 
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Semester
+                                    Academic Period
                                 </label>
                                 <Select
-                                    value={form.semester}
-                                    onValueChange={(value) => setForm((prev) => ({ ...prev, semester: value }))}
+                                    value={form.period_id}
+                                    onValueChange={(value) => {
+                                        const selected = periods.find((p) => p.period_id === value);
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            period_id: value,
+                                            academic_year_id: selected?.academic_year_id || '',
+                                            academic_year: selected?.academic_year_label || '',
+                                            semester: selected?.term || '',
+                                        }));
+                                    }}
                                 >
                                     <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
-                                        <SelectValue placeholder="Select semester" />
+                                        <SelectValue placeholder="Select academic period" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="1st Semester">1st Semester</SelectItem>
-                                        <SelectItem value="2nd Semester">2nd Semester</SelectItem>
-                                        <SelectItem value="Summer">Summer</SelectItem>
+                                        {periods.length === 0 ? (
+                                            <SelectItem value="NO_PERIOD" disabled>
+                                                No academic periods available
+                                            </SelectItem>
+                                        ) : (
+                                            periods.map((period) => (
+                                                <SelectItem key={period.period_id} value={period.period_id}>
+                                                    {formatPeriodLabel(period)}
+                                                </SelectItem>
+                                            ))
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -324,10 +350,10 @@ function OpeningModal({
                                     Academic Year
                                 </label>
                                 <Input
-                                    value={form.academic_year}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, academic_year: e.target.value }))}
-                                    placeholder="e.g. 2026-2027"
-                                    className="h-10 rounded-lg border-stone-200 text-sm"
+                                    value={selectedPeriod?.academic_year_label || form.academic_year || ''}
+                                    readOnly
+                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
+                                    style={{ color: C.brownMid }}
                                 />
                             </div>
                         </div>
@@ -418,8 +444,8 @@ function OpeningModal({
                         disabled={
                             saving ||
                             !form.opening_title ||
-                            !form.semester ||
-                            !form.academic_year ||
+                            !form.period_id ||
+                            !form.academic_year_id ||
                             !form.program_id
                         }
                         className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
@@ -491,6 +517,7 @@ export default function ScholarshipOpenings() {
 
     const [templates, setTemplates] = useState([]);
     const [openings, setOpenings] = useState([]);
+    const [periods, setPeriods] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -510,8 +537,10 @@ export default function ScholarshipOpenings() {
     const emptyForm = {
         program_id: '',
         opening_title: '',
-        semester: '',
+        period_id: '',
+        academic_year_id: '',
         academic_year: '',
+        semester: '',
         allocated_slots: '',
         filled_slots_preview: 0,
         financial_allocation: '',
@@ -526,7 +555,7 @@ export default function ScholarshipOpenings() {
         try {
             setLoading(true);
 
-            const [templatesRes, openingsRes] = await Promise.all([
+            const [templatesRes, openingsRes, periodsRes] = await Promise.all([
                 fetch('http://localhost:5000/api/scholarship-program', {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
@@ -539,13 +568,23 @@ export default function ScholarshipOpenings() {
                         'Content-Type': 'application/json',
                     },
                 }),
+                fetch('http://localhost:5000/api/academic-periods', {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        'Content-Type': 'application/json',
+                    },
+                }),
             ]);
 
             if (!templatesRes.ok) throw new Error('Failed to load scholarship program templates');
             if (!openingsRes.ok) throw new Error('Failed to load scholarship openings');
+            if (!periodsRes.ok) throw new Error('Failed to load academic periods');
 
             const templatesData = await templatesRes.json();
             const openingsData = await openingsRes.json();
+            const periodsData = await periodsRes.json();
+
+            setPeriods(Array.isArray(periodsData) ? periodsData : []);
 
             setTemplates(
                 Array.isArray(templatesData)
@@ -660,8 +699,10 @@ export default function ScholarshipOpenings() {
             setForm({
                 program_id: existingDraft.program_id || template.program_id,
                 opening_title: existingDraft.opening_title || `${template.program_name} ${currentYear}-${currentYear + 1}`,
+                period_id: existingDraft.period_id || '',
+                academic_year_id: existingDraft.academic_year_id || '',
+                academic_year: existingDraft.academic_year || '',
                 semester: existingDraft.semester || '',
-                academic_year: existingDraft.academic_year || `${currentYear}-${currentYear + 1}`,
                 allocated_slots: existingDraft.allocated_slots ?? '',
                 filled_slots_preview: existingDraft.qualified_count ?? existingDraft.filled_slots ?? 0,
                 financial_allocation: existingDraft.financial_allocation ?? '',
@@ -679,8 +720,10 @@ export default function ScholarshipOpenings() {
         setForm({
             program_id: template.program_id,
             opening_title: `${template.program_name} ${currentYear}-${currentYear + 1}`,
+            period_id: '',
+            academic_year_id: '',
+            academic_year: '',
             semester: '',
-            academic_year: `${currentYear}-${currentYear + 1}`,
             allocated_slots: '',
             filled_slots_preview: 0,
             financial_allocation: '',
@@ -701,8 +744,10 @@ export default function ScholarshipOpenings() {
         setForm({
             program_id: opening.program_id || '',
             opening_title: opening.opening_title || '',
-            semester: opening.semester || '',
+            period_id: opening.period_id || '',
+            academic_year_id: opening.academic_year_id || '',
             academic_year: opening.academic_year || '',
+            semester: opening.semester || '',
             allocated_slots: opening.allocated_slots ?? '',
             filled_slots_preview: opening.qualified_count ?? opening.filled_slots ?? 0,
             financial_allocation: opening.financial_allocation ?? '',
@@ -726,13 +771,8 @@ export default function ScholarshipOpenings() {
                 return;
             }
 
-            if (!form.semester) {
-                alert('Semester is required.');
-                return;
-            }
-
-            if (!form.academic_year?.trim()) {
-                alert('Academic year is required.');
+            if (!form.period_id) {
+                alert('Academic period is required.');
                 return;
             }
 
@@ -748,8 +788,8 @@ export default function ScholarshipOpenings() {
             const payload = {
                 program_id: form.program_id,
                 opening_title: form.opening_title.trim(),
-                semester: form.semester,
-                academic_year: form.academic_year.trim(),
+                period_id: form.period_id,
+                academic_year_id: form.academic_year_id || null,
                 allocated_slots: allocatedSlots,
                 financial_allocation: financialAllocation,
                 per_scholar_amount: perScholarAmount,
@@ -837,6 +877,8 @@ export default function ScholarshipOpenings() {
             program_id: newOpeningForPrompt.program_id || '',
             semester: newOpeningForPrompt.semester || '',
             academic_year: newOpeningForPrompt.academic_year || '',
+            period_id: newOpeningForPrompt.period_id || '',
+            academic_year_id: newOpeningForPrompt.academic_year_id || '',
             target_audience: normalizeAudience(newOpeningForPrompt.target_audience) || deriveTargetAudience(newOpeningForPrompt),
         });
 
@@ -862,6 +904,7 @@ export default function ScholarshipOpenings() {
                 form={form}
                 setForm={setForm}
                 template={activeTemplate}
+                periods={periods}
                 onClose={() => {
                     setModalOpen(false);
                     setActiveTemplate(null);
@@ -886,7 +929,7 @@ export default function ScholarshipOpenings() {
                 <div>
                     <h1 className="text-xl font-semibold text-stone-900">Scholarship Openings</h1>
                     <p className="text-sm text-stone-500">
-                        Open scholarship programs for a new semester and academic year.
+                        Open scholarship programs for a new academic period.
                     </p>
                 </div>
 
@@ -999,7 +1042,7 @@ export default function ScholarshipOpenings() {
                 <div className="relative flex-1 min-w-[240px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
                     <Input
-                        placeholder="Search by opening title, program, benefactor, semester, or academic year..."
+                        placeholder="Search by opening title, program, benefactor, period, or academic year..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"

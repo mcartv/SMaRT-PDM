@@ -6,10 +6,10 @@ function sendError(res, err, fallbackMessage) {
     const validationMessages = [
         'Program ID is required',
         'Opening title is required',
-        'Semester is required',
-        'Academic year is required',
+        'Academic period is required',
         'Allocated slots must be greater than 0',
         'Filled slots cannot be greater than allocated slots',
+        'Invalid academic period',
     ];
 
     if (validationMessages.includes(message)) {

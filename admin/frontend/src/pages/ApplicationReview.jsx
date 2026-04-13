@@ -50,6 +50,35 @@ function formatDate(value) {
   });
 }
 
+function normalizeStatus(value = '') {
+  return String(value).trim().toLowerCase();
+}
+
+function isApprovedStatus(status = '') {
+  const normalized = normalizeStatus(status);
+  return ['approved', 'qualified', 'accepted'].includes(normalized);
+}
+
+function isRejectedStatus(status = '') {
+  const normalized = normalizeStatus(status);
+  return ['rejected', 'disqualified', 'declined'].includes(normalized);
+}
+
+function isReviewStatus(status = '') {
+  const normalized = normalizeStatus(status);
+  return ['review', 'under review', 'for review', 'interview'].includes(normalized);
+}
+
+function isPendingStatus(status = '') {
+  const normalized = normalizeStatus(status);
+  return ['pending', 'pending review'].includes(normalized);
+}
+
+function isActiveApplicantStatus(status = '') {
+  const normalized = normalizeStatus(status);
+  return !isApprovedStatus(normalized) && !isRejectedStatus(normalized);
+}
+
 function getComputedFilledSlots(opening) {
   const qualifiedCount =
     opening?.qualified_count !== undefined && opening?.qualified_count !== null
@@ -79,7 +108,7 @@ function getComputedRemainingSlots(opening) {
 }
 
 function getOpeningStatusMeta(opening) {
-  const raw = (opening?.posting_status || opening?.status || '').toLowerCase();
+  const raw = normalizeStatus(opening?.posting_status || opening?.status || '');
   const remainingSlots = getComputedRemainingSlots(opening);
 
   if (raw === 'draft') {
@@ -102,17 +131,17 @@ function getOpeningStatusMeta(opening) {
 }
 
 function getApplicationStatusMeta(row) {
-  const raw = (row?.application_status || row?.status || '').toLowerCase();
+  const raw = normalizeStatus(row?.application_status || row?.status || '');
 
-  if (['qualified', 'approved', 'accepted'].includes(raw)) {
+  if (isApprovedStatus(raw)) {
     return { label: 'Qualified', bg: C.greenSoft, color: C.green };
   }
 
-  if (['disqualified', 'rejected', 'declined'].includes(raw)) {
+  if (isRejectedStatus(raw)) {
     return { label: 'Disqualified', bg: C.redSoft, color: C.red };
   }
 
-  if (['review', 'under review', 'for review'].includes(raw)) {
+  if (isReviewStatus(raw)) {
     return { label: 'Under Review', bg: C.blueSoft, color: C.blueMid };
   }
 
@@ -128,7 +157,7 @@ function getApplicationStatusMeta(row) {
 }
 
 function getDocumentStatusMeta(row) {
-  const raw = (row?.document_status || '').toLowerCase();
+  const raw = normalizeStatus(row?.document_status || '');
 
   if (['documents ready', 'verified', 'complete'].includes(raw)) {
     return { label: 'Documents Ready', bg: C.greenSoft, color: C.green };
@@ -279,6 +308,39 @@ export default function ApplicationReview() {
     setPage(1);
   }, [search, viewType]);
 
+  const openingCountsMap = useMemo(() => {
+    const counts = new Map();
+
+    registryRows.forEach((row) => {
+      const openingId = row.opening_id;
+      if (!openingId) return;
+
+      const current = counts.get(openingId) || {
+        applicants: 0,
+        pending: 0,
+        review: 0,
+      };
+
+      const status = row.application_status || '';
+
+      if (isActiveApplicantStatus(status)) {
+        current.applicants += 1;
+      }
+
+      if (isPendingStatus(status)) {
+        current.pending += 1;
+      }
+
+      if (isReviewStatus(status)) {
+        current.review += 1;
+      }
+
+      counts.set(openingId, current);
+    });
+
+    return counts;
+  }, [registryRows]);
+
   const filteredOpenings = useMemo(() => {
     const q = search.trim().toLowerCase();
 
@@ -324,7 +386,9 @@ export default function ApplicationReview() {
     const totalOpenings = openings.length;
     const openCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Open').length;
     const filledCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Filled').length;
-    const totalApplicants = registryRows.length;
+    const totalApplicants = registryRows.filter((row) =>
+      isActiveApplicantStatus(row.application_status)
+    ).length;
 
     return [
       {
@@ -502,10 +566,17 @@ export default function ApplicationReview() {
               const statusMeta = getOpeningStatusMeta(opening);
               const allocatedSlots = Number(opening.allocated_slots || opening.slot_count || 0);
               const filledSlots = getComputedFilledSlots(opening);
-              const applicationCount = Number(opening.application_count || 0);
-              const pendingCount = Number(opening.pending_count || 0);
-              const reviewCount = Number(opening.review_count || 0);
               const remainingSlots = Math.max(0, allocatedSlots - filledSlots);
+
+              const openingCounts = openingCountsMap.get(opening.opening_id) || {
+                applicants: 0,
+                pending: 0,
+                review: 0,
+              };
+
+              const applicationCount = openingCounts.applicants;
+              const pendingCount = openingCounts.pending;
+              const reviewCount = openingCounts.review;
 
               return (
                 <Card

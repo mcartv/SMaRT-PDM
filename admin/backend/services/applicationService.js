@@ -23,9 +23,9 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
         aliases: ['certificate of indigency', 'indigency'],
     },
     {
-        id: 'letter_of_intent',
-        name: 'Letter of Intent',
-        aliases: ['letter of intent', 'intent letter', 'loi'],
+        id: 'letter_of_request',
+        name: 'Letter of Request',
+        aliases: ['letter of request', 'request letter', 'lor'],
     },
     {
         id: 'application_form',
@@ -48,8 +48,9 @@ const DOCUMENT_TYPE_ALIASES = {
     certificate_of_indigency: 'certificate_of_indigency',
     indigency: 'certificate_of_indigency',
 
-    loi: 'letter_of_intent',
-    letter_of_intent: 'letter_of_intent',
+    lor: 'letter_of_request',
+    letter_of_request: 'letter_of_request',
+    request_letter: 'letter_of_request',
 
     application_form: 'application_form',
     application: 'application_form',
@@ -59,7 +60,7 @@ const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_registration: 'Certificate of Registration',
     student_grade_forms: 'Grade Form',
     certificate_of_indigency: 'Certificate of Indigency',
-    letter_of_intent: 'Letter of Intent',
+    letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
 };
 
@@ -175,6 +176,17 @@ function ensureDocumentCoverage(normalizedDocuments = []) {
     );
 
     return [...requiredDocuments, ...extraDocuments];
+}
+
+function resolveStorageContentType(fileExt, fallbackMime = '') {
+    const normalizedExt = (fileExt || '').toLowerCase();
+
+    if (normalizedExt === '.pdf') return 'application/pdf';
+    if (normalizedExt === '.jpg' || normalizedExt === '.jpeg') return 'image/jpeg';
+    if (normalizedExt === '.png') return 'image/png';
+    if (normalizedExt === '.webp') return 'image/webp';
+
+    return fallbackMime || 'application/octet-stream';
 }
 
 async function getSignedFileUrl(filePath) {
@@ -633,11 +645,12 @@ exports.uploadStudentApplicationDocument = async ({
     const now = new Date().toISOString();
     const storageFileName = `${normalizedDocumentType}${fileExt}`;
     const storagePath = `applications/${applicationId}/${storageFileName}`;
+    const resolvedContentType = resolveStorageContentType(fileExt, file.mimetype);
 
     const { error: uploadError } = await supabase.storage
         .from(STORAGE_BUCKET)
         .upload(storagePath, file.buffer, {
-            contentType: file.mimetype,
+            contentType: resolvedContentType,
             upsert: true,
         });
 
@@ -805,8 +818,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             .from('application_documents')
             .update({
                 is_submitted: !!doc.url,
-                file_url: null,
-                submitted_at: doc.url ? reviewedAt : null,
+                file_url: doc.url || null,
                 notes: doc.comment || null,
             })
             .eq('application_id', applicationId)
@@ -828,7 +840,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
     };
 
     if (verification_status === 'rejected') {
-        applicationUpdatePayload.application_status = 'Requires_Reupload';
+        applicationUpdatePayload.application_status = 'Rejected';
     }
 
     const { data: updatedApplication, error: applicationUpdateError } = await supabase
@@ -861,7 +873,7 @@ exports.markApplicationReviewed = async (applicationId) => {
     const { data, error } = await supabase
         .from('applications')
         .update({
-            application_status: 'Review',
+            application_status: 'Pending Review',
         })
         .eq('application_id', applicationId)
         .select()
@@ -939,14 +951,17 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         const applicationQuery = `
             SELECT
                 a.application_id,
+                a.student_id,
+                a.program_id,
                 a.opening_id,
                 a.application_status,
+                a.submission_date,
                 po.allocated_slots,
                 po.filled_slots,
                 po.posting_status,
                 COUNT(a2.application_id) FILTER (
-                    WHERE LOWER(COALESCE(a2.application_status, '')) = 'qualified'
-                )::int AS qualified_count
+                    WHERE LOWER(COALESCE(a2.application_status, '')) = 'approved'
+                )::int AS approved_count
             FROM applications a
             INNER JOIN program_openings po
                 ON po.opening_id = a.opening_id
@@ -955,8 +970,11 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             WHERE a.application_id = $1
             GROUP BY
                 a.application_id,
+                a.student_id,
+                a.program_id,
                 a.opening_id,
                 a.application_status,
+                a.submission_date,
                 po.allocated_slots,
                 po.filled_slots,
                 po.posting_status
@@ -970,36 +988,48 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
         const row = applicationResult.rows[0];
         const slotCount = Number(row.allocated_slots || 0);
-        const qualifiedCount = Number(row.qualified_count || 0);
+        const approvedCount = Number(row.approved_count || 0);
         const openingStatus = (row.posting_status || '').toLowerCase();
         const currentApplicationStatus = (row.application_status || '').toLowerCase();
 
-        if (currentApplicationStatus === 'qualified') {
-            const existingResult = await client.query(
+        if (!row.student_id || !row.program_id) {
+            throw new Error('Application is missing student_id or program_id');
+        }
+
+        const existingScholarResult = await client.query(
+            `
+            SELECT scholar_id
+            FROM scholars
+            WHERE application_id = $1
+               OR student_id = $2
+            LIMIT 1
+            `,
+            [applicationId, row.student_id]
+        );
+
+        if (existingScholarResult.rows.length > 0) {
+            const existingApplicationResult = await client.query(
                 `SELECT * FROM applications WHERE application_id = $1`,
                 [applicationId]
             );
             await client.query('COMMIT');
-            return existingResult.rows[0];
+            return existingApplicationResult.rows[0];
+        }
+
+        if (currentApplicationStatus === 'approved') {
+            const existingApplicationResult = await client.query(
+                `SELECT * FROM applications WHERE application_id = $1`,
+                [applicationId]
+            );
+            await client.query('COMMIT');
+            return existingApplicationResult.rows[0];
         }
 
         if (openingStatus === 'closed' || openingStatus === 'filled') {
-            const waitingResult = await client.query(
-                `
-                UPDATE applications
-                SET application_status = 'Waiting',
-                    is_reconsideration_candidate = TRUE
-                WHERE application_id = $1
-                RETURNING *
-                `,
-                [applicationId]
-            );
-
-            await client.query('COMMIT');
-            return waitingResult.rows[0];
+            throw new Error('This opening is already closed or filled.');
         }
 
-        if (slotCount > 0 && qualifiedCount >= slotCount) {
+        if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
                 `
                 UPDATE program_openings
@@ -1010,25 +1040,13 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 [row.opening_id]
             );
 
-            const waitingResult = await client.query(
-                `
-                UPDATE applications
-                SET application_status = 'Waiting',
-                    is_reconsideration_candidate = TRUE
-                WHERE application_id = $1
-                RETURNING *
-                `,
-                [applicationId]
-            );
-
-            await client.query('COMMIT');
-            return waitingResult.rows[0];
+            throw new Error('No available slots left for this opening.');
         }
 
         const updateApplicationResult = await client.query(
             `
             UPDATE applications
-            SET application_status = 'Qualified',
+            SET application_status = 'Approved',
                 is_reconsideration_candidate = FALSE
             WHERE application_id = $1
             RETURNING *
@@ -1036,10 +1054,37 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             [applicationId]
         );
 
-        const newQualifiedCount = qualifiedCount + 1;
+        const approvedApplication = updateApplicationResult.rows[0];
+
+        const submissionDate = approvedApplication.submission_date
+            ? new Date(approvedApplication.submission_date)
+            : new Date();
+
+        const batchYear = String(submissionDate.getFullYear());
+
+        const insertScholarResult = await client.query(
+            `
+            INSERT INTO scholars (
+                student_id,
+                program_id,
+                application_id,
+                date_awarded,
+                status,
+                batch_year,
+                ro_progress,
+                remarks,
+                is_archived
+            )
+            VALUES ($1, $2, $3, CURRENT_DATE, 'Active', $4, 0, NULL, FALSE)
+            RETURNING *
+            `,
+            [row.student_id, row.program_id, applicationId, batchYear]
+        );
+
+        const newApprovedCount = approvedCount + 1;
         const nextFilledSlots = Number(row.filled_slots || 0) + 1;
 
-        if (slotCount > 0 && newQualifiedCount >= slotCount) {
+        if (slotCount > 0 && newApprovedCount >= slotCount) {
             await client.query(
                 `
                 UPDATE program_openings
@@ -1063,7 +1108,11 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         }
 
         await client.query('COMMIT');
-        return updateApplicationResult.rows[0];
+
+        return {
+            ...approvedApplication,
+            scholar: insertScholarResult.rows[0],
+        };
     } catch (err) {
         await client.query('ROLLBACK');
         throw err;

@@ -460,58 +460,63 @@ async function buildApplicationDetails(applicationId) {
 
 exports.fetchApplications = async () => {
     const query = `
-        SELECT
-            a.application_id,
-            a.student_id,
-            a.program_id,
-            a.opening_id,
-            a.application_status,
-            a.evaluator_id,
-            a.submission_date,
-            a.is_disqualified,
-            a.disqualification_reason,
-            a.document_status,
-            a.verification_status,
-            a.remarks,
-            a.is_reconsideration_candidate,
-            a.reconsideration_tagged_at,
-            a.is_archived,
+    SELECT
+        a.application_id,
+        a.student_id,
+        a.program_id,
+        a.opening_id,
+        a.application_status,
+        a.evaluator_id,
+        a.submission_date,
+        a.is_disqualified,
+        a.disqualification_reason,
+        a.document_status,
+        a.verification_status,
+        a.remarks,
+        a.is_reconsideration_candidate,
+        a.reconsideration_tagged_at,
+        a.is_archived,
 
-            st.first_name,
-            st.last_name,
-            st.pdm_id,
-            st.gwa,
-            st.sdo_status,
+        st.first_name,
+        st.last_name,
+        st.pdm_id,
+        st.gwa,
+        st.sdo_status,
 
-            po.opening_title,
-            po.semester,
-            po.academic_year,
-            po.allocated_slots,
-            po.filled_slots,
-            po.financial_allocation,
-            po.per_scholar_amount,
-            po.posting_status,
+        po.opening_title,
+        po.allocated_slots,
+        po.filled_slots,
+        po.financial_allocation,
+        po.per_scholar_amount,
+        po.posting_status,
 
-            sp.program_name
+        ay.label AS academic_year,
+        ap.term AS semester,
 
-        FROM applications a
-        LEFT JOIN students st
-            ON a.student_id = st.student_id
-        LEFT JOIN program_openings po
-            ON a.opening_id = po.opening_id
-        LEFT JOIN scholarship_program sp
-            ON a.program_id = sp.program_id
-        LEFT JOIN scholars sc
-            ON a.student_id = sc.student_id
+        sp.program_name
 
-        WHERE
-            COALESCE(a.is_archived, FALSE) = FALSE
-            AND sc.student_id IS NULL
-            AND COALESCE(a.is_disqualified, FALSE) = FALSE
-            AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved', 'qualified', 'accepted')
+    FROM applications a
+    LEFT JOIN students st
+        ON a.student_id = st.student_id
+    LEFT JOIN program_openings po
+        ON a.opening_id = po.opening_id
+    LEFT JOIN academic_years ay
+        ON po.academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap
+        ON po.period_id = ap.period_id
+    LEFT JOIN scholarship_program sp
+        ON a.program_id = sp.program_id
+    LEFT JOIN scholars sc
+        ON a.student_id = sc.student_id
 
-        ORDER BY a.submission_date DESC
-    `;
+    WHERE
+        COALESCE(a.is_archived, FALSE) = FALSE
+        AND sc.student_id IS NULL
+        AND COALESCE(a.is_disqualified, FALSE) = FALSE
+        AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved', 'qualified', 'accepted')
+
+    ORDER BY a.submission_date DESC
+`;
 
     const { rows } = await pool.query(query);
 

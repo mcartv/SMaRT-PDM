@@ -1,15 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const roController = require('../controllers/roController');
+
+const programOpeningController = require('../controllers/programOpeningController');
 const { protect } = require('../middleware/authMiddleware');
 
-router.get('/summary', protect, roController.getSummary);
-router.get('/config', protect, roController.getConfig);
-router.patch('/config', protect, roController.updateConfig);
-router.get('/', protect, roController.getROList);
-router.post('/', protect, roController.createRO);
-router.patch('/:id/approve', protect, roController.approveRO);
-router.patch('/:id/reject', protect, roController.rejectRO);
-router.patch('/:id/assign-department', protect, roController.assignDepartment);
+router.get('/admin/applications-summary', protect, programOpeningController.getOpeningsApplicationSummary);
+router.get('/mobile', programOpeningController.getMobileOpenings);
+router.get('/', protect, programOpeningController.getAllProgramOpenings);
+router.get('/:openingId', protect, programOpeningController.getProgramOpeningById);
+router.get('/:openingId/applications', protect, programOpeningController.getApplicationsByOpeningId);
+
+router.post('/', protect, programOpeningController.createProgramOpening);
+router.patch('/:openingId', protect, programOpeningController.updateProgramOpening);
+router.patch('/:openingId/close', protect, programOpeningController.closeProgramOpening);
 
 module.exports = router;

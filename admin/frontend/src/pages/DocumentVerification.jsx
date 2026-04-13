@@ -164,12 +164,17 @@ function normalizeRequiredDocuments(rawDocs = []) {
   });
 }
 
-function InfoRow({ label, value, mono }) {
+function InfoRow({ label, value, mono, className = '' }) {
+  const displayValue =
+    value === undefined || value === null || value === '' ? 'N/A' : value;
+
   return (
-    <div>
-      <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 mb-0.5">{label}</p>
+    <div className={className}>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 mb-0.5">
+        {label}
+      </p>
       <p className={`text-sm ${mono ? 'font-mono text-stone-600' : 'font-medium text-stone-800'}`}>
-        {value || 'N/A'}
+        {displayValue}
       </p>
     </div>
   );
@@ -303,17 +308,78 @@ function buildExtractedData(activeDoc, application) {
   }
 }
 
+function formatYesNo(value) {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  return 'N/A';
+}
+
+function buildFullName(person = {}) {
+  const parts = [
+    person.first_name,
+    person.middle_name,
+    person.last_name,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(' ') : null;
+}
+
+function buildAddress(profile = {}) {
+  const parts = [
+    profile.street_address,
+    profile.subdivision,
+    profile.city,
+    profile.province,
+    profile.zip_code,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(', ') : null;
+}
+
+function groupFamilyMembersByRelation(familyMembers = []) {
+  const order = ['Father', 'Mother', 'Guardian', 'Sibling'];
+
+  return [...familyMembers].sort((a, b) => {
+    const aIndex = order.indexOf(a.relation || '');
+    const bIndex = order.indexOf(b.relation || '');
+
+    const safeA = aIndex === -1 ? 999 : aIndex;
+    const safeB = bIndex === -1 ? 999 : bIndex;
+
+    return safeA - safeB;
+  });
+}
+
+function groupEducationRecords(educationRecords = []) {
+  const order = ['Elementary', 'High School', 'Senior High School', 'College'];
+
+  return [...educationRecords].sort((a, b) => {
+    const aIndex = order.indexOf(a.education_level || '');
+    const bIndex = order.indexOf(b.education_level || '');
+
+    const safeA = aIndex === -1 ? 999 : aIndex;
+    const safeB = bIndex === -1 ? 999 : bIndex;
+
+    return safeA - safeB;
+  });
+}
+
 function ApplicationFormPreview({ application }) {
   const student = application?.student || {};
   const profile = application?.student_profile || {};
-  const familyMembers = application?.family_members || [];
-  const educationRecords = application?.education_records || [];
+  const familyMembers = groupFamilyMembersByRelation(application?.family_members || []);
+  const educationRecords = groupEducationRecords(application?.education_records || []);
+
+  const fullAddress = buildAddress(profile);
 
   return (
     <div className="w-full h-[520px] overflow-y-auto bg-white border border-stone-200 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-stone-800 mb-3">Application Form Summary</h3>
+      <h3 className="text-sm font-semibold text-stone-800 mb-3">
+        Application Form Summary
+      </h3>
 
       <div className="space-y-5 text-sm text-stone-700">
+        {/* STUDENT OVERVIEW */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Student Overview
@@ -325,65 +391,182 @@ function ApplicationFormPreview({ application }) {
             <InfoRow label="Course" value={student.course} />
             <InfoRow label="Academic Year" value={student.year} />
             <InfoRow label="GWA" value={student.gwa} mono />
+            <InfoRow label="Email Address" value={student.email} />
+            <InfoRow label="Phone Number" value={student.phone} />
           </div>
         </div>
 
+        {/* PROFILE */}
         <div className="border-t border-stone-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
-            Profile
+            Personal Profile
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <InfoRow label="Barangay" value={profile.barangay || profile.address_barangay || 'N/A'} />
-            <InfoRow label="Civil Status" value={profile.civil_status || 'N/A'} />
-            <InfoRow label="Birth Date" value={profile.birth_date || 'N/A'} />
-            <InfoRow label="Gender" value={profile.gender || 'N/A'} />
+            <InfoRow label="Date of Birth" value={profile.date_of_birth} />
+            <InfoRow label="Place of Birth" value={profile.place_of_birth} />
+            <InfoRow label="Sex" value={profile.sex} />
+            <InfoRow label="Civil Status" value={profile.civil_status} />
+            <InfoRow label="Maiden Name" value={profile.maiden_name} />
+            <InfoRow label="Religion" value={profile.religion} />
+            <InfoRow label="Citizenship" value={profile.citizenship} />
+            <InfoRow label="Landline Number" value={profile.landline_number} />
+            <InfoRow
+              label="Learner's Reference Number"
+              value={profile.learners_reference_number}
+            />
+            <InfoRow
+              label="Financial Support Type"
+              value={profile.financial_support_type}
+            />
+            <InfoRow
+              label="Financial Support (Other)"
+              value={profile.financial_support_other}
+            />
+            <InfoRow
+              label="Prior Scholarship"
+              value={formatYesNo(profile.has_prior_scholarship)}
+            />
+            <InfoRow
+              label="Prior Scholarship Details"
+              value={profile.prior_scholarship_details}
+              className="md:col-span-2"
+            />
+            <InfoRow
+              label="Disciplinary Record"
+              value={formatYesNo(profile.has_disciplinary_record)}
+            />
+            <InfoRow
+              label="Disciplinary Details"
+              value={profile.disciplinary_details}
+              className="md:col-span-2"
+            />
+            <InfoRow
+              label="Complete Address"
+              value={fullAddress}
+              className="md:col-span-2"
+            />
+            <InfoRow
+              label="Self Description"
+              value={profile.self_description}
+              className="md:col-span-2"
+            />
+            <InfoRow
+              label="Aims and Ambitions"
+              value={profile.aims_and_ambitions}
+              className="md:col-span-2"
+            />
+            <InfoRow
+              label="Applicant Signature URL"
+              value={profile.applicant_signature_url}
+              className="md:col-span-2"
+            />
+            <InfoRow
+              label="Guardian Signature URL"
+              value={profile.guardian_signature_url}
+              className="md:col-span-2"
+            />
           </div>
         </div>
 
+        {/* FAMILY */}
         <div className="border-t border-stone-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Family Background
           </p>
+
           {familyMembers.length ? (
-            <div className="space-y-2">
-              {familyMembers.map((member, index) => (
-                <div
-                  key={`${member.family_id || member.id || index}`}
-                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2"
-                >
-                  <p className="font-medium text-stone-800">
-                    {member.full_name || member.name || `Family Member ${index + 1}`}
-                  </p>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    {member.relation || 'Relation not set'}
-                    {member.occupation ? ` · ${member.occupation}` : ''}
-                  </p>
-                </div>
-              ))}
+            <div className="space-y-3">
+              {familyMembers.map((member, index) => {
+                const fullName = buildFullName(member);
+
+                return (
+                  <div
+                    key={`${member.family_id || index}`}
+                    className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3"
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <p className="font-semibold text-stone-800">
+                        {member.relation || `Family Member ${index + 1}`}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        {fullName || 'No name provided'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <InfoRow label="Last Name" value={member.last_name} />
+                      <InfoRow label="First Name" value={member.first_name} />
+                      <InfoRow label="Middle Name" value={member.middle_name} />
+                      <InfoRow label="Mobile Number" value={member.mobile_number} />
+                      <InfoRow
+                        label="Highest Educational Attainment"
+                        value={member.highest_educational_attainment}
+                      />
+                      <InfoRow label="Occupation" value={member.occupation} />
+                      <InfoRow
+                        label="Company Name / Address"
+                        value={member.company_name_address}
+                      />
+                      <InfoRow
+                        label="Marilao Native"
+                        value={formatYesNo(member.is_marilao_native)}
+                      />
+                      <InfoRow
+                        label="Years as Resident"
+                        value={member.years_as_resident}
+                      />
+                      <InfoRow
+                        label="Origin Province"
+                        value={member.origin_province}
+                      />
+                      <InfoRow
+                        label="Address"
+                        value={member.address}
+                        className="md:col-span-2"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className="text-xs text-stone-400">No family records found.</p>
           )}
         </div>
 
+        {/* EDUCATION */}
         <div className="border-t border-stone-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Educational Background
           </p>
+
           {educationRecords.length ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {educationRecords.map((record, index) => (
                 <div
-                  key={`${record.education_id || record.id || index}`}
-                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2"
+                  key={`${record.education_id || index}`}
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3"
                 >
-                  <p className="font-medium text-stone-800">
-                    {record.school_name || `Education Record ${index + 1}`}
-                  </p>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    {record.education_level || 'Level not set'}
-                    {record.year_graduated ? ` · ${record.year_graduated}` : ''}
-                  </p>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className="font-semibold text-stone-800">
+                      {record.education_level || `Education Record ${index + 1}`}
+                    </p>
+                    <p className="text-xs text-stone-500">
+                      {record.school_name || 'No school name provided'}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <InfoRow label="Education Level" value={record.education_level} />
+                    <InfoRow label="School Name" value={record.school_name} />
+                    <InfoRow label="School Address" value={record.school_address} />
+                    <InfoRow label="Honors / Awards" value={record.honors_awards} />
+                    <InfoRow
+                      label="Club / Organization"
+                      value={record.club_organization}
+                    />
+                    <InfoRow label="Year Graduated" value={record.year_graduated} />
+                  </div>
                 </div>
               ))}
             </div>

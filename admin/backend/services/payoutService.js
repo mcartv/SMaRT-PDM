@@ -9,8 +9,10 @@ async function fetchPayoutBatches() {
             pb.payout_batch_id,
             pb.opening_id,
             pb.program_id,
-            pb.semester,
-            pb.school_year,
+            pb.academic_year_id,
+            pb.period_id,
+            ay.label AS academic_year,
+            ap.term AS semester,
             pb.payout_title,
             pb.payout_date,
             pb.payment_mode,
@@ -19,6 +21,11 @@ async function fetchPayoutBatches() {
             pb.batch_status,
             pb.remarks,
             pb.created_at,
+            pb.updated_at,
+            pb.acknowledgement_status,
+            pb.acknowledgement_sent_date,
+            pb.acknowledgement_channel,
+            pb.is_archived,
 
             sp.program_name,
             b.benefactor_name,
@@ -34,7 +41,10 @@ async function fetchPayoutBatches() {
                         'program_id', s.program_id,
                         'application_id', s.application_id,
                         'opening_id', a.opening_id,
-                        'batch_year', s.batch_year,
+                        'academic_year_id', s.academic_year_id,
+                        'period_id', s.period_id,
+                        'academic_year', say.label,
+                        'semester', sap.term,
                         'status', s.status,
                         'pdm_id', st.pdm_id,
                         'student_name', CONCAT(st.last_name, ', ', st.first_name)
@@ -48,10 +58,18 @@ async function fetchPayoutBatches() {
             ON pb.program_id = sp.program_id
         LEFT JOIN benefactors b
             ON sp.benefactor_id = b.benefactor_id
+        LEFT JOIN academic_years ay
+            ON pb.academic_year_id = ay.academic_year_id
+        LEFT JOIN academic_period ap
+            ON pb.period_id = ap.period_id
         LEFT JOIN payout_batch_scholars pbs
             ON pb.payout_batch_id = pbs.payout_batch_id
         LEFT JOIN scholars s
             ON pbs.scholar_id = s.scholar_id
+        LEFT JOIN academic_years say
+            ON s.academic_year_id = say.academic_year_id
+        LEFT JOIN academic_period sap
+            ON s.period_id = sap.period_id
         LEFT JOIN applications a
             ON s.application_id = a.application_id
         LEFT JOIN students st
@@ -61,8 +79,10 @@ async function fetchPayoutBatches() {
             pb.payout_batch_id,
             pb.opening_id,
             pb.program_id,
-            pb.semester,
-            pb.school_year,
+            pb.academic_year_id,
+            pb.period_id,
+            ay.label,
+            ap.term,
             pb.payout_title,
             pb.payout_date,
             pb.payment_mode,
@@ -71,6 +91,11 @@ async function fetchPayoutBatches() {
             pb.batch_status,
             pb.remarks,
             pb.created_at,
+            pb.updated_at,
+            pb.acknowledgement_status,
+            pb.acknowledgement_sent_date,
+            pb.acknowledgement_channel,
+            pb.is_archived,
             sp.program_name,
             b.benefactor_name
 
@@ -91,8 +116,10 @@ async function fetchPayoutOpenings() {
             po.program_id,
             po.created_at,
             po.opening_title,
-            po.semester,
-            po.academic_year AS school_year,
+            po.academic_year_id,
+            po.period_id,
+            ay.label AS academic_year,
+            ap.term AS semester,
             po.per_scholar_amount AS amount_per_scholar,
             po.posting_status AS status,
             po.allocated_slots,
@@ -106,6 +133,10 @@ async function fetchPayoutOpenings() {
             ON po.program_id = sp.program_id
         LEFT JOIN benefactors b
             ON sp.benefactor_id = b.benefactor_id
+        LEFT JOIN academic_years ay
+            ON po.academic_year_id = ay.academic_year_id
+        LEFT JOIN academic_period ap
+            ON po.period_id = ap.period_id
 
         ORDER BY po.created_at DESC;
     `;
@@ -123,8 +154,10 @@ async function fetchEligibleScholarsByOpening(openingId) {
             po.opening_id,
             po.program_id,
             po.opening_title,
-            po.semester,
-            po.academic_year AS school_year,
+            po.academic_year_id,
+            po.period_id,
+            ay.label AS academic_year,
+            ap.term AS semester,
             po.per_scholar_amount AS amount_per_scholar,
             po.posting_status AS status,
 
@@ -136,6 +169,10 @@ async function fetchEligibleScholarsByOpening(openingId) {
             ON po.program_id = sp.program_id
         LEFT JOIN benefactors b
             ON sp.benefactor_id = b.benefactor_id
+        LEFT JOIN academic_years ay
+            ON po.academic_year_id = ay.academic_year_id
+        LEFT JOIN academic_period ap
+            ON po.period_id = ap.period_id
         WHERE po.opening_id = $1
         LIMIT 1;
     `;
@@ -154,7 +191,10 @@ async function fetchEligibleScholarsByOpening(openingId) {
             s.student_id,
             s.program_id,
             s.application_id,
-            s.batch_year,
+            s.academic_year_id,
+            s.period_id,
+            say.label AS academic_year,
+            sap.term AS semester,
             s.status,
             a.opening_id,
             st.pdm_id,
@@ -164,6 +204,10 @@ async function fetchEligibleScholarsByOpening(openingId) {
             ON s.application_id = a.application_id
         INNER JOIN students st
             ON s.student_id = st.student_id
+        LEFT JOIN academic_years say
+            ON s.academic_year_id = say.academic_year_id
+        LEFT JOIN academic_period sap
+            ON s.period_id = sap.period_id
         WHERE a.opening_id = $1
           AND a.application_status = 'Approved'
           AND COALESCE(s.is_archived, FALSE) = FALSE
@@ -184,8 +228,6 @@ async function fetchEligibleScholarsByOpening(openingId) {
 // =========================
 async function createPayoutBatchFromOpening({
     opening_id,
-    semester,
-    school_year,
     payout_title,
     payout_date,
     payment_mode,
@@ -209,13 +251,19 @@ async function createPayoutBatchFromOpening({
             po.opening_id,
             po.program_id,
             po.opening_title,
-            po.semester,
-            po.academic_year AS school_year,
+            po.academic_year_id,
+            po.period_id,
+            ay.label AS academic_year,
+            ap.term AS semester,
             po.per_scholar_amount AS amount_per_scholar,
             sp.program_name
         FROM program_openings po
         LEFT JOIN scholarship_program sp
             ON po.program_id = sp.program_id
+        LEFT JOIN academic_years ay
+            ON po.academic_year_id = ay.academic_year_id
+        LEFT JOIN academic_period ap
+            ON po.period_id = ap.period_id
         WHERE po.opening_id = $1
         LIMIT 1;
     `;
@@ -265,8 +313,8 @@ async function createPayoutBatchFromOpening({
             INSERT INTO payout_batches (
                 opening_id,
                 program_id,
-                semester,
-                school_year,
+                academic_year_id,
+                period_id,
                 payout_title,
                 payout_date,
                 payment_mode,
@@ -280,8 +328,8 @@ async function createPayoutBatchFromOpening({
         `, [
             opening.opening_id,
             opening.program_id,
-            semester || opening.semester || null,
-            school_year || opening.school_year || null,
+            opening.academic_year_id,
+            opening.period_id,
             payout_title || opening.opening_title || `${opening.program_name || 'Program'} Payout Batch`,
             payout_date || new Date().toISOString().slice(0, 10),
             payment_mode || 'Cash',

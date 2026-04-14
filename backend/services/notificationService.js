@@ -181,6 +181,30 @@ async function createNotifications(rows = []) {
   return (data || []).map(mapNotificationRow);
 }
 
+async function createUserNotification({
+  userId,
+  type,
+  title,
+  message,
+  referenceId = null,
+  referenceType = null,
+  createdAt = null,
+}) {
+  const [notification] = await createNotifications([
+    {
+      user_id: userId,
+      type,
+      title,
+      message,
+      reference_id: referenceId,
+      reference_type: referenceType,
+      created_at: createdAt,
+    },
+  ]);
+
+  return notification || null;
+}
+
 async function createAudienceNotifications({
   audience,
   type,
@@ -360,6 +384,7 @@ async function registerDeviceToken(userId, { deviceToken, platform }) {
 module.exports = {
   configureNotificationService,
   createNotifications,
+  createUserNotification,
   createAudienceNotifications,
   listUserNotifications,
   getUnreadCount,

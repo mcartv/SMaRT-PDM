@@ -970,23 +970,14 @@ export default function DocumentVerification() {
         throw new Error(data.error || 'Failed to save verification');
       }
 
-      if (finalVerificationStatus === 'verified') {
-        const markReviewRes = await fetch(`${API_BASE}/api/applications/${id}/mark-reviewed`, {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!markReviewRes.ok) {
-          const payload = await markReviewRes.json().catch(() => ({}));
-          throw new Error(payload.error || 'Verification saved, but application review status was not updated');
-        }
-      }
+      const finalOutcome = data?.data?.final_outcome;
 
       alert(
-        finalVerificationStatus === 'verified'
+        finalOutcome === 'approved'
+          ? 'Verification completed successfully. The student has been approved and notified.'
+          : finalOutcome === 'waiting'
+          ? 'Verification completed successfully. The student has been moved to the waiting list and notified.'
+          : finalVerificationStatus === 'verified'
           ? 'Verification completed successfully.'
           : 'Verification completed. Application marked as needing re-upload or further review.'
       );

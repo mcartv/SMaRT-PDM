@@ -51,7 +51,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     if (!mounted) return;
 
     setState(() {
-      _isVerifiedScholar = prefs.getBool('user_is_verified') ?? false;
+      _isVerifiedScholar = prefs.getBool('user_has_scholar_access') ?? false;
     });
   }
 
@@ -93,18 +93,18 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final notificationProvider = context.watch<NotificationProvider>();
+    final hasScholarAccess =
+        notificationProvider.hasScholarAccess || _isVerifiedScholar;
+
     return Scaffold(
-      bottomNavigationBar: Consumer<NotificationProvider>(
-        builder: (context, notificationProvider, child) {
-          return SafeArea(
-            top: false,
-            child: SmartPdmBottomNav(
-              selectedIndex: _currentIndex,
-              isVerifiedScholar: _isVerifiedScholar,
-              unreadNotifications: notificationProvider.unreadCount,
-            ),
-          );
-        },
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: SmartPdmBottomNav(
+          selectedIndex: _currentIndex,
+          isVerifiedScholar: hasScholarAccess,
+          unreadNotifications: notificationProvider.unreadCount,
+        ),
       ),
       body: PageView(
         controller: _pageController,

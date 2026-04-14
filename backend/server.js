@@ -1,4 +1,5 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -28,6 +29,14 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+// Used by the mobile app to auto-detect the active development backend.
+app.get('/api/health', (_req, res) => {
+  return res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Configure multer to hold the uploaded file in memory temporarily
 const upload = multer({ storage: multer.memoryStorage() });
@@ -102,6 +111,36 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function isLoopbackAddress(value) {
+  const normalized = (value || '').toString().trim().replace(/^::ffff:/, '');
+  return normalized === '127.0.0.1' || normalized === '::1' || normalized === 'localhost';
+}
+
+function safeCompareSecrets(left, right) {
+  const leftBuffer = Buffer.from(left || '');
+  const rightBuffer = Buffer.from(right || '');
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function isAuthorizedInternalRequest(req) {
+  const expectedSecret = (process.env.INTERNAL_NOTIFICATION_SECRET || '').trim();
+  const providedSecret = (req.get('x-internal-notification-secret') || '').trim();
+
+  if (expectedSecret) {
+    return safeCompareSecrets(providedSecret, expectedSecret);
+  }
+
+  return (
+    isLoopbackAddress(req.ip) ||
+    isLoopbackAddress(req.socket?.remoteAddress)
+  );
+}
+
 function extractAvatarStoragePath(value) {
   const rawValue = (value ?? '').toString().trim();
   if (!rawValue) return null;
@@ -149,6 +188,10 @@ async function resolveAvatarUrl(value) {
 }
 
 async function buildAuthUser(user, studentProfile = null) {
+  const hasScholarAccess = await resolveHasScholarAccessForStudent(
+    studentProfile?.student_id
+  );
+
   return {
     id: user.user_id,
     user_id: user.user_id,
@@ -160,6 +203,7 @@ async function buildAuthUser(user, studentProfile = null) {
     avatar_url: await resolveAvatarUrl(studentProfile?.profile_photo_url ?? null),
     role: user.role ?? null,
     is_verified: !!user.is_otp_verified,
+    has_scholar_access: hasScholarAccess,
   };
 }
 
@@ -523,6 +567,9 @@ async function buildMyProfileResponse(context = {}) {
   const profile = context.student_profile || {};
   const course = context.course || {};
   const avatarUrl = await resolveAvatarUrl(student.profile_photo_url ?? null);
+  const hasScholarAccess = await resolveHasScholarAccessForStudent(
+    student.student_id
+  );
 
   return {
     profile: {
@@ -551,6 +598,7 @@ async function buildMyProfileResponse(context = {}) {
       zip_code: profile.zip_code ?? null,
       landline_number: profile.landline_number ?? null,
       learners_reference_number: profile.learners_reference_number ?? null,
+      has_scholar_access: hasScholarAccess,
     },
   };
 }
@@ -651,8 +699,12 @@ async function resolveScholarRecordForStudent(studentId) {
 
   const { data, error } = await supabase
     .from('scholars')
-    .select('scholar_id, student_id, application_id, program_id, status')
+    .select('scholar_id, student_id, application_id, program_id, status, is_archived')
     .eq('student_id', studentId)
+    .eq('status', 'Active')
+    .eq('is_archived', false)
+    .order('date_awarded', { ascending: false, nullsFirst: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
@@ -660,6 +712,11 @@ async function resolveScholarRecordForStudent(studentId) {
   }
 
   return data || null;
+}
+
+async function resolveHasScholarAccessForStudent(studentId) {
+  const scholarRecord = await resolveScholarRecordForStudent(studentId);
+  return !!scholarRecord;
 }
 
 async function resolveOpeningById(openingId) {
@@ -3336,6 +3393,47 @@ app.get('/api/notifications', protect, async (req, res) => {
   } catch (error) {
     console.error('NOTIFICATION LIST ROUTE ERROR:', error);
     res.status(500).json({ error: error.message || 'Failed to load notifications.' });
+  }
+});
+
+app.post('/api/internal/notifications/user', async (req, res) => {
+  if (!isAuthorizedInternalRequest(req)) {
+    return res.status(403).json({ error: 'Forbidden.' });
+  }
+
+  const {
+    userId,
+    type,
+    title,
+    message,
+    referenceId = null,
+    referenceType = null,
+    createdAt = null,
+  } = req.body ?? {};
+
+  if (!userId || !type || !title || !message) {
+    return res.status(400).json({
+      error: 'userId, type, title, and message are required.',
+    });
+  }
+
+  try {
+    const notification = await notificationService.createUserNotification({
+      userId,
+      type,
+      title,
+      message,
+      referenceId,
+      referenceType,
+      createdAt,
+    });
+
+    res.status(201).json({ notification });
+  } catch (error) {
+    console.error('INTERNAL USER NOTIFICATION ROUTE ERROR:', error);
+    res.status(500).json({
+      error: error.message || 'Failed to create the user notification.',
+    });
   }
 });
 

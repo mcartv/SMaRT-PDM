@@ -5,6 +5,24 @@ const _ = require('lodash');
 
 const STORAGE_BUCKET =
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'application-documents';
+const STUDENT_BACKEND_BASE_URL =
+    process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
+const INTERNAL_NOTIFICATION_SECRET =
+    (process.env.INTERNAL_NOTIFICATION_SECRET || '').trim();
+const APPROVED_SCHOLAR_NOTIFICATION = Object.freeze({
+    type: 'Scholar Approved',
+    title: 'Scholarship Approved',
+    message:
+        'Your verification is complete and your scholarship has been approved.',
+    referenceType: 'scholar',
+});
+const WAITLIST_NOTIFICATION = Object.freeze({
+    type: 'Status Update',
+    title: 'Application Waitlisted',
+    message:
+        'Your verification is complete, but no scholarship slots are available right now. Your application has been placed on the waiting list.',
+    referenceType: 'application',
+});
 
 const APPLICATION_DOCUMENT_DEFINITIONS = [
     {
@@ -79,6 +97,188 @@ function normalizeLookupValue(value) {
         .replace(/[_-]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function buildVerificationOutcomeNotification({
+    outcome,
+    applicationId,
+    scholarId = null,
+}) {
+    if (outcome === 'approved') {
+        return {
+            ...APPROVED_SCHOLAR_NOTIFICATION,
+            referenceId: scholarId,
+        };
+    }
+
+    if (outcome === 'waiting') {
+        return {
+            ...WAITLIST_NOTIFICATION,
+            referenceId: applicationId,
+        };
+    }
+
+    return null;
+}
+
+async function relayStudentNotification({
+    userId,
+    type,
+    title,
+    message,
+    referenceId = null,
+    referenceType = null,
+    createdAt = null,
+}) {
+    const endpoint = new URL('/api/internal/notifications/user', STUDENT_BACKEND_BASE_URL);
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+
+    if (INTERNAL_NOTIFICATION_SECRET) {
+        headers['x-internal-notification-secret'] = INTERNAL_NOTIFICATION_SECRET;
+    }
+
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            userId,
+            type,
+            title,
+            message,
+            referenceId,
+            referenceType,
+            createdAt,
+        }),
+    });
+
+    const rawBody = await response.text();
+    let payload = {};
+
+    if (rawBody) {
+        try {
+            payload = JSON.parse(rawBody);
+        } catch (_error) {
+            payload = {};
+        }
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            payload.error ||
+                `Student backend notification relay failed with status ${response.status}.`
+        );
+    }
+
+    return payload;
+}
+
+async function insertNotificationFallback({
+    userId,
+    type,
+    title,
+    message,
+    referenceId = null,
+    referenceType = null,
+    createdAt = null,
+}) {
+    const { data, error } = await supabase
+        .from('notifications')
+        .insert({
+            user_id: userId,
+            type,
+            title,
+            message,
+            reference_id: referenceId,
+            reference_type: referenceType,
+            is_read: false,
+            push_sent: false,
+            created_at: createdAt || new Date().toISOString(),
+        })
+        .select(
+            'notification_id, user_id, type, title, message, reference_id, reference_type, is_read, push_sent, created_at'
+        )
+        .single();
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    return data;
+}
+
+async function deliverVerificationOutcomeNotification({
+    outcome,
+    applicationId,
+    userId,
+    scholarId = null,
+}) {
+    const notification = buildVerificationOutcomeNotification({
+        outcome,
+        applicationId,
+        scholarId,
+    });
+
+    if (!notification || !userId) {
+        return null;
+    }
+
+    const createdAt = new Date().toISOString();
+
+    try {
+        const relayPayload = await relayStudentNotification({
+            userId,
+            type: notification.type,
+            title: notification.title,
+            message: notification.message,
+            referenceId: notification.referenceId,
+            referenceType: notification.referenceType,
+            createdAt,
+        });
+
+        return {
+            delivery: 'relay',
+            notification:
+                relayPayload.notification ||
+                relayPayload.data ||
+                null,
+        };
+    } catch (relayError) {
+        console.error(
+            'STUDENT NOTIFICATION RELAY ERROR:',
+            relayError.message || relayError
+        );
+
+        try {
+            const fallbackNotification = await insertNotificationFallback({
+                userId,
+                type: notification.type,
+                title: notification.title,
+                message: notification.message,
+                referenceId: notification.referenceId,
+                referenceType: notification.referenceType,
+                createdAt,
+            });
+
+            return {
+                delivery: 'database_fallback',
+                notification: fallbackNotification,
+                relayError: relayError.message || String(relayError),
+            };
+        } catch (fallbackError) {
+            console.error(
+                'STUDENT NOTIFICATION FALLBACK ERROR:',
+                fallbackError.message || fallbackError
+            );
+
+            return {
+                delivery: 'failed',
+                relayError: relayError.message || String(relayError),
+                fallbackError: fallbackError.message || String(fallbackError),
+            };
+        }
+    }
 }
 
 function normalizeDocumentType(value) {
@@ -258,8 +458,12 @@ async function buildApplicationDetails(applicationId) {
     if (applicationRecord?.student_id) {
         const { data: existingScholar, error: scholarCheckError } = await supabase
             .from('scholars')
-            .select('scholar_id')
+            .select('scholar_id, application_id')
             .eq('student_id', applicationRecord.student_id)
+            .eq('status', 'Active')
+            .eq('is_archived', false)
+            .order('date_awarded', { ascending: false, nullsFirst: false })
+            .limit(1)
             .maybeSingle();
 
         if (scholarCheckError) {
@@ -267,7 +471,10 @@ async function buildApplicationDetails(applicationId) {
             throw new Error(scholarCheckError.message);
         }
 
-        if (existingScholar) {
+        if (
+            existingScholar &&
+            existingScholar.application_id !== applicationId
+        ) {
             throw new Error(
                 'This application has already been converted into an active scholar record.'
             );
@@ -508,6 +715,8 @@ exports.fetchApplications = async () => {
         ON a.program_id = sp.program_id
     LEFT JOIN scholars sc
         ON a.student_id = sc.student_id
+        AND COALESCE(sc.is_archived, FALSE) = FALSE
+        AND LOWER(COALESCE(sc.status, '')) = 'active'
 
     WHERE
         COALESCE(a.is_archived, FALSE) = FALSE
@@ -842,6 +1051,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
     const applicationUpdatePayload = {
         document_status: nextDocumentStatus,
+        verification_status: verification_status,
     };
 
     if (verification_status === 'rejected') {
@@ -860,8 +1070,44 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         throw new Error(applicationUpdateError.message);
     }
 
+    let finalOutcome = verification_status;
+    let finalizedApplication = updatedApplication;
+    let scholar = null;
+    let notification = null;
+
+    if (verification_status === 'verified') {
+        const approvalResult = await exports.approveApplicationWithSlotCheck(
+            applicationId,
+            { moveToWaitingWhenFull: true }
+        );
+
+        finalizedApplication = approvalResult.application || approvalResult;
+        scholar = approvalResult.scholar || null;
+        finalOutcome =
+            approvalResult.outcome === 'approved' ||
+            approvalResult.outcome === 'already_approved'
+                ? 'approved'
+                : approvalResult.outcome === 'waiting' ||
+                    approvalResult.outcome === 'already_waiting'
+                    ? 'waiting'
+                    : 'verified';
+
+        if (approvalResult.notificationShouldSend && approvalResult.student_user_id) {
+            notification = await deliverVerificationOutcomeNotification({
+                outcome: approvalResult.outcome,
+                applicationId,
+                userId: approvalResult.student_user_id,
+                scholarId: scholar?.scholar_id || null,
+            });
+        }
+    }
+
     return {
-        application: updatedApplication,
+        application: finalizedApplication,
+        verification_status,
+        final_outcome: finalOutcome,
+        scholar,
+        notification,
         summary: {
             verified: Number(summary?.verified || 0),
             uploaded: Number(summary?.uploaded || 0),
@@ -947,8 +1193,12 @@ exports.moveApplicationToWaiting = async (applicationId) => {
     return data;
 };
 
-exports.approveApplicationWithSlotCheck = async (applicationId) => {
+exports.approveApplicationWithSlotCheck = async (
+    applicationId,
+    options = {}
+) => {
     const client = await pool.connect();
+    const moveToWaitingWhenFull = options.moveToWaitingWhenFull === true;
 
     try {
         await client.query('BEGIN');
@@ -961,13 +1211,18 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 a.opening_id,
                 a.application_status,
                 a.submission_date,
+                st.user_id AS student_user_id,
                 po.allocated_slots,
                 po.filled_slots,
                 po.posting_status,
+                po.academic_year_id,
+                po.period_id,
                 COUNT(a2.application_id) FILTER (
                     WHERE LOWER(COALESCE(a2.application_status, '')) = 'approved'
                 )::int AS approved_count
             FROM applications a
+            INNER JOIN students st
+                ON st.student_id = a.student_id
             INNER JOIN program_openings po
                 ON po.opening_id = a.opening_id
             LEFT JOIN applications a2
@@ -980,9 +1235,12 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 a.opening_id,
                 a.application_status,
                 a.submission_date,
+                st.user_id,
                 po.allocated_slots,
                 po.filled_slots,
-                po.posting_status
+                po.posting_status,
+                po.academic_year_id,
+                po.period_id
         `;
 
         const applicationResult = await client.query(applicationQuery, [applicationId]);
@@ -1003,10 +1261,11 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
         const existingScholarResult = await client.query(
             `
-            SELECT scholar_id
+            SELECT scholar_id, application_id
             FROM scholars
-            WHERE application_id = $1
-               OR student_id = $2
+            WHERE COALESCE(is_archived, FALSE) = FALSE
+              AND LOWER(COALESCE(status, '')) = 'active'
+              AND (application_id = $1 OR student_id = $2)
             LIMIT 1
             `,
             [applicationId, row.student_id]
@@ -1018,7 +1277,13 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 [applicationId]
             );
             await client.query('COMMIT');
-            return existingApplicationResult.rows[0];
+            return {
+                application: existingApplicationResult.rows[0],
+                scholar: existingScholarResult.rows[0],
+                outcome: 'already_approved',
+                notificationShouldSend: false,
+                student_user_id: row.student_user_id || null,
+            };
         }
 
         if (currentApplicationStatus === 'approved') {
@@ -1027,11 +1292,59 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 [applicationId]
             );
             await client.query('COMMIT');
-            return existingApplicationResult.rows[0];
+            return {
+                application: existingApplicationResult.rows[0],
+                scholar: null,
+                outcome: 'already_approved',
+                notificationShouldSend: false,
+                student_user_id: row.student_user_id || null,
+            };
         }
 
-        if (openingStatus === 'closed' || openingStatus === 'filled') {
+        if (moveToWaitingWhenFull && currentApplicationStatus === 'waiting') {
+            const existingApplicationResult = await client.query(
+                `SELECT * FROM applications WHERE application_id = $1`,
+                [applicationId]
+            );
+            await client.query('COMMIT');
+            return {
+                application: existingApplicationResult.rows[0],
+                scholar: null,
+                outcome: 'already_waiting',
+                notificationShouldSend: false,
+                student_user_id: row.student_user_id || null,
+            };
+        }
+
+        if (openingStatus === 'closed') {
             throw new Error('This opening is already closed or filled.');
+        }
+
+        if (openingStatus === 'filled') {
+            if (!moveToWaitingWhenFull) {
+                throw new Error('This opening is already closed or filled.');
+            }
+
+            const waitingApplicationResult = await client.query(
+                `
+                UPDATE applications
+                SET application_status = 'Waiting',
+                    is_reconsideration_candidate = TRUE
+                WHERE application_id = $1
+                RETURNING *
+                `,
+                [applicationId]
+            );
+
+            await client.query('COMMIT');
+
+            return {
+                application: waitingApplicationResult.rows[0],
+                scholar: null,
+                outcome: 'waiting',
+                notificationShouldSend: true,
+                student_user_id: row.student_user_id || null,
+            };
         }
 
         if (slotCount > 0 && approvedCount >= slotCount) {
@@ -1045,7 +1358,30 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 [row.opening_id]
             );
 
-            throw new Error('No available slots left for this opening.');
+            if (!moveToWaitingWhenFull) {
+                throw new Error('No available slots left for this opening.');
+            }
+
+            const waitingApplicationResult = await client.query(
+                `
+                UPDATE applications
+                SET application_status = 'Waiting',
+                    is_reconsideration_candidate = TRUE
+                WHERE application_id = $1
+                RETURNING *
+                `,
+                [applicationId]
+            );
+
+            await client.query('COMMIT');
+
+            return {
+                application: waitingApplicationResult.rows[0],
+                scholar: null,
+                outcome: 'waiting',
+                notificationShouldSend: true,
+                student_user_id: row.student_user_id || null,
+            };
         }
 
         const updateApplicationResult = await client.query(
@@ -1061,29 +1397,24 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
         const approvedApplication = updateApplicationResult.rows[0];
 
-        const submissionDate = approvedApplication.submission_date
-            ? new Date(approvedApplication.submission_date)
-            : new Date();
-
-        const batchYear = String(submissionDate.getFullYear());
-
         const insertScholarResult = await client.query(
             `
             INSERT INTO scholars (
                 student_id,
                 program_id,
                 application_id,
+                academic_year_id,
+                period_id,
                 date_awarded,
                 status,
-                batch_year,
                 ro_progress,
                 remarks,
                 is_archived
             )
-            VALUES ($1, $2, $3, CURRENT_DATE, 'Active', $4, 0, NULL, FALSE)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, 'Active', 0, NULL, FALSE)
             RETURNING *
             `,
-            [row.student_id, row.program_id, applicationId, batchYear]
+            [row.student_id, row.program_id, applicationId, row.academic_year_id, row.period_id]
         );
 
         const newApprovedCount = approvedCount + 1;
@@ -1115,8 +1446,11 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         await client.query('COMMIT');
 
         return {
-            ...approvedApplication,
+            application: approvedApplication,
             scholar: insertScholarResult.rows[0],
+            outcome: 'approved',
+            notificationShouldSend: true,
+            student_user_id: row.student_user_id || null,
         };
     } catch (err) {
         await client.query('ROLLBACK');

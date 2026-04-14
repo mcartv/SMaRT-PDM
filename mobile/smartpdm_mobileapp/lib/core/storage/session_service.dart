@@ -11,6 +11,7 @@ class SessionUser {
   final String lastName;
   final String? avatarUrl;
   final bool isVerified;
+  final bool hasScholarAccess;
   final String? role;
 
   const SessionUser({
@@ -22,6 +23,7 @@ class SessionUser {
     this.lastName = '',
     this.avatarUrl,
     this.isVerified = false,
+    this.hasScholarAccess = false,
     this.role,
   });
 }
@@ -37,6 +39,7 @@ class SessionService {
     String firstName = '',
     String lastName = '',
     bool isVerified = false,
+    bool hasScholarAccess = false,
     String? role,
   }) async {
     final prefs = await SharedPreferences.getInstance();
@@ -55,6 +58,7 @@ class SessionService {
     }
 
     await prefs.setBool('user_is_verified', isVerified);
+    await prefs.setBool('user_has_scholar_access', hasScholarAccess);
 
     if (role != null && role.trim().isNotEmpty) {
       await prefs.setString('user_role', role.trim());
@@ -73,6 +77,7 @@ class SessionService {
       lastName: prefs.getString('user_last_name') ?? '',
       avatarUrl: prefs.getString('user_profile_image'),
       isVerified: prefs.getBool('user_is_verified') ?? false,
+      hasScholarAccess: prefs.getBool('user_has_scholar_access') ?? false,
       role: prefs.getString('user_role'),
     );
   }
@@ -91,6 +96,7 @@ class SessionService {
     String? phone,
     String? address,
     String? avatarUrl,
+    bool? hasScholarAccess,
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -118,6 +124,14 @@ class SessionService {
     if (avatarUrl != null) {
       await prefs.setString('user_profile_image', avatarUrl);
     }
+    if (hasScholarAccess != null) {
+      await prefs.setBool('user_has_scholar_access', hasScholarAccess);
+    }
+  }
+
+  Future<void> saveScholarAccess({required bool hasScholarAccess}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('user_has_scholar_access', hasScholarAccess);
   }
 
   Future<void> savePushDeviceToken({

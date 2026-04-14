@@ -1348,12 +1348,10 @@ async function fetchMyPayoutSchedules(userId) {
       payout_entry_id,
       amount_received,
       release_status,
-      payout_batches (
+      payout_batches!fk_payout_batch_scholars_batch (
         payout_batch_id,
         payout_title,
         payout_date,
-        semester,
-        school_year,
         payment_mode,
         batch_status,
         program_id
@@ -1641,12 +1639,10 @@ async function fetchMyPayoutSchedules(userId) {
       payout_entry_id,
       amount_received,
       release_status,
-      payout_batches (
+      payout_batches!fk_payout_batch_scholars_batch (
         payout_batch_id,
         payout_title,
         payout_date,
-        semester,
-        school_year,
         payment_mode,
         batch_status,
         program_id

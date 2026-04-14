@@ -1,9 +1,7 @@
 node_modules/
 dist/
 build/
-.env
-.env.local
-.env.production
+
 
 # Flutter generated files
 **/generated_plugin_registrant.cc

@@ -85,7 +85,13 @@ exports.saveApplicationVerification = async (req, res) => {
         });
     } catch (err) {
         console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
-        res.status(500).json({
+        const statusCode =
+            err.message === 'Application not found' ||
+                err.message === 'This opening is already closed or filled.' ||
+                err.message === 'No available slots left for this opening.'
+                ? 400
+                : 500;
+        res.status(statusCode).json({
             error: err.message || 'Failed to save verification',
         });
     }
@@ -147,7 +153,9 @@ exports.approveApplication = async (req, res) => {
 
         res.status(200).json({
             message: 'Application qualified successfully',
-            application: updated,
+            application: updated.application || updated,
+            scholar: updated.scholar || null,
+            outcome: updated.outcome || null,
         });
     } catch (err) {
         console.error('APPROVE APPLICATION CONTROLLER ERROR:', err.message);
@@ -155,7 +163,9 @@ exports.approveApplication = async (req, res) => {
         if (
             err.message === 'Application not found' ||
             err.message === 'This scholarship opening is already closed' ||
-            err.message === 'This scholarship opening has already reached its allotted slots'
+            err.message === 'This scholarship opening has already reached its allotted slots' ||
+            err.message === 'This opening is already closed or filled.' ||
+            err.message === 'No available slots left for this opening.'
         ) {
             return res.status(400).json({
                 message: err.message,

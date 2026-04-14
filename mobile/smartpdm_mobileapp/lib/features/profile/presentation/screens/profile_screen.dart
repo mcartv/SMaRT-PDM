@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -34,8 +36,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ];
 
   String _userName = 'Institutional Scholar';
-  String _accountHolderName = 'Pending Applicant';
   String? _imagePath;
+  bool _cachedScholarAccess = false;
 
   bool _isProfileLoading = true;
   bool _isUploading = false;
@@ -101,7 +103,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String address,
     required String studentId,
     required String? imagePath,
-    required bool isApprovedScholar,
+    required bool hasScholarAccess,
   }) {
     final isIncomplete = _computeProfileIncomplete(
       firstName: firstName,
@@ -121,9 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _addressController.text = address;
       _studentIdController.text = studentId;
       _userName = _buildDisplayName(firstName: firstName, lastName: lastName);
-      _accountHolderName = isApprovedScholar
-          ? 'Approved Scholar'
-          : 'Pending Applicant';
+      _cachedScholarAccess = hasScholarAccess;
       _isEmailInvalid = email.isNotEmpty && _isInvalidEmail(email);
       _isProfileIncomplete = isIncomplete;
       _isEditing = isIncomplete;
@@ -155,7 +155,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final address = prefs.getString('user_address') ?? '';
     final studentId = prefs.getString('user_student_id') ?? '';
     final imagePath = prefs.getString('user_profile_image');
-    final isApprovedScholar = prefs.getBool('user_is_verified') ?? false;
+    final hasScholarAccess =
+        prefs.getBool('user_has_scholar_access') ?? false;
 
     if (!mounted) return;
 
@@ -169,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       address: address,
       studentId: studentId,
       imagePath: imagePath,
-      isApprovedScholar: isApprovedScholar,
+      hasScholarAccess: hasScholarAccess,
     );
 
     if (!refreshRemote) {
@@ -186,8 +187,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final profile = await _profileService.fetchMyProfile();
       final latestPrefs = await SharedPreferences.getInstance();
       final cachedSection = latestPrefs.getString('user_section') ?? section;
-      final latestApprovalState =
-          latestPrefs.getBool('user_is_verified') ?? isApprovedScholar;
+      final latestScholarAccess =
+          latestPrefs.getBool('user_has_scholar_access') ?? hasScholarAccess;
 
       if (!mounted) return;
 
@@ -201,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         address: _composeAddress(profile),
         studentId: profile['student_id']?.toString() ?? studentId,
         imagePath: profile['avatar_url']?.toString(),
-        isApprovedScholar: latestApprovalState,
+        hasScholarAccess: latestScholarAccess,
       );
     } catch (_) {
       // keep cached values
@@ -233,7 +234,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final profile = await _profileService.fetchMyProfile();
       final prefs = await SharedPreferences.getInstance();
-      final isApprovedScholar = prefs.getBool('user_is_verified') ?? false;
+      final hasScholarAccess =
+          prefs.getBool('user_has_scholar_access') ?? false;
 
       if (!mounted) return;
 
@@ -249,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         studentId:
             profile['student_id']?.toString() ?? _studentIdController.text,
         imagePath: profile['avatar_url']?.toString(),
-        isApprovedScholar: isApprovedScholar,
+        hasScholarAccess: hasScholarAccess,
       );
 
       ScaffoldMessenger.of(
@@ -341,7 +343,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         studentId:
             profile['student_id']?.toString() ?? _studentIdController.text,
         imagePath: profile['avatar_url']?.toString() ?? _imagePath,
-        isApprovedScholar: prefs.getBool('user_is_verified') ?? false,
+        hasScholarAccess: prefs.getBool('user_has_scholar_access') ?? false,
       );
 
       setState(() => _isEditing = false);
@@ -504,6 +506,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasScholarAccess =
+        context.watch<NotificationProvider>().hasScholarAccess ||
+        _cachedScholarAccess;
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
     final subtitleColor = isDark ? Colors.white70 : Colors.grey;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
@@ -611,7 +616,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _accountHolderName,
+                      hasScholarAccess
+                          ? 'Approved Scholar'
+                          : 'Pending Applicant',
                       style: TextStyle(
                         fontSize: 13,
                         color: subtitleColor,

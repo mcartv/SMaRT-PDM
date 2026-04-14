@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class StatusTrackingScreen extends StatefulWidget {
@@ -18,11 +20,45 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   ApplicationStatusSummary? _summary;
   bool _isLoading = true;
   String? _errorMessage;
+  NotificationProvider? _notificationProvider;
+  int _lastScholarAccessRevision = 0;
 
   @override
   void initState() {
     super.initState();
     _loadStatus();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleNotificationProviderChange);
+    _notificationProvider = provider;
+    _lastScholarAccessRevision = provider.scholarAccessRevision;
+    _notificationProvider?.addListener(_handleNotificationProviderChange);
+  }
+
+  void _handleNotificationProviderChange() {
+    final provider = _notificationProvider;
+    if (provider == null) {
+      return;
+    }
+
+    if (provider.scholarAccessRevision == _lastScholarAccessRevision) {
+      return;
+    }
+
+    _lastScholarAccessRevision = provider.scholarAccessRevision;
+
+    if (provider.hasScholarAccess && mounted) {
+      _loadStatus();
+    }
   }
 
   Future<void> _loadStatus() async {
@@ -88,6 +124,12 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _notificationProvider?.removeListener(_handleNotificationProviderChange);
+    super.dispose();
   }
 }
 

@@ -85,6 +85,7 @@ class ProfileService {
       phone: profile['phone_number']?.toString() ?? '',
       address: addressParts.join(', '),
       avatarUrl: profile['avatar_url']?.toString() ?? '',
+      hasScholarAccess: profile['has_scholar_access'] == true,
     );
   }
 }

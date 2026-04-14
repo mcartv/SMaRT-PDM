@@ -9,6 +9,7 @@ class AuthResult {
   final String studentId;
   final String firstName;
   final String lastName;
+  final bool hasScholarAccess;
 
   const AuthResult({
     required this.token,
@@ -17,6 +18,7 @@ class AuthResult {
     required this.studentId,
     this.firstName = '',
     this.lastName = '',
+    this.hasScholarAccess = false,
   });
 }
 
@@ -193,6 +195,7 @@ class AuthService {
       studentId: user['student_id']?.toString() ?? '',
       firstName: user['first_name']?.toString() ?? '',
       lastName: user['last_name']?.toString() ?? '',
+      hasScholarAccess: user['has_scholar_access'] == true,
     );
 
     await _sessionService.saveAuthSession(
@@ -203,6 +206,7 @@ class AuthService {
       firstName: result.firstName,
       lastName: result.lastName,
       isVerified: user['is_verified'] == true,
+      hasScholarAccess: result.hasScholarAccess,
       role: user['role']?.toString(),
     );
 

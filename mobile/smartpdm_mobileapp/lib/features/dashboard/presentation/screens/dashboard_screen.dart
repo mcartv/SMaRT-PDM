@@ -68,14 +68,15 @@ class DashboardContent extends StatefulWidget {
 class _DashboardContentState extends State<DashboardContent> {
   String _userName = 'Student';
   bool _hasScholarAccess = false;
+  bool get _effectiveScholarAccess =>
+      context.watch<NotificationProvider>().hasScholarAccess ||
+      _hasScholarAccess;
 
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   Color get _pageBackground =>
       _isDarkMode ? const Color(0xFF24180F) : Colors.white.withOpacity(0.96);
   Color get _surfaceColor =>
       _isDarkMode ? const Color(0xFF332216) : const Color(0xFFF8F3ED);
-  Color get _plainCardColor =>
-      _isDarkMode ? const Color(0xFF2D1E12) : Colors.white;
   Color get _titleColor => _isDarkMode ? Colors.white : AppColors.darkBrown;
   Color get _subtitleColor => _isDarkMode ? Colors.white70 : Colors.grey;
   Color get _bodyColor => _isDarkMode ? Colors.white70 : AppColors.brown;
@@ -213,7 +214,7 @@ class _DashboardContentState extends State<DashboardContent> {
               notification.previewText,
               style: TextStyle(fontSize: 14, color: _bodyColor, height: 1.45),
             ),
-            if (notification.isOpeningUpdate && !_hasScholarAccess) ...[
+            if (notification.isOpeningUpdate && !_effectiveScholarAccess) ...[
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
@@ -700,7 +701,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             label: 'Upload',
                             onTap: () => Navigator.pushNamed(
                               context,
-                              _hasScholarAccess
+                              _effectiveScholarAccess
                                   ? AppRoutes.renewalDocuments
                                   : AppRoutes.documents,
                             ),
@@ -726,7 +727,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             label: 'Obligs',
                             onTap: () => Navigator.pushNamed(
                               context,
-                              _hasScholarAccess
+                              _effectiveScholarAccess
                                   ? AppRoutes.roCompletion
                                   : AppRoutes.status,
                             ),
@@ -737,7 +738,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   },
                 ),
                 const SizedBox(height: 20),
-                if (!_hasScholarAccess)
+                if (!_effectiveScholarAccess)
                   _buildApplicantSection(context)
                 else
                   _buildScholarSection(context),

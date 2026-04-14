@@ -4,7 +4,7 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 
 class ScholarAccessService {
   static const String lockedMessage =
-      'Scholar features are available only to verified scholars.';
+      'Scholar features are available only to approved scholars.';
 
   static const Set<String> scholarOnlyRoutes = {
     AppRoutes.payouts,
@@ -15,7 +15,7 @@ class ScholarAccessService {
 
   static Future<bool> isVerifiedScholar() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('user_is_verified') ?? false;
+    return prefs.getBool('user_has_scholar_access') ?? false;
   }
 
   static bool isScholarOnlyRoute(String route) {

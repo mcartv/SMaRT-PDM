@@ -95,7 +95,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
     if (!mounted) return;
 
     setState(() {
-      _isScholar = prefs.getBool('user_is_verified') ?? false;
+      _isScholar = prefs.getBool('user_has_scholar_access') ?? false;
       _userName = prefs.getString('user_student_id') ?? 'Scholar';
     });
   }
@@ -137,6 +137,9 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
 
   @override
   Widget build(BuildContext context) {
+    final notificationProvider = context.watch<NotificationProvider>();
+    final hasScholarAccess =
+        notificationProvider.hasScholarAccess || _isScholar;
     final content = widget.applyPadding
         ? Padding(
             padding: const EdgeInsets.all(16.0),
@@ -153,24 +156,20 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         drawer: widget.showDrawer
             ? SmartPdmDrawer(
-                isScholar: _isScholar,
+                isScholar: hasScholarAccess,
                 userName: _userName,
               )
             : null,
         bottomNavigationBar: widget.showBottomNav
-            ? Consumer<NotificationProvider>(
-                builder: (context, notificationProvider, child) {
-                  return SafeArea(
-                    top: false,
-                    child: SmartPdmBottomNav(
-                      selectedIndex: widget.selectedIndex,
-                      isVerifiedScholar: _isScholar,
-                      unreadNotifications: widget.unreadNotifications > 0
-                          ? widget.unreadNotifications
-                          : notificationProvider.unreadCount,
-                    ),
-                  );
-                },
+            ? SafeArea(
+                top: false,
+                child: SmartPdmBottomNav(
+                  selectedIndex: widget.selectedIndex,
+                  isVerifiedScholar: hasScholarAccess,
+                  unreadNotifications: widget.unreadNotifications > 0
+                      ? widget.unreadNotifications
+                      : notificationProvider.unreadCount,
+                ),
               )
             : null,
         body: SafeArea(

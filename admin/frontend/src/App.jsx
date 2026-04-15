@@ -16,6 +16,7 @@ import ScholarMonitoring from './pages/ScholarMonitoring';
 import RenewalReview from './pages/RenewalReview';
 import RenewalDocumentVerification from './pages/RenewalDocumentVerification';
 import ScholarshipOpenings from './pages/ScholarshipOpenings';
+import RegistrarSync from './pages/RegistrarSync';
 import ROAdmin from './pages/ROAdmin';
 import PayoutManagement from './pages/PayoutManagement';
 import AnnouncementsManagement from './pages/AnnouncementsManagement';
@@ -88,6 +89,7 @@ export default function App() {
             element={<RenewalDocumentVerification />}
           />
           <Route path="openings" element={<ScholarshipOpenings />} />
+          <Route path="registrar" element={<RegistrarSync />} />
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />

@@ -15,6 +15,7 @@ import {
   Wallet,
   Briefcase,
   LifeBuoy,
+  Database,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
@@ -33,6 +34,7 @@ const navItems = [
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
+  { path: '/admin/registrar', icon: Database, label: 'Registrar Sync' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/support-tickets', icon: LifeBuoy, label: 'Support Tickets' },
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },

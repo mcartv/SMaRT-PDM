@@ -495,7 +495,7 @@ export default function AdminMessages() {
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
-  const [createGroupOpen, setCreateGroupOpen] = useState(false)
+  const [createRoomOpen, setCreateGroupOpen] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
 
   const activeConversationRef = useRef('')
@@ -602,11 +602,12 @@ export default function AdminMessages() {
   const fetchRooms = useCallback(
     async (preferredRoomId = activeRoomRef.current) => {
       try {
-        const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms`, {
+        const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms/admin`, {
           headers: buildMessagingHeaders(token),
         })
         const payload = await parseApiResponse(response, 'Failed to load rooms.')
-        const items = sortItems((payload.items || []).map(normalizeRoom))
+        const rawItems = Array.isArray(payload) ? payload : (payload.items || [])
+        const items = sortItems(rawItems.map(normalizeRoom))
 
         setRooms(items)
 
@@ -684,7 +685,7 @@ export default function AdminMessages() {
 
       try {
         const response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/messages`,
+          `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/thread`,
           {
             headers: buildMessagingHeaders(token),
           }
@@ -768,7 +769,7 @@ export default function AdminMessages() {
 
       if (activeType === 'group' && activeRoomId) {
         response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/messages`,
+          `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/send`,
           {
             method: 'POST',
             headers: buildMessagingHeaders(token, { json: true }),
@@ -868,10 +869,10 @@ export default function AdminMessages() {
   }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
 
   useEffect(() => {
-    if (createGroupOpen && !scholars.length) {
+    if (createRoomOpen && !scholars.length) {
       fetchScholarMembers()
     }
-  }, [createGroupOpen, scholars.length, fetchScholarMembers])
+  }, [createRoomOpen, scholars.length, fetchScholarMembers])
 
   useEffect(() => {
     if (!isOpen) return
@@ -955,7 +956,7 @@ export default function AdminMessages() {
       </button>
 
       <CreateGroupModal
-        open={createGroupOpen}
+        open={createRoomOpen}
         onClose={() => setCreateGroupOpen(false)}
         onCreate={handleCreateGroup}
         creating={creatingGroup}
@@ -1021,7 +1022,7 @@ export default function AdminMessages() {
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search messages or groups..."
+                      placeholder="Search messages or rooms..."
                       className="h-11 w-full rounded-2xl border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
                     />
                   </div>
@@ -1118,7 +1119,7 @@ export default function AdminMessages() {
                     <div className="px-6 py-14 text-center text-sm text-stone-500">
                       {searchTerm || showUnreadOnly
                         ? 'No threads match the current filter.'
-                        : 'No messages or groups yet.'}
+                        : 'No messages or rooms yet.'}
                     </div>
                   )}
                 </div>

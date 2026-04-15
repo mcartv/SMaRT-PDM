@@ -1,5 +1,5 @@
 const MESSAGE_FIELDS =
-  'message_id, sender_id, receiver_id, subject, message_body, sent_at, is_read, attachment_url';
+  'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url';
 
 const DEFAULT_ADMIN_EMAIL = process.env.MESSAGE_ADMIN_EMAIL || 'admin@pdm.edu.ph';
 const FETCH_PAGE_SIZE = 1000;
@@ -32,16 +32,25 @@ function emitToUser(userId, eventName, payload) {
   ioRef.to(`user:${userId}`).emit(eventName, payload);
 }
 
-function mapMessageRow(row = {}) {
+function emitToGroup(roomId, eventName, payload) {
+  if (!ioRef || !roomId) return;
+  ioRef.to(`group:${roomId}`).emit(eventName, payload);
+}
+
+function mapMessageRow(row = {}, profiles = null) {
+  const profile = profiles ? profiles.get(row.sender_id) : null;
   return {
     messageId: row.message_id,
     senderId: row.sender_id,
     receiverId: row.receiver_id,
+    roomId: row.room_id,
     subject: row.subject,
     messageBody: row.message_body,
     sentAt: row.sent_at,
     isRead: !!row.is_read,
     attachmentUrl: row.attachment_url,
+    senderName: profile?.name || null,
+    senderAvatarUrl: profile?.avatarUrl || null,
   };
 }
 
@@ -110,6 +119,7 @@ async function fetchThreadMessages(leftUserId, rightUserId, { limit = 200 } = {}
   const { data, error } = await supabase
     .from('messages')
     .select(MESSAGE_FIELDS)
+    .is('room_id', null)
     .or(buildThreadFilter(leftUserId, rightUserId))
     .order('sent_at', { ascending: true })
     .limit(safeLimit);
@@ -119,19 +129,24 @@ async function fetchThreadMessages(leftUserId, rightUserId, { limit = 200 } = {}
     throw new Error(error.message);
   }
 
-  return (data || []).map(mapMessageRow);
+  // To display sender info on 1-on-1 we can also fetch profiles
+  const profilesResult = await fetchConversationProfiles([leftUserId, rightUserId]);
+  const combinedMap = new Map();
+  profilesResult.userMap.forEach((u, id) => {
+    const s = profilesResult.studentMap.get(id);
+    const name = [s?.first_name, s?.last_name].filter(Boolean).join(' ').trim() || u.username || 'Unknown';
+    combinedMap.set(id, { name, avatarUrl: s?.profile_photo_url || null });
+  });
+
+  return (data || []).map(row => mapMessageRow(row, combinedMap));
 }
 
-async function createMessage({ senderId, receiverId, messageBody }) {
+async function createMessage({ senderId, receiverId, roomId, messageBody }) {
   const trimmedBody = normalizeMessageBody(messageBody);
 
-  if (!senderId || !receiverId) {
-    throw createHttpError(400, 'senderId and receiverId are required.');
-  }
-
-  if (!trimmedBody) {
-    throw createHttpError(400, 'messageBody is required.');
-  }
+  if (!senderId) throw createHttpError(400, 'senderId is required.');
+  if (!receiverId && !roomId) throw createHttpError(400, 'receiverId or roomId is required.');
+  if (!trimmedBody) throw createHttpError(400, 'messageBody is required.');
 
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -139,7 +154,8 @@ async function createMessage({ senderId, receiverId, messageBody }) {
     .insert([
       {
         sender_id: senderId,
-        receiver_id: receiverId,
+        receiver_id: receiverId || null,
+        room_id: roomId || null,
         message_body: trimmedBody,
         subject: null,
         attachment_url: null,
@@ -153,9 +169,24 @@ async function createMessage({ senderId, receiverId, messageBody }) {
     throw new Error(error.message);
   }
 
-  const message = mapMessageRow(data);
-  emitToUser(senderId, 'message:new', message);
-  emitToUser(receiverId, 'message:new', message);
+  // Pre-fetch sender profile to append to payload so receivers know who sent it
+  const profilesResult = await fetchConversationProfiles([senderId]);
+  const combinedMap = new Map();
+  profilesResult.userMap.forEach((u, id) => {
+    const s = profilesResult.studentMap.get(id);
+    const name = [s?.first_name, s?.last_name].filter(Boolean).join(' ').trim() || u.username || 'Unknown';
+    combinedMap.set(id, { name, avatarUrl: s?.profile_photo_url || null });
+  });
+
+  const message = mapMessageRow(data, combinedMap);
+
+  if (roomId) {
+    emitToGroup(roomId, 'message:new', message);
+  } else {
+    emitToUser(senderId, 'message:new', message);
+    emitToUser(receiverId, 'message:new', message);
+  }
+  
   return message;
 }
 
@@ -391,6 +422,129 @@ async function markAdminConversationRead(userId, counterpartyId) {
   });
 }
 
+// ------------------ GROUP MESSAGING LOGIC ------------------
+
+async function listRoomsForAdmin(adminUserId) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('chat_rooms')
+    .select('room_id, room_name, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function createRoom(adminUserId, roomName, userIds = []) {
+  const supabase = getSupabase();
+  const { data: group, error } = await supabase
+    .from('chat_rooms')
+    .insert([{ room_name: roomName, created_by: adminUserId }])
+    .select('room_id, room_name, created_at')
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  // Auto-add the admin creator to the group
+  const memberInserts = [{ room_id: group.room_id, user_id: adminUserId, is_admin: true }];
+  
+  // Add selected students
+  if (userIds && userIds.length > 0) {
+    for (const uid of userIds) {
+      if (uid !== adminUserId) {
+        memberInserts.push({ room_id: group.room_id, user_id: uid, is_admin: false });
+      }
+    }
+  }
+
+  const { error: memberError } = await supabase
+    .from('chat_room_members')
+    .insert(memberInserts);
+
+  if (memberError) throw new Error(memberError.message);
+
+  return group;
+}
+
+async function addGroupMembers(adminUserId, roomId, userIds = []) {
+  if (!userIds || userIds.length === 0) return [];
+  const supabase = getSupabase();
+  const inserts = userIds.map(uid => ({ room_id: roomId, user_id: uid }));
+  
+  const { data, error } = await supabase
+    .from('chat_room_members')
+    .insert(inserts)
+    .select('user_id');
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function removeGroupMember(adminUserId, roomId, memberId) {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('chat_room_members')
+    .delete()
+    .eq('room_id', roomId)
+    .eq('user_id', memberId);
+
+  if (error) throw new Error(error.message);
+  return { success: true };
+}
+
+async function listRoomsForUser(userId) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('chat_room_members')
+    .select('room_id, chat_rooms (room_name, created_at)')
+    .eq('user_id', userId);
+
+  if (error) throw new Error(error.message);
+  return data.map(item => ({
+    roomId: item.room_id,
+    roomName: item.chat_rooms?.room_name,
+    createdAt: item.chat_rooms?.created_at
+  }));
+}
+
+async function fetchRoomThread(userId, roomId, { limit = 200 } = {}) {
+  const supabase = getSupabase();
+  const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select(MESSAGE_FIELDS)
+    .eq('room_id', roomId)
+    .order('sent_at', { ascending: true })
+    .limit(safeLimit);
+
+  if (error) throw new Error(error.message);
+
+  const rows = data || [];
+  const senderIds = Array.from(new Set(rows.map(r => r.sender_id).filter(Boolean)));
+  
+  const profilesResult = await fetchConversationProfiles(senderIds);
+  const combinedMap = new Map();
+  profilesResult.userMap.forEach((u, id) => {
+    const s = profilesResult.studentMap.get(id);
+    const name = [s?.first_name, s?.last_name].filter(Boolean).join(' ').trim() || u.username || 'Unknown';
+    combinedMap.set(id, { name, avatarUrl: s?.profile_photo_url || null });
+  });
+
+  return rows.map(row => mapMessageRow(row, combinedMap));
+}
+
+async function sendRoomMessage(userId, roomId, messageBody) {
+  // If it's the admin, ensure the user actor matches admin
+  return createMessage({
+    senderId: userId,
+    roomId: roomId,
+    messageBody,
+  });
+}
+
+// ---------------------------------------------------------
+
 module.exports = {
   configureMessageService,
   getUnreadCount,
@@ -402,4 +556,13 @@ module.exports = {
   sendAdminConversationMessage,
   markAdminConversationRead,
   resolveFixedAdminUserId,
+
+  // Group Features
+  listRoomsForAdmin,
+  createRoom,
+  addGroupMembers,
+  removeGroupMember,
+  listRoomsForUser,
+  fetchRoomThread,
+  sendRoomMessage
 };

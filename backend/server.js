@@ -97,6 +97,7 @@ const ACTIVE_APPLICATION_STATUSES = new Set([
   'waitlisted',
   'requires reupload',
 ]);
+const STUDENT_REGISTRY_TABLE = 'student_registry';
 
 // Configure the email sender
 const transporter = nodemailer.createTransport({
@@ -188,8 +189,8 @@ async function resolveAvatarUrl(value) {
 }
 
 async function buildAuthUser(user, studentProfile = null) {
-  const hasScholarAccess = await resolveHasScholarAccessForStudent(
-    studentProfile?.student_id
+  const eligibility = await resolveStudentEligibilityByStudentNumber(
+    studentProfile?.pdm_id || user.username || ''
   );
 
   return {
@@ -198,12 +199,38 @@ async function buildAuthUser(user, studentProfile = null) {
     userId: user.user_id,
     email: user.email,
     student_id: user.username,
+    pdm_id: studentProfile?.pdm_id ?? user.username ?? null,
     first_name: studentProfile?.first_name ?? null,
     last_name: studentProfile?.last_name ?? null,
     avatar_url: await resolveAvatarUrl(studentProfile?.profile_photo_url ?? null),
     role: user.role ?? null,
     is_verified: !!user.is_otp_verified,
-    has_scholar_access: hasScholarAccess,
+    has_scholar_access: eligibility.hasScholarAccess,
+    has_application: eligibility.hasApplication,
+    eligibility_status: eligibility.status,
+    is_pdm_student: eligibility.isRegistrarMatch,
+    registrar_student: eligibility.registryStudent
+      ? {
+          pdm_id: eligibility.registryStudent.pdm_id,
+          learners_reference_number:
+            eligibility.registryStudent.learners_reference_number ?? null,
+          last_name: eligibility.registryStudent.last_name ?? null,
+          first_name: eligibility.registryStudent.first_name ?? null,
+          middle_name: eligibility.registryStudent.middle_name ?? null,
+          course_id: eligibility.registryStudent.course_id ?? null,
+          year_level: eligibility.registryStudent.year_level ?? null,
+          gwa: eligibility.registryStudent.gwa ?? null,
+          profile_photo_url: eligibility.registryStudent.profile_photo_url ?? null,
+          is_active_scholar: eligibility.registryStudent.is_active_scholar ?? false,
+          account_status: eligibility.registryStudent.account_status ?? null,
+          sdo_status: eligibility.registryStudent.sdo_status ?? null,
+          is_archived: eligibility.registryStudent.is_archived ?? false,
+          is_profile_complete: eligibility.registryStudent.is_profile_complete ?? false,
+          sex_at_birth: eligibility.registryStudent.sex_at_birth ?? null,
+          email_address: eligibility.registryStudent.email_address ?? null,
+          phone_number: eligibility.registryStudent.phone_number ?? null,
+        }
+      : null,
   };
 }
 
@@ -566,27 +593,33 @@ async function buildMyProfileResponse(context = {}) {
   const student = context.student || {};
   const profile = context.student_profile || {};
   const course = context.course || {};
-  const avatarUrl = await resolveAvatarUrl(student.profile_photo_url ?? null);
-  const hasScholarAccess = await resolveHasScholarAccessForStudent(
-    student.student_id
+  const registrarStudent = await resolveRegistrarStudentByStudentNumber(
+    student.pdm_id || user.username || ''
   );
+  const avatarUrl = await resolveAvatarUrl(student.profile_photo_url ?? null);
+  const eligibility = await resolveStudentEligibilityByStudentNumber(
+    student.pdm_id || user.username || ''
+  );
+  const registrarCourse = !course?.course_id && registrarStudent?.course_id
+    ? await resolveCourseById(registrarStudent.course_id)
+    : course;
 
   return {
     profile: {
       user_id: user.user_id ?? null,
       student_id: student.pdm_id || user.username || null,
-      first_name: student.first_name ?? null,
-      middle_name: student.middle_name ?? null,
-      last_name: student.last_name ?? null,
-      year_level: student.year_level ?? null,
+      first_name: student.first_name ?? registrarStudent?.first_name ?? null,
+      middle_name: student.middle_name ?? registrarStudent?.middle_name ?? null,
+      last_name: student.last_name ?? registrarStudent?.last_name ?? null,
+      year_level: student.year_level ?? registrarStudent?.year_level ?? null,
       barangay: student.barangay ?? null,
-      email: user.email ?? null,
-      phone_number: user.phone_number ?? null,
+      email: user.email ?? registrarStudent?.email_address ?? null,
+      phone_number: user.phone_number ?? registrarStudent?.phone_number ?? null,
       avatar_url: avatarUrl,
-      course_code: course.course_code ?? null,
+      course_code: course.course_code ?? registrarCourse?.course_code ?? null,
       date_of_birth: profile.date_of_birth ?? null,
       place_of_birth: profile.place_of_birth ?? null,
-      sex: profile.sex ?? null,
+      sex: profile.sex ?? registrarStudent?.sex_at_birth ?? null,
       civil_status: profile.civil_status ?? null,
       maiden_name: profile.maiden_name ?? null,
       religion: profile.religion ?? null,
@@ -597,8 +630,14 @@ async function buildMyProfileResponse(context = {}) {
       province: profile.province ?? null,
       zip_code: profile.zip_code ?? null,
       landline_number: profile.landline_number ?? null,
-      learners_reference_number: profile.learners_reference_number ?? null,
-      has_scholar_access: hasScholarAccess,
+      learners_reference_number:
+        profile.learners_reference_number ??
+        registrarStudent?.learners_reference_number ??
+        null,
+      has_scholar_access: eligibility.hasScholarAccess,
+      has_application: eligibility.hasApplication,
+      eligibility_status: eligibility.status,
+      is_pdm_student: eligibility.isRegistrarMatch,
     },
   };
 }
@@ -913,6 +952,17 @@ async function resolveActiveOpeningApplicationForUser(userId) {
 
 async function fetchVisibleProgramOpeningsForUser(userId) {
   const studentRecord = await resolveStudentByUserId(userId);
+  const registryStudent = await resolveRegistrarStudentByStudentNumber(
+    studentRecord?.pdm_id || ''
+  );
+
+  if (!registryStudent) {
+    throw createHttpError(
+      403,
+      'This account is not registered in the registrar records.'
+    );
+  }
+
   const scholarRecord = studentRecord?.student_id
     ? await resolveScholarRecordForStudent(studentRecord.student_id)
     : null;
@@ -1857,6 +1907,45 @@ function normalizeNullableText(value) {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+function normalizeStudentProfileSex(value) {
+  const normalized = normalizeLookupValue(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const lookup = {
+    m: 'Male',
+    male: 'Male',
+    f: 'Female',
+    female: 'Female',
+    'prefer not to say': 'Prefer not to say',
+    other: 'Other',
+  };
+
+  return lookup[normalized] || normalizeNullableText(value);
+}
+
+function normalizeBoolean(value) {
+  if (value === true || value === false) {
+    return value;
+  }
+
+  const normalized = normalizeLookupValue(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (['true', 'yes', '1', 'y'].includes(normalized)) {
+    return true;
+  }
+
+  if (['false', 'no', '0', 'n'].includes(normalized)) {
+    return false;
+  }
+
+  return null;
+}
+
 function normalizeEducationalAttainment(value) {
   const normalized = normalizeNullableText(value);
   if (!normalized) return null;
@@ -2151,23 +2240,222 @@ async function resolveCourseIdByCode(courseCode) {
     return null;
   }
 
+  const normalizedCourseCode = normalizeLookupValue(courseCode);
   const { data: courseData, error: courseError } = await supabase
     .from('academic_course')
-    .select('course_id, course_code')
-    .eq('course_code', courseCode)
-    .maybeSingle();
+    .select('course_id, course_code, course_name, is_archived')
+    .eq('is_archived', false);
 
   if (courseError) {
     throw courseError;
   }
 
-  if (!courseData) {
+  const matchingCourse = (courseData || []).find((course) => {
+    if (course.is_archived) {
+      return false;
+    }
+
+    const courseCodeValue = normalizeLookupValue(course.course_code);
+    const courseNameValue = normalizeLookupValue(course.course_name);
+    const courseIdValue = normalizeLookupValue(course.course_id);
+
+    return (
+      courseIdValue === normalizedCourseCode ||
+      courseCodeValue === normalizedCourseCode ||
+      courseNameValue === normalizedCourseCode
+    );
+  });
+
+  if (!matchingCourse) {
     const error = new Error('Selected course is invalid.');
     error.statusCode = 400;
     throw error;
   }
 
-  return courseData.course_id;
+  return matchingCourse.course_id;
+}
+
+async function resolveCourseById(courseId) {
+  if (!courseId) {
+    return null;
+  }
+
+  const normalizedCourseId = String(courseId).trim();
+  if (!normalizedCourseId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('academic_course')
+    .select('course_id, course_code, course_name, is_archived')
+    .eq('course_id', normalizedCourseId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data || data.is_archived) {
+    return null;
+  }
+
+  return data;
+}
+
+function normalizeStudentNumber(value = '') {
+  return String(value || '').trim().toUpperCase();
+}
+
+function normalizeYearLevel(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return null;
+  }
+
+  const match = text.match(/\d+/);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(match[0], 10);
+  if (Number.isNaN(parsed) || parsed < 1 || parsed > 6) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function buildRegistrarStudentRecord(row = {}) {
+  return {
+    pdm_id: normalizeStudentNumber(row.pdm_id || row.student_number),
+    learners_reference_number: String(row.learners_reference_number || '').trim() || null,
+    last_name: String(row.last_name || '').trim() || null,
+    first_name: String(row.first_name || '').trim() || null,
+    middle_name: String(row.middle_name || row.middle_initial || '').trim() || null,
+    course_id: String(row.course_id || row.course_code || row.degree_program || '').trim() || null,
+    year_level: normalizeYearLevel(row.year_level),
+    gwa: row.gwa ?? null,
+    profile_photo_url: String(row.profile_photo_url || '').trim() || null,
+    is_active_scholar: normalizeBoolean(row.is_active_scholar) ?? false,
+    account_status: String(row.account_status || 'Pending').trim() || 'Pending',
+    sdo_status: String(row.sdo_status || 'Clear').trim() || 'Clear',
+    is_archived: normalizeBoolean(row.is_archived) ?? false,
+    is_profile_complete: normalizeBoolean(row.is_profile_complete) ?? false,
+    sex_at_birth: String(row.sex_at_birth || '').trim() || null,
+    email_address: String(row.email_address || '').trim().toLowerCase() || null,
+    phone_number: String(row.phone_number || '').trim() || null,
+    source_filename: String(row.source_filename || '').trim() || null,
+    source_row_number: row.source_row_number ?? null,
+  };
+}
+
+async function resolveRegistrarStudentByStudentNumber(studentNumber) {
+  const normalizedStudentNumber = normalizeStudentNumber(studentNumber);
+  if (!normalizedStudentNumber) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from(STUDENT_REGISTRY_TABLE)
+    .select(`
+      registry_id,
+      pdm_id,
+      learners_reference_number,
+      last_name,
+      first_name,
+      middle_name,
+      course_id,
+      year_level,
+      gwa,
+      profile_photo_url,
+      is_active_scholar,
+      account_status,
+      sdo_status,
+      is_archived,
+      is_profile_complete,
+      sex_at_birth,
+      email_address,
+      phone_number,
+      source_filename,
+      source_row_number,
+      imported_at,
+      updated_at
+    `)
+    .eq('pdm_id', normalizedStudentNumber)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function resolveStudentEligibilityByStudentNumber(studentNumber) {
+  const registryStudent = await resolveRegistrarStudentByStudentNumber(studentNumber);
+
+  if (!registryStudent) {
+    return {
+      isRegistrarMatch: false,
+      hasApplication: false,
+      hasScholarAccess: false,
+      status: 'non-PDM / not registered',
+      registryStudent: null,
+      studentRecord: null,
+      scholarRecord: null,
+    };
+  }
+
+  const studentNumberValue = normalizeStudentNumber(registryStudent.pdm_id);
+  const { data: studentRecord, error: studentError } = await supabase
+    .from('students')
+    .select('student_id, user_id, pdm_id')
+    .eq('pdm_id', studentNumberValue)
+    .maybeSingle();
+
+  if (studentError) {
+    throw studentError;
+  }
+
+  if (!studentRecord?.student_id) {
+    return {
+      isRegistrarMatch: true,
+      hasApplication: false,
+      hasScholarAccess: false,
+      status: 'eligible student',
+      registryStudent,
+      studentRecord: null,
+      scholarRecord: null,
+    };
+  }
+
+  const scholarRecord = await resolveScholarRecordForStudent(studentRecord.student_id);
+  const { data: applicationRecords, error: applicationError } = await supabase
+    .from('applications')
+    .select('application_id, application_status, is_disqualified')
+    .eq('student_id', studentRecord.student_id);
+
+  if (applicationError) {
+    throw applicationError;
+  }
+
+  const hasApplication = (applicationRecords || []).length > 0;
+  const hasScholarAccess = !!scholarRecord;
+  const status = hasScholarAccess
+    ? 'existing scholar'
+    : hasApplication
+      ? 'applicant'
+      : 'eligible student';
+
+  return {
+    isRegistrarMatch: true,
+    hasApplication,
+    hasScholarAccess,
+    status,
+    registryStudent,
+    studentRecord,
+    scholarRecord,
+  };
 }
 
 async function persistApplicantProfileSubmission(payload = {}) {
@@ -2189,6 +2477,18 @@ async function persistApplicantProfileSubmission(payload = {}) {
     throw error;
   }
 
+  const registrarStudent = await resolveRegistrarStudentByStudentNumber(
+    account.student_id
+  );
+
+  if (!registrarStudent) {
+    const error = new Error(
+      'Student ID is not registered in the registrar records.'
+    );
+    error.statusCode = 403;
+    throw error;
+  }
+
   if (
     academic.student_number &&
     academic.student_number.trim() &&
@@ -2201,16 +2501,31 @@ async function persistApplicantProfileSubmission(payload = {}) {
     throw error;
   }
 
-  const courseId = await resolveCourseIdByCode(academic.current_course_code);
+  const courseId = await resolveCourseIdByCode(
+    academic.current_course_code || registrarStudent.course_id
+  );
+  const derivedFirstName = String(
+    personal.first_name || registrarStudent.first_name || ''
+  ).trim();
+  const derivedLastName = String(
+    personal.last_name || registrarStudent.last_name || ''
+  ).trim();
+  const derivedMiddleName = personal.middle_name
+    ? String(personal.middle_name).trim()
+    : registrarStudent.middle_name
+      ? String(registrarStudent.middle_name).trim()
+      : null;
+  const derivedYearLevel =
+    academic.current_year_level ?? registrarStudent.year_level ?? null;
 
   const studentPayload = {
     user_id: account.user_id,
     pdm_id: account.student_id,
-    first_name: personal.first_name ?? '',
-    middle_name: personal.middle_name ?? null,
-    last_name: personal.last_name ?? '',
+    first_name: derivedFirstName,
+    middle_name: derivedMiddleName,
+    last_name: derivedLastName,
     barangay: address.barangay ?? null,
-    year_level: academic.current_year_level ?? null,
+    year_level: derivedYearLevel,
     course_id: courseId,
     gwa: null,
     is_archived: false,
@@ -2278,7 +2593,9 @@ async function persistApplicantProfileSubmission(payload = {}) {
     student_id: studentRecord.student_id,
     date_of_birth: personal.date_of_birth ?? null,
     place_of_birth: personal.place_of_birth ?? null,
-    sex: personal.sex ?? null,
+    sex: normalizeStudentProfileSex(
+      personal.sex ?? registrarStudent.sex_at_birth ?? null
+    ),
     civil_status: personal.civil_status ?? null,
     maiden_name: personal.maiden_name ?? null,
     religion: personal.religion ?? null,
@@ -2289,7 +2606,8 @@ async function persistApplicantProfileSubmission(payload = {}) {
     province: address.province ?? null,
     zip_code: address.zip_code ?? null,
     landline_number: contact.landline ?? null,
-    learners_reference_number: academic.lrn ?? null,
+    learners_reference_number:
+      academic.lrn ?? registrarStudent.learners_reference_number ?? null,
     financial_support_type: support.financial_support ?? null,
     financial_support_other:
       support.financial_support === 'Other'
@@ -2596,7 +2914,19 @@ async function submitApplicantOpeningApplication({
     );
   }
 
+  const userRecord = await resolveUserAccountRecord(userId);
   const studentRecord = await resolveStudentByUserId(userId);
+  const registrarStudent = await resolveRegistrarStudentByStudentNumber(
+    studentRecord?.pdm_id || userRecord?.username || ''
+  );
+
+  if (!registrarStudent) {
+    throw createHttpError(
+      403,
+      'This account is not registered in the registrar records.'
+    );
+  }
+
   const scholarRecord = studentRecord?.student_id
     ? await resolveScholarRecordForStudent(studentRecord.student_id)
     : null;
@@ -2619,13 +2949,17 @@ async function submitApplicantOpeningApplication({
     );
   }
 
-  const userRecord = await resolveUserAccountRecord(userId);
   const normalizedPayload = {
     ...incomingPayload,
     account: {
       ...(incomingPayload.account ?? {}),
       user_id: userId,
       student_id: incomingPayload.account?.student_id || userRecord?.username || '',
+      email:
+        incomingPayload.account?.email ||
+        userRecord?.email ||
+        registrarStudent.email_address ||
+        '',
     },
     contact: {
       ...(incomingPayload.contact ?? {}),
@@ -2633,6 +2967,12 @@ async function submitApplicantOpeningApplication({
         incomingPayload.contact?.email ||
         incomingPayload.account?.email ||
         userRecord?.email ||
+        registrarStudent.email_address ||
+        '',
+      mobile_number:
+        incomingPayload.contact?.mobile_number ||
+        userRecord?.phone_number ||
+        registrarStudent.phone_number ||
         '',
     },
   };
@@ -2783,6 +3123,16 @@ app.post('/api/auth/register', async (req, res) => {
       });
     }
 
+    const registrarStudent = await resolveRegistrarStudentByStudentNumber(
+      student_id
+    );
+
+    if (!registrarStudent) {
+      return res.status(403).json({
+        error: 'Student ID is not registered in the registrar records.',
+      });
+    }
+
     const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
       .from('users')
       .select('username')
@@ -2833,6 +3183,7 @@ app.post('/api/auth/register', async (req, res) => {
     pendingRegistrationStore.set(email, {
       email,
       student_id,
+      registrar_student: registrarStudent,
       password_hash: hashedPassword,
       role: 'Student',
       expiresAt,
@@ -2883,6 +3234,18 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
     if (record.otp !== otp) {
       return res.status(400).json({ error: 'Invalid OTP' });
+    }
+
+    const registrarStudent = await resolveRegistrarStudentByStudentNumber(
+      pendingRegistration.student_id
+    );
+
+    if (!registrarStudent) {
+      otpStore.delete(email);
+      pendingRegistrationStore.delete(email);
+      return res.status(403).json({
+        error: 'Student ID is not registered in the registrar records.',
+      });
     }
 
     const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
@@ -3012,13 +3375,11 @@ app.post('/api/profile/setup', protect, async (req, res) => {
       phone_number,
     } = req.body;
 
-    if (!first_name || !last_name || !course_code) {
+    if (!first_name || !last_name) {
       return res.status(400).json({
-        error: 'First name, last name, and course code are required.',
+        error: 'First name and last name are required.',
       });
     }
-
-    const courseId = await resolveCourseIdByCode(course_code);
 
     const userContext = await loadStudentProfileContextByUserId(userId);
     const accountStudentId =
@@ -3032,14 +3393,38 @@ app.post('/api/profile/setup', protect, async (req, res) => {
       });
     }
 
+    const registrarStudent = await resolveRegistrarStudentByStudentNumber(
+      accountStudentId
+    );
+
+    if (!registrarStudent) {
+      return res.status(403).json({
+        error: 'Student ID is not registered in the registrar records.',
+      });
+    }
+
+    const courseId = course_code
+      ? await resolveCourseIdByCode(course_code)
+      : registrarStudent.course_id
+        ? (await resolveCourseById(registrarStudent.course_id))?.course_id || null
+        : null;
+
+    if (!courseId) {
+      return res.status(400).json({
+        error: 'Selected course is invalid.',
+      });
+    }
+
     const studentPayload = {
       user_id: userId,
       pdm_id: accountStudentId,
-      first_name: String(first_name).trim(),
-      middle_name: middle_name ? String(middle_name).trim() : null,
-      last_name: String(last_name).trim(),
+      first_name: String(first_name || registrarStudent.first_name || '').trim(),
+      middle_name: middle_name
+        ? String(middle_name).trim()
+        : registrarStudent.middle_name || null,
+      last_name: String(last_name || registrarStudent.last_name || '').trim(),
       barangay: barangay ? String(barangay).trim() : null,
-      year_level: year_level ?? null,
+      year_level: year_level ?? registrarStudent.year_level ?? null,
       course_id: courseId,
       gwa: null,
       is_archived: false,
@@ -3101,6 +3486,9 @@ app.post('/api/profile/setup', protect, async (req, res) => {
         [
           {
             student_id: studentRecord.student_id,
+            sex: normalizeStudentProfileSex(registrarStudent.sex_at_birth ?? null),
+            learners_reference_number:
+              registrarStudent.learners_reference_number ?? null,
           },
         ],
         { onConflict: 'student_id' }
@@ -3282,22 +3670,17 @@ app.patch('/api/profile/me', protect, async (req, res) => {
 
     let courseId = context.student.course_id ?? null;
     if (courseCode) {
-      const { data: courseData, error: courseError } = await supabase
-        .from('academic_course')
-        .select('course_id, course_code')
-        .eq('course_code', courseCode)
-        .maybeSingle();
+      try {
+        const resolvedCourseId = await resolveCourseIdByCode(courseCode);
+        if (!resolvedCourseId) {
+          return res.status(400).json({ error: 'Selected course is invalid.' });
+        }
 
-      if (courseError) {
+        courseId = resolvedCourseId;
+      } catch (courseError) {
         console.error('Profile course lookup error:', courseError);
         return res.status(500).json({ error: 'Failed to validate course.' });
       }
-
-      if (!courseData) {
-        return res.status(400).json({ error: 'Selected course is invalid.' });
-      }
-
-      courseId = courseData.course_id;
     }
 
     const nextUserPayload = {};
@@ -3341,7 +3724,9 @@ app.patch('/api/profile/me', protect, async (req, res) => {
       student_id: context.student.student_id,
       date_of_birth: payload.date_of_birth ?? context.student_profile?.date_of_birth ?? null,
       place_of_birth: payload.place_of_birth ?? context.student_profile?.place_of_birth ?? null,
-      sex: payload.sex ?? context.student_profile?.sex ?? null,
+      sex: normalizeStudentProfileSex(
+        payload.sex ?? context.student_profile?.sex ?? null
+      ),
       civil_status: payload.civil_status ?? context.student_profile?.civil_status ?? null,
       maiden_name: payload.maiden_name ?? context.student_profile?.maiden_name ?? null,
       religion: payload.religion ?? context.student_profile?.religion ?? null,

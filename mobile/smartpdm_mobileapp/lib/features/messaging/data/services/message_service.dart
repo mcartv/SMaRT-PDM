@@ -21,6 +21,21 @@ class MessageReadResult {
   });
 }
 
+class ChatRoom {
+  final String roomId;
+  final String roomName;
+
+  const ChatRoom({required this.roomId, required this.roomName});
+
+  factory ChatRoom.fromJson(Map<String, dynamic> json) {
+    return ChatRoom(
+      roomId: json['roomId']?.toString() ?? '',
+      roomName: json['roomName']?.toString() ?? 'Unknown Group',
+    );
+  }
+}
+
+
 class MessageService {
   MessageService({ApiClient? apiClient})
     : _apiClient = apiClient ?? ApiClient();
@@ -58,6 +73,30 @@ class MessageService {
   Future<int> fetchUnreadCount() async {
     final response = await _apiClient.getObject('/api/messages/unread-count');
     return (response['unreadCount'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<List<ChatRoom>> fetchGroups() async {
+    final items = await _apiClient.getList('/api/messages/rooms');
+    return items
+        .map((e) => ChatRoom.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  Future<List<ChatMessage>> fetchRoomThread(String roomId) async {
+    final response = await _apiClient.getObject('/api/messages/rooms/$roomId/thread');
+    return _parseItems(response['items']);
+  }
+
+  Future<ChatMessage> sendRoomMessage(String roomId, String messageBody) async {
+    final response = await _apiClient.postJson(
+      '/api/messages/rooms/$roomId/send',
+      body: {'messageBody': messageBody},
+    );
+    return ChatMessage.fromJson(response);
+  }
+
+  Future<void> markRoomThreadRead(String roomId) async {
+    await _apiClient.patchJson('/api/messages/rooms/$roomId/read');
   }
 
   List<ChatMessage> _parseItems(dynamic rawItems) {

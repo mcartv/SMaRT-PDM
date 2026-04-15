@@ -23,6 +23,8 @@ class MessagingProvider extends ChangeNotifier {
   String? _errorMessage;
   String _currentUserId = '';
   String _counterpartyId = '';
+  String? _activeGroupId;
+  List<ChatRoom> _rooms = [];
   io.Socket? _socket;
 
   List<ChatMessage> get messages => _messages;
@@ -31,6 +33,8 @@ class MessagingProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get currentUserId => _currentUserId;
   String get counterpartyId => _counterpartyId;
+  String? get activeGroupId => _activeGroupId;
+  List<ChatRoom> get rooms => _rooms;
 
   Future<void> initializeChat() async {
     if (_isInitialized) {
@@ -60,11 +64,35 @@ class MessagingProvider extends ChangeNotifier {
 
   void leaveThread() {
     _isViewingThread = false;
+    _activeGroupId = null;
+    _messages = [];
+  }
+
+  Future<void> fetchGroups() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _rooms = await _messageService.fetchGroups();
+    } catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> enterRoom(String roomId) async {
+    _isViewingThread = true;
+    _activeGroupId = roomId;
+    await initializeChat();
+    await _refreshThread();
+    await markThreadRead();
   }
 
   Future<void> refresh() async {
     await _refreshThread();
     await refreshUnreadCount();
+    await fetchGroups();
   }
 
   Future<void> refreshUnreadCount({bool notify = true}) async {
@@ -85,7 +113,12 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     try {
-      final message = await _messageService.sendThreadMessage(trimmed);
+      ChatMessage message;
+      if (_activeGroupId != null) {
+        message = await _messageService.sendRoomMessage(_activeGroupId!, trimmed);
+      } else {
+        message = await _messageService.sendThreadMessage(trimmed);
+      }
       _errorMessage = null;
       _upsertMessage(message);
       notifyListeners();
@@ -98,6 +131,14 @@ class MessagingProvider extends ChangeNotifier {
 
   Future<void> markThreadRead() async {
     try {
+      if (_activeGroupId != null) {
+        await _messageService.markRoomThreadRead(_activeGroupId!);
+        _markMessagesRead(_messages.map((e) => e.messageId).toList());
+        _recalculateUnreadCount();
+        notifyListeners();
+        return;
+      }
+      
       final result = await _messageService.markThreadRead();
       if (result.messageIds.isNotEmpty) {
         _markMessagesRead(result.messageIds);
@@ -119,10 +160,14 @@ class MessagingProvider extends ChangeNotifier {
     }
 
     try {
-      final result = await _messageService.fetchThread();
-      _counterpartyId = result.counterpartyId;
-      _messages = result.items.toList()
-        ..sort((left, right) => right.sentAt.compareTo(left.sentAt));
+      if (_activeGroupId != null) {
+        _messages = await _messageService.fetchRoomThread(_activeGroupId!);
+      } else {
+        final result = await _messageService.fetchThread();
+        _counterpartyId = result.counterpartyId;
+        _messages = result.items.toList();
+      }
+      _messages.sort((left, right) => right.sentAt.compareTo(left.sentAt));
       _recalculateUnreadCount();
     } catch (error) {
       _errorMessage = error.toString();

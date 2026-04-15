@@ -7,7 +7,10 @@ import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/mes
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class MessagingScreen extends StatefulWidget {
-  const MessagingScreen({super.key});
+  final String? roomId;
+  final String? title;
+
+  const MessagingScreen({super.key, this.roomId, this.title});
 
   @override
   State<MessagingScreen> createState() => _MessagingScreenState();
@@ -22,7 +25,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
     _messageController.addListener(_onTextChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<MessagingProvider>().enterThread();
+      if (widget.roomId != null) {
+        context.read<MessagingProvider>().enterRoom(widget.roomId!);
+      } else {
+        context.read<MessagingProvider>().enterThread();
+      }
     });
   }
 
@@ -75,12 +82,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
         titleSpacing: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             Text(
-              'John Smith',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+              widget.title ?? 'OSFA Support Admin',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
-            Text(
+            const Text(
               'Active now',
               style: TextStyle(
                 fontSize: 12,
@@ -158,30 +165,52 @@ class _MessagingScreenState extends State<MessagingScreen> {
           if (!isMe)
             Padding(
               padding: const EdgeInsets.only(right: 8.0, bottom: 12),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.grey.shade300,
-                child: const Icon(Icons.person, color: Colors.white, size: 20),
-              ),
+              child: message.senderAvatarUrl != null
+                  ? CircleAvatar(
+                      radius: 16,
+                      backgroundImage: NetworkImage(message.senderAvatarUrl!),
+                    )
+                  : CircleAvatar(
+                      radius: 16,
+                      backgroundColor: Colors.grey.shade300,
+                      child: const Icon(Icons.person, color: Colors.white, size: 20),
+                    ),
             ),
           Flexible(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isMe ? primaryColor : Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(20).copyWith(
-                  bottomRight: isMe ? const Radius.circular(0) : null,
-                  bottomLeft: !isMe ? const Radius.circular(0) : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!isMe && widget.roomId != null && message.senderName != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0, bottom: 4.0),
+                    child: Text(
+                      message.senderName!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isMe ? primaryColor : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(20).copyWith(
+                      bottomRight: isMe ? const Radius.circular(0) : null,
+                      bottomLeft: !isMe ? const Radius.circular(0) : null,
+                    ),
+                  ),
+                  child: Text(
+                    message.messageBody,
+                    style: TextStyle(
+                      color: isMe ? Colors.white : Colors.black87,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                message.messageBody,
-                style: TextStyle(
-                  color: isMe ? Colors.white : Colors.black87,
-                  fontSize: 16,
-                ),
-              ),
+              ],
             ),
           ),
           if (isMe)

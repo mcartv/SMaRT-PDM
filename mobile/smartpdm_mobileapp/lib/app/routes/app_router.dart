@@ -19,6 +19,7 @@ import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/faqs_
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/status_tracking_screen.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/success_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/messaging_screen.dart';
+import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/chat_list_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/report_ticket_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_completion_screen.dart';
@@ -133,7 +134,13 @@ class AppRouter {
       case AppRoutes.messaging:
         return _buildProtectedRoute(
           settings,
-          (_) => const MessagingScreen(),
+          (_) => const ChatListScreen(),
+        );
+
+      case AppRoutes.chatThread:
+        return _buildProtectedRoute(
+          settings,
+          (_) => _buildMessagingScreen(settings),
         );
 
       case AppRoutes.roAssignment:
@@ -206,6 +213,15 @@ class AppRouter {
       initialOpeningTitle: payload['openingTitle']?.toString(),
       initialProgramName: payload['programName']?.toString(),
       replaceExistingDraft: payload['replaceExistingDraft'] == true,
+    );
+  }
+
+  static MessagingScreen _buildMessagingScreen(RouteSettings settings) {
+    final args = settings.arguments;
+    final payload = args is Map<String, dynamic> ? args : const {};
+    return MessagingScreen(
+      roomId: payload['roomId']?.toString(),
+      title: payload['title']?.toString(),
     );
   }
 

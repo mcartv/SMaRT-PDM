@@ -5,23 +5,8 @@ const TABLE_NAME = 'student_registry';
 const REQUIRED_FIELDS = ['student_number', 'given_name', 'last_name'];
 
 const REGISTRY_TEMPLATE_HEADERS = [
-<<<<<<< HEAD
   'sequence_number',
   'student_number',
-=======
-  'pdm_id',
-  'first_name',
-  'middle_name',
-  'last_name',
-  'course_id',
-  'year_level',
-  'gwa',
-  'profile_photo_url',
-  'is_active_scholar',
-  'account_status',
-  'sdo_status',
-  'is_archived',
->>>>>>> 86131c068b9b17abd8e30f79612bf942a59885dc
   'learners_reference_number',
   'last_name',
   'given_name',
@@ -82,19 +67,6 @@ const HEADER_MAP = new Map([
   ['year level', 'year_level'],
   ['year_level', 'year_level'],
   ['year', 'year_level'],
-<<<<<<< HEAD
-
-=======
-  ['gwa', 'gwa'],
-  ['profile photo url', 'profile_photo_url'],
-  ['profile photo', 'profile_photo_url'],
-  ['avatar url', 'profile_photo_url'],
-  ['is active scholar', 'is_active_scholar'],
-  ['active scholar', 'is_active_scholar'],
-  ['account status', 'account_status'],
-  ['sdo status', 'sdo_status'],
-  ['is archived', 'is_archived'],
->>>>>>> 86131c068b9b17abd8e30f79612bf942a59885dc
   ['sex at birth', 'sex_at_birth'],
   ['sex_at_birth', 'sex_at_birth'],
   ['sex', 'sex_at_birth'],
@@ -362,15 +334,6 @@ function rowsToRecords(rows) {
       middle_name: normalizeTextWithLimit(rawRecord.middle_name, 50),
       degree_program: normalizeText(rawRecord.degree_program),
       year_level: normalizeYearLevel(rawRecord.year_level),
-<<<<<<< HEAD
-=======
-      gwa: normalizeGwa(rawRecord.gwa),
-      profile_photo_url: normalizeTextWithLimit(rawRecord.profile_photo_url, 255),
-      is_active_scholar: normalizeBoolean(rawRecord.is_active_scholar) ?? false,
-      account_status: normalizeAccountStatus(rawRecord.account_status),
-      sdo_status: normalizeSdoStatus(rawRecord.sdo_status),
-      is_archived: normalizeBoolean(rawRecord.is_archived) ?? false,
->>>>>>> 86131c068b9b17abd8e30f79612bf942a59885dc
       sex_at_birth: normalizeText(rawRecord.sex_at_birth),
       email_address: normalizeTextWithLimit(normalizeEmail(rawRecord.email_address), 255),
       phone_number: normalizeTextWithLimit(rawRecord.phone_number, 50),
@@ -469,16 +432,6 @@ async function importStudentRegistryFile(file) {
     last_name: record.last_name,
     course_id: record.course_id || null,
     year_level: record.year_level || null,
-<<<<<<< HEAD
-=======
-    gwa: record.gwa || null,
-    profile_photo_url: record.profile_photo_url || null,
-    is_active_scholar: record.is_active_scholar ?? false,
-    account_status: record.account_status,
-    sdo_status: record.sdo_status,
-    is_archived: record.is_archived ?? false,
-    learners_reference_number: record.learners_reference_number || null,
->>>>>>> 86131c068b9b17abd8e30f79612bf942a59885dc
     sex_at_birth: record.sex_at_birth || null,
     email_address: record.email_address || null,
     phone_number: record.phone_number || null,
@@ -516,31 +469,6 @@ async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
     supabase
       .from(TABLE_NAME)
       .select(
-<<<<<<< HEAD
-        `
-        registry_id,
-        student_number,
-        learners_reference_number,
-        given_name,
-        middle_name,
-        last_name,
-        course_id,
-        year_level,
-        sex_at_birth,
-        email_address,
-        phone_number,
-        sequence_number,
-        imported_at,
-        is_archived,
-        academic_course:course_id (
-          course_id,
-          course_code,
-          course_name
-        )
-        `,
-=======
-        'registry_id, pdm_id, learners_reference_number, last_name, first_name, middle_name, course_id, year_level, gwa, profile_photo_url, is_active_scholar, account_status, sdo_status, is_archived, sex_at_birth, email_address, phone_number, source_filename, source_row_number, imported_at, updated_at',
->>>>>>> 86131c068b9b17abd8e30f79612bf942a59885dc
         { count: 'exact' }
       )
       .order('sequence_number', { ascending: true, nullsFirst: false })

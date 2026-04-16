@@ -684,6 +684,7 @@ exports.fetchApplications = async () => {
         po.financial_allocation,
         po.per_scholar_amount,
         po.posting_status,
+        po.is_archived AS opening_is_archived,
 
         ay.label AS academic_year,
         ap.term AS semester,
@@ -708,6 +709,8 @@ exports.fetchApplications = async () => {
 
     WHERE
         COALESCE(a.is_archived, FALSE) = FALSE
+        AND COALESCE(po.is_archived, FALSE) = FALSE
+        AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
         AND sc.student_id IS NULL
         AND COALESCE(a.is_disqualified, FALSE) = FALSE
         AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved')
@@ -749,6 +752,7 @@ exports.fetchApplications = async () => {
             per_scholar_amount: row.per_scholar_amount ?? null,
             posting_status: row.posting_status || 'Open',
             opening_status: row.posting_status || 'Open',
+            opening_is_archived: !!row.opening_is_archived,
 
             application_status: row.application_status || 'Pending Review',
             status: row.application_status || 'Pending Review',
@@ -1188,6 +1192,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 po.allocated_slots,
                 po.filled_slots,
                 po.posting_status,
+                po.is_archived AS opening_is_archived,
                 po.academic_year_id,
                 po.period_id,
                 COUNT(a2.application_id) FILTER (
@@ -1212,6 +1217,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 po.allocated_slots,
                 po.filled_slots,
                 po.posting_status,
+                po.is_archived,
                 po.academic_year_id,
                 po.period_id
         `;
@@ -1225,11 +1231,16 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         const row = applicationResult.rows[0];
         const slotCount = Number(row.allocated_slots || 0);
         const approvedCount = Number(row.approved_count || 0);
-        const openingStatus = (row.posting_status || '').toLowerCase();
-        const currentApplicationStatus = (row.application_status || '').toLowerCase();
+        const openingStatus = String(row.posting_status || '').toLowerCase();
+        const currentApplicationStatus = String(row.application_status || '').toLowerCase();
+        const openingIsArchived = !!row.opening_is_archived;
 
         if (!row.student_id || !row.program_id) {
             throw new Error('Application is missing student_id or program_id');
+        }
+
+        if (openingIsArchived) {
+            throw new Error('This opening is already archived.');
         }
 
         const existingScholarResult = await client.query(
@@ -1249,7 +1260,9 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 `SELECT * FROM applications WHERE application_id = $1`,
                 [applicationId]
             );
+
             await client.query('COMMIT');
+
             return {
                 application: existingApplicationResult.rows[0],
                 scholar: existingScholarResult.rows[0],
@@ -1264,7 +1277,9 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 `SELECT * FROM applications WHERE application_id = $1`,
                 [applicationId]
             );
+
             await client.query('COMMIT');
+
             return {
                 application: existingApplicationResult.rows[0],
                 scholar: null,
@@ -1274,19 +1289,31 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             };
         }
 
+<<<<<<< HEAD
+        // Manual close should block approvals.
+        if (openingStatus === 'closed') {
+            throw new Error('This opening is already closed.');
+=======
         if (openingStatus === 'closed') {
             throw new Error('This opening is already closed or filled.');
+>>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
         }
 
+        // If slots are already exhausted, finalize the opening.
         if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
                 `   
                 UPDATE program_openings
                 SET posting_status = 'closed',
+<<<<<<< HEAD
+                    is_archived = TRUE,
+                    filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
+=======
+>>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
                     updated_at = NOW()
                 WHERE opening_id = $1
                 `,
-                [row.opening_id]
+                [row.opening_id, approvedCount]
             );
 
             throw new Error('No available slots left for this opening.');
@@ -1327,8 +1354,30 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         );
 
         const newApprovedCount = approvedCount + 1;
-        const nextFilledSlots = Number(row.filled_slots || 0) + 1;
+        const nextFilledSlots = newApprovedCount;
+        const shouldFinalizeOpening = slotCount > 0 && newApprovedCount >= slotCount;
 
+<<<<<<< HEAD
+        await client.query(
+            `
+            UPDATE program_openings
+            SET filled_slots = $2,
+                posting_status = CASE
+                    WHEN posting_status = 'archived' THEN 'archived'
+                    WHEN $3 = TRUE THEN 'closed'
+                    WHEN posting_status = 'closed' THEN 'closed'
+                    ELSE 'open'
+                END,
+                is_archived = CASE
+                    WHEN $3 = TRUE THEN TRUE
+                    ELSE COALESCE(is_archived, FALSE)
+                END,
+                updated_at = NOW()
+            WHERE opening_id = $1
+            `,
+            [row.opening_id, nextFilledSlots, shouldFinalizeOpening]
+        );
+=======
         if (slotCount > 0 && newApprovedCount >= slotCount) {
             await client.query(
                 `
@@ -1351,6 +1400,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 [row.opening_id, nextFilledSlots]
             );
         }
+>>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
 
         await client.query('COMMIT');
 
@@ -1360,6 +1410,8 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             outcome: 'approved',
             notificationShouldSend: true,
             student_user_id: row.student_user_id || null,
+            opening_auto_closed: shouldFinalizeOpening,
+            opening_archived: shouldFinalizeOpening,
         };
     } catch (err) {
         await client.query('ROLLBACK');

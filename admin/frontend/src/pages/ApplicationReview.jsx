@@ -561,8 +561,8 @@ export default function ApplicationReview() {
               <button
                 onClick={() => setViewType('cards')}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'cards'
-                    ? 'bg-stone-900 text-white border-stone-900'
-                    : 'bg-white text-stone-600 border-stone-200'
+                  ? 'bg-stone-900 text-white border-stone-900'
+                  : 'bg-white text-stone-600 border-stone-200'
                   }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
@@ -572,8 +572,8 @@ export default function ApplicationReview() {
               <button
                 onClick={() => setViewType('table')}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'table'
-                    ? 'bg-stone-900 text-white border-stone-900'
-                    : 'bg-white text-stone-600 border-stone-200'
+                  ? 'bg-stone-900 text-white border-stone-900'
+                  : 'bg-white text-stone-600 border-stone-200'
                   }`}
               >
                 <Table2 className="w-3.5 h-3.5" />
@@ -608,8 +608,7 @@ export default function ApplicationReview() {
               };
 
               const applicationCount = openingCounts.applicants;
-              const pendingCount = openingCounts.pending;
-              const reviewCount = openingCounts.review;
+              const pendingCount = openingCounts.pending + openingCounts.review;
 
               const seenCount = Number(seenApplicantsMap[opening.opening_id] || 0);
               const newApplicantsCount = Math.max(0, applicationCount - seenCount);
@@ -677,10 +676,13 @@ export default function ApplicationReview() {
                         <CalendarDays className="w-3.5 h-3.5" />
                         {[opening.semester, opening.academic_year].filter(Boolean).join(' · ') || 'No term'}
                       </span>
-                      <span>•</span>
-                      <span>{pendingCount} pending</span>
-                      <span>•</span>
-                      <span>{reviewCount} under review</span>
+
+                      {pendingCount > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>{pendingCount} pending</span>
+                        </>
+                      )}
                     </div>
 
                     <div className="flex justify-end">

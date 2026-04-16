@@ -85,12 +85,14 @@ exports.saveApplicationVerification = async (req, res) => {
         });
     } catch (err) {
         console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
+
         const statusCode =
             err.message === 'Application not found' ||
                 err.message === 'This opening is already closed or filled.' ||
                 err.message === 'No available slots left for this opening.'
                 ? 400
                 : 500;
+
         res.status(statusCode).json({
             error: err.message || 'Failed to save verification',
         });
@@ -152,7 +154,7 @@ exports.approveApplication = async (req, res) => {
         const updated = await applicationService.approveApplicationWithSlotCheck(id);
 
         res.status(200).json({
-            message: 'Application qualified successfully',
+            message: 'Application approved successfully',
             application: updated.application || updated,
             scholar: updated.scholar || null,
             outcome: updated.outcome || null,
@@ -162,8 +164,6 @@ exports.approveApplication = async (req, res) => {
 
         if (
             err.message === 'Application not found' ||
-            err.message === 'This scholarship opening is already closed' ||
-            err.message === 'This scholarship opening has already reached its allotted slots' ||
             err.message === 'This opening is already closed or filled.' ||
             err.message === 'No available slots left for this opening.'
         ) {
@@ -179,32 +179,12 @@ exports.approveApplication = async (req, res) => {
     }
 };
 
-exports.moveApplicationToWaiting = async (req, res) => {
-    const { id } = req.params;
-
-    try {
-        const data = await applicationService.moveApplicationToWaiting(id);
-
-        res.status(200).json({
-            message: 'Application moved to waiting/replacement successfully',
-            data,
-        });
-    } catch (err) {
-        console.error('MOVE APPLICATION TO WAITING CONTROLLER ERROR:', err.message);
-        res.status(500).json({ error: err.message });
-    }
-};
-
 exports.disqualifyApplication = async (req, res) => {
     const { id } = req.params;
-    const { reason, is_reconsideration_candidate = false } = req.body;
+    const { reason } = req.body;
 
     try {
-        const data = await applicationService.markApplicationDisqualified(
-            id,
-            reason,
-            is_reconsideration_candidate
-        );
+        const data = await applicationService.markApplicationDisqualified(id, reason);
 
         res.status(200).json({
             message: 'Application disqualified successfully',
@@ -236,9 +216,9 @@ exports.exportApplicationsExcel = async (req, res) => {
             { header: 'GWA', key: 'gwa', width: 10 },
             { header: 'Application Status', key: 'application_status', width: 20 },
             { header: 'Document Status', key: 'document_status', width: 20 },
-            { header: 'Verification Status', key: 'verification_status', width: 20 },
             { header: 'Remarks', key: 'remarks', width: 30 },
             { header: 'Disqualified', key: 'disqualified_label', width: 14 },
+            { header: 'Rejection Reason', key: 'rejection_reason', width: 35 },
             { header: 'Submitted', key: 'submission_date', width: 20 },
         ];
 

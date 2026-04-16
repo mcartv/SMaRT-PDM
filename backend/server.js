@@ -211,7 +211,7 @@ async function buildAuthUser(user, studentProfile = null) {
     is_pdm_student: eligibility.isRegistrarMatch,
     registrar_student: eligibility.registryStudent
       ? {
-          pdm_id: eligibility.registryStudent.pdm_id,
+          pdm_id: eligibility.registryStudent.student_number,
           learners_reference_number:
             eligibility.registryStudent.learners_reference_number ?? null,
           last_name: eligibility.registryStudent.last_name ?? null,
@@ -219,11 +219,6 @@ async function buildAuthUser(user, studentProfile = null) {
           middle_name: eligibility.registryStudent.middle_name ?? null,
           course_id: eligibility.registryStudent.course_id ?? null,
           year_level: eligibility.registryStudent.year_level ?? null,
-          gwa: eligibility.registryStudent.gwa ?? null,
-          profile_photo_url: eligibility.registryStudent.profile_photo_url ?? null,
-          is_active_scholar: eligibility.registryStudent.is_active_scholar ?? false,
-          account_status: eligibility.registryStudent.account_status ?? null,
-          sdo_status: eligibility.registryStudent.sdo_status ?? null,
           is_archived: eligibility.registryStudent.is_archived ?? false,
           sex_at_birth: eligibility.registryStudent.sex_at_birth ?? null,
           email_address: eligibility.registryStudent.email_address ?? null,
@@ -498,7 +493,6 @@ async function resolveStudentByUserId(userId) {
       first_name,
       middle_name,
       last_name,
-      barangay,
       year_level,
       course_id,
       profile_photo_url
@@ -611,7 +605,6 @@ async function buildMyProfileResponse(context = {}) {
       middle_name: student.middle_name ?? registrarStudent?.middle_name ?? null,
       last_name: student.last_name ?? registrarStudent?.last_name ?? null,
       year_level: student.year_level ?? registrarStudent?.year_level ?? null,
-      barangay: student.barangay ?? null,
       email: user.email ?? registrarStudent?.email_address ?? null,
       phone_number: user.phone_number ?? registrarStudent?.phone_number ?? null,
       avatar_url: avatarUrl,
@@ -1241,7 +1234,6 @@ async function buildSavedFormDataForMobile(userId) {
     address: {
       street: profile.street_address || '',
       subdivision: profile.subdivision || '',
-      barangay: student.barangay || '',
       city_municipality: profile.city || '',
       province: profile.province || '',
       zip_code: profile.zip_code || '',
@@ -1537,7 +1529,6 @@ async function buildSavedFormDataForMobile(userId) {
     address: {
       street: profile.street_address || '',
       subdivision: profile.subdivision || '',
-      barangay: student.barangay || '',
       city_municipality: profile.city || '',
       province: profile.province || '',
       zip_code: profile.zip_code || '',
@@ -2060,8 +2051,7 @@ async function buildApplicationDetails(applicationId) {
         pdm_id,
         gwa,
         year_level,
-        course_id,
-        barangay
+        course_id
       ),
       scholarship_program (
         program_id,
@@ -2210,7 +2200,6 @@ async function buildApplicationDetails(applicationId) {
       email: userContact.email ?? null,
       phone_number: userContact.phone_number ?? null,
       program_name: applicationRecord.scholarship_program?.program_name ?? null,
-      barangay: student.barangay ?? null,
     },
     student_profile: studentProfileResult.data ?? null,
     family_members: familyMembersResult.data ?? [],
@@ -2360,32 +2349,29 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
     .from(STUDENT_REGISTRY_TABLE)
     .select(`
       registry_id,
-      pdm_id,
+      student_number,
       learners_reference_number,
       last_name,
-      first_name,
+      given_name,
       middle_name,
       course_id,
       year_level,
-      gwa,
-      profile_photo_url,
-      is_active_scholar,
-      account_status,
-      sdo_status,
-      is_archived,
       sex_at_birth,
       email_address,
       phone_number,
-      source_filename,
-      source_row_number,
+      sequence_number,
       imported_at,
-      updated_at
+      is_archived
     `)
-    .eq('pdm_id', normalizedStudentNumber)
+    .eq('student_number', normalizedStudentNumber)
     .maybeSingle();
 
   if (error) {
     throw error;
+  }
+
+  if (data) {
+    data.first_name = data.given_name;
   }
 
   return data || null;
@@ -2406,7 +2392,7 @@ async function resolveStudentEligibilityByStudentNumber(studentNumber) {
     };
   }
 
-  const studentNumberValue = normalizeStudentNumber(registryStudent.pdm_id);
+  const studentNumberValue = normalizeStudentNumber(registryStudent.student_number);
   const { data: studentRecord, error: studentError } = await supabase
     .from('students')
     .select('student_id, user_id, pdm_id')
@@ -2524,7 +2510,6 @@ async function persistApplicantProfileSubmission(payload = {}) {
     first_name: derivedFirstName,
     middle_name: derivedMiddleName,
     last_name: derivedLastName,
-    barangay: address.barangay ?? null,
     year_level: derivedYearLevel,
     course_id: courseId,
     gwa: null,
@@ -3303,6 +3288,43 @@ app.post('/api/auth/verify-otp', async (req, res) => {
       return res.status(500).json({ error: 'Failed to complete registration' });
     }
 
+    // --- BEGIN: Auto-create student profile from registrar data ---
+    const registrarStudentData = pendingRegistration.registrar_student;
+    if (registrarStudentData && insertedUser.user_id) {
+      const studentPayload = {
+        user_id: insertedUser.user_id,
+        pdm_id: registrarStudentData.student_number,
+        first_name: registrarStudentData.first_name,
+        middle_name: registrarStudentData.middle_name,
+        last_name: registrarStudentData.last_name,
+        course_id: registrarStudentData.course_id,
+        year_level: registrarStudentData.year_level,
+        account_status: 'Verified',
+        is_profile_complete: false,
+      };
+
+      const { error: studentInsertError } = await supabase
+        .from('students')
+        .insert([studentPayload]);
+
+      if (studentInsertError) {
+        // The user is created but the student profile is not.
+        // For now, just log it. A more robust solution would use a transaction.
+        console.error('Failed to create student record during registration:', studentInsertError);
+      } else {
+        // Link the user_id back to the registry to mark it as "claimed"
+        const { error: registryUpdateError } = await supabase
+          .from('student_registry')
+          .update({ user_id: insertedUser.user_id, updated_at: new Date().toISOString() })
+          .eq('registry_id', registrarStudentData.registry_id);
+
+        if (registryUpdateError) {
+          console.warn('Failed to link user to student registry:', registryUpdateError);
+        }
+      }
+    }
+    // --- END: Auto-create student profile ---
+
     otpStore.delete(email);
     pendingRegistrationStore.delete(email);
 
@@ -3373,7 +3395,6 @@ app.post('/api/profile/setup', protect, async (req, res) => {
       last_name,
       course_code,
       year_level,
-      barangay,
       phone_number,
     } = req.body;
 
@@ -3425,7 +3446,6 @@ app.post('/api/profile/setup', protect, async (req, res) => {
         ? String(middle_name).trim()
         : registrarStudent.middle_name || null,
       last_name: String(last_name || registrarStudent.last_name || '').trim(),
-      barangay: barangay ? String(barangay).trim() : null,
       year_level: year_level ?? registrarStudent.year_level ?? null,
       course_id: courseId,
       gwa: null,

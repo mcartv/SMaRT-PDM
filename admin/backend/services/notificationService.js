@@ -108,3 +108,42 @@ exports.createAnnouncementNotifications = async (payload) => {
 };
 
 exports.createNotificationsForAudience = createNotificationsForAudience;
+
+async function createUserNotification({
+    userId,
+    type,
+    title,
+    message,
+    referenceId = null,
+    referenceType = null,
+    createdAt = null,
+}) {
+    if (!userId || !type || !title || !message) {
+        throw new Error('userId, type, title, and message are required');
+    }
+
+    const { data, error } = await supabase
+        .from('notifications')
+        .insert({
+            user_id: userId,
+            type,
+            title,
+            message,
+            reference_id: referenceId,
+            reference_type: referenceType,
+            is_read: false,
+            push_sent: false,
+            created_at: createdAt || new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('SUPABASE SINGLE NOTIFICATION INSERT ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return data;
+}
+
+exports.createUserNotification = createUserNotification;

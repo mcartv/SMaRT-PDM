@@ -104,6 +104,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
           selectedIndex: _currentIndex,
           isVerifiedScholar: hasScholarAccess,
           unreadNotifications: notificationProvider.unreadCount,
+          unreadPayoutNotifications: notificationProvider.unreadPayoutCount,
         ),
       ),
       body: PageView(

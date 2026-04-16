@@ -806,7 +806,6 @@ export default function ScholarshipOpenings() {
                 financial_allocation: financialAllocation,
                 per_scholar_amount: perScholarAmount,
                 announcement_text: form.announcement_text?.trim() || null,
-                target_audience: normalizeAudience(form.target_audience) || 'Applicants',
                 posting_status: derivePersistedOpeningStatus(form, form.posting_status),
             };
 

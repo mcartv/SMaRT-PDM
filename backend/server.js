@@ -3315,7 +3315,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
         // Link the user_id back to the registry to mark it as "claimed"
         const { error: registryUpdateError } = await supabase
           .from('student_registry')
-          .update({ user_id: insertedUser.user_id, updated_at: new Date().toISOString() })
+          .update({ user_id: insertedUser.user_id })
           .eq('registry_id', registrarStudentData.registry_id);
 
         if (registryUpdateError) {

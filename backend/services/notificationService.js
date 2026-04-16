@@ -74,17 +74,22 @@ async function fetchAudienceUsers(audience) {
 async function fetchUserDeviceTokens(userId) {
   const supabase = getSupabase();
   const { data, error } = await supabase
-    .from('user_device_tokens')
-    .select('device_token, platform')
+    .from('mobile_sessions')
+    .select('device_token, device_type')
     .eq('user_id', userId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .not('device_token', 'is', null);
 
   if (error) {
     console.error('DEVICE TOKEN FETCH ERROR:', error);
     return [];
   }
 
-  return data || [];
+  // Map device_type to platform for compatibility
+  return (data || []).map(row => ({
+    device_token: row.device_token,
+    platform: row.device_type
+  }));
 }
 
 async function sendPushNotification(userId, notificationRow) {
@@ -354,23 +359,21 @@ async function deleteNotification(userId, notificationId) {
 
 async function registerDeviceToken(userId, { deviceToken, platform }) {
   const supabase = getSupabase();
-  const now = new Date().toISOString();
 
+  // Update existing active session with device token, or create a new session
   const { data, error } = await supabase
-    .from('user_device_tokens')
+    .from('mobile_sessions')
     .upsert(
-      [
-        {
-          user_id: userId,
-          device_token: deviceToken,
-          platform,
-          last_seen_at: now,
-          is_active: true,
-        },
-      ],
+      {
+        user_id: userId,
+        device_token: deviceToken,
+        device_type: platform,
+        session_token: `${userId}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`,
+        is_active: true,
+      },
       { onConflict: 'device_token' }
     )
-    .select('user_id, device_token, platform, last_seen_at, is_active')
+    .select('user_id, device_token, device_type, is_active')
     .single();
 
   if (error) {
@@ -378,7 +381,12 @@ async function registerDeviceToken(userId, { deviceToken, platform }) {
     throw new Error(error.message);
   }
 
-  return data;
+  return {
+    user_id: data.user_id,
+    device_token: data.device_token,
+    platform: data.device_type,
+    is_active: data.is_active
+  };
 }
 
 module.exports = {

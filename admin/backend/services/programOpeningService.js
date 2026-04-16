@@ -4,13 +4,6 @@ function normalizeStatus(value) {
     return (value || '').toString().trim().toLowerCase();
 }
 
-function toNullableNumber(value) {
-    if (value === undefined || value === null || value === '') return null;
-
-    const num = Number(value);
-    return Number.isNaN(num) ? null : num;
-}
-
 function toRequiredNumber(value, fallback = 0) {
     const num = Number(value ?? fallback);
     return Number.isNaN(num) ? fallback : num;
@@ -26,37 +19,36 @@ function derivePostingStatus(opening, counts = {}) {
 
     if (existing === 'archived') return 'archived';
     if (existing === 'closed') return 'closed';
-    if (existing === 'filled') return 'filled';
 
     const hasRequiredFields =
         !!opening.opening_title &&
         !!opening.program_id &&
-        !!opening.period_id &&
+        !!opening.academic_year_id &&
         allocatedSlots > 0;
 
     if (!hasRequiredFields) return 'draft';
-    if (filledSlots >= allocatedSlots && allocatedSlots > 0) return 'filled';
+    if (filledSlots >= allocatedSlots && allocatedSlots > 0) return 'open';
 
     return 'open';
 }
 
-async function resolveAcademicYearIdFromPeriod(periodId) {
+async function resolvePeriodIdFromAcademicYear(academicYearId) {
     const { data, error } = await supabase
         .from('academic_period')
-        .select('academic_year_id')
-        .eq('period_id', periodId)
-        .single();
+        .select('period_id')
+        .eq('academic_year_id', academicYearId)
+        .limit(1);
 
     if (error) {
-        console.error('RESOLVE ACADEMIC YEAR FROM PERIOD ERROR:', error);
+        console.error('RESOLVE PERIOD FROM ACADEMIC YEAR ERROR:', error);
         throw new Error(error.message);
     }
 
-    if (!data?.academic_year_id) {
-        throw new Error('Invalid academic period');
+    if (!data || data.length === 0 || !data[0]?.period_id) {
+        throw new Error('No academic period found for the selected academic year');
     }
 
-    return data.academic_year_id;
+    return data[0].period_id;
 }
 
 function mapOpening(opening, counts = {}) {
@@ -69,12 +61,19 @@ function mapOpening(opening, counts = {}) {
     const effectiveFilledSlots =
         storedFilledSlots != null ? storedFilledSlots : qualifiedCount;
 
-    const postingStatus = derivePostingStatus(opening, counts);
+    const basePostingStatus = derivePostingStatus(opening, counts);
+    const computedDisplayStatus =
+        basePostingStatus === 'archived'
+            ? 'archived'
+            : basePostingStatus === 'closed'
+                ? 'closed'
+                : allocatedSlots > 0 && effectiveFilledSlots >= allocatedSlots
+                    ? 'filled'
+                    : basePostingStatus;
 
     const program = opening.scholarship_program || null;
     const benefactor = program?.benefactors || null;
     const academicYear = opening.academic_years || null;
-    const period = opening.academic_period || null;
 
     return {
         opening_id: opening.opening_id,
@@ -88,6 +87,7 @@ function mapOpening(opening, counts = {}) {
 
         benefactor_name:
             benefactor?.benefactor_name ||
+            benefactor?.benefactor_name ||
             opening.benefactor_name ||
             null,
 
@@ -97,15 +97,16 @@ function mapOpening(opening, counts = {}) {
         gwa_threshold: program?.gwa_threshold ?? null,
         renewal_cycle: program?.renewal_cycle || null,
         visibility_status: program?.visibility_status || null,
+        target_audience: program?.target_audience || null,
         program_is_archived: program?.is_archived ?? false,
         benefactor_is_archived: benefactor?.is_archived ?? false,
 
         academic_year_id: opening.academic_year_id || academicYear?.academic_year_id || null,
-        period_id: opening.period_id || period?.period_id || null,
+        period_id: opening.period_id || null,
         academic_year: academicYear?.label || null,
-        semester: period?.term || null,
+        semester: null,
         academic_year_label: academicYear?.label || null,
-        period_term: period?.term || null,
+        period_term: null,
 
         allocated_slots: allocatedSlots,
         filled_slots: effectiveFilledSlots,
@@ -118,7 +119,8 @@ function mapOpening(opening, counts = {}) {
                 ? Math.floor(toRequiredNumber(opening.financial_allocation, 0) / allocatedSlots)
                 : null),
 
-        posting_status: postingStatus,
+        posting_status: basePostingStatus,
+        computed_status: computedDisplayStatus,
         announcement_text: opening.announcement_text || '',
         created_at: opening.created_at || null,
         updated_at: opening.updated_at || null,
@@ -132,7 +134,7 @@ function mapOpening(opening, counts = {}) {
         disqualified_count: toRequiredNumber(counts.disqualified_count, 0),
 
         slot_count: allocatedSlots,
-        status: postingStatus,
+        status: computedDisplayStatus,
     };
 }
 
@@ -144,10 +146,10 @@ function buildCounts(opening, applications = []) {
     return {
         application_count: related.length,
         pending_count: related.filter((app) =>
-            ['pending', 'submitted'].includes(normalizeStatus(app.application_status))
+            ['pending', 'pending review', 'submitted'].includes(normalizeStatus(app.application_status))
         ).length,
         review_count: related.filter((app) =>
-            ['review', 'under review', 'under_review', 'for review'].includes(
+            ['review', 'under review', 'under_review', 'for review', 'interview'].includes(
                 normalizeStatus(app.application_status)
             )
         ).length,
@@ -213,12 +215,6 @@ function baseOpeningSelectQuery() {
                 academic_year_id,
                 label
             ),
-            academic_period (
-                period_id,
-                academic_year_id,
-                term,
-                is_active
-            ),
             scholarship_program (
                 program_id,
                 benefactor_id,
@@ -227,11 +223,13 @@ function baseOpeningSelectQuery() {
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
+                target_audience,
                 is_archived,
                 created_at,
                 updated_at,
                 benefactors (
                     benefactor_id,
+                    benefactor_name,
                     benefactor_name,
                     benefactor_type,
                     description,
@@ -266,7 +264,8 @@ exports.fetchMobileOpenings = async () => {
     const { data, error } = await baseOpeningSelectQuery().in('posting_status', [
         'open',
         'draft',
-        'filled',
+        'closed',
+        'archived',
     ]);
 
     if (error) {
@@ -287,7 +286,7 @@ exports.fetchMobileOpenings = async () => {
                 opening.is_archived !== true &&
                 opening.program_is_archived !== true &&
                 opening.benefactor_is_archived !== true &&
-                ['open', 'filled'].includes(opening.posting_status)
+                ['open', 'filled'].includes(opening.computed_status)
         );
 };
 
@@ -340,9 +339,8 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             application_status,
             document_status,
             submission_date,
-            is_reconsideration_candidate,
             is_disqualified,
-            disqualification_reason,
+            rejection_reason,
             is_archived,
             students (
                 first_name,
@@ -380,9 +378,8 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             remarks: '',
             submitted: app.submission_date || null,
             submission_date: app.submission_date || null,
-            is_reconsideration_candidate: !!app.is_reconsideration_candidate,
             disqualified: !!app.is_disqualified,
-            disqReason: app.disqualification_reason || null,
+            disqReason: app.rejection_reason || null,
             is_scholar: ['qualified', 'approved', 'accepted'].includes(
                 normalizeStatus(app.application_status)
             ),
@@ -394,51 +391,54 @@ exports.createProgramOpening = async (payload = {}) => {
         program_id,
         opening_title,
         announcement_text,
-        period_id,
         academic_year_id,
         allocated_slots,
         filled_slots = 0,
         financial_allocation,
         per_scholar_amount,
         posting_status,
+        period_id,
     } = payload;
 
     if (!program_id) throw new Error('Program ID is required');
-    if (!opening_title || !String(opening_title).trim()) throw new Error('Opening title is required');
-    if (!period_id) throw new Error('Academic period is required');
-
-    if (toRequiredNumber(allocated_slots, 0) <= 0) {
-        throw new Error('Allocated slots must be greater than 0');
+    if (!opening_title || !String(opening_title).trim()) {
+        throw new Error('Opening title is required');
     }
+    if (!academic_year_id) throw new Error('Academic year is required');
 
-    if (toRequiredNumber(filled_slots, 0) > toRequiredNumber(allocated_slots, 0)) {
-        throw new Error('Filled slots cannot be greater than allocated slots');
-    }
-
-    const resolvedAcademicYearId =
-        academic_year_id || (await resolveAcademicYearIdFromPeriod(period_id));
+    const resolvedPeriodId =
+        period_id || (await resolvePeriodIdFromAcademicYear(academic_year_id));
 
     const insertData = {
         program_id,
         opening_title: String(opening_title).trim(),
         announcement_text: announcement_text ? String(announcement_text).trim() : null,
-        period_id,
-        academic_year_id: resolvedAcademicYearId,
-        allocated_slots: toRequiredNumber(allocated_slots, 0),
-        filled_slots: toRequiredNumber(filled_slots, 0),
-        financial_allocation: toNullableNumber(financial_allocation),
-        per_scholar_amount: toNullableNumber(per_scholar_amount),
-        posting_status: 'draft',
+        academic_year_id,
+        period_id: resolvedPeriodId,
+        allocated_slots: Number(allocated_slots || 0),
+        filled_slots: Number(filled_slots || 0),
+        financial_allocation:
+            financial_allocation !== undefined && financial_allocation !== null && financial_allocation !== ''
+                ? Number(financial_allocation)
+                : null,
+        per_scholar_amount:
+            per_scholar_amount !== undefined && per_scholar_amount !== null && per_scholar_amount !== ''
+                ? Number(per_scholar_amount)
+                : 0,
+        posting_status: posting_status || 'draft',
     };
 
-    insertData.posting_status = derivePostingStatus({
-        ...insertData,
-        posting_status,
-    });
+    if (insertData.allocated_slots <= 0) {
+        throw new Error('Allocated slots must be greater than 0');
+    }
+
+    if (insertData.filled_slots > insertData.allocated_slots) {
+        throw new Error('Filled slots cannot be greater than allocated slots');
+    }
 
     const { data, error } = await supabase
         .from('program_openings')
-        .insert([insertData])
+        .insert(insertData)
         .select(`
             opening_id,
             program_id,
@@ -458,12 +458,6 @@ exports.createProgramOpening = async (payload = {}) => {
                 academic_year_id,
                 label
             ),
-            academic_period (
-                period_id,
-                academic_year_id,
-                term,
-                is_active
-            ),
             scholarship_program (
                 program_id,
                 benefactor_id,
@@ -472,11 +466,13 @@ exports.createProgramOpening = async (payload = {}) => {
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
+                target_audience,
                 is_archived,
                 created_at,
                 updated_at,
                 benefactors (
                     benefactor_id,
+                    benefactor_name,
                     benefactor_name,
                     benefactor_type,
                     description,
@@ -489,21 +485,27 @@ exports.createProgramOpening = async (payload = {}) => {
         .single();
 
     if (error) {
-        console.error('SUPABASE CREATE PROGRAM OPENING ERROR:', error);
         throw new Error(error.message);
     }
 
-    const counts = buildCounts(data, []);
-    return mapOpening(data, counts);
+    return mapOpening(data, {
+        application_count: 0,
+        pending_count: 0,
+        review_count: 0,
+        qualified_count: 0,
+        waiting_count: 0,
+        disqualified_count: 0,
+    });
 };
 
 exports.updateProgramOpening = async (openingId, payload = {}) => {
-    const { data: existing, error: existingError } = await baseOpeningSelectQuery()
+    const { data: existing, error: existingError } = await supabase
+        .from('program_openings')
+        .select('*')
         .eq('opening_id', openingId)
         .maybeSingle();
 
     if (existingError) {
-        console.error('SUPABASE FETCH EXISTING PROGRAM OPENING ERROR:', existingError);
         throw new Error(existingError.message);
     }
 
@@ -513,8 +515,8 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         program_id: payload.program_id ?? existing.program_id,
         opening_title: payload.opening_title ?? existing.opening_title,
         announcement_text: payload.announcement_text ?? existing.announcement_text,
-        period_id: payload.period_id ?? existing.period_id,
         academic_year_id: payload.academic_year_id ?? existing.academic_year_id,
+        period_id: payload.period_id ?? existing.period_id,
         allocated_slots: payload.allocated_slots ?? existing.allocated_slots,
         filled_slots: payload.filled_slots ?? existing.filled_slots ?? 0,
         financial_allocation: payload.financial_allocation ?? existing.financial_allocation,
@@ -523,11 +525,19 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
     };
 
     if (!merged.program_id) throw new Error('Program ID is required');
-    if (!merged.opening_title || !String(merged.opening_title).trim()) throw new Error('Opening title is required');
-    if (!merged.period_id) throw new Error('Academic period is required');
+    if (!merged.opening_title || !String(merged.opening_title).trim()) {
+        throw new Error('Opening title is required');
+    }
+    if (!merged.academic_year_id) throw new Error('Academic year is required');
 
-    const resolvedAcademicYearId =
-        merged.academic_year_id || (await resolveAcademicYearIdFromPeriod(merged.period_id));
+    let resolvedPeriodId = merged.period_id;
+
+    const academicYearChanged =
+        String(merged.academic_year_id || '') !== String(existing.academic_year_id || '');
+
+    if (!resolvedPeriodId || academicYearChanged) {
+        resolvedPeriodId = await resolvePeriodIdFromAcademicYear(merged.academic_year_id);
+    }
 
     const updateData = {
         program_id: merged.program_id,
@@ -535,20 +545,33 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         announcement_text: merged.announcement_text
             ? String(merged.announcement_text).trim()
             : null,
-        period_id: merged.period_id,
-        academic_year_id: resolvedAcademicYearId,
-        allocated_slots: toRequiredNumber(merged.allocated_slots, 0),
-        filled_slots: toRequiredNumber(merged.filled_slots, 0),
-        financial_allocation: toNullableNumber(merged.financial_allocation),
-        per_scholar_amount: toNullableNumber(merged.per_scholar_amount),
+        academic_year_id: merged.academic_year_id,
+        period_id: resolvedPeriodId,
+        allocated_slots: Number(merged.allocated_slots || 0),
+        filled_slots: Number(merged.filled_slots || 0),
+        financial_allocation:
+            merged.financial_allocation !== undefined &&
+                merged.financial_allocation !== null &&
+                merged.financial_allocation !== ''
+                ? Number(merged.financial_allocation)
+                : null,
+        per_scholar_amount:
+            merged.per_scholar_amount !== undefined &&
+                merged.per_scholar_amount !== null &&
+                merged.per_scholar_amount !== ''
+                ? Number(merged.per_scholar_amount)
+                : 0,
+        posting_status: merged.posting_status || 'draft',
         updated_at: new Date().toISOString(),
     };
 
-    updateData.posting_status = derivePostingStatus({
-        ...existing,
-        ...updateData,
-        posting_status: merged.posting_status,
-    });
+    if (updateData.allocated_slots <= 0) {
+        throw new Error('Allocated slots must be greater than 0');
+    }
+
+    if (updateData.filled_slots > updateData.allocated_slots) {
+        throw new Error('Filled slots cannot be greater than allocated slots');
+    }
 
     const { data, error } = await supabase
         .from('program_openings')
@@ -573,12 +596,6 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 academic_year_id,
                 label
             ),
-            academic_period (
-                period_id,
-                academic_year_id,
-                term,
-                is_active
-            ),
             scholarship_program (
                 program_id,
                 benefactor_id,
@@ -587,11 +604,13 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
+                target_audience,
                 is_archived,
                 created_at,
                 updated_at,
                 benefactors (
                     benefactor_id,
+                    benefactor_name,
                     benefactor_name,
                     benefactor_type,
                     description,
@@ -604,7 +623,6 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         .maybeSingle();
 
     if (error) {
-        console.error('SUPABASE UPDATE PROGRAM OPENING ERROR:', error);
         throw new Error(error.message);
     }
 
@@ -621,7 +639,6 @@ exports.closeProgramOpening = async (openingId) => {
         .from('program_openings')
         .update({
             posting_status: 'closed',
-            is_archived: true,
             updated_at: new Date().toISOString(),
         })
         .eq('opening_id', openingId)
@@ -644,12 +661,6 @@ exports.closeProgramOpening = async (openingId) => {
                 academic_year_id,
                 label
             ),
-            academic_period (
-                period_id,
-                academic_year_id,
-                term,
-                is_active
-            ),
             scholarship_program (
                 program_id,
                 benefactor_id,
@@ -658,11 +669,13 @@ exports.closeProgramOpening = async (openingId) => {
                 gwa_threshold,
                 renewal_cycle,
                 visibility_status,
+                target_audience,
                 is_archived,
                 created_at,
                 updated_at,
                 benefactors (
                     benefactor_id,
+                    benefactor_name,
                     benefactor_name,
                     benefactor_type,
                     description,

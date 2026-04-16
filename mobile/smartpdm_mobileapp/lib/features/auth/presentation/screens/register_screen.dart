@@ -231,7 +231,6 @@ By creating an account, you acknowledge that your information may be stored, rev
           AppRoutes.otp,
           arguments: {
             'email': _emailController.text.trim().toLowerCase(),
-            'nextRoute': AppRoutes.completeProfile,
             'user_id': registration.userId,
             'student_id': registration.studentId,
           },

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
-import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,7 +13,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   final SessionService _sessionService = const SessionService();
-  final ProfileService _profileService = ProfileService();
 
   bool _isChecking = true;
 
@@ -34,37 +33,7 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    try {
-      final profile = await _profileService.fetchMyProfile();
-
-      if (!mounted) return;
-
-      final isComplete = _isProfileComplete(profile);
-
-      if (isComplete) {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
-      } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.completeProfile);
-      }
-    } catch (_) {
-      await _sessionService.clearSession();
-
-      if (!mounted) return;
-
-      setState(() => _isChecking = false);
-    }
-  }
-
-  bool _isProfileComplete(Map<String, dynamic> profile) {
-    final firstName = profile['first_name']?.toString().trim() ?? '';
-    final lastName = profile['last_name']?.toString().trim() ?? '';
-    final courseCode = profile['course_code']?.toString().trim() ?? '';
-    final yearLevel = profile['year_level'];
-
-    return firstName.isNotEmpty &&
-        lastName.isNotEmpty &&
-        courseCode.isNotEmpty &&
-        yearLevel != null;
+    Navigator.pushReplacementNamed(context, AppRoutes.home);
   }
 
   void _goToLogin() {
@@ -125,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: GoldButton(
-                          label: 'Applicant',
+                          label: 'Register',
                           onTap: _goToRegister,
                         ),
                       ),
@@ -133,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: GhostButton(
-                          label: 'Existing Scholar',
+                          label: 'Login',
                           onTap: _goToLogin,
                         ),
                       ),

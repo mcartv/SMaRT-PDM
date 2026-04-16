@@ -1,2 +1,2 @@
-pdm_id,first_name,middle_name,last_name,course_id,year_level,gwa,profile_photo_url,is_active_scholar,account_status,sdo_status,is_archived,is_profile_complete,learners_reference_number,sex_at_birth,email_address,phone_number
-PDM-2024-000001,Juan,A,Dela Cruz,,1,1.75,,false,Pending,Clear,false,false,123456789012,Male,juan.delacruz@example.edu.ph,09171234567
+pdm_id,first_name,middle_name,last_name,course_id,year_level,gwa,profile_photo_url,is_active_scholar,account_status,sdo_status,is_archived,learners_reference_number,sex_at_birth,email_address,phone_number
+PDM-2024-000001,Juan,A,Dela Cruz,,1,1.75,,false,Pending,Clear,false,123456789012,Male,juan.delacruz@example.edu.ph,09171234567

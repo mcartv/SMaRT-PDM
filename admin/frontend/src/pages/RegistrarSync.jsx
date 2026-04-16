@@ -174,7 +174,6 @@ export default function RegistrarSync() {
                 <li>account_status</li>
                 <li>sdo_status</li>
                 <li>is_archived</li>
-                <li>is_profile_complete</li>
                 <li>learners_reference_number</li>
                 <li>sex_at_birth</li>
                 <li>email_address</li>

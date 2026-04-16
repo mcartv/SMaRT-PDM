@@ -17,7 +17,6 @@ const REGISTRY_TEMPLATE_HEADERS = [
   'account_status',
   'sdo_status',
   'is_archived',
-  'is_profile_complete',
   'learners_reference_number',
   'sex_at_birth',
   'email_address',
@@ -62,7 +61,6 @@ const HEADER_MAP = new Map([
   ['account status', 'account_status'],
   ['sdo status', 'sdo_status'],
   ['is archived', 'is_archived'],
-  ['is profile complete', 'is_profile_complete'],
   ['sex at birth', 'sex_at_birth'],
   ['sex', 'sex_at_birth'],
   ['e-mail address', 'email_address'],
@@ -371,7 +369,6 @@ function rowsToRecords(rows, sourceFilename) {
       account_status: normalizeAccountStatus(rawRecord.account_status),
       sdo_status: normalizeSdoStatus(rawRecord.sdo_status),
       is_archived: normalizeBoolean(rawRecord.is_archived) ?? false,
-      is_profile_complete: normalizeBoolean(rawRecord.is_profile_complete) ?? false,
       sex_at_birth: normalizeText(rawRecord.sex_at_birth),
       email_address: normalizeTextWithLimit(normalizeEmail(rawRecord.email_address), 255),
       phone_number: normalizeTextWithLimit(rawRecord.phone_number, 50),
@@ -478,7 +475,6 @@ async function importStudentRegistryFile(file) {
     account_status: record.account_status,
     sdo_status: record.sdo_status,
     is_archived: record.is_archived ?? false,
-    is_profile_complete: record.is_profile_complete ?? false,
     learners_reference_number: record.learners_reference_number || null,
     sex_at_birth: record.sex_at_birth || null,
     email_address: record.email_address || null,
@@ -517,7 +513,7 @@ async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
     supabase
       .from(TABLE_NAME)
       .select(
-        'registry_id, pdm_id, learners_reference_number, last_name, first_name, middle_name, course_id, year_level, gwa, profile_photo_url, is_active_scholar, account_status, sdo_status, is_archived, is_profile_complete, sex_at_birth, email_address, phone_number, source_filename, source_row_number, imported_at, updated_at',
+        'registry_id, pdm_id, learners_reference_number, last_name, first_name, middle_name, course_id, year_level, gwa, profile_photo_url, is_active_scholar, account_status, sdo_status, is_archived, sex_at_birth, email_address, phone_number, source_filename, source_row_number, imported_at, updated_at',
         { count: 'exact' }
       )
       .order('pdm_id', { ascending: true })

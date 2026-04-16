@@ -12,7 +12,6 @@ create table if not exists public.student_registry (
   account_status character varying(20) not null default 'Pending'::character varying,
   sdo_status character varying(20) not null default 'Clear'::character varying,
   is_archived boolean not null default false,
-  is_profile_complete boolean not null default false,
   learners_reference_number character varying(50) null,
   sex_at_birth text null,
   email_address text null,

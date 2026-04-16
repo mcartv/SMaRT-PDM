@@ -48,7 +48,6 @@ const STATUS_META = {
     open: { label: 'Open', color: C.green, bg: C.greenSoft },
     closed: { label: 'Closed', color: C.red, bg: C.redSoft },
     archived: { label: 'Archived', color: '#57534e', bg: '#f5f5f4' },
-    filled: { label: 'Filled', color: '#92400e', bg: '#FEF3C7' },
 };
 
 function fmtMoney(v) {
@@ -100,7 +99,12 @@ function targetAudienceLabel(value) {
 }
 
 function getFilledSlots(openingLike = {}) {
-    return Number(openingLike.qualified_count ?? openingLike.filled_slots ?? openingLike.filled_slots_preview ?? 0);
+    return Number(
+        openingLike.qualified_count ??
+        openingLike.filled_slots ??
+        openingLike.filled_slots_preview ??
+        0
+    );
 }
 
 function getAllocatedSlots(openingLike = {}) {
@@ -117,13 +121,11 @@ function hasAvailableSlots(openingLike = {}) {
 
 function getComputedDisplayStatus(openingLike = {}) {
     const rawStatus = String(openingLike.posting_status || 'draft').toLowerCase();
-    const allocated = getAllocatedSlots(openingLike);
-    const filled = getFilledSlots(openingLike);
+    const isArchived = !!openingLike.is_archived;
 
-    if (rawStatus === 'archived') return 'archived';
+    if (isArchived || rawStatus === 'archived') return 'archived';
     if (rawStatus === 'closed') return 'closed';
     if (rawStatus === 'draft') return 'draft';
-    if (allocated > 0 && filled >= allocated) return 'filled';
     return 'open';
 }
 
@@ -132,6 +134,7 @@ function derivePersistedOpeningStatus(payload, existingStatus = '') {
 
     if (normalizedExisting === 'archived') return 'archived';
     if (normalizedExisting === 'closed') return 'closed';
+    if (normalizedExisting === 'draft') return 'draft';
 
     const hasRequiredFields =
         !!payload.opening_title &&
@@ -267,7 +270,7 @@ function OpeningModal({
                                                 ? 'border-green-200 bg-green-50 text-green-700'
                                                 : previewStatus === 'closed'
                                                     ? 'border-red-200 bg-red-50 text-red-700'
-                                                    : previewStatus === 'filled'
+                                                    : previewStatus === 'draft'
                                                         ? 'border-amber-200 bg-amber-50 text-amber-700'
                                                         : 'border-stone-200 bg-white text-stone-600'
                                                 }`}
@@ -296,8 +299,8 @@ function OpeningModal({
                     <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                         <p className="text-sm font-medium text-stone-800">Status behavior</p>
                         <p className="text-xs text-stone-500 mt-1">
-                            Draft if incomplete. Open when ready. Filled is computed automatically when slots are fully used.
-                            Closed is a manual admin action. Archived hides the opening.
+                            Draft if incomplete. Open when ready. Closed means finalized or manually closed.
+                            Archived hides the opening from active lists.
                         </p>
                     </div>
 
@@ -840,7 +843,7 @@ export default function ScholarshipOpenings() {
             if (!isEdit && String(payload.posting_status).toLowerCase() === 'open') {
                 setNewOpeningForPrompt({
                     ...(data || payload),
-                    target_audience: payload.target_audience,
+                    target_audience: form.target_audience,
                 });
                 setPostCreateOpen(true);
             }
@@ -852,7 +855,7 @@ export default function ScholarshipOpenings() {
         }
     };
 
-    const updateOpeningStatus = async (openingId, nextStatus) => {
+    const updateOpeningStatus = async (openingId, nextStatus, extraPayload = {}) => {
         try {
             setActionLoadingId(openingId);
 
@@ -862,7 +865,10 @@ export default function ScholarshipOpenings() {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ posting_status: nextStatus }),
+                body: JSON.stringify({
+                    posting_status: nextStatus,
+                    ...extraPayload,
+                }),
             });
 
             const data = await res.json().catch(() => ({}));
@@ -881,11 +887,20 @@ export default function ScholarshipOpenings() {
     };
 
     const handleArchiveOpening = async (openingId) => {
-        await updateOpeningStatus(openingId, 'archived');
+        await updateOpeningStatus(openingId, 'archived', { is_archived: true });
     };
 
     const handleCloseOpening = async (openingId) => {
-        await updateOpeningStatus(openingId, 'closed');
+        await updateOpeningStatus(openingId, 'closed', { is_archived: false });
+    };
+
+    const handleMoveToDraft = async (opening) => {
+        if (getFilledSlots(opening) > 0) {
+            alert('This opening cannot be moved to draft because it already has approved/filled slots.');
+            return;
+        }
+
+        await updateOpeningStatus(opening.opening_id, 'draft', { is_archived: false });
     };
 
     const handleReopenOpening = async (opening) => {
@@ -896,7 +911,7 @@ export default function ScholarshipOpenings() {
             return;
         }
 
-        await updateOpeningStatus(opening.opening_id, 'open');
+        await updateOpeningStatus(opening.opening_id, 'open', { is_archived: false });
     };
 
     const handleCreateAnnouncementRedirect = () => {
@@ -1090,7 +1105,6 @@ export default function ScholarshipOpenings() {
                         <SelectItem value="All Statuses">All Statuses</SelectItem>
                         <SelectItem value="open">Open</SelectItem>
                         <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="filled">Filled</SelectItem>
                         <SelectItem value="closed">Closed</SelectItem>
                         <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>
@@ -1144,7 +1158,7 @@ export default function ScholarshipOpenings() {
                     <div>
                         <CardTitle className="text-sm font-semibold text-stone-800">Opening Registry</CardTitle>
                         <CardDescription className="text-xs">
-                            Active, draft, filled, closed, and archived scholarship openings.
+                            Active, draft, closed, and archived scholarship openings.
                         </CardDescription>
                     </div>
                 </CardHeader>
@@ -1170,7 +1184,9 @@ export default function ScholarshipOpenings() {
 
                                 const isArchived = computedStatus === 'archived';
                                 const isClosed = computedStatus === 'closed';
+                                const isDraft = computedStatus === 'draft';
                                 const canReopen = isClosed && availableSlots > 0;
+                                const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
                                 const isBusy = actionLoadingId === opening.opening_id;
 
                                 return (
@@ -1260,13 +1276,15 @@ export default function ScholarshipOpenings() {
                                                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
                                                         <p className="text-[10px] uppercase tracking-wide text-stone-400">Admin Control</p>
                                                         <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {isClosed
-                                                                ? canReopen
-                                                                    ? 'Can reopen'
-                                                                    : 'Closed — no slots available'
-                                                                : computedStatus === 'filled'
-                                                                    ? 'Auto-filled; still editable'
-                                                                    : 'Active'}
+                                                            {isArchived
+                                                                ? 'Archived record'
+                                                                : isClosed
+                                                                    ? canReopen
+                                                                        ? 'Can reopen'
+                                                                        : 'Closed — no slots available'
+                                                                    : isDraft
+                                                                        ? 'Draft — hidden from applicants'
+                                                                        : 'Active'}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -1295,7 +1313,24 @@ export default function ScholarshipOpenings() {
                                                     </Button>
                                                 )}
 
-                                                {!isArchived && !isClosed && (
+                                                {canMoveToDraft && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleMoveToDraft(opening)}
+                                                        className="rounded-lg text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+                                                        disabled={isBusy}
+                                                    >
+                                                        {isBusy ? (
+                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                                        ) : (
+                                                            <Clock3 className="w-3.5 h-3.5 mr-1.5" />
+                                                        )}
+                                                        Move to Draft
+                                                    </Button>
+                                                )}
+
+                                                {!isArchived && !isClosed && !isDraft && (
                                                     <Button
                                                         size="sm"
                                                         variant="outline"

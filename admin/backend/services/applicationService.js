@@ -433,8 +433,7 @@ async function buildApplicationDetails(applicationId) {
                 pdm_id,
                 gwa,
                 year_level,
-                course_id,
-                barangay
+                course_id
             ),
             scholarship_program (
                 program_id,
@@ -442,7 +441,6 @@ async function buildApplicationDetails(applicationId) {
                 program_name,
                 benefactors (
                     benefactor_id,
-                    benefactor_name,
                     benefactor_name
                 )
             )

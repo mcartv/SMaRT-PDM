@@ -38,6 +38,7 @@ const C = {
 };
 
 const PAGE_SIZE = 8;
+const SEEN_APPLICANTS_STORAGE_KEY = 'applicationReviewSeenApplicants';
 
 function formatDate(value) {
   if (!value) return 'No date';
@@ -181,7 +182,7 @@ function getDocumentStatusMeta(row) {
 function StatusPill({ meta }) {
   return (
     <span
-      className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap"
+      className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap"
       style={{ background: meta.bg, color: meta.color }}
     >
       {meta.label}
@@ -228,6 +229,17 @@ function normalizeApplicantRow(app) {
   };
 }
 
+function getInitialSeenApplicantsMap() {
+  try {
+    const raw = localStorage.getItem(SEEN_APPLICANTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function ApplicationReview() {
   const navigate = useNavigate();
 
@@ -239,6 +251,7 @@ export default function ApplicationReview() {
   const [search, setSearch] = useState('');
   const [viewType, setViewType] = useState('cards');
   const [page, setPage] = useState(1);
+  const [seenApplicantsMap, setSeenApplicantsMap] = useState(getInitialSeenApplicantsMap);
 
   const loadData = async ({ soft = false } = {}) => {
     try {
@@ -307,6 +320,17 @@ export default function ApplicationReview() {
   useEffect(() => {
     setPage(1);
   }, [search, viewType]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SEEN_APPLICANTS_STORAGE_KEY,
+        JSON.stringify(seenApplicantsMap)
+      );
+    } catch {
+      // ignore localStorage write errors
+    }
+  }, [seenApplicantsMap]);
 
   const openingCountsMap = useMemo(() => {
     const counts = new Map();
@@ -430,6 +454,15 @@ export default function ApplicationReview() {
     return activeRows.slice(start, start + PAGE_SIZE);
   }, [activeRows, page]);
 
+  const handleOpenApplicants = (openingId, applicantCount) => {
+    setSeenApplicantsMap((prev) => ({
+      ...prev,
+      [openingId]: applicantCount,
+    }));
+
+    navigate(`/admin/openings/${openingId}/applications`);
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[420px] gap-3">
@@ -528,8 +561,8 @@ export default function ApplicationReview() {
               <button
                 onClick={() => setViewType('cards')}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'cards'
-                  ? 'bg-stone-900 text-white border-stone-900'
-                  : 'bg-white text-stone-600 border-stone-200'
+                    ? 'bg-stone-900 text-white border-stone-900'
+                    : 'bg-white text-stone-600 border-stone-200'
                   }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
@@ -539,8 +572,8 @@ export default function ApplicationReview() {
               <button
                 onClick={() => setViewType('table')}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'table'
-                  ? 'bg-stone-900 text-white border-stone-900'
-                  : 'bg-white text-stone-600 border-stone-200'
+                    ? 'bg-stone-900 text-white border-stone-900'
+                    : 'bg-white text-stone-600 border-stone-200'
                   }`}
               >
                 <Table2 className="w-3.5 h-3.5" />
@@ -578,6 +611,9 @@ export default function ApplicationReview() {
               const pendingCount = openingCounts.pending;
               const reviewCount = openingCounts.review;
 
+              const seenCount = Number(seenApplicantsMap[opening.opening_id] || 0);
+              const newApplicantsCount = Math.max(0, applicationCount - seenCount);
+
               return (
                 <Card
                   key={opening.opening_id}
@@ -586,10 +622,19 @@ export default function ApplicationReview() {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <CardTitle className="text-base font-semibold text-stone-900">
-                          {opening.opening_title || opening.title || 'Untitled Opening'}
-                        </CardTitle>
-                        <CardDescription className="mt-1 text-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CardTitle className="text-lg font-semibold text-stone-900 leading-tight">
+                            {opening.opening_title || opening.title || 'Untitled Opening'}
+                          </CardTitle>
+
+                          {newApplicantsCount > 0 && (
+                            <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-sm font-semibold text-green-700">
+                              +{newApplicantsCount}
+                            </span>
+                          )}
+                        </div>
+
+                        <CardDescription className="mt-1.5 text-sm">
                           {opening.program_name || 'No Program'}
                           {(opening.semester || opening.academic_year) && (
                             <>
@@ -607,27 +652,27 @@ export default function ApplicationReview() {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                        <p className="text-[11px] text-stone-500">Slots</p>
-                        <p className="text-lg font-semibold text-stone-900">{allocatedSlots}</p>
+                        <p className="text-xs text-stone-500 font-medium">Slots</p>
+                        <p className="text-xl font-bold text-stone-900">{allocatedSlots}</p>
                       </div>
 
                       <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                        <p className="text-[11px] text-stone-500">Filled</p>
-                        <p className="text-lg font-semibold text-stone-900">{filledSlots}</p>
+                        <p className="text-xs text-stone-500 font-medium">Filled</p>
+                        <p className="text-xl font-bold text-stone-900">{filledSlots}</p>
                       </div>
 
                       <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                        <p className="text-[11px] text-stone-500">Applicants</p>
-                        <p className="text-lg font-semibold text-stone-900">{applicationCount}</p>
+                        <p className="text-xs text-stone-500 font-medium">Applicants</p>
+                        <p className="text-xl font-bold text-stone-900">{applicationCount}</p>
                       </div>
 
                       <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
-                        <p className="text-[11px] text-stone-500">Remaining</p>
-                        <p className="text-lg font-semibold text-stone-900">{remainingSlots}</p>
+                        <p className="text-xs text-stone-500 font-medium">Remaining</p>
+                        <p className="text-xl font-bold text-stone-900">{remainingSlots}</p>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-stone-500">
                       <span className="inline-flex items-center gap-1">
                         <CalendarDays className="w-3.5 h-3.5" />
                         {[opening.semester, opening.academic_year].filter(Boolean).join(' · ') || 'No term'}
@@ -641,9 +686,9 @@ export default function ApplicationReview() {
                     <div className="flex justify-end">
                       <Button
                         size="sm"
-                        className="rounded-lg text-white text-xs border-none"
+                        className="rounded-lg text-white text-sm font-medium border-none"
                         style={{ background: C.brownMid }}
-                        onClick={() => navigate(`/admin/openings/${opening.opening_id}/applications`)}
+                        onClick={() => handleOpenApplicants(opening.opening_id, applicationCount)}
                       >
                         View Applicants
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />

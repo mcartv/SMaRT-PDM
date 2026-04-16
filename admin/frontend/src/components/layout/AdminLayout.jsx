@@ -15,7 +15,6 @@ import {
   Wallet,
   Briefcase,
   LifeBuoy,
-  Database,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
@@ -34,7 +33,6 @@ const navItems = [
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
-  { path: '/admin/registrar', icon: Database, label: 'Registrar Sync' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/support-tickets', icon: LifeBuoy, label: 'Support Tickets' },
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
@@ -121,7 +119,9 @@ export default function AdminLayout() {
 
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-white text-sm font-semibold truncate leading-tight">PDM · OSFA</p>
+              <p className="text-white text-sm font-semibold truncate leading-tight">
+                PDM · OSFA
+              </p>
               <p className="text-[11px] truncate" style={{ color: SB_SUB }}>
                 Admin Portal
               </p>
@@ -155,8 +155,7 @@ export default function AdminLayout() {
         <div className="p-3 border-t border-white/10 space-y-1.5">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
-              } w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? (
@@ -169,8 +168,7 @@ export default function AdminLayout() {
 
           <button
             onClick={handleLogout}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'
-              } w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="w-4 h-4" />

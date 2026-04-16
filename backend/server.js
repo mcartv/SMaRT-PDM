@@ -225,7 +225,6 @@ async function buildAuthUser(user, studentProfile = null) {
           account_status: eligibility.registryStudent.account_status ?? null,
           sdo_status: eligibility.registryStudent.sdo_status ?? null,
           is_archived: eligibility.registryStudent.is_archived ?? false,
-          is_profile_complete: eligibility.registryStudent.is_profile_complete ?? false,
           sex_at_birth: eligibility.registryStudent.sex_at_birth ?? null,
           email_address: eligibility.registryStudent.email_address ?? null,
           phone_number: eligibility.registryStudent.phone_number ?? null,
@@ -952,8 +951,11 @@ async function resolveActiveOpeningApplicationForUser(userId) {
 
 async function fetchVisibleProgramOpeningsForUser(userId) {
   const studentRecord = await resolveStudentByUserId(userId);
+  const userRecord = await resolveUserAccountRecord(userId);
+  const studentNumber =
+    studentRecord?.pdm_id || userRecord?.username || '';
   const registryStudent = await resolveRegistrarStudentByStudentNumber(
-    studentRecord?.pdm_id || ''
+    studentNumber
   );
 
   if (!registryStudent) {
@@ -2340,7 +2342,6 @@ function buildRegistrarStudentRecord(row = {}) {
     account_status: String(row.account_status || 'Pending').trim() || 'Pending',
     sdo_status: String(row.sdo_status || 'Clear').trim() || 'Clear',
     is_archived: normalizeBoolean(row.is_archived) ?? false,
-    is_profile_complete: normalizeBoolean(row.is_profile_complete) ?? false,
     sex_at_birth: String(row.sex_at_birth || '').trim() || null,
     email_address: String(row.email_address || '').trim().toLowerCase() || null,
     phone_number: String(row.phone_number || '').trim() || null,
@@ -2372,7 +2373,6 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
       account_status,
       sdo_status,
       is_archived,
-      is_profile_complete,
       sex_at_birth,
       email_address,
       phone_number,
@@ -2916,8 +2916,10 @@ async function submitApplicantOpeningApplication({
 
   const userRecord = await resolveUserAccountRecord(userId);
   const studentRecord = await resolveStudentByUserId(userId);
+  const studentNumber =
+    studentRecord?.pdm_id || userRecord?.username || '';
   const registrarStudent = await resolveRegistrarStudentByStudentNumber(
-    studentRecord?.pdm_id || userRecord?.username || ''
+    studentNumber
   );
 
   if (!registrarStudent) {
@@ -3701,14 +3703,6 @@ app.patch('/api/profile/me', protect, async (req, res) => {
     if (firstName) nextStudentPayload.first_name = firstName;
     if (lastName) nextStudentPayload.last_name = lastName;
     nextStudentPayload.course_id = courseId;
-
-    const isProfileComplete =
-      !!firstName &&
-      !!lastName &&
-      !!email &&
-      !!courseCode;
-
-    nextStudentPayload.is_profile_complete = isProfileComplete;
 
     const { error: studentUpdateError } = await supabase
       .from('students')

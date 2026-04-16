@@ -6,7 +6,6 @@ class AppRoutes {
   static const otp = '/otp';
   static const forgotPassword = '/forgot-password';
   static const changeEmail = '/change-email';
-  static const completeProfile = '/complete-profile';
 
   // Top-level dashboard routes
   static const home = '/home';

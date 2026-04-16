@@ -129,16 +129,6 @@ begin
       from information_schema.columns
       where table_schema = 'public'
         and table_name = 'student_registry'
-        and column_name = 'is_profile_complete'
-    ) then
-      alter table public.student_registry add column is_profile_complete boolean not null default false;
-    end if;
-
-    if not exists (
-      select 1
-      from information_schema.columns
-      where table_schema = 'public'
-        and table_name = 'student_registry'
         and column_name = 'learners_reference_number'
     ) then
       alter table public.student_registry add column learners_reference_number character varying(50) null;
@@ -244,7 +234,6 @@ create table if not exists public.student_registry (
   account_status character varying(20) not null default 'Pending'::character varying,
   sdo_status character varying(20) not null default 'Clear'::character varying,
   is_archived boolean not null default false,
-  is_profile_complete boolean not null default false,
   learners_reference_number character varying(50) null,
   sex_at_birth text null,
   email_address text null,

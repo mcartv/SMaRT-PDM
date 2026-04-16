@@ -25,6 +25,7 @@ const renewalRoutes = require('../routes/renewalRoutes');
 const supportTicketRoutes = require('../routes/supportTicketRoutes');
 const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
+const academicYearRoutes = require('../routes/academicYearRoutes');
 
 // ✅ Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
@@ -66,6 +67,8 @@ app.use('/api/renewals', renewalRoutes);
 app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
+app.use('/api/academic-years', academicYearRoutes);
+
 
 // =========================
 // 🧪 HEALTH CHECK

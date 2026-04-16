@@ -1280,7 +1280,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
         if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
-                `
+                `   
                 UPDATE program_openings
                 SET posting_status = 'closed',
                     updated_at = NOW()

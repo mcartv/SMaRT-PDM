@@ -44,6 +44,9 @@ class NotificationProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   int get unreadCount => _unreadCount;
+  int get unreadPayoutCount => _notifications
+      .where((item) => item.isPayoutNotification && !item.isRead)
+      .length;
   bool get hasScholarAccess => _hasScholarAccess;
   int get scholarAccessRevision => _scholarAccessRevision;
 
@@ -128,6 +131,31 @@ class NotificationProvider extends ChangeNotifier {
       _notifications = _notifications
           .map((notification) => notification.copyWith(isRead: true))
           .toList();
+      _recalculateUnreadCount();
+      notifyListeners();
+    } catch (error) {
+      _errorMessage = error.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> markPayoutNotificationsAsRead() async {
+    try {
+      final payoutNotifications = _notifications
+          .where((item) => item.isPayoutNotification && !item.isRead)
+          .toList();
+
+      for (final notification in payoutNotifications) {
+        await _notificationService.markAsRead(notification.notificationId);
+      }
+
+      _notifications = _notifications.map((notification) {
+        if (notification.isPayoutNotification) {
+          return notification.copyWith(isRead: true);
+        }
+        return notification;
+      }).toList();
+
       _recalculateUnreadCount();
       notifyListeners();
     } catch (error) {

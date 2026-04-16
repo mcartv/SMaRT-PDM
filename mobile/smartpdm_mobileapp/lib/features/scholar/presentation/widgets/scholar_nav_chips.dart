@@ -4,11 +4,13 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 class ScholarNavChips extends StatefulWidget {
   final String selectedLabel;
   final ValueChanged<String> onTap;
+  final bool hasNewPayouts;
 
   const ScholarNavChips({
     super.key,
     required this.selectedLabel,
     required this.onTap,
+    this.hasNewPayouts = false,
   });
 
   @override
@@ -48,6 +50,7 @@ class _ScholarNavChipsState extends State<ScholarNavChips> {
 
   Widget _buildChip(String label) {
     final isSelected = widget.selectedLabel == label;
+    final showPayoutBadge = label == 'Payout Schedule' && widget.hasNewPayouts;
 
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -82,6 +85,17 @@ class _ScholarNavChipsState extends State<ScholarNavChips> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (showPayoutBadge) ...[
+                const SizedBox(width: 6),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/payout_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -27,6 +29,16 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   void initState() {
     super.initState();
     _loadPayouts();
+    _markPayoutNotificationsAsRead();
+  }
+
+  Future<void> _markPayoutNotificationsAsRead() async {
+    try {
+      final notificationProvider = context.read<NotificationProvider>();
+      await notificationProvider.markPayoutNotificationsAsRead();
+    } catch (_) {
+      // Silently handle errors - don't block the UI
+    }
   }
 
   Future<void> _loadPayouts() async {
@@ -125,6 +137,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
             children: [
               ScholarNavChips(
                 selectedLabel: _selectedScholarView,
+                hasNewPayouts: context.select<NotificationProvider, bool>(
+                  (provider) => provider.unreadPayoutCount > 0,
+                ),
                 onTap: (label) {
                   setState(() {
                     _selectedScholarView = label;

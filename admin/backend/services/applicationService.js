@@ -9,6 +9,7 @@ const STUDENT_BACKEND_BASE_URL =
     process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
 const INTERNAL_NOTIFICATION_SECRET =
     (process.env.INTERNAL_NOTIFICATION_SECRET || '').trim();
+
 const APPROVED_SCHOLAR_NOTIFICATION = Object.freeze({
     type: 'Scholar Approved',
     title: 'Scholarship Approved',
@@ -16,11 +17,12 @@ const APPROVED_SCHOLAR_NOTIFICATION = Object.freeze({
         'Your verification is complete and your scholarship has been approved.',
     referenceType: 'scholar',
 });
-const WAITLIST_NOTIFICATION = Object.freeze({
-    type: 'Status Update',
-    title: 'Application Waitlisted',
+
+const REJECTED_APPLICATION_NOTIFICATION = Object.freeze({
+    type: 'Application Rejected',
+    title: 'Application Rejected',
     message:
-        'Your verification is complete, but no scholarship slots are available right now. Your application has been placed on the waiting list.',
+        'Your application verification is complete and your application has been rejected.',
     referenceType: 'application',
 });
 
@@ -76,7 +78,7 @@ const DOCUMENT_TYPE_ALIASES = {
 
 const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_registration: 'Certificate of Registration',
-    student_grade_forms: 'Grade Form',
+    student_grade_forms: 'Student Grade Forms',
     certificate_of_indigency: 'Certificate of Indigency',
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
@@ -111,9 +113,9 @@ function buildVerificationOutcomeNotification({
         };
     }
 
-    if (outcome === 'waiting') {
+    if (outcome === 'rejected') {
         return {
-            ...WAITLIST_NOTIFICATION,
+            ...REJECTED_APPLICATION_NOTIFICATION,
             referenceId: applicationId,
         };
     }
@@ -322,7 +324,6 @@ function deriveReviewStatus(document = {}, review = null) {
 
     if (preferredStatus === 'verified') return 'verified';
     if (preferredStatus === 'rejected' || preferredStatus === 're upload') return 'rejected';
-    if (preferredStatus === 'flagged') return 'flagged';
     if (preferredStatus === 'uploaded' || preferredStatus === 'under review') return 'uploaded';
 
     return document.is_submitted || document.file_path || document.file_url ? 'uploaded' : 'pending';
@@ -331,13 +332,12 @@ function deriveReviewStatus(document = {}, review = null) {
 function deriveAggregateDocumentStatus(summary = {}) {
     const verifiedCount = Number(summary?.verified || 0);
     const uploadedCount = Number(summary?.uploaded || 0);
-    const flaggedCount = Number(summary?.flagged || 0);
-    const reuploadCount = Number(summary?.reupload || 0);
+    const rejectedCount = Number(summary?.rejected || summary?.reupload || 0);
     const pendingCount = Number(summary?.pending || 0);
 
     if (uploadedCount === 0) return 'Missing Docs';
     if (pendingCount > 0) return 'Under Review';
-    if (reuploadCount > 0 || flaggedCount > 0) return 'Under Review';
+    if (rejectedCount > 0) return 'Under Review';
     if (verifiedCount > 0 && verifiedCount === uploadedCount) return 'Documents Ready';
 
     return 'Under Review';
@@ -422,7 +422,7 @@ async function buildApplicationDetails(applicationId) {
             document_status,
             submission_date,
             is_disqualified,
-            is_reconsideration_candidate,
+            rejection_reason,
             evaluator_id,
             students (
                 user_id,
@@ -579,8 +579,8 @@ async function buildApplicationDetails(applicationId) {
                 document_type: document.document_type || null,
                 file_name: document.file_name || null,
                 file_path: filePath,
-                url: signedUrl || null,
-                file_url: signedUrl || null,
+                url: signedUrl || document.file_url || null,
+                file_url: signedUrl || document.file_url || null,
                 signed_url: signedUrl || null,
                 status: deriveReviewStatus(document, review),
                 admin_comment: review?.admin_comment || document.notes || '',
@@ -622,16 +622,14 @@ async function buildApplicationDetails(applicationId) {
             document_status: applicationRecord.document_status,
             submission_date: applicationRecord.submission_date,
             is_disqualified: !!applicationRecord.is_disqualified,
-            disqualification_reason: applicationRecord.disqualification_reason || null,
-            is_reconsideration_candidate: !!applicationRecord.is_reconsideration_candidate,
+            rejection_reason: applicationRecord.rejection_reason || null,
             evaluator_id: applicationRecord.evaluator_id || null,
         },
         application_status: applicationRecord.application_status,
         document_status: applicationRecord.document_status,
         submitted: applicationRecord.submission_date,
         disqualified: !!applicationRecord.is_disqualified,
-        disqualification_reason: applicationRecord.disqualification_reason || null,
-        is_reconsideration_candidate: !!applicationRecord.is_reconsideration_candidate,
+        rejection_reason: applicationRecord.rejection_reason || null,
         student: {
             name:
                 `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
@@ -669,12 +667,9 @@ exports.fetchApplications = async () => {
         a.evaluator_id,
         a.submission_date,
         a.is_disqualified,
-        a.disqualification_reason,
+        a.rejection_reason,
         a.document_status,
-        a.verification_status,
         a.remarks,
-        a.is_reconsideration_candidate,
-        a.reconsideration_tagged_at,
         a.is_archived,
 
         st.first_name,
@@ -715,7 +710,7 @@ exports.fetchApplications = async () => {
         COALESCE(a.is_archived, FALSE) = FALSE
         AND sc.student_id IS NULL
         AND COALESCE(a.is_disqualified, FALSE) = FALSE
-        AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved', 'qualified', 'accepted')
+        AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved')
 
     ORDER BY a.submission_date DESC
 `;
@@ -755,17 +750,14 @@ exports.fetchApplications = async () => {
             posting_status: row.posting_status || 'Open',
             opening_status: row.posting_status || 'Open',
 
-            application_status: row.application_status || 'Pending',
-            status: row.application_status || 'Pending',
+            application_status: row.application_status || 'Pending Review',
+            status: row.application_status || 'Pending Review',
 
             document_status: row.document_status || 'Missing Docs',
-            verification_status: row.verification_status || null,
             remarks: row.remarks || null,
 
             is_disqualified: !!row.is_disqualified,
-            disqualification_reason: row.disqualification_reason || null,
-            is_reconsideration_candidate: !!row.is_reconsideration_candidate,
-            reconsideration_tagged_at: row.reconsideration_tagged_at || null,
+            rejection_reason: row.rejection_reason || null,
 
             submission_date: row.submission_date || null,
             submitted_at: row.submission_date || null,
@@ -873,11 +865,12 @@ exports.uploadStudentApplicationDocument = async ({
         document_type: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
         file_name: file.originalname,
         file_path: storagePath,
-        file_url: null,
+        file_url: signedUrl,
         is_submitted: true,
         submitted_at: now,
         notes: null,
         uploaded_by: studentRecord.student_id,
+        updated_at: now,
     };
 
     const { error: documentUpsertError } = await supabase
@@ -943,18 +936,13 @@ exports.uploadStudentApplicationDocument = async ({
     };
 };
 
-exports.markApplicationDisqualified = async (
-    id,
-    reason,
-    isReconsiderationCandidate = false
-) => {
+exports.markApplicationDisqualified = async (id, reason) => {
     const { data, error } = await supabase
         .from('applications')
         .update({
             is_disqualified: true,
-            disqualification_reason: reason,
-            is_reconsideration_candidate: !!isReconsiderationCandidate,
-            application_status: 'Disqualified',
+            rejection_reason: reason || null,
+            application_status: 'Rejected',
         })
         .eq('application_id', id)
         .select();
@@ -1027,6 +1015,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
                 is_submitted: !!doc.url,
                 file_url: doc.url || null,
                 notes: doc.comment || null,
+                updated_at: reviewedAt,
             })
             .eq('application_id', applicationId)
             .eq('document_type', documentTypeName);
@@ -1044,11 +1033,12 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
     const applicationUpdatePayload = {
         document_status: nextDocumentStatus,
-        verification_status: verification_status,
     };
 
     if (verification_status === 'rejected') {
         applicationUpdatePayload.application_status = 'Rejected';
+        applicationUpdatePayload.is_disqualified = true;
+        applicationUpdatePayload.rejection_reason = final_comment || null;
     }
 
     const { data: updatedApplication, error: applicationUpdateError } = await supabase
@@ -1069,21 +1059,14 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
     let notification = null;
 
     if (verification_status === 'verified') {
-        const approvalResult = await exports.approveApplicationWithSlotCheck(
-            applicationId,
-            { moveToWaitingWhenFull: true }
-        );
+        const approvalResult = await exports.approveApplicationWithSlotCheck(applicationId);
 
         finalizedApplication = approvalResult.application || approvalResult;
         scholar = approvalResult.scholar || null;
         finalOutcome =
-            approvalResult.outcome === 'approved' ||
-                approvalResult.outcome === 'already_approved'
+            approvalResult.outcome === 'approved' || approvalResult.outcome === 'already_approved'
                 ? 'approved'
-                : approvalResult.outcome === 'waiting' ||
-                    approvalResult.outcome === 'already_waiting'
-                    ? 'waiting'
-                    : 'verified';
+                : 'verified';
 
         if (approvalResult.notificationShouldSend && approvalResult.student_user_id) {
             notification = await deliverVerificationOutcomeNotification({
@@ -1092,6 +1075,23 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
                 userId: approvalResult.student_user_id,
                 scholarId: scholar?.scholar_id || null,
             });
+        }
+    } else if (verification_status === 'rejected') {
+        if (updatedApplication?.student_id) {
+            const { data: studentRow } = await supabase
+                .from('students')
+                .select('user_id')
+                .eq('student_id', updatedApplication.student_id)
+                .maybeSingle();
+
+            if (studentRow?.user_id) {
+                notification = await deliverVerificationOutcomeNotification({
+                    outcome: 'rejected',
+                    applicationId,
+                    userId: studentRow.user_id,
+                    scholarId: null,
+                });
+            }
         }
     }
 
@@ -1104,8 +1104,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         summary: {
             verified: Number(summary?.verified || 0),
             uploaded: Number(summary?.uploaded || 0),
-            flagged: Number(summary?.flagged || 0),
-            reupload: Number(summary?.reupload || 0),
+            rejected: Number(summary?.rejected || summary?.reupload || 0),
             pending: Number(summary?.pending || 0),
             progress: Number(summary?.progress || 0),
         },
@@ -1167,31 +1166,12 @@ exports.assignApplicationProgram = async (applicationId, programId) => {
     return data;
 };
 
-exports.moveApplicationToWaiting = async (applicationId) => {
-    const { data, error } = await supabase
-        .from('applications')
-        .update({
-            application_status: 'Waiting',
-            is_reconsideration_candidate: true,
-        })
-        .eq('application_id', applicationId)
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Supabase Move To Waiting Error:', error);
-        throw new Error(error.message);
-    }
-
-    return data;
+exports.moveApplicationToWaiting = async (_applicationId) => {
+    throw new Error('Waiting status is not supported by the current applications schema');
 };
 
-exports.approveApplicationWithSlotCheck = async (
-    applicationId,
-    options = {}
-) => {
+exports.approveApplicationWithSlotCheck = async (applicationId) => {
     const client = await pool.connect();
-    const moveToWaitingWhenFull = options.moveToWaitingWhenFull === true;
 
     try {
         await client.query('BEGIN');
@@ -1294,50 +1274,8 @@ exports.approveApplicationWithSlotCheck = async (
             };
         }
 
-        if (moveToWaitingWhenFull && currentApplicationStatus === 'waiting') {
-            const existingApplicationResult = await client.query(
-                `SELECT * FROM applications WHERE application_id = $1`,
-                [applicationId]
-            );
-            await client.query('COMMIT');
-            return {
-                application: existingApplicationResult.rows[0],
-                scholar: null,
-                outcome: 'already_waiting',
-                notificationShouldSend: false,
-                student_user_id: row.student_user_id || null,
-            };
-        }
-
-        if (openingStatus === 'closed') {
+        if (openingStatus === 'closed' || openingStatus === 'filled') {
             throw new Error('This opening is already closed or filled.');
-        }
-
-        if (openingStatus === 'filled') {
-            if (!moveToWaitingWhenFull) {
-                throw new Error('This opening is already closed or filled.');
-            }
-
-            const waitingApplicationResult = await client.query(
-                `
-                UPDATE applications
-                SET application_status = 'Waiting',
-                    is_reconsideration_candidate = TRUE
-                WHERE application_id = $1
-                RETURNING *
-                `,
-                [applicationId]
-            );
-
-            await client.query('COMMIT');
-
-            return {
-                application: waitingApplicationResult.rows[0],
-                scholar: null,
-                outcome: 'waiting',
-                notificationShouldSend: true,
-                student_user_id: row.student_user_id || null,
-            };
         }
 
         if (slotCount > 0 && approvedCount >= slotCount) {
@@ -1351,37 +1289,15 @@ exports.approveApplicationWithSlotCheck = async (
                 [row.opening_id]
             );
 
-            if (!moveToWaitingWhenFull) {
-                throw new Error('No available slots left for this opening.');
-            }
-
-            const waitingApplicationResult = await client.query(
-                `
-                UPDATE applications
-                SET application_status = 'Waiting',
-                    is_reconsideration_candidate = TRUE
-                WHERE application_id = $1
-                RETURNING *
-                `,
-                [applicationId]
-            );
-
-            await client.query('COMMIT');
-
-            return {
-                application: waitingApplicationResult.rows[0],
-                scholar: null,
-                outcome: 'waiting',
-                notificationShouldSend: true,
-                student_user_id: row.student_user_id || null,
-            };
+            throw new Error('No available slots left for this opening.');
         }
 
         const updateApplicationResult = await client.query(
             `
             UPDATE applications
             SET application_status = 'Approved',
-                is_reconsideration_candidate = FALSE
+                is_disqualified = FALSE,
+                rejection_reason = NULL
             WHERE application_id = $1
             RETURNING *
             `,

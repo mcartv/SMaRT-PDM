@@ -1274,7 +1274,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             };
         }
 
-        if (openingStatus === 'closed' || openingStatus === 'filled') {
+        if (openingStatus === 'closed') {
             throw new Error('This opening is already closed or filled.');
         }
 
@@ -1282,7 +1282,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             await client.query(
                 `
                 UPDATE program_openings
-                SET posting_status = 'filled',
+                SET posting_status = 'closed',
                     updated_at = NOW()
                 WHERE opening_id = $1
                 `,
@@ -1333,7 +1333,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             await client.query(
                 `
                 UPDATE program_openings
-                SET posting_status = 'filled',
+                SET posting_status = 'closed',
                     filled_slots = $2,
                     updated_at = NOW()
                 WHERE opening_id = $1

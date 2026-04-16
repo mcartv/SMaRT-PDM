@@ -2041,7 +2041,7 @@ async function buildApplicationDetails(applicationId) {
       document_status,
       submission_date,
       is_disqualified,
-      disqualification_reason,
+      rejection_reason,
       evaluator_id,
       students (
         user_id,
@@ -2185,7 +2185,7 @@ async function buildApplicationDetails(applicationId) {
       document_status: applicationRecord.document_status,
       submission_date: applicationRecord.submission_date,
       is_disqualified: !!applicationRecord.is_disqualified,
-      disqualification_reason: applicationRecord.disqualification_reason,
+      rejection_reason: applicationRecord.rejection_reason,
       evaluator_id: applicationRecord.evaluator_id ?? null,
     },
     student: {

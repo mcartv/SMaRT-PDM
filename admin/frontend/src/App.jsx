@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // --- LAYOUTS ---
 import AdminLayout from './components/layout/AdminLayout';
@@ -16,12 +16,11 @@ import ScholarMonitoring from './pages/ScholarMonitoring';
 import RenewalReview from './pages/RenewalReview';
 import RenewalDocumentVerification from './pages/RenewalDocumentVerification';
 import ScholarshipOpenings from './pages/ScholarshipOpenings';
-import RegistrarSync from './pages/RegistrarSync';
 import ROAdmin from './pages/ROAdmin';
 import PayoutManagement from './pages/PayoutManagement';
 import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
-import Maintenance from './pages/Maintenance';
+import Maintenance from './pages/maintenance/Maintenance';
 import AdminMessages from './pages/AdminMessages';
 import SupportTickets from './pages/SupportTickets';
 
@@ -89,7 +88,6 @@ export default function App() {
             element={<RenewalDocumentVerification />}
           />
           <Route path="openings" element={<ScholarshipOpenings />} />
-          <Route path="registrar" element={<RegistrarSync />} />
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />

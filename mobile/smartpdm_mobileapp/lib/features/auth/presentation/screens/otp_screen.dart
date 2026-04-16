@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
-import 'complete_profile_screen.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -131,12 +131,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
       _showMessage('Email verified successfully!');
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CompleteProfileScreen(),
-        ),
-      );
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
     } on TimeoutException {
       _showMessage('Request timed out. Server might be down.', isError: true);
     } catch (e) {

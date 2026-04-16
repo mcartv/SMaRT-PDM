@@ -8,11 +8,10 @@ import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/new_a
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholar_renewal_requirements_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholarship_openings_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/change_email_screen.dart';
-import 'package:smartpdm_mobileapp/features/auth/presentation/screens/complete_profile_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/profile_completion_gate.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/login_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/otp_screen.dart';
-import 'package:smartpdm_mobileapp/features/auth/presentation/screens/profile_completion_gate.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/register_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/splash_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/faqs_screen.dart';
@@ -45,9 +44,6 @@ class AppRouter {
 
       case AppRoutes.changeEmail:
         return _buildRoute(settings, (_) => const ChangeEmailScreen());
-
-      case AppRoutes.completeProfile:
-        return _buildRoute(settings, (_) => CompleteProfileScreen());
 
       case AppRoutes.home:
         return _buildProtectedRoute(

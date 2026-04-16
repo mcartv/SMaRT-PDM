@@ -232,47 +232,27 @@ export default function RegistrarSync() {
             </p>
           </div>
 
-          <CardContent className="space-y-5 p-5">
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onClick={() => inputRef.current?.click()}
-              className={`cursor-pointer rounded-2xl border-2 border-dashed px-5 py-8 text-center transition ${isDragging
-                ? 'border-amber-500 bg-amber-50'
-                : 'border-stone-300 bg-stone-50/70 hover:border-stone-400 hover:bg-stone-50'
-                }`}
-            >
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
-                <Inbox className="h-6 w-6 text-stone-600" />
-              </div>
-
-              <p className="mt-4 text-sm font-semibold text-stone-800">
-                Drag and drop your registrar file here
-              </p>
-              <p className="mt-1 text-xs text-stone-500">
-                Accepts .xlsx, .xls, and .csv
-              </p>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4 rounded-xl border-stone-200 text-stone-700"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  inputRef.current?.click();
-                }}
-              >
-                Choose File
-              </Button>
-
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
-                className="hidden"
-              />
+          <CardContent className="p-5 space-y-4">
+            <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/70 p-4">
+              <p className="text-sm font-medium text-stone-800">Accepted columns</p>
+              <ul className="mt-3 space-y-1 text-xs text-stone-500">
+                <li>pdm_id</li>
+                <li>first_name</li>
+                <li>middle_name</li>
+                <li>last_name</li>
+                <li>course_id</li>
+                <li>year_level</li>
+                <li>gwa</li>
+                <li>profile_photo_url</li>
+                <li>is_active_scholar</li>
+                <li>account_status</li>
+                <li>sdo_status</li>
+                <li>is_archived</li>
+                <li>learners_reference_number</li>
+                <li>sex_at_birth</li>
+                <li>email_address</li>
+                <li>phone_number</li>
+              </ul>
             </div>
 
             {file && (

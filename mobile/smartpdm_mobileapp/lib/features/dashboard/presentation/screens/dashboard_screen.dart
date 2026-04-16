@@ -696,16 +696,17 @@ class _DashboardContentState extends State<DashboardContent> {
                         SizedBox(
                           width: itemWidth,
                           child: _buildQuickActionTile(
-                            context: context,
-                            icon: Icons.upload_file,
-                            label: 'Upload',
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              _effectiveScholarAccess
-                                  ? AppRoutes.renewalDocuments
-                                  : AppRoutes.documents,
-                            ),
-                          ),
+  context: context,
+  icon: Icons.upload_file,
+  label: 'Upload',
+  onTap: () => Navigator.pushNamed(
+    context,
+    _effectiveScholarAccess
+        ? AppRoutes.renewalDocuments
+        : AppRoutes.documents,
+  ),
+),
+
                         ),
                         SizedBox(
                           width: itemWidth,

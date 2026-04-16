@@ -167,7 +167,7 @@ async function relayStudentNotification({
     if (!response.ok) {
         throw new Error(
             payload.error ||
-                `Student backend notification relay failed with status ${response.status}.`
+            `Student backend notification relay failed with status ${response.status}.`
         );
     }
 
@@ -433,8 +433,7 @@ async function buildApplicationDetails(applicationId) {
                 pdm_id,
                 gwa,
                 year_level,
-                course_id,
-                barangay
+                course_id
             ),
             scholarship_program (
                 program_id,
@@ -442,7 +441,6 @@ async function buildApplicationDetails(applicationId) {
                 program_name,
                 benefactors (
                     benefactor_id,
-                    benefactor_name,
                     benefactor_name
                 )
             )
@@ -471,10 +469,7 @@ async function buildApplicationDetails(applicationId) {
             throw new Error(scholarCheckError.message);
         }
 
-        if (
-            existingScholar &&
-            existingScholar.application_id !== applicationId
-        ) {
+        if (existingScholar && existingScholar.application_id !== applicationId) {
             throw new Error(
                 'This application has already been converted into an active scholar record.'
             );
@@ -530,6 +525,7 @@ async function buildApplicationDetails(applicationId) {
     const student = applicationRecord.students || {};
     const scholarshipProgram = applicationRecord.scholarship_program || {};
     const benefactor = scholarshipProgram.benefactors || {};
+    const profile = profileResult.data || null;
 
     let userContact = { email: 'N/A', phone_number: 'N/A' };
 
@@ -652,13 +648,11 @@ async function buildApplicationDetails(applicationId) {
                 : 'N/A',
             gwa: student.gwa ?? 'N/A',
             program: scholarshipProgram.program_name || 'General',
-            benefactor_name:
-                benefactor.benefactor_name ||
-                benefactor.benefactor_name ||
-                'N/A',
+            benefactor_name: benefactor.benefactor_name || 'N/A',
             course: courseCode,
+            barangay: profile?.barangay || 'N/A',
         },
-        student_profile: profileResult.data || null,
+        student_profile: profile,
         family_members: familyMembersResult.data || [],
         education_records: educationRecordsResult.data || [],
         documents,
@@ -1085,7 +1079,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         scholar = approvalResult.scholar || null;
         finalOutcome =
             approvalResult.outcome === 'approved' ||
-            approvalResult.outcome === 'already_approved'
+                approvalResult.outcome === 'already_approved'
                 ? 'approved'
                 : approvalResult.outcome === 'waiting' ||
                     approvalResult.outcome === 'already_waiting'

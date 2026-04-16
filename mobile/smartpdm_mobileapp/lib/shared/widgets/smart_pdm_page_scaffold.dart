@@ -169,6 +169,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
                   unreadNotifications: widget.unreadNotifications > 0
                       ? widget.unreadNotifications
                       : notificationProvider.unreadCount,
+                  unreadPayoutNotifications: notificationProvider.unreadPayoutCount,
                 ),
               )
             : null,

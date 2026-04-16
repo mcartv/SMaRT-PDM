@@ -105,6 +105,14 @@ class AppNotification {
         normalizedType == 'opening';
   }
 
+  bool get isPayoutNotification {
+    final normalizedType = type.toLowerCase();
+    final normalizedReference = (referenceType ?? '').toLowerCase();
+    return normalizedType == 'payout_released' ||
+        normalizedReference == 'payout_batch' ||
+        title.toLowerCase().contains('payout');
+  }
+
   String get officeUpdateLabel {
     if (isOpeningUpdate) {
       return 'SCHOLARSHIP OPENING';
@@ -137,6 +145,10 @@ class AppNotification {
       return Icons.campaign_outlined;
     }
 
+    if (isPayoutNotification) {
+      return Icons.payments_outlined;
+    }
+
     if (normalizedType.contains('interview')) {
       return Icons.calendar_today;
     }
@@ -166,6 +178,10 @@ class AppNotification {
     if (normalizedReference == 'announcement' ||
         normalizedType == 'announcement') {
       return Colors.orange;
+    }
+
+    if (isPayoutNotification) {
+      return Colors.green;
     }
 
     if (normalizedType.contains('interview')) {

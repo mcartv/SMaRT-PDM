@@ -699,12 +699,13 @@ class _DashboardContentState extends State<DashboardContent> {
   context: context,
   icon: Icons.upload_file,
   label: 'Upload',
-  onTap: () => Navigator.pushNamed(
-    context,
-    _effectiveScholarAccess
-        ? AppRoutes.renewalDocuments
-        : AppRoutes.documents,
-  ),
+  onTap: () {
+    final isScholar = context.read<NotificationProvider>().hasScholarAccess || _hasScholarAccess;
+    Navigator.pushNamed(
+      context,
+      isScholar ? AppRoutes.renewalDocuments : AppRoutes.documents,
+    );
+  },
 ),
 
                         ),
@@ -726,12 +727,15 @@ class _DashboardContentState extends State<DashboardContent> {
                             context: context,
                             icon: Icons.assignment_turned_in,
                             label: 'Obligs',
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              _effectiveScholarAccess
-                                  ? AppRoutes.roCompletion
-                                  : AppRoutes.status,
-                            ),
+                            onTap: () {
+                              final isScholar = context.read<NotificationProvider>().hasScholarAccess || _hasScholarAccess;
+                              Navigator.pushNamed(
+                                context,
+                                isScholar
+                                    ? AppRoutes.roCompletion
+                                    : AppRoutes.status,
+                              );
+                            },
                           ),
                         ),
                       ],

@@ -110,11 +110,6 @@ function getComputedRemainingSlots(opening) {
 
 function getOpeningStatusMeta(opening) {
   const raw = normalizeStatus(opening?.posting_status || opening?.status || '');
-  const remainingSlots = getComputedRemainingSlots(opening);
-
-  if (raw === 'draft') {
-    return { label: 'Draft', bg: '#f5f5f4', color: '#57534e' };
-  }
 
   if (raw === 'archived') {
     return { label: 'Archived', bg: '#f5f5f4', color: '#78716c' };
@@ -124,8 +119,8 @@ function getOpeningStatusMeta(opening) {
     return { label: 'Closed', bg: C.redSoft, color: C.red };
   }
 
-  if (raw === 'filled' || remainingSlots <= 0) {
-    return { label: 'Filled', bg: C.amberSoft, color: C.amber };
+  if (raw === 'draft') {
+    return { label: 'Draft', bg: '#f5f5f4', color: '#57534e' };
   }
 
   return { label: 'Open', bg: C.greenSoft, color: C.green };
@@ -369,13 +364,20 @@ export default function ApplicationReview() {
     const q = search.trim().toLowerCase();
 
     return openings.filter((opening) => {
+      const rawStatus = normalizeStatus(opening?.posting_status || opening?.status || '');
+
+      // hide all finalized openings from Applications page
+      if (opening?.is_archived) return false;
+      if (rawStatus === 'closed') return false;
+      if (rawStatus === 'archived') return false;
+
       if (!q) return true;
 
       const title = (opening.opening_title || opening.title || '').toLowerCase();
       const program = (opening.program_name || '').toLowerCase();
       const semester = (opening.semester || '').toLowerCase();
       const academicYear = (opening.academic_year || '').toLowerCase();
-      const status = (opening.posting_status || opening.status || '').toLowerCase();
+      const status = rawStatus;
 
       return (
         title.includes(q) ||
@@ -407,16 +409,15 @@ export default function ApplicationReview() {
   }, [registryRows, search]);
 
   const stats = useMemo(() => {
-    const totalOpenings = openings.length;
-    const openCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Open').length;
-    const filledCount = openings.filter((o) => getOpeningStatusMeta(o).label === 'Filled').length;
+    const totalOpenings = filteredOpenings.length;
+    const openCount = filteredOpenings.filter((o) => getOpeningStatusMeta(o).label === 'Open').length;
     const totalApplicants = registryRows.filter((row) =>
       isActiveApplicantStatus(row.application_status)
     ).length;
 
     return [
       {
-        label: 'Total Openings',
+        label: 'Active Openings',
         value: totalOpenings,
         icon: FolderOpen,
         soft: C.amberSoft,
@@ -430,8 +431,8 @@ export default function ApplicationReview() {
         accent: C.green,
       },
       {
-        label: 'Filled',
-        value: filledCount,
+        label: 'Hidden Finalized',
+        value: openings.length - filteredOpenings.length,
         icon: CircleOff,
         soft: C.redSoft,
         accent: C.red,
@@ -444,8 +445,8 @@ export default function ApplicationReview() {
         accent: C.blueMid,
       },
     ];
-  }, [openings, registryRows]);
-
+  }, [filteredOpenings, openings, registryRows]);
+  
   const activeRows = viewType === 'cards' ? filteredOpenings : filteredRegistryRows;
   const totalPages = Math.max(1, Math.ceil(activeRows.length / PAGE_SIZE));
 

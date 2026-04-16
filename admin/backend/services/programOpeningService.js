@@ -9,16 +9,14 @@ function toRequiredNumber(value, fallback = 0) {
     return Number.isNaN(num) ? fallback : num;
 }
 
-function derivePostingStatus(opening, counts = {}) {
+function derivePostingStatus(opening) {
     const existing = normalizeStatus(opening.posting_status || 'draft');
     const allocatedSlots = toRequiredNumber(opening.allocated_slots, 0);
-    const filledSlots =
-        opening.filled_slots != null
-            ? toRequiredNumber(opening.filled_slots, 0)
-            : toRequiredNumber(counts.qualified_count, 0);
+    const isArchived = !!opening.is_archived;
 
-    if (existing === 'archived') return 'archived';
+    if (isArchived || existing === 'archived') return 'archived';
     if (existing === 'closed') return 'closed';
+    if (existing === 'draft') return 'draft';
 
     const hasRequiredFields =
         !!opening.opening_title &&
@@ -27,7 +25,6 @@ function derivePostingStatus(opening, counts = {}) {
         allocatedSlots > 0;
 
     if (!hasRequiredFields) return 'draft';
-    if (filledSlots >= allocatedSlots && allocatedSlots > 0) return 'open';
 
     return 'open';
 }
@@ -35,8 +32,9 @@ function derivePostingStatus(opening, counts = {}) {
 async function resolvePeriodIdFromAcademicYear(academicYearId) {
     const { data, error } = await supabase
         .from('academic_period')
-        .select('period_id')
+        .select('period_id, is_active')
         .eq('academic_year_id', academicYearId)
+        .order('is_active', { ascending: false })
         .limit(1);
 
     if (error) {
@@ -61,15 +59,7 @@ function mapOpening(opening, counts = {}) {
     const effectiveFilledSlots =
         storedFilledSlots != null ? storedFilledSlots : qualifiedCount;
 
-    const basePostingStatus = derivePostingStatus(opening, counts);
-    const computedDisplayStatus =
-        basePostingStatus === 'archived'
-            ? 'archived'
-            : basePostingStatus === 'closed'
-                ? 'closed'
-                : allocatedSlots > 0 && effectiveFilledSlots >= allocatedSlots
-                    ? 'filled'
-                    : basePostingStatus;
+    const basePostingStatus = derivePostingStatus(opening);
 
     const program = opening.scholarship_program || null;
     const benefactor = program?.benefactors || null;
@@ -120,7 +110,7 @@ function mapOpening(opening, counts = {}) {
                 : null),
 
         posting_status: basePostingStatus,
-        computed_status: computedDisplayStatus,
+        computed_status: basePostingStatus,
         announcement_text: opening.announcement_text || '',
         created_at: opening.created_at || null,
         updated_at: opening.updated_at || null,
@@ -134,7 +124,7 @@ function mapOpening(opening, counts = {}) {
         disqualified_count: toRequiredNumber(counts.disqualified_count, 0),
 
         slot_count: allocatedSlots,
-        status: computedDisplayStatus,
+        status: basePostingStatus,
     };
 }
 
@@ -286,7 +276,7 @@ exports.fetchMobileOpenings = async () => {
                 opening.is_archived !== true &&
                 opening.program_is_archived !== true &&
                 opening.benefactor_is_archived !== true &&
-                ['open', 'filled'].includes(opening.computed_status)
+                opening.computed_status === 'open'
         );
 };
 
@@ -409,6 +399,9 @@ exports.createProgramOpening = async (payload = {}) => {
     const resolvedPeriodId =
         period_id || (await resolvePeriodIdFromAcademicYear(academic_year_id));
 
+    const normalizedStatus = normalizeStatus(posting_status || 'draft');
+    const isArchived = normalizedStatus === 'archived';
+
     const insertData = {
         program_id,
         opening_title: String(opening_title).trim(),
@@ -425,10 +418,11 @@ exports.createProgramOpening = async (payload = {}) => {
             per_scholar_amount !== undefined && per_scholar_amount !== null && per_scholar_amount !== ''
                 ? Number(per_scholar_amount)
                 : 0,
-        posting_status: posting_status || 'draft',
+        posting_status: isArchived ? 'archived' : (normalizedStatus || 'draft'),
+        is_archived: isArchived,
     };
 
-    if (insertData.allocated_slots <= 0) {
+    if (insertData.allocated_slots < 0) {
         throw new Error('Allocated slots must be greater than 0');
     }
 
@@ -522,6 +516,7 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         financial_allocation: payload.financial_allocation ?? existing.financial_allocation,
         per_scholar_amount: payload.per_scholar_amount ?? existing.per_scholar_amount,
         posting_status: payload.posting_status ?? existing.posting_status,
+        is_archived: payload.is_archived ?? existing.is_archived ?? false,
     };
 
     if (!merged.program_id) throw new Error('Program ID is required');
@@ -538,6 +533,19 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
     if (!resolvedPeriodId || academicYearChanged) {
         resolvedPeriodId = await resolvePeriodIdFromAcademicYear(merged.academic_year_id);
     }
+
+    const normalizedStatus = normalizeStatus(merged.posting_status || 'draft');
+
+    const effectiveArchived =
+        merged.is_archived === true || normalizedStatus === 'archived';
+
+    const effectiveStatus = effectiveArchived
+        ? 'archived'
+        : normalizedStatus === 'closed'
+            ? 'closed'
+            : normalizedStatus === 'draft'
+                ? 'draft'
+                : 'open';
 
     const updateData = {
         program_id: merged.program_id,
@@ -561,11 +569,12 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 merged.per_scholar_amount !== ''
                 ? Number(merged.per_scholar_amount)
                 : 0,
-        posting_status: merged.posting_status || 'draft',
+        posting_status: effectiveStatus,
+        is_archived: effectiveArchived,
         updated_at: new Date().toISOString(),
     };
 
-    if (updateData.allocated_slots <= 0) {
+    if (updateData.allocated_slots < 0) {
         throw new Error('Allocated slots must be greater than 0');
     }
 
@@ -639,6 +648,7 @@ exports.closeProgramOpening = async (openingId) => {
         .from('program_openings')
         .update({
             posting_status: 'closed',
+            is_archived: false,
             updated_at: new Date().toISOString(),
         })
         .eq('opening_id', openingId)

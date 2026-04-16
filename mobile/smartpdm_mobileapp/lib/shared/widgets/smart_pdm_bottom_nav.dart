@@ -7,12 +7,14 @@ import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access
 class SmartPdmBottomNav extends StatelessWidget {
   final int selectedIndex;
   final int unreadNotifications;
+  final int unreadPayoutNotifications;
   final bool isVerifiedScholar;
 
   const SmartPdmBottomNav({
     super.key,
     required this.selectedIndex,
     this.unreadNotifications = 0,
+    this.unreadPayoutNotifications = 0,
     required this.isVerifiedScholar,
   });
 
@@ -54,6 +56,7 @@ class SmartPdmBottomNav extends StatelessWidget {
       elevation: 8,
       items: List.generate(_labels.length, (index) {
         final hasUnreadNotifications = index == 2 && unreadNotifications > 0;
+        final hasUnreadPayouts = index == 1 && unreadPayoutNotifications > 0;
 
         return BottomNavigationBarItem(
           icon: Stack(
@@ -81,6 +84,22 @@ class SmartPdmBottomNav extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              if (hasUnreadPayouts)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 8,
+                      minHeight: 8,
                     ),
                   ),
                 ),

@@ -1289,19 +1289,27 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             };
         }
 
+<<<<<<< HEAD
         // Manual close should block approvals.
         if (openingStatus === 'closed') {
             throw new Error('This opening is already closed.');
+=======
+        if (openingStatus === 'closed') {
+            throw new Error('This opening is already closed or filled.');
+>>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
         }
 
         // If slots are already exhausted, finalize the opening.
         if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
-                `
+                `   
                 UPDATE program_openings
                 SET posting_status = 'closed',
+<<<<<<< HEAD
                     is_archived = TRUE,
                     filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
+=======
+>>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
                     updated_at = NOW()
                 WHERE opening_id = $1
                 `,
@@ -1349,6 +1357,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         const nextFilledSlots = newApprovedCount;
         const shouldFinalizeOpening = slotCount > 0 && newApprovedCount >= slotCount;
 
+<<<<<<< HEAD
         await client.query(
             `
             UPDATE program_openings
@@ -1368,6 +1377,30 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             `,
             [row.opening_id, nextFilledSlots, shouldFinalizeOpening]
         );
+=======
+        if (slotCount > 0 && newApprovedCount >= slotCount) {
+            await client.query(
+                `
+                UPDATE program_openings
+                SET posting_status = 'closed',
+                    filled_slots = $2,
+                    updated_at = NOW()
+                WHERE opening_id = $1
+                `,
+                [row.opening_id, nextFilledSlots]
+            );
+        } else {
+            await client.query(
+                `
+                UPDATE program_openings
+                SET filled_slots = $2,
+                    updated_at = NOW()
+                WHERE opening_id = $1
+                `,
+                [row.opening_id, nextFilledSlots]
+            );
+        }
+>>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
 
         await client.query('COMMIT');
 

@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const notificationService = require('./notificationService');
 
 // =========================
 // FETCH PAYOUT BATCHES
@@ -365,7 +366,7 @@ async function createPayoutBatchFromOpening({
 // =========================
 // UPDATE STATUS
 // =========================
-async function updateScholarPayoutStatus({ payout_entry_id, next_status }) {
+async function updateScholarPayoutStatus({ payout_entry_id, next_status, processed_by, remarks, check_number }) {
     if (!payout_entry_id) {
         throw new Error('payout_entry_id is required');
     }
@@ -374,13 +375,66 @@ async function updateScholarPayoutStatus({ payout_entry_id, next_status }) {
         throw new Error('next_status is required');
     }
 
+    // Fetch current payout entry with scholar details before updating
+    const fetchQuery = `
+        SELECT
+            pbs.payout_entry_id,
+            pbs.scholar_id,
+            pbs.amount_received,
+            pbs.release_status,
+            pb.payout_batch_id,
+            pb.payout_title,
+            pb.program_id,
+            s.student_id,
+            st.user_id,
+            st.pdm_id,
+            CONCAT(st.last_name, ', ', st.first_name) AS student_name
+        FROM payout_batch_scholars pbs
+        INNER JOIN payout_batches pb ON pbs.payout_batch_id = pb.payout_batch_id
+        INNER JOIN scholars s ON pbs.scholar_id = s.scholar_id
+        INNER JOIN students st ON s.student_id = st.student_id
+        WHERE pbs.payout_entry_id = $1
+    `;
+
+    const { rows: existingRows } = await pool.query(fetchQuery, [payout_entry_id]);
+    const existingRecord = existingRows[0];
+
+    if (!existingRecord) {
+        throw new Error('Payout entry not found');
+    }
+
+    // Update the status
     await pool.query(`
         UPDATE payout_batch_scholars
         SET release_status = $2
         WHERE payout_entry_id = $1
     `, [payout_entry_id, next_status]);
 
-    return { success: true };
+    // Send notification if status changed to 'Released'
+    if (next_status === 'Released' && existingRecord.user_id) {
+        try {
+            const amount = Number(existingRecord.amount_received || 0).toLocaleString('en-PH', {
+                style: 'currency',
+                currency: 'PHP',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+            });
+
+            await notificationService.createUserNotification({
+                userId: existingRecord.user_id,
+                type: 'payout_released',
+                title: 'Payout Released',
+                message: `Your scholarship payout of ${amount} has been released.`,
+                referenceId: String(existingRecord.payout_batch_id),
+                referenceType: 'payout_batch',
+            });
+        } catch (notifyError) {
+            console.error('PAYOUT RELEASE NOTIFICATION ERROR:', notifyError);
+            // Don't throw - notification failure shouldn't block the payout update
+        }
+    }
+
+    return { success: true, previous_status: existingRecord.release_status };
 }
 
 module.exports = {

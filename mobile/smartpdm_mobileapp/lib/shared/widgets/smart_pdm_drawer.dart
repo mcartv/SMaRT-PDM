@@ -83,36 +83,38 @@ class SmartPdmDrawer extends StatelessWidget {
           ),
 
           // Applicant Section
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-            child: Text(
-              'APPLICANT',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: sectionColor,
-                letterSpacing: 1,
+          if (!isScholar) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              child: Text(
+                'APPLICANT',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: sectionColor,
+                  letterSpacing: 1,
+                ),
               ),
             ),
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.assignment,
-            label: 'Apply for Scholarship',
-            route: AppRoutes.scholarshipOpenings,
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.check_circle,
-            label: 'Application Status',
-            route: AppRoutes.status,
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.help_outline,
-            label: 'FAQs',
-            route: AppRoutes.faqs,
-          ),
+            _buildDrawerItem(
+              context: context,
+              icon: Icons.assignment,
+              label: 'Apply for Scholarship',
+              route: AppRoutes.scholarshipOpenings,
+            ),
+            _buildDrawerItem(
+              context: context,
+              icon: Icons.check_circle,
+              label: 'Application Status',
+              route: AppRoutes.status,
+            ),
+            _buildDrawerItem(
+              context: context,
+              icon: Icons.help_outline,
+              label: 'FAQs',
+              route: AppRoutes.faqs,
+            ),
+          ],
 
           // Scholar Section
           if (isScholar) ...[

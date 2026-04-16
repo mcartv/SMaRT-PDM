@@ -422,7 +422,6 @@ async function buildApplicationDetails(applicationId) {
             document_status,
             submission_date,
             is_disqualified,
-            disqualification_reason,
             is_reconsideration_candidate,
             evaluator_id,
             students (

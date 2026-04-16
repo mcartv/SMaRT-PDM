@@ -239,7 +239,6 @@ exports.exportApplicationsExcel = async (req, res) => {
             { header: 'Verification Status', key: 'verification_status', width: 20 },
             { header: 'Remarks', key: 'remarks', width: 30 },
             { header: 'Disqualified', key: 'disqualified_label', width: 14 },
-            { header: 'Disqualification Reason', key: 'disqualification_reason', width: 35 },
             { header: 'Submitted', key: 'submission_date', width: 20 },
         ];
 

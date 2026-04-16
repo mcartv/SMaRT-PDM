@@ -7,9 +7,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle, XCircle, Clock, ArrowLeft,
-  FileText, Flag, ChevronRight, Loader2,
+  FileText, ChevronRight, Loader2,
   AlertTriangle, ShieldCheck, ScanText, ExternalLink,
-  Columns2, RefreshCw,
+  Columns2, RefreshCw, X,
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:5000';
@@ -47,13 +47,7 @@ const DOC_STATUS = {
     icon: <XCircle className="w-3.5 h-3.5" />,
     color: C.red,
     bg: C.redSoft,
-    label: 'Re-upload',
-  },
-  flagged: {
-    icon: <Flag className="w-3.5 h-3.5" />,
-    color: C.red,
-    bg: '#fef2f2',
-    label: 'Flagged',
+    label: 'Rejected',
   },
   uploaded: {
     icon: <Clock className="w-3.5 h-3.5" />,
@@ -89,6 +83,16 @@ const REQUIRED_DOCUMENTS = [
     name: 'Application Form',
     aliases: ['application form', 'application'],
   },
+];
+
+const REJECTION_OPTIONS = [
+  'Wrong document uploaded',
+  'Blurred or unreadable image',
+  'Incomplete document',
+  'Mismatched student information',
+  'Suspected edited or doctored file',
+  'Invalid file content',
+  'Other',
 ];
 
 function normalizeKey(value = '') {
@@ -379,7 +383,6 @@ function ApplicationFormPreview({ application }) {
       </h3>
 
       <div className="space-y-5 text-sm text-stone-700">
-        {/* STUDENT OVERVIEW */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Student Overview
@@ -396,7 +399,6 @@ function ApplicationFormPreview({ application }) {
           </div>
         </div>
 
-        {/* PROFILE */}
         <div className="border-t border-stone-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Personal Profile
@@ -468,7 +470,6 @@ function ApplicationFormPreview({ application }) {
           </div>
         </div>
 
-        {/* FAMILY */}
         <div className="border-t border-stone-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Family Background
@@ -534,7 +535,6 @@ function ApplicationFormPreview({ application }) {
           )}
         </div>
 
-        {/* EDUCATION */}
         <div className="border-t border-stone-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">
             Educational Background
@@ -751,9 +751,9 @@ function OCRPanel({ activeDoc, application, extractedData }) {
             </p>
           </div>
           <p className="text-xs text-stone-500 leading-relaxed">
-            Compare the uploaded file or text-based application form against the extracted fields.
-            If the details are incomplete, blurred, inconsistent, or mismatched with student records,
-            mark the item for re-upload or flag it for further review.
+            Do not type the action taken. Invalid, wrong, mismatched, edited, or doctored
+            documents should be rejected. The admin should only provide the rejection reason
+            and any review remarks.
           </p>
         </div>
 
@@ -778,6 +778,154 @@ STATUS:
   );
 }
 
+function RejectDocumentModal({
+  open,
+  onClose,
+  onConfirm,
+  saving,
+  activeDocName,
+}) {
+  const [selectedReason, setSelectedReason] = useState('');
+  const [otherReason, setOtherReason] = useState('');
+  const [remarks, setRemarks] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedReason('');
+      setOtherReason('');
+      setRemarks('');
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  const isOther = selectedReason === 'Other';
+  const finalReason = isOther ? otherReason.trim() : selectedReason.trim();
+  const canSubmit = !!selectedReason && (!!finalReason || !isOther);
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+
+    const finalComment = [
+      `Reason: ${isOther ? otherReason.trim() : selectedReason}`,
+      remarks.trim() ? `Remarks: ${remarks.trim()}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    onConfirm(finalComment);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-lg border-stone-200 shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-stone-800">Reject Document</h3>
+            <p className="text-xs text-stone-500 mt-0.5">
+              {activeDocName || 'Selected document'}
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <CardContent className="p-5 space-y-4">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400 mb-2">
+              Rejection Reason
+            </p>
+
+            <div className="space-y-2">
+              {REJECTION_OPTIONS.map((option) => (
+                <label
+                  key={option}
+                  className="flex items-start gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    name="rejection_reason"
+                    value={option}
+                    checked={selectedReason === option}
+                    onChange={() => setSelectedReason(option)}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span className="text-sm text-stone-700">{option}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {selectedReason === 'Other' && (
+            <div>
+              <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
+                Other Reason
+              </label>
+              <Textarea
+                value={otherReason}
+                onChange={(e) => setOtherReason(e.target.value)}
+                placeholder="Type the specific rejection reason..."
+                className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400 block mb-1.5">
+              Admin Remarks
+            </label>
+            <Textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="Optional remarks for review..."
+              className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
+            />
+          </div>
+
+          <p className="text-[11px] text-stone-500 leading-relaxed">
+            Note: Do not type the action taken. Select the reason for rejection and add remarks only when needed.
+          </p>
+        </CardContent>
+
+        <div className="px-5 py-4 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="h-9 rounded-lg border-stone-200 text-xs"
+          >
+            Cancel
+          </Button>
+
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit || saving}
+            className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+            style={{ background: C.red }}
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <XCircle className="w-4 h-4 mr-2" />
+            )}
+            Confirm Rejection
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export default function DocumentVerification() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -793,6 +941,7 @@ export default function DocumentVerification() {
   const [docComments, setDocComments] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState('preview');
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
 
   const fetchApplicationDocuments = async ({ soft = false } = {}) => {
     try {
@@ -867,8 +1016,7 @@ export default function DocumentVerification() {
   const hasCompleteRequirements = availableCount >= REQUIRED_DOC_COUNT;
 
   const verifiedCount = docs.filter((d) => d.status === 'verified').length;
-  const flaggedCount = docs.filter((d) => d.status === 'flagged').length;
-  const reuploadCount = docs.filter((d) => d.status === 'rejected').length;
+  const rejectedCount = docs.filter((d) => d.status === 'rejected').length;
   const reviewedCount = docs.filter(
     (d) => isDocumentAvailable(d) && d.status !== 'pending' && d.status !== 'uploaded'
   ).length;
@@ -910,7 +1058,7 @@ export default function DocumentVerification() {
     }));
   };
 
-  const updateActiveDocStatus = (nextStatus) => {
+  const updateActiveDocStatus = (nextStatus, nextComment = null) => {
     if (!activeDoc || !hasUploadedDocument) return;
 
     setDocStatuses((prev) => ({
@@ -918,15 +1066,27 @@ export default function DocumentVerification() {
       [activeDoc.id]: nextStatus,
     }));
 
+    const resolvedComment = nextComment !== null ? nextComment : comment;
+
     setDocComments((prev) => ({
       ...prev,
-      [activeDoc.id]: comment,
+      [activeDoc.id]: resolvedComment,
     }));
+
+    setComment(resolvedComment);
   };
 
   const handleVerify = () => updateActiveDocStatus('verified');
-  const handleReupload = () => updateActiveDocStatus('rejected');
-  const handleFlag = () => updateActiveDocStatus('flagged');
+
+  const openRejectModal = () => {
+    if (!activeDoc || !hasUploadedDocument) return;
+    setRejectModalOpen(true);
+  };
+
+  const handleRejectConfirm = (finalComment) => {
+    updateActiveDocStatus('rejected', finalComment);
+    setRejectModalOpen(false);
+  };
 
   const handleCompleteVerification = async () => {
     try {
@@ -948,8 +1108,7 @@ export default function DocumentVerification() {
           verified: verifiedCount,
           reviewed: reviewedCount,
           uploaded: availableCount,
-          flagged: flaggedCount,
-          reupload: reuploadCount,
+          rejected: rejectedCount,
           pending: docs.filter((d) => d.status === 'pending' || d.status === 'uploaded').length,
           progress,
         },
@@ -976,10 +1135,10 @@ export default function DocumentVerification() {
         finalOutcome === 'approved'
           ? 'Verification completed successfully. The student has been approved and notified.'
           : finalOutcome === 'waiting'
-          ? 'Verification completed successfully. The student has been moved to the waiting list and notified.'
-          : finalVerificationStatus === 'verified'
-          ? 'Verification completed successfully.'
-          : 'Verification completed. Application marked as needing re-upload or further review.'
+            ? 'Verification completed successfully. The student has been moved to the waiting list and notified.'
+            : finalVerificationStatus === 'verified'
+              ? 'Verification completed successfully.'
+              : 'Verification completed. Application marked as rejected and ready for archiving.'
       );
 
       navigate('/admin/applications');
@@ -1020,6 +1179,14 @@ export default function DocumentVerification() {
 
   return (
     <div className="space-y-5 py-2 animate-in fade-in duration-300" style={{ background: C.bg }}>
+      <RejectDocumentModal
+        open={rejectModalOpen}
+        onClose={() => setRejectModalOpen(false)}
+        onConfirm={handleRejectConfirm}
+        saving={false}
+        activeDocName={activeDoc?.name}
+      />
+
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
@@ -1153,18 +1320,14 @@ export default function DocumentVerification() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-2 gap-2 text-center">
                   <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
                     <p className="text-[10px] uppercase tracking-wide text-stone-400">Verified</p>
                     <p className="text-sm font-semibold text-green-700">{verifiedCount}</p>
                   </div>
                   <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-                    <p className="text-[10px] uppercase tracking-wide text-stone-400">Flagged</p>
-                    <p className="text-sm font-semibold text-red-700">{flaggedCount}</p>
-                  </div>
-                  <div className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-2">
-                    <p className="text-[10px] uppercase tracking-wide text-stone-400">Re-upload</p>
-                    <p className="text-sm font-semibold text-orange-700">{reuploadCount}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-stone-400">Rejected</p>
+                    <p className="text-sm font-semibold text-orange-700">{rejectedCount}</p>
                   </div>
                 </div>
 
@@ -1189,7 +1352,7 @@ export default function DocumentVerification() {
                     </p>
                   ) : (
                     <p className="text-xs font-semibold mt-1 text-orange-700">
-                      Review is complete, but one or more required items need re-upload or follow-up.
+                      Review is complete, but one or more required items were rejected.
                     </p>
                   )}
                 </div>
@@ -1206,8 +1369,8 @@ export default function DocumentVerification() {
                   key={d.id}
                   onClick={() => setDoc(d.id)}
                   className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${doc === d.id
-                    ? 'border-blue-800 text-blue-900 bg-white'
-                    : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
+                      ? 'border-blue-800 text-blue-900 bg-white'
+                      : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
                     }`}
                 >
                   {d.name}
@@ -1292,12 +1455,12 @@ export default function DocumentVerification() {
 
               <div>
                 <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
-                  Administrative Feedback
+                  Rejection Reason / Admin Remarks
                 </label>
                 <Textarea
                   placeholder={
                     hasUploadedDocument
-                      ? 'Enter specific instructions or reasons for review outcome...'
+                      ? 'The rejection note is filled automatically from the reject modal. You may edit remarks here if needed.'
                       : 'No uploaded document selected yet.'
                   }
                   value={comment}
@@ -1305,9 +1468,13 @@ export default function DocumentVerification() {
                   disabled={!hasUploadedDocument}
                   className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 />
+                <p className="text-[11px] text-stone-500 leading-relaxed">
+                  Note: Do not type the action performed. If the file is wrong, invalid, edited,
+                  mismatched, or suspected doctored, reject it and provide the reason and any remarks only.
+                </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1321,21 +1488,11 @@ export default function DocumentVerification() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleReupload}
+                  onClick={openRejectModal}
                   disabled={!hasUploadedDocument}
                   className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <XCircle size={13} className="mr-1.5" /> Re-upload
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleFlag}
-                  disabled={!hasUploadedDocument}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Flag size={13} className="mr-1.5" /> Flag
+                  <XCircle size={13} className="mr-1.5" /> Reject
                 </Button>
               </div>
 
@@ -1359,13 +1516,13 @@ export default function DocumentVerification() {
 
               {hasCompleteRequirements && !allRequiredDocsReviewed && (
                 <p className="text-xs text-orange-600">
-                  All {REQUIRED_DOC_COUNT} items are present. Apply admin feedback/actions to each item before completing verification.
+                  All {REQUIRED_DOC_COUNT} items are present. Apply admin review actions to each item before completing verification.
                 </p>
               )}
 
               {hasCompleteRequirements && allRequiredDocsReviewed && !allRequiredDocsVerified && (
                 <p className="text-xs text-orange-600">
-                  Verification can be completed, but the application will be marked as needing re-upload or further review.
+                  Verification can be completed, but the application will be marked as rejected and can be archived afterward.
                 </p>
               )}
 
@@ -1389,7 +1546,7 @@ export default function DocumentVerification() {
                 ) : finalVerificationStatus === 'verified' ? (
                   'Complete Verification & Next'
                 ) : (
-                  'Save Verification as Needs Re-upload'
+                  'Save Verification as Rejected'
                 )}
               </Button>
             </div>

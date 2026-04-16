@@ -35,7 +35,6 @@ router.patch('/:id/mark-reviewed', protect, applicationController.markApplicatio
 // Admin remarks / decision
 router.patch('/:id/remarks', protect, applicationController.saveApplicationRemarks);
 router.patch('/:id/approve', protect, applicationController.approveApplication);
-router.patch('/:id/waitlist', protect, applicationController.moveApplicationToWaiting);
 
 // Disqualify only for actual invalid cases
 router.patch('/:id/disqualify', protect, applicationController.disqualifyApplication);

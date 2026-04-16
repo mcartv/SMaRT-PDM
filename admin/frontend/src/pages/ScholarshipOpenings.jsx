@@ -23,6 +23,8 @@ import {
     EyeOff,
     RefreshCw,
     Users,
+    Lock,
+    Unlock,
 } from 'lucide-react';
 
 const C = {
@@ -97,7 +99,35 @@ function targetAudienceLabel(value) {
     return normalized || 'Applicants';
 }
 
-function deriveOpeningStatus(payload, existingStatus = '') {
+function getFilledSlots(openingLike = {}) {
+    return Number(openingLike.qualified_count ?? openingLike.filled_slots ?? openingLike.filled_slots_preview ?? 0);
+}
+
+function getAllocatedSlots(openingLike = {}) {
+    return Number(openingLike.allocated_slots || 0);
+}
+
+function getAvailableSlots(openingLike = {}) {
+    return Math.max(0, getAllocatedSlots(openingLike) - getFilledSlots(openingLike));
+}
+
+function hasAvailableSlots(openingLike = {}) {
+    return getAvailableSlots(openingLike) > 0;
+}
+
+function getComputedDisplayStatus(openingLike = {}) {
+    const rawStatus = String(openingLike.posting_status || 'draft').toLowerCase();
+    const allocated = getAllocatedSlots(openingLike);
+    const filled = getFilledSlots(openingLike);
+
+    if (rawStatus === 'archived') return 'archived';
+    if (rawStatus === 'closed') return 'closed';
+    if (rawStatus === 'draft') return 'draft';
+    if (allocated > 0 && filled >= allocated) return 'filled';
+    return 'open';
+}
+
+function derivePersistedOpeningStatus(payload, existingStatus = '') {
     const normalizedExisting = String(existingStatus || '').toLowerCase();
 
     if (normalizedExisting === 'archived') return 'archived';
@@ -110,11 +140,6 @@ function deriveOpeningStatus(payload, existingStatus = '') {
         Number(payload.allocated_slots || 0) > 0;
 
     if (!hasRequiredFields) return 'draft';
-
-    const allocated = Number(payload.allocated_slots || 0);
-    const filled = Number(payload.filled_slots_preview ?? 0);
-
-    if (allocated > 0 && filled >= allocated) return 'filled';
 
     return 'open';
 }
@@ -165,7 +190,10 @@ function OpeningModal({
 
     const isEdit = mode === 'edit';
     const title = isEdit ? 'Edit Scholarship Opening' : 'Open Program for New Batch';
-    const previewStatus = deriveOpeningStatus(form, form.posting_status);
+    const previewStatus = getComputedDisplayStatus({
+        ...form,
+        posting_status: derivePersistedOpeningStatus(form, form.posting_status),
+    });
 
     const allocatedSlots = Number(form.allocated_slots) || 0;
     const totalFinancial = Number(form.financial_allocation) || 0;
@@ -244,7 +272,7 @@ function OpeningModal({
                                                         : 'border-stone-200 bg-white text-stone-600'
                                                 }`}
                                         >
-                                            Auto Status: {STATUS_META[previewStatus]?.label || 'Draft'}
+                                            Preview Status: {STATUS_META[previewStatus]?.label || 'Draft'}
                                         </Badge>
 
                                         <Badge
@@ -266,9 +294,10 @@ function OpeningModal({
                     )}
 
                     <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-                        <p className="text-sm font-medium text-stone-800">Status is automatic</p>
+                        <p className="text-sm font-medium text-stone-800">Status behavior</p>
                         <p className="text-xs text-stone-500 mt-1">
-                            Draft if incomplete, Filled if all slots are taken, otherwise Open unless archived or closed manually.
+                            Draft if incomplete. Open when ready. Filled is computed automatically when slots are fully used.
+                            Closed is a manual admin action. Archived hides the opening.
                         </p>
                     </div>
 
@@ -510,6 +539,7 @@ export default function ScholarshipOpenings() {
     const [academicYears, setAcademicYears] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [actionLoadingId, setActionLoadingId] = useState(null);
 
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All Statuses');
@@ -625,6 +655,8 @@ export default function ScholarshipOpenings() {
 
         return visibleOpenings
             .filter((o) => {
+                const computedStatus = getComputedDisplayStatus(o);
+
                 const matchSearch =
                     !q ||
                     (o.opening_title || '').toLowerCase().includes(q) ||
@@ -634,7 +666,7 @@ export default function ScholarshipOpenings() {
 
                 const matchStatus =
                     statusFilter === 'All Statuses' ||
-                    (o.posting_status || '').toLowerCase() === statusFilter.toLowerCase();
+                    computedStatus === statusFilter.toLowerCase();
 
                 const matchProgram =
                     programFilter === 'All Programs' ||
@@ -664,8 +696,8 @@ export default function ScholarshipOpenings() {
         return {
             templates: templates.length,
             total: visibleOpenings.length,
-            open: visibleOpenings.filter((o) => (o.posting_status || '').toLowerCase() === 'open').length,
-            draft: visibleOpenings.filter((o) => (o.posting_status || '').toLowerCase() === 'draft').length,
+            open: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'open').length,
+            draft: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'draft').length,
         };
     }, [templates, visibleOpenings]);
 
@@ -775,9 +807,8 @@ export default function ScholarshipOpenings() {
                 per_scholar_amount: perScholarAmount,
                 announcement_text: form.announcement_text?.trim() || null,
                 target_audience: normalizeAudience(form.target_audience) || 'Applicants',
+                posting_status: derivePersistedOpeningStatus(form, form.posting_status),
             };
-
-            payload.posting_status = deriveOpeningStatus(form, form.posting_status);
 
             const isEdit = modalMode === 'edit' && editingOpeningId;
             const url = isEdit
@@ -822,28 +853,51 @@ export default function ScholarshipOpenings() {
         }
     };
 
-    const handleArchiveOpening = async (openingId) => {
+    const updateOpeningStatus = async (openingId, nextStatus) => {
         try {
+            setActionLoadingId(openingId);
+
             const res = await fetch(`http://localhost:5000/api/program-openings/${openingId}`, {
                 method: 'PATCH',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ posting_status: 'archived' }),
+                body: JSON.stringify({ posting_status: nextStatus }),
             });
 
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to archive opening');
+                throw new Error(data.error || data.message || 'Failed to update opening status');
             }
 
             await fetchData();
         } catch (err) {
-            console.error('ARCHIVE OPENING ERROR:', err);
-            alert(err.message || 'Failed to archive opening');
+            console.error('UPDATE OPENING STATUS ERROR:', err);
+            alert(err.message || 'Failed to update opening status');
+        } finally {
+            setActionLoadingId(null);
         }
+    };
+
+    const handleArchiveOpening = async (openingId) => {
+        await updateOpeningStatus(openingId, 'archived');
+    };
+
+    const handleCloseOpening = async (openingId) => {
+        await updateOpeningStatus(openingId, 'closed');
+    };
+
+    const handleReopenOpening = async (opening) => {
+        const availableSlots = getAvailableSlots(opening);
+
+        if (availableSlots <= 0) {
+            alert('This opening cannot be reopened because no slots are available.');
+            return;
+        }
+
+        await updateOpeningStatus(opening.opening_id, 'open');
     };
 
     const handleCreateAnnouncementRedirect = () => {
@@ -1106,14 +1160,19 @@ export default function ScholarshipOpenings() {
                     ) : (
                         <div className="space-y-3">
                             {filteredOpenings.map((opening) => {
-                                const status = String(opening.posting_status || 'draft').toLowerCase();
-                                const meta = STATUS_META[status] || STATUS_META.draft;
+                                const computedStatus = getComputedDisplayStatus(opening);
+                                const meta = STATUS_META[computedStatus] || STATUS_META.draft;
                                 const audience = normalizeAudience(opening.target_audience) || 'Applicants';
                                 const audienceLabelValue = targetAudienceLabel(audience);
 
-                                const allocatedSlots = Number(opening.allocated_slots || 0);
-                                const filledSlots = Number(opening.qualified_count ?? opening.filled_slots ?? 0);
-                                const availableSlots = Math.max(allocatedSlots - filledSlots, 0);
+                                const allocatedSlots = getAllocatedSlots(opening);
+                                const filledSlots = getFilledSlots(opening);
+                                const availableSlots = getAvailableSlots(opening);
+
+                                const isArchived = computedStatus === 'archived';
+                                const isClosed = computedStatus === 'closed';
+                                const canReopen = isClosed && availableSlots > 0;
+                                const isBusy = actionLoadingId === opening.opening_id;
 
                                 return (
                                     <div
@@ -1172,12 +1231,21 @@ export default function ScholarshipOpenings() {
                                                     </div>
 
                                                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Filled Slots</p>
+                                                        <p className="text-xs font-medium text-stone-800 mt-1">
+                                                            {filledSlots.toLocaleString()}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
                                                         <p className="text-[10px] uppercase tracking-wide text-stone-400">Available Slots</p>
                                                         <p className="text-xs font-medium text-stone-800 mt-1">
                                                             {availableSlots.toLocaleString()}
                                                         </p>
                                                     </div>
+                                                </div>
 
+                                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3 mt-3">
                                                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
                                                         <p className="text-[10px] uppercase tracking-wide text-stone-400">Per Scholar</p>
                                                         <p className="text-xs font-medium text-stone-800 mt-1">
@@ -1187,6 +1255,19 @@ export default function ScholarshipOpenings() {
                                                                     ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
                                                                     : 0)
                                                             )}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Admin Control</p>
+                                                        <p className="text-xs font-medium text-stone-800 mt-1">
+                                                            {isClosed
+                                                                ? canReopen
+                                                                    ? 'Can reopen'
+                                                                    : 'Closed — no slots available'
+                                                                : computedStatus === 'filled'
+                                                                    ? 'Auto-filled; still editable'
+                                                                    : 'Active'}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -1201,27 +1282,68 @@ export default function ScholarshipOpenings() {
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                {status !== 'archived' && (
+                                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                                {!isArchived && (
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => openEditModal(opening)}
                                                         className="rounded-lg text-xs border-stone-200"
+                                                        disabled={isBusy}
                                                     >
                                                         <Pencil className="w-3.5 h-3.5 mr-1.5" />
                                                         Edit
                                                     </Button>
                                                 )}
 
-                                                {status !== 'archived' && (
+                                                {!isArchived && !isClosed && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleCloseOpening(opening.opening_id)}
+                                                        className="rounded-lg text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
+                                                        disabled={isBusy}
+                                                    >
+                                                        {isBusy ? (
+                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                                        ) : (
+                                                            <Lock className="w-3.5 h-3.5 mr-1.5" />
+                                                        )}
+                                                        Close
+                                                    </Button>
+                                                )}
+
+                                                {!isArchived && isClosed && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleReopenOpening(opening)}
+                                                        className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
+                                                        disabled={isBusy || !canReopen}
+                                                        title={!canReopen ? 'Cannot reopen because no slots are available.' : 'Reopen opening'}
+                                                    >
+                                                        {isBusy ? (
+                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                                        ) : (
+                                                            <Unlock className="w-3.5 h-3.5 mr-1.5" />
+                                                        )}
+                                                        Reopen
+                                                    </Button>
+                                                )}
+
+                                                {!isArchived && (
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => handleArchiveOpening(opening.opening_id)}
                                                         className="rounded-lg text-xs border-red-200 text-red-700 hover:bg-red-50"
+                                                        disabled={isBusy}
                                                     >
-                                                        <Archive className="w-3.5 h-3.5 mr-1.5" />
+                                                        {isBusy ? (
+                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                                        ) : (
+                                                            <Archive className="w-3.5 h-3.5 mr-1.5" />
+                                                        )}
                                                         Archive
                                                     </Button>
                                                 )}

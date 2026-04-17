@@ -837,9 +837,6 @@ export default function PayoutManagement() {
                           onChange={(e) => setForm(prev => ({ ...prev, payment_mode: e.target.value }))}
                         >
                           <option value="Cash">Cash</option>
-                          <option value="Bank">Bank</option>
-                          <option value="GCash">GCash</option>
-                          <option value="Cheque">Cheque</option>
                           <option value="Other">Other</option>
                         </select>
                       </div>

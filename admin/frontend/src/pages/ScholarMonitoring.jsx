@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -1146,14 +1146,12 @@ export default function ScholarMonitoring() {
   const [program, setProgram] = useState('All Programs');
   const [batchYear, setBatchYear] = useState('All Years');
   const [status, setStatus] = useState('All Statuses');
-  const [gwaFilter, setGwaFilter] = useState('All');
+  const [sortBy, setSortBy] = useState('Name A-Z');
   const [page, setPage] = useState(1);
+
   const [selectedScholarId, setSelectedScholarId] = useState(null);
   const [selectedScholar, setSelectedScholar] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [sduFilter, setSduFilter] = useState('All SDU');
-  const [roFilter, setRoFilter] = useState('All RO');
-  const [sortBy, setSortBy] = useState('Name A-Z');
 
   const [renewalOpen, setRenewalOpen] = useState(false);
   const [renewalScholar, setRenewalScholar] = useState(null);
@@ -1162,9 +1160,7 @@ export default function ScholarMonitoring() {
   const [archiveSaving, setArchiveSaving] = useState(false);
 
   const [showRenewalQueue, setShowRenewalQueue] = useState(false);
-  const [renewalStatusFilter, setRenewalStatusFilter] = useState('All Renewal');
 
-  // ─── FETCH ───────────────────────────────────────────────────
   useEffect(() => {
     const fetchScholars = async () => {
       try {
@@ -1215,14 +1211,17 @@ export default function ScholarMonitoring() {
     try {
       setArchiveSaving(true);
 
-      const res = await fetch(`http://localhost:5000/api/scholars/${archiveModalScholar.scholar_id}/archive`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `http://localhost:5000/api/scholars/${archiveModalScholar.scholar_id}/archive`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await res.json().catch(() => ({}));
 
@@ -1313,140 +1312,6 @@ export default function ScholarMonitoring() {
     }
   };
 
-  // ─── FILTERS ─────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
-
-    let results = scholars.filter((s) => {
-      const name = (s.student_name || '').toLowerCase();
-      const studentNumber = String(s.student_number || '').toLowerCase();
-      const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
-      const programName = s.program_name || '';
-      const batch = String(s.batch_year || '');
-      const scholarStatus = s.status || '';
-      const gwa = Number(s.gwa);
-      const sduLevel = s.sdu_level || 'none';
-      const roProgress = Number(s.ro_progress || 0);
-
-      const nameParts = name
-        .replace(',', ' ')
-        .split(/\s+/)
-        .filter(Boolean);
-
-      const matchSearch =
-        !q ||
-        name.startsWith(q) ||
-        nameParts.some((part) => part.startsWith(q)) ||
-        studentNumber.startsWith(q) ||
-        normalizedStudentNumber.startsWith(normalizedQ);
-
-      const matchProgram = program === 'All Programs' || programName === program;
-      const matchBatch = batchYear === 'All Years' || batch === String(batchYear);
-      const matchStatus = status === 'All Statuses' || scholarStatus === status;
-
-      const matchSdu =
-        sduFilter === 'All SDU' ||
-        (sduFilter === 'Clear' && sduLevel === 'none') ||
-        (sduFilter === 'Minor' && sduLevel === 'minor') ||
-        (sduFilter === 'Major' && sduLevel === 'major');
-
-      let matchGwa = true;
-      if (gwaFilter === 'Excellence (<1.5)') matchGwa = !Number.isNaN(gwa) && gwa < 1.5;
-      else if (gwaFilter === 'Good (1.5-2.0)') matchGwa = !Number.isNaN(gwa) && gwa >= 1.5 && gwa <= 2.0;
-      else if (gwaFilter === 'At Risk (>2.0)') matchGwa = !Number.isNaN(gwa) && gwa > 2.0;
-
-      let matchRo = true;
-      if (roFilter === 'Complete (100%)') matchRo = roProgress === 100;
-      else if (roFilter === 'In Progress (50-99%)') matchRo = roProgress >= 50 && roProgress < 100;
-      else if (roFilter === 'Behind (<50%)') matchRo = roProgress < 50;
-
-      return (
-        matchSearch &&
-        matchProgram &&
-        matchBatch &&
-        matchStatus &&
-        matchSdu &&
-        matchGwa &&
-        matchRo
-      );
-    });
-
-    results = [...results].sort((a, b) => {
-      const nameA = (a.student_name || '').toLowerCase();
-      const nameB = (b.student_name || '').toLowerCase();
-      const gwaA = Number(a.gwa);
-      const gwaB = Number(b.gwa);
-      const batchA = Number(String(a.batch_year || '').split('-')[0]) || 0;
-      const batchB = Number(String(b.batch_year || '').split('-')[0]) || 0;
-      const roA = Number(a.ro_progress || 0);
-      const roB = Number(b.ro_progress || 0);
-
-      switch (sortBy) {
-        case 'Name Z-A':
-          return nameB.localeCompare(nameA);
-        case 'GWA Asc':
-          return gwaA - gwaB;
-        case 'GWA Desc':
-          return gwaB - gwaA;
-        case 'Batch Newest':
-          return batchB - batchA;
-        case 'Batch Oldest':
-          return batchA - batchB;
-        case 'RO Highest':
-          return roB - roA;
-        case 'RO Lowest':
-          return roA - roB;
-        case 'Name A-Z':
-        default:
-          return nameA.localeCompare(nameB);
-      }
-    });
-
-    return results;
-  }, [scholars, search, program, batchYear, status, gwaFilter, sduFilter, roFilter, sortBy]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, program, batchYear, status, gwaFilter, sduFilter, roFilter, sortBy]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-
-  const pageData = useMemo(() => {
-    return filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }, [filtered, page]);
-
-  // ─── OPTIONS ────────────────────────────────────────────────
-  const programOptions = useMemo(() => {
-    return ['All Programs', ...new Set(scholars.map((s) => s.program_name).filter(Boolean))];
-  }, [scholars]);
-
-  const batchOptions = useMemo(() => {
-    return ['All Years', ...new Set(scholars.map((s) => s.batch_year).filter(Boolean))];
-  }, [scholars]);
-
-  const statusOptions = ['All Statuses', 'Active', 'At Risk', 'Inactive'];
-  const sduOptions = ['All SDU', 'Clear', 'Minor', 'Major'];
-
-  const roOptions = [
-    'All RO',
-    'Complete (100%)',
-    'In Progress (50-99%)',
-    'Behind (<50%)',
-  ];
-
-  const sortOptions = [
-    'Name A-Z',
-    'Name Z-A',
-    'GWA Asc',
-    'GWA Desc',
-    'Batch Newest',
-    'Batch Oldest',
-    'RO Highest',
-    'RO Lowest',
-  ];
-
-  // ─── Renewal Queue ───────────────────────────────────────────
   const scholarsWithRenewalMeta = useMemo(() => {
     return scholars.map((s) => {
       const fallbackDocs = normalizeRenewalDocuments(null, s);
@@ -1459,23 +1324,96 @@ export default function ScholarMonitoring() {
   }, [scholars]);
 
   const renewalQueue = useMemo(() => {
-    let rows = scholarsWithRenewalMeta.filter((s) => s.renewal_status !== 'pending_submission');
-
-    if (renewalStatusFilter !== 'All Renewal') {
-      rows = rows.filter((s) => s.renewal_status === renewalStatusFilter);
-    }
-
-    return rows;
-  }, [scholarsWithRenewalMeta, renewalStatusFilter]);
-
-  const renewalQueueStats = useMemo(() => {
-    return {
-      submitted: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'submitted').length,
-      under_review: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'under_review').length,
-      approved: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'approved').length,
-      needs_reupload: scholarsWithRenewalMeta.filter((s) => s.renewal_status === 'needs_reupload').length,
-    };
+    return scholarsWithRenewalMeta.filter((s) =>
+      ['submitted', 'under_review', 'needs_reupload'].includes(
+        String(s.renewal_status || '').toLowerCase()
+      )
+    );
   }, [scholarsWithRenewalMeta]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
+
+    let results = scholars.filter((s) => {
+      const name = (s.student_name || '').toLowerCase();
+      const studentNumber = String(s.student_number || '').toLowerCase();
+      const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
+      const programName = s.program_name || '';
+      const batch = String(s.batch_year || '');
+      const scholarStatus = s.status || '';
+      const nameParts = name.replace(',', ' ').split(/\s+/).filter(Boolean);
+
+      const matchSearch =
+        !q ||
+        name.startsWith(q) ||
+        nameParts.some((part) => part.startsWith(q)) ||
+        studentNumber.startsWith(q) ||
+        normalizedStudentNumber.startsWith(normalizedQ);
+
+      const matchProgram = program === 'All Programs' || programName === program;
+      const matchBatch = batchYear === 'All Years' || batch === String(batchYear);
+      const matchStatus = status === 'All Statuses' || scholarStatus === status;
+
+      return matchSearch && matchProgram && matchBatch && matchStatus;
+    });
+
+    results = [...results].sort((a, b) => {
+      const nameA = (a.student_name || '').toLowerCase();
+      const nameB = (b.student_name || '').toLowerCase();
+      const gwaA = Number(a.gwa);
+      const gwaB = Number(b.gwa);
+      const batchA = Number(String(a.batch_year || '').split('-')[0]) || 0;
+      const batchB = Number(String(b.batch_year || '').split('-')[0]) || 0;
+
+      switch (sortBy) {
+        case 'Name Z-A':
+          return nameB.localeCompare(nameA);
+        case 'GWA Asc':
+          return gwaA - gwaB;
+        case 'GWA Desc':
+          return gwaB - gwaA;
+        case 'Batch Newest':
+          return batchB - batchA;
+        case 'Batch Oldest':
+          return batchA - batchB;
+        case 'Name A-Z':
+        default:
+          return nameA.localeCompare(nameB);
+      }
+    });
+
+    return results;
+  }, [scholars, search, program, batchYear, status, sortBy]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, program, batchYear, status, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  const pageData = useMemo(() => {
+    return filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [filtered, page]);
+
+  const programOptions = useMemo(() => {
+    return ['All Programs', ...new Set(scholars.map((s) => s.program_name).filter(Boolean))];
+  }, [scholars]);
+
+  const batchOptions = useMemo(() => {
+    return ['All Years', ...new Set(scholars.map((s) => s.batch_year).filter(Boolean))];
+  }, [scholars]);
+
+  const statusOptions = ['All Statuses', 'Active', 'At Risk', 'Inactive'];
+
+  const sortOptions = [
+    'Name A-Z',
+    'Name Z-A',
+    'GWA Asc',
+    'GWA Desc',
+    'Batch Newest',
+    'Batch Oldest',
+  ];
 
   const statCards = useMemo(() => {
     return [
@@ -1487,30 +1425,29 @@ export default function ScholarMonitoring() {
         soft: C.amberSoft,
       },
       {
-        label: 'Active Status',
+        label: 'Active',
         value: stats.active,
         icon: CheckCircle2,
         accent: C.green,
         soft: C.greenSoft,
       },
       {
-        label: 'At Risk (GWA)',
+        label: 'At Risk',
         value: stats.at_risk,
         icon: AlertTriangle,
         accent: C.red,
         soft: C.redSoft,
       },
       {
-        label: 'Avg GWA',
-        value: Number(stats.avg_gwa || 0).toFixed(2),
-        icon: Clock,
-        accent: C.amber,
-        soft: C.amberSoft,
+        label: 'Renewal Review',
+        value: renewalQueue.length,
+        icon: FileCheck2,
+        accent: C.blue,
+        soft: C.blueSoft,
       },
     ];
-  }, [stats]);
+  }, [stats, renewalQueue.length]);
 
-  // ─── LOADING / ERROR ────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
@@ -1575,7 +1512,7 @@ export default function ScholarMonitoring() {
             Scholars
           </h1>
           <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            {filtered.length} active records in registry
+            {filtered.length} records in scholar registry
           </p>
         </div>
 
@@ -1634,7 +1571,7 @@ export default function ScholarMonitoring() {
         </div>
 
         <Select value={program} onValueChange={setProgram}>
-          <SelectTrigger className="w-[160px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[170px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1647,7 +1584,7 @@ export default function ScholarMonitoring() {
         </Select>
 
         <Select value={batchYear} onValueChange={setBatchYear}>
-          <SelectTrigger className="w-[130px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[140px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1660,7 +1597,7 @@ export default function ScholarMonitoring() {
         </Select>
 
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-[145px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1672,46 +1609,8 @@ export default function ScholarMonitoring() {
           </SelectContent>
         </Select>
 
-        <Select value={sduFilter} onValueChange={setSduFilter}>
-          <SelectTrigger className="w-[130px] h-9 rounded-lg border-stone-200 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {sduOptions.map((item) => (
-              <SelectItem key={item} value={item} className="text-sm">
-                {item}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={gwaFilter} onValueChange={setGwaFilter}>
-          <SelectTrigger className="w-[155px] h-9 rounded-lg border-stone-200 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All" className="text-sm">All GWA</SelectItem>
-            <SelectItem value="Excellence (<1.5)" className="text-sm">Excellence</SelectItem>
-            <SelectItem value="Good (1.5-2.0)" className="text-sm">Good</SelectItem>
-            <SelectItem value="At Risk (>2.0)" className="text-sm">At Risk</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={roFilter} onValueChange={setRoFilter}>
-          <SelectTrigger className="w-[165px] h-9 rounded-lg border-stone-200 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {roOptions.map((item) => (
-              <SelectItem key={item} value={item} className="text-sm">
-                {item}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-[140px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1727,9 +1626,6 @@ export default function ScholarMonitoring() {
           program !== 'All Programs' ||
           batchYear !== 'All Years' ||
           status !== 'All Statuses' ||
-          sduFilter !== 'All SDU' ||
-          gwaFilter !== 'All' ||
-          roFilter !== 'All RO' ||
           sortBy !== 'Name A-Z') && (
             <Button
               variant="outline"
@@ -1739,9 +1635,6 @@ export default function ScholarMonitoring() {
                 setProgram('All Programs');
                 setBatchYear('All Years');
                 setStatus('All Statuses');
-                setSduFilter('All SDU');
-                setGwaFilter('All');
-                setRoFilter('All RO');
                 setSortBy('Name A-Z');
                 setPage(1);
               }}
@@ -1755,104 +1648,72 @@ export default function ScholarMonitoring() {
       {showRenewalQueue && (
         <Card className="border-stone-200 shadow-none overflow-hidden">
           <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-stone-800">Renewal Queue</h2>
-                <p className="text-xs text-stone-400">
-                  Existing scholars who have renewal activity requiring admin review
-                </p>
-              </div>
-
-              <Select value={renewalStatusFilter} onValueChange={setRenewalStatusFilter}>
-                <SelectTrigger className="w-[180px] h-9 rounded-lg border-stone-200 text-sm bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All Renewal">All Renewal</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="needs_reupload">Needs Re-upload</SelectItem>
-                </SelectContent>
-              </Select>
+            <div>
+              <h2 className="text-sm font-semibold text-stone-800">Renewal Queue</h2>
+              <p className="text-xs text-stone-400">
+                Scholars with renewal submissions that need admin attention
+              </p>
             </div>
           </CardHeader>
 
-          <CardContent className="p-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
-                <p className="text-[11px] uppercase tracking-wider text-stone-400">Submitted</p>
-                <p className="text-xl font-semibold text-stone-800 mt-1">{renewalQueueStats.submitted}</p>
-              </div>
-              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
-                <p className="text-[11px] uppercase tracking-wider text-stone-400">Under Review</p>
-                <p className="text-xl font-semibold text-stone-800 mt-1">{renewalQueueStats.under_review}</p>
-              </div>
-              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
-                <p className="text-[11px] uppercase tracking-wider text-stone-400">Approved</p>
-                <p className="text-xl font-semibold text-stone-800 mt-1">{renewalQueueStats.approved}</p>
-              </div>
-              <div className="rounded-xl border border-stone-200 px-4 py-3 bg-white">
-                <p className="text-[11px] uppercase tracking-wider text-stone-400">Needs Re-upload</p>
-                <p className="text-xl font-semibold mt-1" style={{ color: renewalQueueStats.needs_reupload > 0 ? C.red : C.green }}>
-                  {renewalQueueStats.needs_reupload}
-                </p>
-              </div>
-            </div>
-
+          <CardContent className="p-0">
             {renewalQueue.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center">
-                <p className="text-sm font-medium text-stone-600">No scholars in the renewal queue</p>
-                <p className="text-xs text-stone-400 mt-1">Renewal submissions will appear here for admin review.</p>
+              <div className="px-5 py-8 text-sm text-stone-400">
+                No scholars are currently in the renewal review queue.
               </div>
             ) : (
-              <div className="space-y-2">
-                {renewalQueue.map((s) => {
-                  const renewalMeta = getRenewalStatusMeta(s.renewal_status);
-
-                  return (
-                    <div
-                      key={`renewal-${s.scholar_id}`}
-                      className="rounded-xl border border-stone-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-stone-800">{s.student_name}</p>
-                        <p className="text-xs text-stone-400 mt-0.5">
-                          {s.student_number} · {s.program_name} · Batch {s.batch_year}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className="text-[10px] font-medium px-2.5 py-1 rounded-full"
-                          style={{ background: renewalMeta.bg, color: renewalMeta.color }}
-                        >
-                          {renewalMeta.label}
-                        </span>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 px-3 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs shadow-none"
-                          onClick={() => handleOpenRenewal(s)}
-                        >
-                          <Files className="w-3 h-3 mr-1" />
-                          Open Renewal
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                          onClick={() => handleViewScholar(s.scholar_id)}
-                        >
-                          <Eye className="w-3 h-3 mr-1" />
-                          View Profile
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-stone-50 hover:bg-stone-50">
+                      <TableHead>Scholar</TableHead>
+                      <TableHead>Program</TableHead>
+                      <TableHead>Batch</TableHead>
+                      <TableHead>Renewal Status</TableHead>
+                      <TableHead>GWA</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {renewalQueue.map((s) => {
+                      const renewalMeta = getRenewalStatusMeta(s.renewal_status);
+                      return (
+                        <TableRow key={`renewal-${s.scholar_id}`} className="hover:bg-stone-50/70">
+                          <TableCell>
+                            <div>
+                              <p className="text-sm font-medium text-stone-800">{s.student_name}</p>
+                              <p className="text-xs text-stone-400">{s.student_number}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>{s.program_name || 'N/A'}</TableCell>
+                          <TableCell>{s.batch_year || 'N/A'}</TableCell>
+                          <TableCell>
+                            <span
+                              className="text-[10px] font-medium px-2 py-1 rounded-full"
+                              style={{ background: renewalMeta.bg, color: renewalMeta.color }}
+                            >
+                              {renewalMeta.label}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {Number.isFinite(Number(s.gwa)) ? Number(s.gwa).toFixed(2) : '—'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg border-stone-200 text-xs"
+                              onClick={() => handleOpenRenewal(s)}
+                            >
+                              <FileCheck2 className="w-3.5 h-3.5 mr-1.5" />
+                              Review Renewal
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
@@ -1862,182 +1723,155 @@ export default function ScholarMonitoring() {
       <Card className="border-stone-200 shadow-none overflow-hidden">
         <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
           <div>
-            <h2 className="text-sm font-semibold text-stone-800">Scholar Registry</h2>
-            <p className="text-xs text-stone-400">Integrated scholar monitoring ledger</p>
+            <CardTitle className="text-sm font-semibold text-stone-800">Scholar Registry</CardTitle>
+            <CardDescription className="text-xs">
+              Active scholar monitoring records
+            </CardDescription>
           </div>
         </CardHeader>
 
-        <Table>
-          <TableHeader className="bg-stone-50/80">
-            <TableRow className="border-stone-100 hover:bg-transparent">
-              <TableHead className="text-xs font-medium text-stone-500 py-3 px-5">Scholar Profile</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">Batch</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">GWA</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">Status</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">SDU</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">Condition</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-center">RO Progress</TableHead>
-              <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+        <CardContent className="p-0">
+          {pageData.length === 0 ? (
+            <div className="px-5 py-8 text-sm text-stone-400">
+              No scholars match the current filters.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-stone-50 hover:bg-stone-50">
+                    <TableHead>Scholar</TableHead>
+                    <TableHead>Program</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>GWA</TableHead>
+                    <TableHead>SDU</TableHead>
+                    <TableHead>RO Progress</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-          <TableBody>
-            {pageData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-sm text-stone-400">
-                  No scholars match the current filters.
-                </TableCell>
-              </TableRow>
-            ) : (
-              pageData.map((s) => {
-                const gwaValue = Number(s.gwa);
-                const sduLevel = s.sdu_level || 'none';
-                const sduStyle = SDU_STYLE[sduLevel] || SDU_STYLE.none;
-                const pct = Number(s.ro_progress || 0);
+                <TableBody>
+                  {pageData.map((s) => {
+                    const gwaValue = Number(s.gwa);
+                    const sduStyle = SDU_STYLE[s.sdu_level || 'none'] || SDU_STYLE.none;
+                    const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
+                    const roProgress = Number(s.ro_progress || 0);
+                    const roStatus =
+                      roProgress === 100 ? 'complete' :
+                        roProgress >= 50 ? 'progress' : 'behind';
 
-                const roStatus =
-                  pct === 100 ? 'complete' :
-                    pct >= 50 ? 'progress' : 'behind';
+                    return (
+                      <TableRow key={s.scholar_id} className="hover:bg-stone-50/70">
+                        <TableCell>
+                          <div>
+                            <p className="text-sm font-medium text-stone-800">{s.student_name}</p>
+                            <p className="text-xs text-stone-400">{s.student_number}</p>
+                          </div>
+                        </TableCell>
 
-                return (
-                  <TableRow
-                    key={s.scholar_id}
-                    className="border-stone-100 hover:bg-amber-50/20 transition-colors"
-                  >
-                    <TableCell className="py-3.5 px-5">
-                      <div className="font-medium text-stone-800 text-sm">{s.student_name}</div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-xs font-mono text-stone-400">{s.student_number}</span>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-medium border-stone-200 text-stone-500 bg-white"
-                        >
-                          {s.program_name}
-                        </Badge>
-                      </div>
-                    </TableCell>
+                        <TableCell>{s.program_name || 'N/A'}</TableCell>
+                        <TableCell>{s.batch_year || 'N/A'}</TableCell>
 
-                    <TableCell className="py-3.5 text-center">
-                      <span className="text-xs font-medium text-stone-600">
-                        {s.batch_year}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="py-3.5 text-center">
-                      <span
-                        className="font-semibold text-sm tabular-nums"
-                        style={{ color: gwaValue >= 2.0 ? C.red : C.green }}
-                      >
-                        {Number.isNaN(gwaValue) ? '—' : gwaValue.toFixed(2)}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="py-3.5 text-center">
-                      <span
-                        className="text-xs font-medium px-2.5 py-1 rounded-full"
-                        style={{
-                          background: s.status === 'Active' ? C.greenSoft : C.redSoft,
-                          color: s.status === 'Active' ? C.green : C.red,
-                        }}
-                      >
-                        {s.status}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="py-3.5 text-center">
-                      <span
-                        className="text-xs font-medium px-2.5 py-1 rounded-full"
-                        style={{ background: sduStyle.bg, color: sduStyle.color }}
-                      >
-                        {sduStyle.label}
-                      </span>
-                    </TableCell>
-
-                    <TableCell className="py-3.5 text-center">
-                      {(() => {
-                        const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
-                        return (
+                        <TableCell>
                           <span
-                            className="text-xs font-medium px-2.5 py-1 rounded-full"
+                            className="text-[10px] font-medium px-2 py-1 rounded-full"
                             style={{ background: condition.bg, color: condition.color }}
                           >
                             {condition.label}
                           </span>
-                        );
-                      })()}
-                    </TableCell>
+                        </TableCell>
 
-                    <TableCell className="py-3.5 text-center">
-                      <div className="flex items-center gap-2 justify-center min-w-[110px]">
-                        <div className="flex-1 h-1.5 rounded-full bg-stone-200">
-                          <div
-                            className="h-1.5 rounded-full"
-                            style={{
-                              width: `${pct}%`,
-                              background: RO_COLOR[roStatus],
-                            }}
-                          />
-                        </div>
-                        <span
-                          className="text-[10px] font-semibold w-8 text-right"
-                          style={{ color: RO_COLOR[roStatus] }}
-                        >
-                          {pct}%
-                        </span>
-                      </div>
-                    </TableCell>
+                        <TableCell>
+                          <span
+                            className="font-medium"
+                            style={{ color: Number.isFinite(gwaValue) && gwaValue > 2.0 ? C.red : C.green }}
+                          >
+                            {Number.isFinite(gwaValue) ? gwaValue.toFixed(2) : '—'}
+                          </span>
+                        </TableCell>
 
-                    <TableCell className="py-3.5 pr-5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-3 rounded-lg bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs shadow-none"
-                          onClick={() => handleOpenRenewal(s)}
-                        >
-                          <Files className="w-3 h-3 mr-1" />
-                          Renewal
-                        </Button>
+                        <TableCell>
+                          <span
+                            className="text-[10px] font-medium px-2 py-1 rounded-full"
+                            style={{ background: sduStyle.bg, color: sduStyle.color }}
+                          >
+                            {sduStyle.label}
+                          </span>
+                        </TableCell>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                          onClick={() => handleViewScholar(s.scholar_id)}
-                        >
-                          <Eye className="w-3 h-3 mr-1" />
-                          View
-                        </Button>
+                        <TableCell>
+                          <div className="min-w-[120px]">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-stone-500">{roProgress}%</span>
+                            </div>
+                            <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
+                              <div
+                                className="h-2 rounded-full"
+                                style={{
+                                  width: `${roProgress}%`,
+                                  background: RO_COLOR[roStatus],
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </TableCell>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-3 rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs shadow-none"
-                          onClick={() => setArchiveModalScholar(s)}
-                        >
-                          <X className="w-3 h-3 mr-1" />
-                          Remove
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg border-stone-200 text-xs"
+                              onClick={() => handleViewScholar(s.scholar_id)}
+                            >
+                              <Eye className="w-3.5 h-3.5 mr-1.5" />
+                              View
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg border-stone-200 text-xs"
+                              onClick={() => handleOpenRenewal(s)}
+                            >
+                              <Files className="w-3.5 h-3.5 mr-1.5" />
+                              Renewal
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs"
+                              onClick={() => setArchiveModalScholar(s)}
+                            >
+                              <X className="w-3.5 h-3.5 mr-1.5" />
+                              Remove
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
 
         <div className="px-5 py-3 bg-stone-50/50 border-t border-stone-100 flex items-center justify-between">
           <span className="text-xs text-stone-400">
-            Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
+            {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
           </span>
+
           <div className="flex items-center gap-1.5">
             <Button
               size="sm"
               variant="outline"
               className="h-7 w-7 p-0 rounded-lg border-stone-200"
-              disabled={page === 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </Button>
@@ -2050,20 +1884,14 @@ export default function ScholarMonitoring() {
               size="sm"
               variant="outline"
               className="h-7 w-7 p-0 rounded-lg border-stone-200"
-              disabled={page === totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
       </Card>
-
-      <footer className="pt-6 pb-2 border-t border-stone-100">
-        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · Scholar Monitoring Layer
-        </p>
-      </footer>
     </div>
   );
 }

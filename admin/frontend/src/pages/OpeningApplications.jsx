@@ -5,13 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-    Search, Eye, ChevronLeft, ChevronRight,
+    Search, ChevronLeft, ChevronRight,
     UserMinus, Users, CheckCircle2,
-    AlertTriangle, AlertCircle, Loader2, X,
+    AlertCircle, Loader2, X,
     ShieldCheck, FileSearch, MessageSquare,
-    GitCompareArrows, ArrowLeft, CalendarDays, CircleOff, Clock3,
+    ArrowLeft, CalendarDays, CircleOff, Clock3,
 } from 'lucide-react';
 
 const C = {
@@ -33,37 +32,19 @@ const C = {
 
 const VIEW_MODES = {
     current: 'current',
-    at_risk: 'at_risk',
-    replacement: 'replacement',
-};
-
-const DOC_STATUS_MAP = {
-    'documents ready': { label: 'Documents Ready', bg: C.greenSoft, color: C.green },
-    'missing docs': { label: 'Missing Docs', bg: C.redSoft, color: C.red },
-    'under review': { label: 'Under Review', bg: C.amberSoft, color: C.amber },
+    approved: 'approved',
 };
 
 const APP_STATUS = {
     pending: { label: 'Pending', bg: '#f5f5f4', color: '#57534e' },
     submitted: { label: 'Submitted', bg: '#f5f5f4', color: '#57534e' },
     review: { label: 'Under Review', bg: C.blueSoft, color: C.blueMid },
-    qualified: { label: 'Qualified', bg: C.greenSoft, color: C.green },
-    waiting: { label: 'Waiting', bg: C.amberSoft, color: C.amber },
-    disqualified: { label: 'Disqualified', bg: '#fee2e2', color: '#991b1b' },
-    requires_reupload: { label: 'Needs Re-upload', bg: C.amberSoft, color: C.amber },
-};
-
-const SDO_STATUS_MAP = {
-    all: { label: 'All SDO' },
-    clear: { label: 'Clear', bg: C.greenSoft, color: C.green },
-    minor: { label: 'Minor', bg: C.amberSoft, color: C.amber },
-    major: { label: 'Major', bg: C.redSoft, color: C.red },
-};
-
-const OCR_STATUS_MAP = {
-    match: { label: 'OCR Match', bg: C.greenSoft, color: C.green },
-    review: { label: 'Needs Review', bg: C.amberSoft, color: C.amber },
-    mismatch: { label: 'Mismatch', bg: C.redSoft, color: C.red },
+    qualified: { label: 'Approved', bg: C.greenSoft, color: C.green },
+    approved: { label: 'Approved', bg: C.greenSoft, color: C.green },
+    accepted: { label: 'Approved', bg: C.greenSoft, color: C.green },
+    disqualified: { label: 'Rejected', bg: '#fee2e2', color: '#991b1b' },
+    rejected: { label: 'Rejected', bg: '#fee2e2', color: '#991b1b' },
+    declined: { label: 'Rejected', bg: '#fee2e2', color: '#991b1b' },
 };
 
 const DISQ_REASONS = [
@@ -78,24 +59,17 @@ const DISQ_REASONS = [
 
 const PAGE_SIZE = 10;
 
-function normalizeSdo(raw) {
-    const s = (raw || '').toString().toLowerCase();
-    if (s.includes('major')) return 'major';
-    if (s.includes('minor')) return 'minor';
-    if (s.includes('clear') || s.includes('none')) return 'clear';
-    return 'clear';
+function normalizeAppStatus(status) {
+    return (status || '').toString().trim().toLowerCase();
+}
+
+function isApprovedCandidate(app) {
+    const raw = normalizeAppStatus(app?.application_status);
+    return ['approved', 'qualified', 'accepted'].includes(raw) || !!app?.is_scholar;
 }
 
 function getAppStatusMeta(status) {
-    return APP_STATUS[(status || '').toLowerCase()] || APP_STATUS.pending;
-}
-
-function getDocStatusMeta(status) {
-    return DOC_STATUS_MAP[(status || '').toLowerCase()] || {
-        label: 'Unknown',
-        bg: '#f5f5f4',
-        color: '#78716c',
-    };
+    return APP_STATUS[normalizeAppStatus(status)] || APP_STATUS.pending;
 }
 
 function getGwaMeta(gwa) {
@@ -106,38 +80,7 @@ function getGwaMeta(gwa) {
     if (numeric <= 2.0) {
         return { label: `Eligible · ${numeric}`, bg: C.greenSoft, color: C.green };
     }
-    return { label: `At Risk · ${numeric}`, bg: C.redSoft, color: C.red };
-}
-
-function getOcrMeta(app) {
-    const ocr = (app.ocr_status || '').toLowerCase();
-    if (ocr && OCR_STATUS_MAP[ocr]) return OCR_STATUS_MAP[ocr];
-
-    const docStatus = (app.document_status || '').toLowerCase();
-    if (docStatus === 'documents ready') return OCR_STATUS_MAP.match;
-    if (docStatus === 'under review') return OCR_STATUS_MAP.review;
-    return OCR_STATUS_MAP.mismatch;
-}
-
-function isApplicantAtRisk(app) {
-    const gwa = Number(app?.gwa);
-    const rawStatus = (app?.application_status || '').toLowerCase();
-    const docStatus = (app?.document_status || '').toLowerCase();
-    const verificationStatus = (app?.verification_status || '').toLowerCase();
-    const sdo = normalizeSdo(app?.sdu_level || app?.sdo_status || '');
-
-    const gwaRisk = Number.isFinite(gwa) && gwa > 2.0;
-    const docRisk = docStatus === 'missing docs' || docStatus === 'under review';
-    const verificationRisk = verificationStatus === 'rejected';
-    const sdoRisk = sdo === 'major' || sdo === 'minor';
-    const appRisk = rawStatus === 'requires_reupload';
-
-    return gwaRisk || docRisk || verificationRisk || sdoRisk || appRisk;
-}
-
-function isReplacementCandidate(app) {
-    const rawStatus = (app?.application_status || '').toLowerCase();
-    return rawStatus === 'waiting' || !!app?.is_reconsideration_candidate;
+    return { label: `Above Cutoff · ${numeric}`, bg: C.redSoft, color: C.red };
 }
 
 function formatDate(value) {
@@ -180,7 +123,6 @@ async function parseErrorResponse(res, fallbackMessage) {
 
 function DisqModal({ app, onDisqualify, onClose }) {
     const [reason, setReason] = useState('');
-    const [includeInQueue, setIncludeInQueue] = useState(false);
 
     return (
         <div
@@ -220,21 +162,6 @@ function DisqModal({ app, onDisqualify, onClose }) {
                         </button>
                     ))}
 
-                    <label className="flex items-start gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={includeInQueue}
-                            onChange={(e) => setIncludeInQueue(e.target.checked)}
-                            className="mt-0.5 accent-stone-700"
-                        />
-                        <div>
-                            <p className="text-xs font-medium text-stone-700">Include in Replacement Pool</p>
-                            <p className="text-[11px] text-stone-500 mt-0.5">
-                                Keeps this applicant visible under the replacement pool for future slot reconsideration.
-                            </p>
-                        </div>
-                    </label>
-
                     <div className="flex gap-2 pt-1">
                         <Button
                             variant="outline"
@@ -246,7 +173,7 @@ function DisqModal({ app, onDisqualify, onClose }) {
                         <Button
                             disabled={!reason}
                             onClick={() => {
-                                onDisqualify(app.id, reason, includeInQueue);
+                                onDisqualify(app.id, reason);
                                 onClose();
                             }}
                             className="flex-1 h-9 text-xs rounded-lg text-white border-none disabled:opacity-40"
@@ -327,9 +254,6 @@ export default function OpeningApplications() {
     const [error, setError] = useState(null);
 
     const [search, setSearch] = useState('');
-    const [status, setStatus] = useState('all');
-    const [sdoFilter, setSdoFilter] = useState('all');
-    const [appStatusFilter, setAppStatusFilter] = useState('All');
     const [viewMode, setViewMode] = useState(VIEW_MODES.current);
 
     const [page, setPage] = useState(1);
@@ -341,7 +265,7 @@ export default function OpeningApplications() {
     const [remarksSaving, setRemarksSaving] = useState(false);
     const [decisionLoading, setDecisionLoading] = useState(null);
 
-    const visibleApps = useMemo(() => apps.filter((app) => !app.is_scholar), [apps]);
+    const visibleApps = useMemo(() => apps, [apps]);
 
     const reloadApplications = async ({ soft = false } = {}) => {
         try {
@@ -397,9 +321,13 @@ export default function OpeningApplications() {
         reloadApplications();
     }, [openingId]);
 
-    const replacementCount = useMemo(() => visibleApps.filter(isReplacementCandidate).length, [visibleApps]);
-    const atRiskCount = useMemo(
-        () => visibleApps.filter((a) => !isReplacementCandidate(a) && isApplicantAtRisk(a)).length,
+    const approvedCount = useMemo(
+        () => visibleApps.filter((a) => isApprovedCandidate(a)).length,
+        [visibleApps]
+    );
+
+    const currentCount = useMemo(
+        () => visibleApps.filter((a) => !isApprovedCandidate(a)).length,
         [visibleApps]
     );
 
@@ -409,20 +337,11 @@ export default function OpeningApplications() {
 
         let base = [...visibleApps];
 
-        if (appStatusFilter !== 'All') {
-            base = base.filter((a) => {
-                const raw = (a.application_status || 'pending').toLowerCase();
-                return raw === appStatusFilter.toLowerCase();
-            });
-        }
-
         base = base.filter((a) => {
-            const replacement = isReplacementCandidate(a);
-            const atRisk = isApplicantAtRisk(a);
+            const approved = isApprovedCandidate(a);
 
-            if (viewMode === VIEW_MODES.current) return !replacement;
-            if (viewMode === VIEW_MODES.at_risk) return !replacement && atRisk;
-            if (viewMode === VIEW_MODES.replacement) return replacement;
+            if (viewMode === VIEW_MODES.current) return !approved;
+            if (viewMode === VIEW_MODES.approved) return approved;
 
             return true;
         });
@@ -432,29 +351,23 @@ export default function OpeningApplications() {
             const studentNumber = String(a.student_number || '').toLowerCase();
             const normalizedStudentNumber = studentNumber.replace(/[^a-z0-9]/g, '');
             const appId = String(a.id || '').toLowerCase();
-            const docStatus = (a.document_status || '').toLowerCase();
-            const normalizedSdo = normalizeSdo(a.sdu_level || a.sdo_status || '');
             const nameParts = fullName.replace(',', ' ').split(/\s+/).filter(Boolean);
 
-            const matchSearch =
+            return (
                 !q ||
                 fullName.startsWith(q) ||
                 nameParts.some((part) => part.startsWith(q)) ||
                 studentNumber.startsWith(q) ||
                 normalizedStudentNumber.startsWith(normalizedQ) ||
-                appId.startsWith(q);
-
-            const matchStatus = status === 'all' || docStatus === status;
-            const matchSdo = sdoFilter === 'all' || normalizedSdo === sdoFilter;
-
-            return matchSearch && matchStatus && matchSdo;
+                appId.startsWith(q)
+            );
         });
-    }, [visibleApps, search, status, sdoFilter, appStatusFilter, viewMode]);
+    }, [visibleApps, search, viewMode]);
 
     useEffect(() => {
         setPage(1);
         setSelected(new Set());
-    }, [search, status, sdoFilter, appStatusFilter, viewMode]);
+    }, [search, viewMode]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const pageData = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
@@ -485,7 +398,7 @@ export default function OpeningApplications() {
         });
     };
 
-    const handleDisqualify = async (id, reason, includeInQueue) => {
+    const handleDisqualify = async (id, reason) => {
         try {
             const res = await fetch(`http://localhost:5000/api/applications/${id}/disqualify`, {
                 method: 'PATCH',
@@ -495,7 +408,7 @@ export default function OpeningApplications() {
                 },
                 body: JSON.stringify({
                     reason,
-                    is_reconsideration_candidate: includeInQueue,
+                    is_reconsideration_candidate: false,
                 }),
             });
 
@@ -512,7 +425,7 @@ export default function OpeningApplications() {
                             disqualified: true,
                             disqReason: reason,
                             application_status: 'disqualified',
-                            is_reconsideration_candidate: includeInQueue,
+                            is_reconsideration_candidate: false,
                         }
                         : a
                 )
@@ -530,7 +443,11 @@ export default function OpeningApplications() {
             const endpoint =
                 action === 'approve'
                     ? `http://localhost:5000/api/applications/${id}/approve`
-                    : `http://localhost:5000/api/applications/${id}/waitlist`;
+                    : null;
+
+            if (!endpoint) {
+                throw new Error('Unsupported action');
+            }
 
             const res = await fetch(endpoint, {
                 method: 'PATCH',
@@ -550,8 +467,9 @@ export default function OpeningApplications() {
                     a.id === id
                         ? {
                             ...a,
-                            application_status: action === 'approve' ? 'qualified' : 'waiting',
-                            is_reconsideration_candidate: action === 'approve' ? false : true,
+                            application_status: 'qualified',
+                            is_reconsideration_candidate: false,
+                            is_scholar: true,
                         }
                         : a
                 )
@@ -637,72 +555,56 @@ export default function OpeningApplications() {
     const STATS = useMemo(() => {
         return [
             {
-                label: 'Total Applicants',
-                value: visibleApps.length,
+                label: 'Applicants',
+                value: currentCount,
                 icon: Users,
                 accent: C.brown,
                 soft: C.amberSoft,
             },
             {
-                label: 'Documents Ready',
-                value: visibleApps.filter((a) => (a.document_status || '').toLowerCase() === 'documents ready').length,
+                label: 'Approved',
+                value: approvedCount,
                 icon: CheckCircle2,
                 accent: C.green,
                 soft: C.greenSoft,
             },
             {
-                label: 'At-Risk Applicants',
-                value: atRiskCount,
-                icon: AlertTriangle,
-                accent: C.red,
-                soft: C.redSoft,
-            },
-            {
-                label: 'Replacement Pool',
-                value: replacementCount,
-                icon: GitCompareArrows,
+                label: 'Slots Filled',
+                value: openingFilledCount,
+                icon: ShieldCheck,
                 accent: C.blueMid,
                 soft: C.blueSoft,
             },
+            {
+                label: 'Remaining Slots',
+                value: remainingSlots,
+                icon: Clock3,
+                accent: C.amber,
+                soft: C.amberSoft,
+            },
         ];
-    }, [visibleApps, atRiskCount, replacementCount]);
+    }, [currentCount, approvedCount, openingFilledCount, remainingSlots]);
 
     const renderApplicationCard = (app) => {
         const id = app.id;
-        const normalizedAppStatus = (app.application_status || 'pending').toLowerCase();
+        const normalizedAppStatus = normalizeAppStatus(app.application_status || 'pending');
         const isDisq = app.disqualified || normalizedAppStatus === 'disqualified';
+        const isApproved = isApprovedCandidate(app);
 
-        const docMeta = getDocStatusMeta(app.document_status);
         const appMeta = getAppStatusMeta(normalizedAppStatus);
         const gwaMeta = getGwaMeta(app.gwa);
-        const ocrMeta = getOcrMeta(app);
-        const normalizedSdo = normalizeSdo(app.sdu_level || app.sdo_status || '');
-        const sdoStyle = SDO_STATUS_MAP[normalizedSdo] || SDO_STATUS_MAP.clear;
 
-        const docStatus = (app.document_status || '').toLowerCase();
         const appStatus = normalizedAppStatus;
         const verificationStatus = (app.verification_status || '').toLowerCase();
 
-        const isDocsComplete = docStatus === 'documents ready';
         const isInReviewStage = ['review', 'submitted', 'pending'].includes(appStatus);
         const isVerified = verificationStatus === 'verified';
 
-        const requiresReupload =
-            docStatus === 'missing docs' ||
-            docStatus === 'under review' ||
-            verificationStatus === 'rejected' ||
-            appStatus === 'requires_reupload';
-
         const canDecide =
-            isDocsComplete &&
             isInReviewStage &&
             isVerified &&
-            !requiresReupload &&
             !!app.remarks &&
             !openingFilled;
-
-        const atRisk = isApplicantAtRisk(app);
-        const replacement = isReplacementCandidate(app);
 
         return (
             <div
@@ -715,114 +617,92 @@ export default function OpeningApplications() {
                         <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-semibold text-stone-900 truncate">{app.name}</h3>
 
+                            {isApproved && (
+                                <Badge className="bg-green-50 text-green-700 border-green-100 text-[10px] font-medium">
+                                    Got Slot
+                                </Badge>
+                            )}
+
                             {isDisq && (
                                 <Badge className="bg-red-50 text-red-600 border-red-100 text-[10px] font-medium">
-                                    Disqualified
-                                </Badge>
-                            )}
-
-                            {requiresReupload && (
-                                <Badge className="bg-orange-50 text-orange-700 border-orange-100 text-[10px] font-medium">
-                                    Needs Re-upload
-                                </Badge>
-                            )}
-
-                            {atRisk && !replacement && (
-                                <Badge className="bg-red-50 text-red-700 border-red-100 text-[10px] font-medium">
-                                    At Risk
-                                </Badge>
-                            )}
-
-                            {replacement && (
-                                <Badge className="bg-amber-50 text-amber-700 border-amber-100 text-[10px] font-medium">
-                                    Replacement Pool
+                                    Rejected
                                 </Badge>
                             )}
                         </div>
 
                         <div className="mt-1 flex items-center gap-2 flex-wrap">
                             <span className="text-xs font-mono text-stone-400">{app.student_number}</span>
-                            {app.remarks && (
+                            {app.remarks && !isApproved && (
                                 <span className="inline-flex items-center gap-1 text-[11px] text-blue-600">
                                     <MessageSquare className="w-3 h-3" />
                                     Has Remarks
                                 </span>
                             )}
+                            {app.submission_date && (
+                                <span className="text-[11px] text-stone-400">
+                                    Submitted {formatDate(app.submission_date)}
+                                </span>
+                            )}
                         </div>
                     </div>
 
-                    <input
-                        type="checkbox"
-                        checked={selected.has(id)}
-                        onChange={() => toggleOne(id)}
-                        className="accent-stone-700 mt-1 shrink-0"
-                    />
+                    {!isApproved && (
+                        <input
+                            type="checkbox"
+                            checked={selected.has(id)}
+                            onChange={() => toggleOne(id)}
+                            className="accent-stone-700 mt-1 shrink-0"
+                        />
+                    )}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
                     <StatusPill meta={appMeta} />
-                    <StatusPill meta={docMeta} />
                     <StatusPill meta={gwaMeta} />
-                    <StatusPill meta={ocrMeta} />
-                    <span
-                        className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium"
-                        style={{ background: sdoStyle.bg, color: sdoStyle.color }}
-                    >
-                        {sdoStyle.label}
-                    </span>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <Button
-                        size="sm"
-                        onClick={() => navigate(`/admin/applications/${id}/documents`)}
-                        className="h-8 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                    >
-                        <Eye className="w-3 h-3 mr-1" />
-                        Review Documents
-                    </Button>
-
-                    {viewMode !== VIEW_MODES.replacement && (
-                        <>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={!canDecide || decisionLoading === id}
-                                onClick={() => handleDecision(id, 'approve')}
-                                className="h-8 px-3 rounded-lg border-green-100 text-green-700 hover:bg-green-50 text-xs shadow-none disabled:opacity-40"
-                            >
-                                {decisionLoading === id ? (
-                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                ) : (
-                                    <ShieldCheck className="w-3 h-3 mr-1" />
-                                )}
-                                Qualify
-                            </Button>
-
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={!canDecide || decisionLoading === id}
-                                onClick={() => handleDecision(id, 'waitlist')}
-                                className="h-8 px-3 rounded-lg border-amber-100 text-amber-700 hover:bg-amber-50 text-xs shadow-none disabled:opacity-40"
-                            >
-                                <Clock3 className="w-3 h-3 mr-1" />
-                                Move to Waiting
-                            </Button>
-                        </>
+                    {!isApproved && (
+                        <Button
+                            size="sm"
+                            onClick={() => navigate(`/admin/applications/${id}/documents`)}
+                            className="h-8 px-3 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+                        >
+                            <FileSearch className="w-3 h-3 mr-1" />
+                            Review Documents
+                        </Button>
                     )}
 
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenRemarks(app)}
-                        className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
-                    >
-                        <FileSearch className="w-3 h-3 mr-1" />
-                        Remarks
-                    </Button>
+                    {!isApproved && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenRemarks(app)}
+                            className="h-8 px-3 rounded-lg border-stone-200 text-stone-600 hover:bg-stone-50 text-xs shadow-none"
+                        >
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            Remarks
+                        </Button>
+                    )}
 
-                    {!isDisq && viewMode !== VIEW_MODES.replacement && (
+                    {!isApproved && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!canDecide || decisionLoading === id}
+                            onClick={() => handleDecision(id, 'approve')}
+                            className="h-8 px-3 rounded-lg border-green-100 text-green-700 hover:bg-green-50 text-xs shadow-none disabled:opacity-40"
+                        >
+                            {decisionLoading === id ? (
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                                <ShieldCheck className="w-3 h-3 mr-1" />
+                            )}
+                            Approve
+                        </Button>
+                    )}
+
+                    {!isApproved && !isDisq && (
                         <Button
                             size="sm"
                             onClick={() => setDisqApp(app)}
@@ -833,25 +713,23 @@ export default function OpeningApplications() {
                     )}
                 </div>
 
-                {viewMode !== VIEW_MODES.replacement && !canDecide && (
+                {!isApproved && !canDecide && (
                     <p className="text-[11px] text-stone-400 mt-2">
                         {openingFilled
                             ? 'This opening is already filled or closed.'
                             : !isInReviewStage
                                 ? 'Move application to review stage first.'
-                                : docStatus !== 'documents ready'
-                                    ? 'Documents incomplete or require re-upload.'
-                                    : !isVerified
-                                        ? 'Finish document verification first.'
-                                        : !app.remarks
-                                            ? 'Add reviewer remarks before decision.'
-                                            : 'Not ready for decision.'}
+                                : !isVerified
+                                    ? 'Finish document verification first.'
+                                    : !app.remarks
+                                        ? 'Add reviewer remarks before decision.'
+                                        : 'Not ready for decision.'}
                     </p>
                 )}
 
-                {viewMode === VIEW_MODES.replacement && (
+                {isApproved && (
                     <p className="text-[11px] text-stone-400 mt-2">
-                        This applicant is in the replacement pool and can be considered later if a scholarship slot becomes available.
+                        This applicant is already approved and has taken a slot under this opening.
                     </p>
                 )}
             </div>
@@ -945,17 +823,11 @@ export default function OpeningApplications() {
                                 </p>
                                 <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 mt-2">
                                     {openingMetaLine ? (
-                                        <>
-                                            <span className="inline-flex items-center gap-1">
-                                                <CalendarDays className="w-3.5 h-3.5" />
-                                                {openingMetaLine}
-                                            </span>
-                                            <span>•</span>
-                                        </>
+                                        <span className="inline-flex items-center gap-1">
+                                            <CalendarDays className="w-3.5 h-3.5" />
+                                            {openingMetaLine}
+                                        </span>
                                     ) : null}
-                                    <span>{openingFilledCount}/{openingSlotCount} filled</span>
-                                    <span>•</span>
-                                    <span>{remainingSlots} slots remaining</span>
                                 </div>
                             </div>
 
@@ -986,29 +858,19 @@ export default function OpeningApplications() {
                         : 'bg-white text-stone-600 border-stone-200'
                         }`}
                 >
-                    Current Applicants
+                    Applicants
+                    <span className="ml-1.5">{currentCount}</span>
                 </button>
 
                 <button
-                    onClick={() => setViewMode(VIEW_MODES.at_risk)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.at_risk
-                        ? 'bg-red-600 text-white border-red-600'
+                    onClick={() => setViewMode(VIEW_MODES.approved)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.approved
+                        ? 'bg-green-600 text-white border-green-600'
                         : 'bg-white text-stone-600 border-stone-200'
                         }`}
                 >
-                    At Risk
-                    <span className="ml-1.5">{atRiskCount}</span>
-                </button>
-
-                <button
-                    onClick={() => setViewMode(VIEW_MODES.replacement)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border ${viewMode === VIEW_MODES.replacement
-                        ? 'bg-amber-600 text-white border-amber-600'
-                        : 'bg-white text-stone-600 border-stone-200'
-                        }`}
-                >
-                    Replacement Pool
-                    <span className="ml-1.5">{replacementCount}</span>
+                    Approved
+                    <span className="ml-1.5">{approvedCount}</span>
                 </button>
             </div>
 
@@ -1033,33 +895,6 @@ export default function OpeningApplications() {
                 ))}
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-                {Object.entries(DOC_STATUS_MAP).map(([key, s]) => {
-                    const count = visibleApps.filter((a) => (a.document_status || '').toLowerCase() === key).length;
-                    const isActive = status === key;
-
-                    return (
-                        <button
-                            key={key}
-                            onClick={() => {
-                                setStatus(isActive ? 'all' : key);
-                                setPage(1);
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-                            style={{
-                                background: isActive ? s.bg : '#fff',
-                                borderColor: isActive ? s.color : '#e5e7eb',
-                                color: isActive ? s.color : '#9ca3af',
-                            }}
-                        >
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />
-                            {s.label}
-                            <span className="font-semibold">{count}</span>
-                        </button>
-                    );
-                })}
-            </div>
-
             <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[240px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
@@ -1071,42 +906,12 @@ export default function OpeningApplications() {
                     />
                 </div>
 
-                <Select value={sdoFilter} onValueChange={setSdoFilter}>
-                    <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue placeholder="SDO Flag" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all" className="text-sm">All SDO</SelectItem>
-                        <SelectItem value="clear" className="text-sm">Clear</SelectItem>
-                        <SelectItem value="minor" className="text-sm">Minor</SelectItem>
-                        <SelectItem value="major" className="text-sm">Major</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <Select value={appStatusFilter} onValueChange={setAppStatusFilter}>
-                    <SelectTrigger className="w-[170px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Status</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="submitted">Submitted</SelectItem>
-                        <SelectItem value="review">Under Review</SelectItem>
-                        <SelectItem value="qualified">Qualified</SelectItem>
-                        <SelectItem value="waiting">Waiting</SelectItem>
-                        <SelectItem value="disqualified">Disqualified</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {(search || status !== 'all' || sdoFilter !== 'all' || appStatusFilter !== 'All' || viewMode !== VIEW_MODES.current) && (
+                {(search || viewMode !== VIEW_MODES.current) && (
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
                             setSearch('');
-                            setStatus('all');
-                            setSdoFilter('all');
-                            setAppStatusFilter('All');
                             setViewMode(VIEW_MODES.current);
                             setPage(1);
                         }}
@@ -1124,23 +929,24 @@ export default function OpeningApplications() {
                             <CardTitle className="text-sm font-semibold text-stone-800">Applicant Registry</CardTitle>
                             <CardDescription className="text-xs">
                                 {viewMode === VIEW_MODES.current && 'Applicants under this selected scholarship opening'}
-                                {viewMode === VIEW_MODES.at_risk && 'Applicants needing closer attention or follow-up'}
-                                {viewMode === VIEW_MODES.replacement && 'Applicants retained for slot reconsideration'}
+                                {viewMode === VIEW_MODES.approved && 'Applicants already approved and assigned to a slot'}
                             </CardDescription>
                         </div>
 
-                        <label className="flex items-center gap-2 text-xs text-stone-600 bg-white border border-stone-200 rounded-lg px-3 py-2 shrink-0">
-                            <input
-                                type="checkbox"
-                                checked={allVisibleSelected}
-                                onChange={toggleAllVisible}
-                                className="accent-stone-700"
-                            />
-                            Select all on page
-                        </label>
+                        {viewMode === VIEW_MODES.current && (
+                            <label className="flex items-center gap-2 text-xs text-stone-600 bg-white border border-stone-200 rounded-lg px-3 py-2 shrink-0">
+                                <input
+                                    type="checkbox"
+                                    checked={allVisibleSelected}
+                                    onChange={toggleAllVisible}
+                                    className="accent-stone-700"
+                                />
+                                Select all on page
+                            </label>
+                        )}
                     </div>
 
-                    {selected.size > 0 && viewMode !== VIEW_MODES.replacement && !openingFilled && (
+                    {selected.size > 0 && viewMode === VIEW_MODES.current && !openingFilled && (
                         <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 mt-2">
                             <span className="text-xs font-medium text-amber-700">{selected.size} selected</span>
                             <div className="flex gap-2">
@@ -1175,7 +981,7 @@ export default function OpeningApplications() {
                         </div>
                     ) : pageData.length === 0 ? (
                         <div className="text-center py-12 text-sm text-stone-400">
-                            No applications match the current filters.
+                            No applications match the current view.
                         </div>
                     ) : (
                         <div className="space-y-3">

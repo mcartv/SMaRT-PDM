@@ -1289,27 +1289,12 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             };
         }
 
-<<<<<<< HEAD
-        // Manual close should block approvals.
-        if (openingStatus === 'closed') {
-            throw new Error('This opening is already closed.');
-=======
-        if (openingStatus === 'closed') {
-            throw new Error('This opening is already closed or filled.');
->>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
-        }
-
         // If slots are already exhausted, finalize the opening.
         if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
                 `   
                 UPDATE program_openings
                 SET posting_status = 'closed',
-<<<<<<< HEAD
-                    is_archived = TRUE,
-                    filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
-=======
->>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
                     updated_at = NOW()
                 WHERE opening_id = $1
                 `,
@@ -1357,27 +1342,6 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         const nextFilledSlots = newApprovedCount;
         const shouldFinalizeOpening = slotCount > 0 && newApprovedCount >= slotCount;
 
-<<<<<<< HEAD
-        await client.query(
-            `
-            UPDATE program_openings
-            SET filled_slots = $2,
-                posting_status = CASE
-                    WHEN posting_status = 'archived' THEN 'archived'
-                    WHEN $3 = TRUE THEN 'closed'
-                    WHEN posting_status = 'closed' THEN 'closed'
-                    ELSE 'open'
-                END,
-                is_archived = CASE
-                    WHEN $3 = TRUE THEN TRUE
-                    ELSE COALESCE(is_archived, FALSE)
-                END,
-                updated_at = NOW()
-            WHERE opening_id = $1
-            `,
-            [row.opening_id, nextFilledSlots, shouldFinalizeOpening]
-        );
-=======
         if (slotCount > 0 && newApprovedCount >= slotCount) {
             await client.query(
                 `
@@ -1400,7 +1364,6 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 [row.opening_id, nextFilledSlots]
             );
         }
->>>>>>> 61ddbc41977b398158f7b7b260a2d146d95514a3
 
         await client.query('COMMIT');
 

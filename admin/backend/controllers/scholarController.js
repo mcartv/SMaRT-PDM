@@ -98,3 +98,62 @@ exports.updateSdoStatus = async (req, res) => {
         });
     }
 };
+
+exports.getScholarRenewalDocuments = async (req, res) => {
+    try {
+        const { scholarId } = req.params;
+        const data = await scholarService.fetchScholarRenewalDocuments(scholarId);
+        res.status(200).json(data);
+    } catch (err) {
+        console.error('GET SCHOLAR RENEWAL DOCUMENTS ERROR:', err.message);
+        res.status(500).json({
+            message: err.message || 'Failed to fetch renewal documents',
+            error: err.message || 'Unknown backend error',
+        });
+    }
+};
+
+exports.verifyScholarRenewalDocument = async (req, res) => {
+    try {
+        const { scholarId, renewalDocumentId } = req.params;
+        const data = await scholarService.verifyScholarRenewalDocument(
+            scholarId,
+            renewalDocumentId,
+            req.body,
+            req.user
+        );
+
+        res.status(200).json({
+            message: 'Renewal document verified successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('VERIFY SCHOLAR RENEWAL DOCUMENT ERROR:', err.message);
+        res.status(500).json({
+            message: err.message || 'Failed to verify renewal document',
+            error: err.message || 'Unknown backend error',
+        });
+    }
+};
+
+exports.saveScholarRenewalReview = async (req, res) => {
+    try {
+        const { scholarId } = req.params;
+        const data = await scholarService.saveScholarRenewalReview(
+            scholarId,
+            req.body,
+            req.user
+        );
+
+        res.status(200).json({
+            message: 'Renewal review saved successfully',
+            data,
+        });
+    } catch (err) {
+        console.error('SAVE SCHOLAR RENEWAL REVIEW ERROR:', err.message);
+        res.status(500).json({
+            message: err.message || 'Failed to save renewal review',
+            error: err.message || 'Unknown backend error',
+        });
+    }
+};

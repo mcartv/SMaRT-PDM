@@ -638,3 +638,232 @@ exports.updateScholarSdoStatus = async (scholarId, payload, actor = {}) => {
     comment,
   };
 };
+
+async function getLatestRenewalByScholarId(scholarId) {
+  const { data, error } = await supabase
+    .from('renewals')
+    .select(`
+            renewal_id,
+            scholar_id,
+            period_id,
+            status,
+            deadline_date,
+            submitted_on
+        `)
+    .eq('scholar_id', scholarId)
+    .order('submitted_on', { ascending: false, nullsFirst: false })
+    .order('deadline_date', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error('Renewal record not found');
+  }
+
+  return data;
+}
+
+exports.fetchScholarRenewalDocuments = async (scholarId) => {
+  const renewal = await getLatestRenewalByScholarId(scholarId);
+
+  const { data, error } = await supabase
+    .from('renewal_documents')
+    .select(`
+            renewal_document_id,
+            renewal_id,
+            document_type,
+            file_url,
+            is_submitted,
+            review_status,
+            admin_comment,
+            submitted_at,
+            reviewed_at,
+            remarks
+        `)
+    .eq('renewal_id', renewal.renewal_id)
+    .order('submitted_at', { ascending: true, nullsFirst: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data || []).map((doc) => ({
+    id: doc.renewal_document_id,
+    renewal_document_id: doc.renewal_document_id,
+    renewal_id: doc.renewal_id,
+    name: doc.document_type,
+    document_type: doc.document_type,
+    type: doc.document_type,
+    url: doc.file_url || '',
+    file_url: doc.file_url || '',
+    status: doc.review_status || 'pending',
+    review_status: doc.review_status || 'pending',
+    uploadedAt: doc.submitted_at,
+    submitted_at: doc.submitted_at,
+    reviewed_at: doc.reviewed_at,
+    remarks: doc.remarks || '',
+    admin_comment: doc.admin_comment || '',
+    ocrStatus:
+      doc.review_status === 'verified'
+        ? 'Verified'
+        : doc.review_status === 'rejected'
+          ? 'Flagged'
+          : 'Ready for OCR',
+    extractedText: '',
+    ocrFields: {},
+    confidence: null,
+    is_submitted: !!doc.is_submitted,
+  }));
+};
+
+exports.verifyScholarRenewalDocument = async (
+  scholarId,
+  renewalDocumentId,
+  payload = {},
+  user = null
+) => {
+  const renewal = await getLatestRenewalByScholarId(scholarId);
+
+  const nextReviewStatus = payload?.ocr_status === 'Verified' ? 'verified' : 'verified';
+  const nextComment = payload?.remarks || payload?.admin_comment || null;
+
+  const { data, error } = await supabase
+    .from('renewal_documents')
+    .update({
+      review_status: nextReviewStatus,
+      admin_comment: nextComment,
+      reviewed_at: new Date().toISOString(),
+      remarks: nextComment,
+    })
+    .eq('renewal_document_id', renewalDocumentId)
+    .eq('renewal_id', renewal.renewal_id)
+    .select(`
+            renewal_document_id,
+            renewal_id,
+            document_type,
+            file_url,
+            is_submitted,
+            review_status,
+            admin_comment,
+            submitted_at,
+            reviewed_at,
+            remarks
+        `)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error('Renewal document not found');
+  }
+
+  return data;
+};
+
+exports.saveScholarRenewalReview = async (
+  scholarId,
+  payload = {},
+  user = null
+) => {
+  const renewal = await getLatestRenewalByScholarId(scholarId);
+
+  const decisionRaw = String(payload.decision || '').trim().toLowerCase();
+  const remarks = String(payload.remarks || '').trim();
+
+  let renewalStatus = 'Under Review';
+  let scholarStatus = 'Active';
+
+  if (decisionRaw === 'approved') {
+    renewalStatus = 'Approved';
+    scholarStatus = 'Active';
+  } else if (
+    decisionRaw === 'failed' ||
+    decisionRaw === 'rejected' ||
+    decisionRaw === 'on_hold'
+  ) {
+    renewalStatus = 'Failed';
+    scholarStatus = 'On Hold';
+  } else if (decisionRaw === 'needs_reupload') {
+    renewalStatus = 'Under Review';
+    scholarStatus = 'On Hold';
+  } else {
+    throw new Error('Invalid renewal decision');
+  }
+
+  const { data: renewalUpdate, error: renewalError } = await supabase
+    .from('renewals')
+    .update({
+      status: renewalStatus,
+      submitted_on: renewal.submitted_on || new Date().toISOString(),
+    })
+    .eq('renewal_id', renewal.renewal_id)
+    .select(`
+            renewal_id,
+            scholar_id,
+            period_id,
+            status,
+            deadline_date,
+            submitted_on
+        `)
+    .maybeSingle();
+
+  if (renewalError) {
+    throw new Error(renewalError.message);
+  }
+
+  // update all submitted renewal docs with admin remarks if provided
+  if (remarks) {
+    const { error: docsError } = await supabase
+      .from('renewal_documents')
+      .update({
+        remarks,
+        admin_comment: remarks,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('renewal_id', renewal.renewal_id)
+      .eq('is_submitted', true);
+
+    if (docsError) {
+      throw new Error(docsError.message);
+    }
+  }
+
+  // put scholar on hold if failed
+  const { data: scholarUpdate, error: scholarError } = await supabase
+    .from('scholars')
+    .update({
+      status: scholarStatus,
+      remarks: remarks || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('scholar_id', scholarId)
+    .select(`
+            scholar_id,
+            student_id,
+            program_id,
+            application_id,
+            date_awarded,
+            status,
+            batch_year,
+            ro_progress,
+            remarks,
+            updated_at,
+            is_archived
+        `)
+    .maybeSingle();
+
+  if (scholarError) {
+    throw new Error(scholarError.message);
+  }
+
+  return {
+    renewal: renewalUpdate,
+    scholar: scholarUpdate,
+  };
+};

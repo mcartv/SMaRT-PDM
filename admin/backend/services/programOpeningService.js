@@ -77,7 +77,7 @@ function mapOpening(opening, counts = {}) {
 
         benefactor_name:
             benefactor?.benefactor_name ||
-            benefactor?.organization_name ||
+            benefactor?.benefactor_name ||
             opening.benefactor_name ||
             null,
 
@@ -234,7 +234,7 @@ function baseOpeningSelectQuery() {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    organization_name,
+                    benefactor_name,
                     benefactor_type,
                     description,
                     is_archived,
@@ -481,7 +481,7 @@ exports.createProgramOpening = async (payload = {}) => {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    organization_name,
+                    benefactor_name,
                     benefactor_type,
                     description,
                     is_archived,
@@ -638,7 +638,7 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    organization_name,
+                    benefactor_name,
                     benefactor_type,
                     description,
                     is_archived,
@@ -709,7 +709,7 @@ exports.closeProgramOpening = async (openingId) => {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    organization_name,
+                    benefactor_name,
                     benefactor_type,
                     description,
                     is_archived,

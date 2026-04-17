@@ -10,35 +10,29 @@ import {
   CalendarDays,
   Users,
   CheckCircle2,
-  Clock3,
   ArrowRight,
   FolderOpen,
-  CircleOff,
   LayoutGrid,
   Table2,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
 
 const C = {
   brown: '#5c2d0e',
   brownMid: '#7c4a2e',
-  amber: '#d97706',
   amberSoft: '#FFF7ED',
   green: '#16a34a',
   greenSoft: '#F0FDF4',
-  red: '#dc2626',
-  redSoft: '#FEF2F2',
   blueMid: '#2563EB',
   blueSoft: '#EFF6FF',
   text: '#1c1917',
   bg: '#faf7f2',
   muted: '#78716c',
-  border: '#e7e5e4',
 };
 
 const PAGE_SIZE = 8;
-const SEEN_APPLICANTS_STORAGE_KEY = 'applicationReviewSeenApplicants';
 
 function formatDate(value) {
   if (!value) return 'No date';
@@ -56,23 +50,19 @@ function normalizeStatus(value = '') {
 }
 
 function isApprovedStatus(status = '') {
-  const normalized = normalizeStatus(status);
-  return ['approved', 'qualified', 'accepted'].includes(normalized);
+  return ['approved', 'qualified', 'accepted'].includes(normalizeStatus(status));
 }
 
 function isRejectedStatus(status = '') {
-  const normalized = normalizeStatus(status);
-  return ['rejected', 'disqualified', 'declined'].includes(normalized);
+  return ['rejected', 'disqualified', 'declined'].includes(normalizeStatus(status));
 }
 
 function isReviewStatus(status = '') {
-  const normalized = normalizeStatus(status);
-  return ['review', 'under review', 'for review', 'interview'].includes(normalized);
+  return ['review', 'under review', 'for review', 'interview'].includes(normalizeStatus(status));
 }
 
 function isPendingStatus(status = '') {
-  const normalized = normalizeStatus(status);
-  return ['pending', 'pending review'].includes(normalized);
+  return ['pending', 'pending review', 'submitted'].includes(normalizeStatus(status));
 }
 
 function isActiveApplicantStatus(status = '') {
@@ -102,12 +92,6 @@ function getComputedFilledSlots(opening) {
   return 0;
 }
 
-function getComputedRemainingSlots(opening) {
-  const allocated = Number(opening?.allocated_slots || opening?.slot_count || 0);
-  const filled = getComputedFilledSlots(opening);
-  return Math.max(0, allocated - filled);
-}
-
 function getOpeningStatusMeta(opening) {
   const raw = normalizeStatus(opening?.posting_status || opening?.status || '');
 
@@ -116,7 +100,7 @@ function getOpeningStatusMeta(opening) {
   }
 
   if (raw === 'closed') {
-    return { label: 'Closed', bg: C.redSoft, color: C.red };
+    return { label: 'Closed', bg: '#FEF2F2', color: '#dc2626' };
   }
 
   if (raw === 'draft') {
@@ -134,15 +118,11 @@ function getApplicationStatusMeta(row) {
   }
 
   if (isRejectedStatus(raw)) {
-    return { label: 'Disqualified', bg: C.redSoft, color: C.red };
+    return { label: 'Disqualified', bg: '#FEF2F2', color: '#dc2626' };
   }
 
   if (isReviewStatus(raw)) {
     return { label: 'Under Review', bg: C.blueSoft, color: C.blueMid };
-  }
-
-  if (['waiting', 'waitlisted'].includes(raw)) {
-    return { label: 'Waiting', bg: C.amberSoft, color: C.amber };
   }
 
   return {
@@ -160,11 +140,11 @@ function getDocumentStatusMeta(row) {
   }
 
   if (['missing docs', 'missing', 'incomplete'].includes(raw)) {
-    return { label: 'Missing Docs', bg: C.redSoft, color: C.red };
+    return { label: 'Missing Docs', bg: '#FEF2F2', color: '#dc2626' };
   }
 
   if (['under review', 'review'].includes(raw)) {
-    return { label: 'Under Review', bg: C.amberSoft, color: C.amber };
+    return { label: 'Under Review', bg: '#FFF7ED', color: '#d97706' };
   }
 
   return {
@@ -224,17 +204,6 @@ function normalizeApplicantRow(app) {
   };
 }
 
-function getInitialSeenApplicantsMap() {
-  try {
-    const raw = localStorage.getItem(SEEN_APPLICANTS_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
 export default function ApplicationReview() {
   const navigate = useNavigate();
 
@@ -246,7 +215,6 @@ export default function ApplicationReview() {
   const [search, setSearch] = useState('');
   const [viewType, setViewType] = useState('cards');
   const [page, setPage] = useState(1);
-  const [seenApplicantsMap, setSeenApplicantsMap] = useState(getInitialSeenApplicantsMap);
 
   const loadData = async ({ soft = false } = {}) => {
     try {
@@ -316,17 +284,6 @@ export default function ApplicationReview() {
     setPage(1);
   }, [search, viewType]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        SEEN_APPLICANTS_STORAGE_KEY,
-        JSON.stringify(seenApplicantsMap)
-      );
-    } catch {
-      // ignore localStorage write errors
-    }
-  }, [seenApplicantsMap]);
-
   const openingCountsMap = useMemo(() => {
     const counts = new Map();
 
@@ -336,22 +293,10 @@ export default function ApplicationReview() {
 
       const current = counts.get(openingId) || {
         applicants: 0,
-        pending: 0,
-        review: 0,
       };
 
-      const status = row.application_status || '';
-
-      if (isActiveApplicantStatus(status)) {
+      if (isActiveApplicantStatus(row.application_status)) {
         current.applicants += 1;
-      }
-
-      if (isPendingStatus(status)) {
-        current.pending += 1;
-      }
-
-      if (isReviewStatus(status)) {
-        current.review += 1;
       }
 
       counts.set(openingId, current);
@@ -366,7 +311,6 @@ export default function ApplicationReview() {
     return openings.filter((opening) => {
       const rawStatus = normalizeStatus(opening?.posting_status || opening?.status || '');
 
-      // hide all finalized openings from Applications page
       if (opening?.is_archived) return false;
       if (rawStatus === 'closed') return false;
       if (rawStatus === 'archived') return false;
@@ -375,16 +319,12 @@ export default function ApplicationReview() {
 
       const title = (opening.opening_title || opening.title || '').toLowerCase();
       const program = (opening.program_name || '').toLowerCase();
-      const semester = (opening.semester || '').toLowerCase();
       const academicYear = (opening.academic_year || '').toLowerCase();
-      const status = rawStatus;
 
       return (
         title.includes(q) ||
         program.includes(q) ||
-        semester.includes(q) ||
-        academicYear.includes(q) ||
-        status.includes(q)
+        academicYear.includes(q)
       );
     });
   }, [openings, search]);
@@ -402,7 +342,6 @@ export default function ApplicationReview() {
         (row.application_status || '').toLowerCase().includes(q) ||
         (row.document_status || '').toLowerCase().includes(q) ||
         (row.opening_title || '').toLowerCase().includes(q) ||
-        (row.semester || '').toLowerCase().includes(q) ||
         (row.academic_year || '').toLowerCase().includes(q)
       );
     });
@@ -431,13 +370,6 @@ export default function ApplicationReview() {
         accent: C.green,
       },
       {
-        label: 'Hidden Finalized',
-        value: openings.length - filteredOpenings.length,
-        icon: CircleOff,
-        soft: C.redSoft,
-        accent: C.red,
-      },
-      {
         label: 'Total Applicants',
         value: totalApplicants,
         icon: Users,
@@ -445,8 +377,8 @@ export default function ApplicationReview() {
         accent: C.blueMid,
       },
     ];
-  }, [filteredOpenings, openings, registryRows]);
-  
+  }, [filteredOpenings, registryRows]);
+
   const activeRows = viewType === 'cards' ? filteredOpenings : filteredRegistryRows;
   const totalPages = Math.max(1, Math.ceil(activeRows.length / PAGE_SIZE));
 
@@ -455,21 +387,12 @@ export default function ApplicationReview() {
     return activeRows.slice(start, start + PAGE_SIZE);
   }, [activeRows, page]);
 
-  const handleOpenApplicants = (openingId, applicantCount) => {
-    setSeenApplicantsMap((prev) => ({
-      ...prev,
-      [openingId]: applicantCount,
-    }));
-
-    navigate(`/admin/openings/${openingId}/applications`);
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[420px] gap-3">
         <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
         <p className="text-xs text-stone-400 uppercase tracking-widest">
-          Loading application review...
+          Loading applications...
         </p>
       </div>
     );
@@ -479,7 +402,7 @@ export default function ApplicationReview() {
     return (
       <div className="p-8 bg-red-50 border border-red-100 rounded-xl text-center">
         <AlertCircle className="w-7 h-7 text-red-400 mx-auto mb-3" />
-        <p className="text-sm font-semibold text-red-800">Failed to load application review</p>
+        <p className="text-sm font-semibold text-red-800">Failed to load applications</p>
         <p className="text-xs text-red-600 mt-1">{error}</p>
         <Button
           onClick={() => loadData()}
@@ -501,7 +424,7 @@ export default function ApplicationReview() {
             Applications
           </h1>
           <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            Review scholarship openings or scan all applicants in the registry table
+            Active scholarship openings and current applicants
           </p>
         </div>
 
@@ -514,13 +437,13 @@ export default function ApplicationReview() {
           {refreshing ? (
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
           )}
           Refresh
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {stats.map((s) => (
           <Card key={s.label} className="border-stone-200 shadow-none">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
@@ -549,8 +472,8 @@ export default function ApplicationReview() {
               <Input
                 placeholder={
                   viewType === 'cards'
-                    ? 'Search by opening, scholarship, semester, academic year, or status...'
-                    : 'Search by applicant, PDM ID, scholarship, opening, semester, year, or status...'
+                    ? 'Search by opening, scholarship, or academic year...'
+                    : 'Search by applicant, PDM ID, scholarship, or opening...'
                 }
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -562,23 +485,23 @@ export default function ApplicationReview() {
               <button
                 onClick={() => setViewType('cards')}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'cards'
-                  ? 'bg-stone-900 text-white border-stone-900'
-                  : 'bg-white text-stone-600 border-stone-200'
+                    ? 'bg-stone-900 text-white border-stone-900'
+                    : 'bg-white text-stone-600 border-stone-200'
                   }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                Cards View
+                Cards
               </button>
 
               <button
                 onClick={() => setViewType('table')}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${viewType === 'table'
-                  ? 'bg-stone-900 text-white border-stone-900'
-                  : 'bg-white text-stone-600 border-stone-200'
+                    ? 'bg-stone-900 text-white border-stone-900'
+                    : 'bg-white text-stone-600 border-stone-200'
                   }`}
               >
                 <Table2 className="w-3.5 h-3.5" />
-                Registry Table
+                Registry
               </button>
             </div>
           </div>
@@ -604,15 +527,9 @@ export default function ApplicationReview() {
 
               const openingCounts = openingCountsMap.get(opening.opening_id) || {
                 applicants: 0,
-                pending: 0,
-                review: 0,
               };
 
               const applicationCount = openingCounts.applicants;
-              const pendingCount = openingCounts.pending + openingCounts.review;
-
-              const seenCount = Number(seenApplicantsMap[opening.opening_id] || 0);
-              const newApplicantsCount = Math.max(0, applicationCount - seenCount);
 
               return (
                 <Card
@@ -622,26 +539,13 @@ export default function ApplicationReview() {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <CardTitle className="text-lg font-semibold text-stone-900 leading-tight">
-                            {opening.opening_title || opening.title || 'Untitled Opening'}
-                          </CardTitle>
-
-                          {newApplicantsCount > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-sm font-semibold text-green-700">
-                              +{newApplicantsCount}
-                            </span>
-                          )}
-                        </div>
+                        <CardTitle className="text-lg font-semibold text-stone-900 leading-tight">
+                          {opening.opening_title || opening.title || 'Untitled Opening'}
+                        </CardTitle>
 
                         <CardDescription className="mt-1.5 text-sm">
                           {opening.program_name || 'No Program'}
-                          {(opening.semester || opening.academic_year) && (
-                            <>
-                              {' · '}
-                              {[opening.semester, opening.academic_year].filter(Boolean).join(' · ')}
-                            </>
-                          )}
+                          {opening.academic_year ? ` · ${opening.academic_year}` : ''}
                         </CardDescription>
                       </div>
 
@@ -672,26 +576,12 @@ export default function ApplicationReview() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-stone-500">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarDays className="w-3.5 h-3.5" />
-                        {[opening.semester, opening.academic_year].filter(Boolean).join(' · ') || 'No term'}
-                      </span>
-
-                      {pendingCount > 0 && (
-                        <>
-                          <span>•</span>
-                          <span>{pendingCount} pending</span>
-                        </>
-                      )}
-                    </div>
-
                     <div className="flex justify-end">
                       <Button
                         size="sm"
                         className="rounded-lg text-white text-sm font-medium border-none"
                         style={{ background: C.brownMid }}
-                        onClick={() => handleOpenApplicants(opening.opening_id, applicationCount)}
+                        onClick={() => navigate(`/admin/openings/${opening.opening_id}/applications`)}
                       >
                         View Applicants
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -744,21 +634,20 @@ export default function ApplicationReview() {
                 Applicant Registry
               </CardTitle>
               <CardDescription className="text-xs">
-                Tabular view of applicants and the scholarship they applied for
+                Current applicants only
               </CardDescription>
             </div>
           </CardHeader>
 
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1150px]">
+              <table className="w-full min-w-[1050px]">
                 <thead className="bg-stone-50">
                   <tr className="border-b border-stone-200">
                     <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Applicant</th>
                     <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">PDM ID</th>
                     <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Scholarship</th>
                     <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Opening</th>
-                    <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Semester</th>
                     <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Academic Year</th>
                     <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Submitted</th>
                     <th className="text-left text-xs font-semibold text-stone-500 px-4 py-3">Application Status</th>
@@ -797,10 +686,6 @@ export default function ApplicationReview() {
                           <div className="max-w-[220px]">
                             {row.opening_title}
                           </div>
-                        </td>
-
-                        <td className="px-4 py-4 align-top text-sm text-stone-600 whitespace-nowrap">
-                          {row.semester}
                         </td>
 
                         <td className="px-4 py-4 align-top text-sm text-stone-600 whitespace-nowrap">
@@ -872,12 +757,6 @@ export default function ApplicationReview() {
           </div>
         </Card>
       )}
-
-      <footer className="pt-6 pb-2 border-t border-stone-100">
-        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · Applicant-Based Application Review
-        </p>
-      </footer>
     </div>
   );
 }

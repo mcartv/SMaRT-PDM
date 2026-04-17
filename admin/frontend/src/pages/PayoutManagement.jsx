@@ -93,12 +93,13 @@ export default function PayoutManagement() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [workingEntryId, setWorkingEntryId] = useState(null);
+  const [archivingBatchId, setArchivingBatchId] = useState(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [activeSection, setActiveSection] = useState('overview');
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [archivingBatchId, setArchivingBatchId] = useState(null);
 
   const [form, setForm] = useState({
     opening_id: '',
@@ -117,6 +118,10 @@ export default function PayoutManagement() {
   }, []);
 
   useEffect(() => {
+    setPage(1);
+  }, [activeSection, search]);
+
+  useEffect(() => {
     if (!form.opening_id) {
       setEligiblePayload({ opening: null, scholars: [] });
       setForm(prev => ({
@@ -132,44 +137,6 @@ export default function PayoutManagement() {
 
     loadOpeningEligibility(form.opening_id);
   }, [form.opening_id]);
-
-  const handleArchiveBatch = async (batch) => {
-    try {
-      if (!batch?.payout_batch_id) return;
-
-      const scholars = getBatchScholars(batch);
-      const hasPending = scholars.some((s) => s.release_status === 'Pending');
-
-      if (hasPending) {
-        alert('This payout batch cannot be archived yet because some scholars are still pending.');
-        return;
-      }
-
-      setArchivingBatchId(batch.payout_batch_id);
-
-      const res = await fetch(
-        `${API_BASE}/payouts/${batch.payout_batch_id}/archive`,
-        {
-          method: 'PATCH',
-          headers: getAuthHeaders(true),
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.message || 'Failed to archive payout batch');
-      }
-
-      await loadAll();
-      setSelectedBatch(null);
-    } catch (err) {
-      console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
-      alert(err.message || 'Failed to archive payout batch');
-    } finally {
-      setArchivingBatchId(null);
-    }
-  };
 
   const loadAll = async () => {
     try {
@@ -230,12 +197,26 @@ export default function PayoutManagement() {
     }
   };
 
-  const filteredBatches = useMemo(() => {
+  const activeBatches = useMemo(() => {
+    return batches.filter((b) => !b.is_archived);
+  }, [batches]);
+
+  const archivedBatches = useMemo(() => {
+    return batches.filter((b) => b.is_archived);
+  }, [batches]);
+
+  const displayedBatches = useMemo(() => {
+    if (activeSection === 'batches') return activeBatches;
+    if (activeSection === 'archived') return archivedBatches;
+    return [];
+  }, [activeSection, activeBatches, archivedBatches]);
+
+  const filteredDisplayedBatches = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    if (!q) return batches;
+    if (!q) return displayedBatches;
 
-    return batches.filter((b) => {
+    return displayedBatches.filter((b) => {
       return [
         b.payout_title,
         b.program_name,
@@ -247,15 +228,15 @@ export default function PayoutManagement() {
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(q));
     });
-  }, [batches, search]);
+  }, [displayedBatches, search]);
 
   const pageData = useMemo(() => {
-    return filteredBatches.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  }, [filteredBatches, page]);
+    return filteredDisplayedBatches.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [filteredDisplayedBatches, page]);
 
   const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filteredBatches.length / PAGE_SIZE));
-  }, [filteredBatches.length]);
+    return Math.max(1, Math.ceil(filteredDisplayedBatches.length / PAGE_SIZE));
+  }, [filteredDisplayedBatches.length]);
 
   const totalDisbursed = useMemo(() => {
     return batches.reduce((acc, b) => acc + Number(b.total_amount || 0), 0);
@@ -274,6 +255,10 @@ export default function PayoutManagement() {
       return acc + scholars.filter(s => s.release_status === 'Released').length;
     }, 0);
   }, [batches]);
+
+  const totalArchived = useMemo(() => {
+    return archivedBatches.length;
+  }, [archivedBatches]);
 
   const selectedOpeningDetails = useMemo(() => {
     return openings.find(o => o.opening_id === form.opening_id) || eligiblePayload.opening || null;
@@ -363,6 +348,7 @@ export default function PayoutManagement() {
       setEligiblePayload({ opening: null, scholars: [] });
 
       await loadAll();
+      setActiveSection('batches');
     } catch (err) {
       console.error('CREATE PAYOUT BATCH ERROR:', err);
       alert(err.message || 'Failed to create payout batch');
@@ -397,6 +383,45 @@ export default function PayoutManagement() {
       alert(err.message || 'Failed to update payout status');
     } finally {
       setWorkingEntryId(null);
+    }
+  };
+
+  const handleArchiveBatch = async (batch) => {
+    try {
+      if (!batch?.payout_batch_id) return;
+
+      const scholars = getBatchScholars(batch);
+      const hasPending = scholars.some((s) => s.release_status === 'Pending');
+
+      if (hasPending) {
+        alert('This payout batch cannot be archived yet because some scholars are still pending.');
+        return;
+      }
+
+      setArchivingBatchId(batch.payout_batch_id);
+
+      const res = await fetch(
+        `${API_BASE}/payouts/${batch.payout_batch_id}/archive`,
+        {
+          method: 'PATCH',
+          headers: getAuthHeaders(true),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || 'Failed to archive payout batch');
+      }
+
+      await loadAll();
+      setSelectedBatch(null);
+      setActiveSection('archived');
+    } catch (err) {
+      console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
+      alert(err.message || 'Failed to archive payout batch');
+    } finally {
+      setArchivingBatchId(null);
     }
   };
 
@@ -469,7 +494,7 @@ export default function PayoutManagement() {
             </div>
 
             <p className="text-xs text-stone-500 mt-2">
-              {b.school_year || '—'} • {b.payout_date || '—'}
+              {b.school_year || b.academic_year || '—'} • {b.payout_date || '—'}
             </p>
           </div>
 
@@ -549,67 +574,124 @@ export default function PayoutManagement() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <StatCard icon={<Wallet className="w-5 h-5" />} label="Total Disbursed" value={`₱${Number(totalDisbursed).toLocaleString()}`} />
-        <StatCard icon={<CalendarDays className="w-5 h-5" />} label="Batch Count" value={batches.length} />
-        <StatCard icon={<Clock3 className="w-5 h-5" />} label="Pending" value={totalPending} />
-        <StatCard icon={<CheckCircle2 className="w-5 h-5" />} label="Released" value={totalReleased} />
+      <div className="flex gap-2 flex-wrap">
+        <Button
+          variant={activeSection === 'overview' ? 'default' : 'outline'}
+          onClick={() => setActiveSection('overview')}
+          style={activeSection === 'overview' ? { background: C.brownMid, color: '#fff' } : {}}
+        >
+          Overview
+        </Button>
+
+        <Button
+          variant={activeSection === 'batches' ? 'default' : 'outline'}
+          onClick={() => setActiveSection('batches')}
+          style={activeSection === 'batches' ? { background: C.brownMid, color: '#fff' } : {}}
+        >
+          Batch Records
+        </Button>
+
+        <Button
+          variant={activeSection === 'archived' ? 'default' : 'outline'}
+          onClick={() => setActiveSection('archived')}
+          style={activeSection === 'archived' ? { background: C.brownMid, color: '#fff' } : {}}
+        >
+          Archived
+        </Button>
       </div>
 
-      <Card className="border-stone-200 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="relative w-full max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-stone-400" />
-              <Input
-                className="pl-9"
-                placeholder="Search payout title, benefactor, program, semester..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-              />
-            </div>
+      {activeSection === 'overview' && (
+        <>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <StatCard icon={<Wallet className="w-5 h-5" />} label="Total Disbursed" value={`₱${Number(totalDisbursed).toLocaleString()}`} />
+            <StatCard icon={<CalendarDays className="w-5 h-5" />} label="Batch Count" value={batches.length} />
+            <StatCard icon={<Clock3 className="w-5 h-5" />} label="Pending" value={totalPending} />
+            <StatCard icon={<Archive className="w-5 h-5" />} label="Archived" value={totalArchived} />
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
-        {pageData.length === 0 ? (
-          <Card className="border-stone-200 col-span-full">
-            <CardContent className="p-10 text-center text-stone-400">
-              No payout batches found.
+          <Card className="border-stone-200 shadow-sm">
+            <CardContent className="p-10 text-center text-stone-500">
+              <p className="text-base font-medium">Overview dashboard only</p>
+              <p className="text-sm mt-2">
+                Open <span className="font-semibold">Batch Records</span> to manage active payout batches,
+                or <span className="font-semibold">Archived</span> to review finished ones.
+              </p>
             </CardContent>
           </Card>
-        ) : (
-          pageData.map(renderBatchCard)
-        )}
-      </div>
+        </>
+      )}
 
-      <div className="flex justify-between items-center">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => setPage(prev => Math.max(1, prev - 1))}
-        >
-          Previous
-        </Button>
+      {(activeSection === 'batches' || activeSection === 'archived') && (
+        <>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <StatCard icon={<Wallet className="w-5 h-5" />} label="Total Disbursed" value={`₱${Number(totalDisbursed).toLocaleString()}`} />
+            <StatCard
+              icon={<CalendarDays className="w-5 h-5" />}
+              label={activeSection === 'archived' ? 'Archived Batches' : 'Active Batches'}
+              value={displayedBatches.length}
+            />
+            <StatCard icon={<Clock3 className="w-5 h-5" />} label="Pending" value={totalPending} />
+            <StatCard icon={<CheckCircle2 className="w-5 h-5" />} label="Released" value={totalReleased} />
+          </div>
 
-        <p className="text-sm text-stone-500">
-          Page {page} of {totalPages}
-        </p>
+          <Card className="border-stone-200 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative w-full max-w-md">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-stone-400" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Search payout title, benefactor, program, semester..."
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= totalPages}
-          onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-        >
-          Next
-        </Button>
-      </div>
+          <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {pageData.length === 0 ? (
+              <Card className="border-stone-200 col-span-full">
+                <CardContent className="p-10 text-center text-stone-400">
+                  {activeSection === 'archived'
+                    ? 'No archived payout batches found.'
+                    : 'No payout batches found.'}
+                </CardContent>
+              </Card>
+            ) : (
+              pageData.map(renderBatchCard)
+            )}
+          </div>
+
+          <div className="flex justify-between items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+            >
+              Previous
+            </Button>
+
+            <p className="text-sm text-stone-500">
+              Page {page} of {totalPages}
+            </p>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </>
+      )}
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
@@ -832,7 +914,6 @@ export default function PayoutManagement() {
                 </p>
               </div>
 
-
               <div className="flex items-center gap-2">
                 {!selectedBatch.is_archived && (
                   <Button
@@ -898,7 +979,7 @@ export default function PayoutManagement() {
                           size="sm"
                           variant="outline"
                           className="border-red-200 text-red-700 hover:bg-red-50"
-                          disabled={workingEntryId === entry.payout_entry_id}
+                          disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
                           onClick={() => handleStatusUpdate(entry, 'Absent')}
                         >
                           Absent
@@ -908,7 +989,7 @@ export default function PayoutManagement() {
                           size="sm"
                           variant="outline"
                           className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                          disabled={workingEntryId === entry.payout_entry_id}
+                          disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
                           onClick={() => handleStatusUpdate(entry, 'On Hold')}
                         >
                           On Hold

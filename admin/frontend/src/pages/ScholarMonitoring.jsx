@@ -1080,10 +1080,10 @@ function RenewalModal({
                           className="min-h-[100px] rounded-lg border-stone-200 text-sm resize-none bg-white"
                         />
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="space-y-2">
                           <Button
                             size="sm"
-                            className="h-9 rounded-lg text-white text-xs border-none"
+                            className="w-full h-9 rounded-lg text-white text-xs border-none justify-center"
                             style={{ background: C.green }}
                             disabled={!isReadyToApprove || savingAction === 'approved'}
                             onClick={() => handleSaveRenewalDecision('approved')}
@@ -1099,22 +1099,22 @@ function RenewalModal({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs"
-                            disabled={savingAction === 'on_hold' || savingAction === 'rejected'}
-                            onClick={() => handleSaveRenewalDecision(decision === 'rejected' ? 'rejected' : 'on_hold')}
+                            className="w-full h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs justify-center"
+                            disabled={savingAction === 'failed'}
+                            onClick={() => handleSaveRenewalDecision('failed')}
                           >
-                            {(savingAction === 'on_hold' || savingAction === 'rejected') ? (
+                            {savingAction === 'failed' ? (
                               <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                             ) : (
                               <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
                             )}
-                            Reject / Put On Hold
+                            Reject Renewal
                           </Button>
                         </div>
 
                         <p className="text-[11px] text-stone-400 leading-relaxed">
-                          Failed or incomplete renewal should be marked as <span className="font-semibold">On Hold</span>.
-                          Approved renewal keeps the scholar active for the next cycle.
+                          Approve if the renewal is complete and valid. Reject if the renewal fails review.
+                          Rejected renewals should place the scholar on hold.
                         </p>
                       </div>
 

@@ -375,7 +375,6 @@ async function updateScholarPayoutStatus({ payout_entry_id, next_status, process
         throw new Error('next_status is required');
     }
 
-    // Fetch current payout entry with scholar details before updating
     const fetchQuery = `
         SELECT
             pbs.payout_entry_id,
@@ -385,6 +384,7 @@ async function updateScholarPayoutStatus({ payout_entry_id, next_status, process
             pb.payout_batch_id,
             pb.payout_title,
             pb.program_id,
+            pb.is_archived,
             s.student_id,
             st.user_id,
             st.pdm_id,
@@ -403,14 +403,18 @@ async function updateScholarPayoutStatus({ payout_entry_id, next_status, process
         throw new Error('Payout entry not found');
     }
 
-    // Update the status
+    if (existingRecord.is_archived) {
+        const err = new Error('Archived payout batches can no longer be modified');
+        err.statusCode = 400;
+        throw err;
+    }
+
     await pool.query(`
         UPDATE payout_batch_scholars
         SET release_status = $2
         WHERE payout_entry_id = $1
     `, [payout_entry_id, next_status]);
 
-    // Send notification if status changed to 'Released'
     if (next_status === 'Released' && existingRecord.user_id) {
         try {
             const amount = Number(existingRecord.amount_received || 0).toLocaleString('en-PH', {
@@ -430,11 +434,91 @@ async function updateScholarPayoutStatus({ payout_entry_id, next_status, process
             });
         } catch (notifyError) {
             console.error('PAYOUT RELEASE NOTIFICATION ERROR:', notifyError);
-            // Don't throw - notification failure shouldn't block the payout update
         }
     }
 
     return { success: true, previous_status: existingRecord.release_status };
+}
+
+// =========================
+// ARCHIVE PAYOUT BATCH
+// =========================
+async function archivePayoutBatch({ payout_batch_id, archived_by }) {
+    if (!payout_batch_id) {
+        throw new Error('payout_batch_id is required');
+    }
+
+    const batchQuery = `
+        SELECT
+            pb.payout_batch_id,
+            pb.payout_title,
+            pb.batch_status,
+            pb.is_archived
+        FROM payout_batches pb
+        WHERE pb.payout_batch_id = $1
+        LIMIT 1;
+    `;
+
+    const batchResult = await pool.query(batchQuery, [payout_batch_id]);
+
+    if (!batchResult.rows.length) {
+        const err = new Error('Payout batch not found');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    const batch = batchResult.rows[0];
+
+    if (batch.is_archived) {
+        const err = new Error('Payout batch is already archived');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const entriesQuery = `
+        SELECT
+            payout_entry_id,
+            release_status
+        FROM payout_batch_scholars
+        WHERE payout_batch_id = $1;
+    `;
+
+    const entriesResult = await pool.query(entriesQuery, [payout_batch_id]);
+    const entries = entriesResult.rows || [];
+
+    if (!entries.length) {
+        const err = new Error('Cannot archive a payout batch with no payout entries');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const hasPending = entries.some(
+        (entry) => !entry.release_status || entry.release_status === 'Pending'
+    );
+
+    if (hasPending) {
+        const err = new Error('Cannot archive payout batch while some scholars are still pending');
+        err.statusCode = 400;
+        throw err;
+    }
+
+    const updateQuery = `
+        UPDATE payout_batches
+        SET
+            is_archived = TRUE,
+            batch_status = 'Archived',
+            updated_at = NOW()
+        WHERE payout_batch_id = $1
+        RETURNING *;
+    `;
+
+    const updateResult = await pool.query(updateQuery, [payout_batch_id]);
+
+    return {
+        success: true,
+        message: 'Payout batch archived successfully',
+        batch: updateResult.rows[0],
+    };
 }
 
 module.exports = {
@@ -443,4 +527,5 @@ module.exports = {
     fetchEligibleScholarsByOpening,
     createPayoutBatchFromOpening,
     updateScholarPayoutStatus,
+    archivePayoutBatch,
 };

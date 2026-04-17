@@ -92,3 +92,15 @@ exports.archivePayoutBatch = async (req, res) => {
         });
     }
 };
+
+exports.getAcademicYears = async (req, res) => {
+    try {
+        const rows = await payoutService.fetchAcademicYears();
+        res.status(200).json(rows);
+    } catch (err) {
+        console.error('GET ACADEMIC YEARS ERROR:', err);
+        res.status(500).json({
+            message: err.message || 'Failed to fetch academic years',
+        });
+    }
+};

@@ -100,10 +100,12 @@ export default function PayoutManagement() {
   const [activeSection, setActiveSection] = useState('overview');
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [academicYears, setAcademicYears] = useState([]);
 
   const [form, setForm] = useState({
     opening_id: '',
     semester: '',
+    academic_year_id: '',
     school_year: '',
     payout_title: '',
     payout_date: new Date().toISOString().slice(0, 10),
@@ -127,6 +129,7 @@ export default function PayoutManagement() {
       setForm(prev => ({
         ...prev,
         semester: '',
+        academic_year_id: '',
         school_year: '',
         payout_title: '',
         amount_per_scholar: '',
@@ -142,19 +145,27 @@ export default function PayoutManagement() {
     try {
       setLoading(true);
 
-      const [batchRes, openingRes] = await Promise.all([
+      const [batchRes, openingRes, academicYearRes] = await Promise.all([
         fetch(`${API_BASE}/payouts`, { headers: getAuthHeaders(false) }),
         fetch(`${API_BASE}/payouts/openings`, { headers: getAuthHeaders(false) }),
+        fetch(`${API_BASE}/payouts/academic-years`, { headers: getAuthHeaders(false) }),
       ]);
 
       if (!batchRes.ok) throw new Error('Failed to load payout batches');
       if (!openingRes.ok) throw new Error('Failed to load openings');
+      if (!academicYearRes.ok) throw new Error('Failed to load academic years');
 
       const batchData = await batchRes.json();
       const openingData = await openingRes.json();
+      const academicYearData = await academicYearRes.json();
 
       setBatches(Array.isArray(batchData) ? batchData : []);
-      setOpenings(Array.isArray(openingData) ? openingData : []);
+      setOpenings(
+        (Array.isArray(openingData) ? openingData : []).filter(
+          (o) => !o.is_archived && String(o.status || '').toLowerCase() !== 'archived'
+        )
+      );
+      setAcademicYears(Array.isArray(academicYearData) ? academicYearData : []);
     } catch (err) {
       console.error('PAYOUT MANAGEMENT LOAD ERROR:', err);
       alert(err.message || 'Failed to load payout module');
@@ -186,7 +197,8 @@ export default function PayoutManagement() {
       setForm(prev => ({
         ...prev,
         semester: opening?.semester || '',
-        school_year: opening?.school_year || '',
+        academic_year_id: opening?.academic_year_id || '',
+        school_year: opening?.academic_year || '',
         payout_title: opening?.opening_title || '',
         amount_per_scholar: opening?.amount_per_scholar ?? '',
         scholar_ids: filteredScholars.map(s => s.scholar_id),
@@ -313,7 +325,7 @@ export default function PayoutManagement() {
       const payload = {
         opening_id: form.opening_id,
         semester: form.semester,
-        school_year: form.school_year,
+        academic_year_id: form.academic_year_id,
         payout_title: form.payout_title,
         payout_date: form.payout_date,
         payment_mode: form.payment_mode,
@@ -337,6 +349,7 @@ export default function PayoutManagement() {
       setForm({
         opening_id: '',
         semester: '',
+        academic_year_id: '',
         school_year: '',
         payout_title: '',
         payout_date: new Date().toISOString().slice(0, 10),
@@ -773,11 +786,29 @@ export default function PayoutManagement() {
 
                       <div className="space-y-1">
                         <label className="text-sm font-medium">School Year</label>
-                        <Input
-                          value={form.school_year}
-                          onChange={(e) => setForm(prev => ({ ...prev, school_year: e.target.value }))}
-                          placeholder="2025-2026"
-                        />
+                        <select
+                          className="w-full h-11 rounded-md border px-3"
+                          value={form.academic_year_id}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            const selectedYear = academicYears.find(
+                              (ay) => ay.academic_year_id === selectedId
+                            );
+
+                            setForm(prev => ({
+                              ...prev,
+                              academic_year_id: selectedId,
+                              school_year: selectedYear?.label || '',
+                            }));
+                          }}
+                        >
+                          <option value="">Select school year</option>
+                          {academicYears.map((ay) => (
+                            <option key={ay.academic_year_id} value={ay.academic_year_id}>
+                              {ay.label}{ay.is_active ? ' (Active)' : ''}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="space-y-1 md:col-span-2">

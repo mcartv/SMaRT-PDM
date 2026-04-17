@@ -139,6 +139,9 @@ async function fetchPayoutOpenings() {
         LEFT JOIN academic_period ap
             ON po.period_id = ap.period_id
 
+        WHERE COALESCE(po.is_archived, FALSE) = FALSE
+          AND LOWER(COALESCE(po.posting_status, '')) <> 'archived'
+
         ORDER BY po.created_at DESC;
     `;
 
@@ -151,32 +154,34 @@ async function fetchPayoutOpenings() {
 // =========================
 async function fetchEligibleScholarsByOpening(openingId) {
     const openingQuery = `
-        SELECT
-            po.opening_id,
-            po.program_id,
-            po.opening_title,
-            po.academic_year_id,
-            po.period_id,
-            ay.label AS academic_year,
-            ap.term AS semester,
-            po.per_scholar_amount AS amount_per_scholar,
-            po.posting_status AS status,
+    SELECT
+        po.opening_id,
+        po.program_id,
+        po.opening_title,
+        po.academic_year_id,
+        po.period_id,
+        ay.label AS academic_year,
+        ap.term AS semester,
+        po.per_scholar_amount AS amount_per_scholar,
+        po.posting_status AS status,
 
-            sp.program_name,
-            b.benefactor_name
+        sp.program_name,
+        b.benefactor_name
 
-        FROM program_openings po
-        LEFT JOIN scholarship_program sp
-            ON po.program_id = sp.program_id
-        LEFT JOIN benefactors b
-            ON sp.benefactor_id = b.benefactor_id
-        LEFT JOIN academic_years ay
-            ON po.academic_year_id = ay.academic_year_id
-        LEFT JOIN academic_period ap
-            ON po.period_id = ap.period_id
-        WHERE po.opening_id = $1
-        LIMIT 1;
-    `;
+    FROM program_openings po
+    LEFT JOIN scholarship_program sp
+        ON po.program_id = sp.program_id
+    LEFT JOIN benefactors b
+        ON sp.benefactor_id = b.benefactor_id
+    LEFT JOIN academic_years ay
+        ON po.academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap
+        ON po.period_id = ap.period_id
+    WHERE po.opening_id = $1
+      AND COALESCE(po.is_archived, FALSE) = FALSE
+      AND LOWER(COALESCE(po.posting_status, '')) <> 'archived'
+    LIMIT 1;
+`;
 
     const openingResult = await pool.query(openingQuery, [openingId]);
 
@@ -248,26 +253,28 @@ async function createPayoutBatchFromOpening({
     }
 
     const openingQuery = `
-        SELECT
-            po.opening_id,
-            po.program_id,
-            po.opening_title,
-            po.academic_year_id,
-            po.period_id,
-            ay.label AS academic_year,
-            ap.term AS semester,
-            po.per_scholar_amount AS amount_per_scholar,
-            sp.program_name
-        FROM program_openings po
-        LEFT JOIN scholarship_program sp
-            ON po.program_id = sp.program_id
-        LEFT JOIN academic_years ay
-            ON po.academic_year_id = ay.academic_year_id
-        LEFT JOIN academic_period ap
-            ON po.period_id = ap.period_id
-        WHERE po.opening_id = $1
-        LIMIT 1;
-    `;
+    SELECT
+        po.opening_id,
+        po.program_id,
+        po.opening_title,
+        po.academic_year_id,
+        po.period_id,
+        ay.label AS academic_year,
+        ap.term AS semester,
+        po.per_scholar_amount AS amount_per_scholar,
+        sp.program_name
+    FROM program_openings po
+    LEFT JOIN scholarship_program sp
+        ON po.program_id = sp.program_id
+    LEFT JOIN academic_years ay
+        ON po.academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap
+        ON po.period_id = ap.period_id
+    WHERE po.opening_id = $1
+      AND COALESCE(po.is_archived, FALSE) = FALSE
+      AND LOWER(COALESCE(po.posting_status, '')) <> 'archived'
+    LIMIT 1;
+`;
 
     const openingResult = await pool.query(openingQuery, [opening_id]);
 
@@ -521,11 +528,29 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     };
 }
 
+async function fetchAcademicYears() {
+    const query = `
+        SELECT
+            academic_year_id,
+            start_year,
+            end_year,
+            label,
+            is_active
+        FROM academic_years
+        ORDER BY start_year DESC;
+    `;
+
+    const { rows } = await pool.query(query);
+    return rows;
+}
+
 module.exports = {
     fetchPayoutBatches,
     fetchPayoutOpenings,
     fetchEligibleScholarsByOpening,
+    fetchAcademicYears,
     createPayoutBatchFromOpening,
     updateScholarPayoutStatus,
     archivePayoutBatch,
 };
+

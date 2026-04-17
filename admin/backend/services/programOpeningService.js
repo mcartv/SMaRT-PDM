@@ -77,7 +77,7 @@ function mapOpening(opening, counts = {}) {
 
         benefactor_name:
             benefactor?.benefactor_name ||
-            benefactor?.benefactor_name ||
+            benefactor?.organization_name ||
             opening.benefactor_name ||
             null,
 
@@ -183,6 +183,20 @@ async function fetchApplicationsForCounts(openingId = null) {
     return data || [];
 }
 
+async function syncOpeningApplicationsArchiveState(openingId, isArchived) {
+    const { error } = await supabase
+        .from('applications')
+        .update({
+            is_archived: !!isArchived,
+        })
+        .eq('opening_id', openingId);
+
+    if (error) {
+        console.error('SYNC OPENING APPLICATIONS ARCHIVE ERROR:', error);
+        throw new Error(error.message);
+    }
+}
+
 function baseOpeningSelectQuery() {
     return supabase
         .from('program_openings')
@@ -220,7 +234,7 @@ function baseOpeningSelectQuery() {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    benefactor_name,
+                    organization_name,
                     benefactor_type,
                     description,
                     is_archived,
@@ -467,7 +481,7 @@ exports.createProgramOpening = async (payload = {}) => {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    benefactor_name,
+                    organization_name,
                     benefactor_type,
                     description,
                     is_archived,
@@ -480,6 +494,10 @@ exports.createProgramOpening = async (payload = {}) => {
 
     if (error) {
         throw new Error(error.message);
+    }
+
+    if (isArchived) {
+        await syncOpeningApplicationsArchiveState(data.opening_id, true);
     }
 
     return mapOpening(data, {
@@ -620,7 +638,7 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    benefactor_name,
+                    organization_name,
                     benefactor_type,
                     description,
                     is_archived,
@@ -637,10 +655,15 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
 
     if (!data) return null;
 
+    await syncOpeningApplicationsArchiveState(openingId, effectiveArchived);
+
     const applications = await fetchApplicationsForCounts(openingId);
     const counts = buildCounts(data, applications);
 
-    return mapOpening(data, counts);
+    return mapOpening(
+        { ...data, is_archived: effectiveArchived },
+        counts
+    );
 };
 
 exports.closeProgramOpening = async (openingId) => {
@@ -686,7 +709,7 @@ exports.closeProgramOpening = async (openingId) => {
                 benefactors (
                     benefactor_id,
                     benefactor_name,
-                    benefactor_name,
+                    organization_name,
                     benefactor_type,
                     description,
                     is_archived,
@@ -703,6 +726,8 @@ exports.closeProgramOpening = async (openingId) => {
     }
 
     if (!data) return null;
+
+    await syncOpeningApplicationsArchiveState(openingId, false);
 
     const applications = await fetchApplicationsForCounts(openingId);
     const counts = buildCounts(data, applications);

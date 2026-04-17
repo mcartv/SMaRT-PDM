@@ -15,7 +15,8 @@ import {
   Search,
   Eye,
   Users,
-  Building2
+  Building2,
+  Archive
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -73,6 +74,17 @@ function filterScholarsByOpening(scholars = [], openingId) {
   );
 }
 
+function getBatchScholars(batch) {
+  return filterScholarsByOpening(batch?.scholars, batch?.opening_id);
+}
+
+function isBatchFinished(batch) {
+  const scholars = getBatchScholars(batch);
+  if (!scholars.length) return false;
+
+  return scholars.every((s) => s.release_status && s.release_status !== 'Pending');
+}
+
 export default function PayoutManagement() {
   const [batches, setBatches] = useState([]);
   const [openings, setOpenings] = useState([]);
@@ -86,6 +98,7 @@ export default function PayoutManagement() {
   const [search, setSearch] = useState('');
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [archivingBatchId, setArchivingBatchId] = useState(null);
 
   const [form, setForm] = useState({
     opening_id: '',
@@ -119,6 +132,44 @@ export default function PayoutManagement() {
 
     loadOpeningEligibility(form.opening_id);
   }, [form.opening_id]);
+
+  const handleArchiveBatch = async (batch) => {
+    try {
+      if (!batch?.payout_batch_id) return;
+
+      const scholars = getBatchScholars(batch);
+      const hasPending = scholars.some((s) => s.release_status === 'Pending');
+
+      if (hasPending) {
+        alert('This payout batch cannot be archived yet because some scholars are still pending.');
+        return;
+      }
+
+      setArchivingBatchId(batch.payout_batch_id);
+
+      const res = await fetch(
+        `${API_BASE}/payouts/${batch.payout_batch_id}/archive`,
+        {
+          method: 'PATCH',
+          headers: getAuthHeaders(true),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || 'Failed to archive payout batch');
+      }
+
+      await loadAll();
+      setSelectedBatch(null);
+    } catch (err) {
+      console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
+      alert(err.message || 'Failed to archive payout batch');
+    } finally {
+      setArchivingBatchId(null);
+    }
+  };
 
   const loadAll = async () => {
     try {
@@ -398,6 +449,7 @@ export default function PayoutManagement() {
     const released = scholars.filter(s => s.release_status === 'Released').length;
     const absent = scholars.filter(s => s.release_status === 'Absent').length;
     const onHold = scholars.filter(s => s.release_status === 'On Hold').length;
+    const finished = isBatchFinished(b);
 
     return (
       <div
@@ -421,15 +473,27 @@ export default function PayoutManagement() {
             </p>
           </div>
 
-          <Badge
-            className="text-[10px]"
-            style={{
-              background: b.payment_mode === 'Cash' ? C.greenSoft : C.blueSoft,
-              color: b.payment_mode === 'Cash' ? C.green : C.blue,
-            }}
-          >
-            {b.payment_mode || '—'}
-          </Badge>
+          <div className="flex flex-col items-end gap-2">
+            <Badge
+              className="text-[10px]"
+              style={{
+                background: b.payment_mode === 'Cash' ? C.greenSoft : C.blueSoft,
+                color: b.payment_mode === 'Cash' ? C.green : C.blue,
+              }}
+            >
+              {b.payment_mode || '—'}
+            </Badge>
+
+            {b.is_archived ? (
+              <Badge className="text-[10px]" style={{ background: C.slateSoft, color: C.slate }}>
+                Archived
+              </Badge>
+            ) : finished ? (
+              <Badge className="text-[10px]" style={{ background: C.orangeSoft, color: C.orange }}>
+                Ready to Archive
+              </Badge>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 mt-4">
@@ -768,9 +832,28 @@ export default function PayoutManagement() {
                 </p>
               </div>
 
-              <Button variant="outline" onClick={() => setSelectedBatch(null)}>
-                Close
-              </Button>
+
+              <div className="flex items-center gap-2">
+                {!selectedBatch.is_archived && (
+                  <Button
+                    variant="outline"
+                    className="border-stone-300"
+                    disabled={!isBatchFinished(selectedBatch) || archivingBatchId === selectedBatch.payout_batch_id}
+                    onClick={() => handleArchiveBatch(selectedBatch)}
+                  >
+                    {archivingBatchId === selectedBatch.payout_batch_id ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Archive className="w-4 h-4 mr-2" />
+                    )}
+                    Archive Batch
+                  </Button>
+                )}
+
+                <Button variant="outline" onClick={() => setSelectedBatch(null)}>
+                  Close
+                </Button>
+              </div>
             </div>
 
             <div className="p-6 space-y-4">
@@ -805,7 +888,7 @@ export default function PayoutManagement() {
                           size="sm"
                           style={{ background: C.green }}
                           className="text-white"
-                          disabled={workingEntryId === entry.payout_entry_id}
+                          disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
                           onClick={() => handleStatusUpdate(entry, 'Released')}
                         >
                           {workingEntryId === entry.payout_entry_id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Released'}

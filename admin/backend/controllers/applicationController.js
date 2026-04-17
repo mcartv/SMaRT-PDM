@@ -1,6 +1,16 @@
 const applicationService = require('../services/applicationService');
 const ExcelJS = require('exceljs');
 
+function isApprovalStateError(message) {
+    return [
+        'Application not found',
+        'This opening is already archived.',
+        'This opening is already closed.',
+        'This opening is already closed or filled.',
+        'No available slots left for this opening.',
+    ].includes(message);
+}
+
 exports.getApplications = async (req, res) => {
     try {
         const applications = await applicationService.fetchApplications();
@@ -86,12 +96,7 @@ exports.saveApplicationVerification = async (req, res) => {
     } catch (err) {
         console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
 
-        const statusCode =
-            err.message === 'Application not found' ||
-                err.message === 'This opening is already closed or filled.' ||
-                err.message === 'No available slots left for this opening.'
-                ? 400
-                : 500;
+        const statusCode = isApprovalStateError(err.message) ? 400 : 500;
 
         res.status(statusCode).json({
             error: err.message || 'Failed to save verification',
@@ -162,11 +167,7 @@ exports.approveApplication = async (req, res) => {
     } catch (err) {
         console.error('APPROVE APPLICATION CONTROLLER ERROR:', err.message);
 
-        if (
-            err.message === 'Application not found' ||
-            err.message === 'This opening is already closed or filled.' ||
-            err.message === 'No available slots left for this opening.'
-        ) {
+        if (isApprovalStateError(err.message)) {
             return res.status(400).json({
                 message: err.message,
             });

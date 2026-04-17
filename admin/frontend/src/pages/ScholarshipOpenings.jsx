@@ -14,6 +14,7 @@ import {
     FolderOpen,
     Pencil,
     Archive,
+    ArchiveRestore,
     X,
     CheckCircle2,
     Clock3,
@@ -113,10 +114,6 @@ function getAllocatedSlots(openingLike = {}) {
 
 function getAvailableSlots(openingLike = {}) {
     return Math.max(0, getAllocatedSlots(openingLike) - getFilledSlots(openingLike));
-}
-
-function hasAvailableSlots(openingLike = {}) {
-    return getAvailableSlots(openingLike) > 0;
 }
 
 function getComputedDisplayStatus(openingLike = {}) {
@@ -890,6 +887,13 @@ export default function ScholarshipOpenings() {
         await updateOpeningStatus(openingId, 'archived', { is_archived: true });
     };
 
+    const handleUnarchiveOpening = async (opening) => {
+        const availableSlots = getAvailableSlots(opening);
+        const nextStatus = availableSlots > 0 ? 'open' : 'closed';
+
+        await updateOpeningStatus(opening.opening_id, nextStatus, { is_archived: false });
+    };
+
     const handleCloseOpening = async (openingId) => {
         await updateOpeningStatus(openingId, 'closed', { is_archived: false });
     };
@@ -1300,6 +1304,23 @@ export default function ScholarshipOpenings() {
                                             </div>
 
                                             <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                                {isArchived && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleUnarchiveOpening(opening)}
+                                                        className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
+                                                        disabled={isBusy}
+                                                    >
+                                                        {isBusy ? (
+                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                                        ) : (
+                                                            <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
+                                                        )}
+                                                        Unarchive
+                                                    </Button>
+                                                )}
+
                                                 {!isArchived && (
                                                     <Button
                                                         variant="outline"

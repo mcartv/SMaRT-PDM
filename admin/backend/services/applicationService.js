@@ -1293,14 +1293,12 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         if (openingStatus === 'closed') {
             throw new Error('This opening is already closed.');
         }
-
         // If slots are already exhausted, finalize the opening.
         if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
                 `
                 UPDATE program_openings
                 SET posting_status = 'closed',
-                    is_archived = TRUE,
                     filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
                     updated_at = NOW()
                 WHERE opening_id = $1
@@ -1354,14 +1352,8 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             UPDATE program_openings
             SET filled_slots = $2,
                 posting_status = CASE
-                    WHEN posting_status = 'archived' THEN 'archived'
                     WHEN $3 = TRUE THEN 'closed'
-                    WHEN posting_status = 'closed' THEN 'closed'
-                    ELSE 'open'
-                END,
-                is_archived = CASE
-                    WHEN $3 = TRUE THEN TRUE
-                    ELSE COALESCE(is_archived, FALSE)
+                    ELSE posting_status
                 END,
                 updated_at = NOW()
             WHERE opening_id = $1
@@ -1378,7 +1370,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             notificationShouldSend: true,
             student_user_id: row.student_user_id || null,
             opening_auto_closed: shouldFinalizeOpening,
-            opening_archived: shouldFinalizeOpening,
+            opening_archived: false,
         };
     } catch (err) {
         await client.query('ROLLBACK');

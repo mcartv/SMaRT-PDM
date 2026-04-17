@@ -74,3 +74,21 @@ exports.updateScholarStatus = async (req, res) => {
         });
     }
 };
+
+exports.archivePayoutBatch = async (req, res) => {
+    try {
+        const archived_by = req.user?.user_id || req.user?.id || null;
+
+        const row = await payoutService.archivePayoutBatch({
+            payout_batch_id: req.params.batchId,
+            archived_by,
+        });
+
+        res.status(200).json(row);
+    } catch (err) {
+        console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
+        res.status(err.statusCode || 500).json({
+            message: err.message || 'Failed to archive payout batch',
+        });
+    }
+};

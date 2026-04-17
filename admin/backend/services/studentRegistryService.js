@@ -67,6 +67,7 @@ const HEADER_MAP = new Map([
   ['year level', 'year_level'],
   ['year_level', 'year_level'],
   ['year', 'year_level'],
+
   ['sex at birth', 'sex_at_birth'],
   ['sex_at_birth', 'sex_at_birth'],
   ['sex', 'sex_at_birth'],
@@ -154,6 +155,7 @@ async function loadCourseLookupMap() {
     if (!course || course.is_archived) return;
 
     const keys = [course.course_id, course.course_code, course.course_name];
+
     keys.forEach((key) => {
       const normalized = normalizeLookupValue(key);
       if (normalized && !lookup.has(normalized)) {
@@ -175,16 +177,9 @@ function parseCsvText(text) {
   let row = [];
   let inQuotes = false;
 
-  const pushCell = () => {
-    row.push(current);
-    current = '';
-  };
-
   const pushRow = () => {
-    if (row.length > 0 || current.length > 0) {
-      row.push(current);
-      rows.push(row);
-    }
+    row.push(current);
+    rows.push(row);
     row = [];
     current = '';
   };
@@ -204,7 +199,8 @@ function parseCsvText(text) {
     }
 
     if (char === ',' && !inQuotes) {
-      pushCell();
+      row.push(current);
+      current = '';
       continue;
     }
 
@@ -228,6 +224,7 @@ function parseCsvText(text) {
 
 function isHeaderRow(row) {
   const mapped = row.map((cell) => getCanonicalField(cell)).filter(Boolean);
+
   return (
     mapped.includes('student_number') &&
     mapped.includes('given_name') &&
@@ -254,7 +251,20 @@ async function readWorkbookRows(file) {
   }
 
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(file.buffer);
+
+  if (fileName.endsWith('.xlsx')) {
+    await workbook.xlsx.load(file.buffer);
+  } else if (fileName.endsWith('.xls')) {
+    const error = new Error(
+      'Old .xls files are not supported by ExcelJS. Please save the file as .xlsx or .csv first.'
+    );
+    error.statusCode = 400;
+    throw error;
+  } else {
+    const error = new Error('Unsupported file type.');
+    error.statusCode = 400;
+    throw error;
+  }
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) return [];
@@ -335,7 +345,10 @@ function rowsToRecords(rows) {
       degree_program: normalizeText(rawRecord.degree_program),
       year_level: normalizeYearLevel(rawRecord.year_level),
       sex_at_birth: normalizeText(rawRecord.sex_at_birth),
-      email_address: normalizeTextWithLimit(normalizeEmail(rawRecord.email_address), 255),
+      email_address: normalizeTextWithLimit(
+        normalizeEmail(rawRecord.email_address),
+        255
+      ),
       phone_number: normalizeTextWithLimit(rawRecord.phone_number, 50),
     };
 
@@ -386,6 +399,7 @@ async function importStudentRegistryFile(file) {
       skipped,
       duplicate_count: duplicateCount,
       total: 0,
+      replaced_count: 0,
     };
   }
 
@@ -444,6 +458,7 @@ async function importStudentRegistryFile(file) {
 
   for (let index = 0; index < payload.length; index += BATCH_SIZE) {
     const batch = payload.slice(index, index + BATCH_SIZE);
+
     const { error: insertError } = await supabase
       .from(TABLE_NAME)
       .insert(batch);
@@ -465,20 +480,36 @@ async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
   const safeOffset = Math.max(Number(offset) || 0, 0);
 
-  const [{ data, error }, { count, error: countError }] = await Promise.all([
-    supabase
-      .from(TABLE_NAME)
-      .select(
-        { count: 'exact' }
-      )
-      .order('sequence_number', { ascending: true, nullsFirst: false })
-      .order('student_number', { ascending: true })
-      .range(safeOffset, safeOffset + safeLimit - 1),
-    supabase.from(TABLE_NAME).select('registry_id', { count: 'exact', head: true }),
-  ]);
+  const { data, error, count } = await supabase
+    .from(TABLE_NAME)
+    .select(
+      `
+        registry_id,
+        sequence_number,
+        student_number,
+        learners_reference_number,
+        given_name,
+        middle_name,
+        last_name,
+        year_level,
+        sex_at_birth,
+        email_address,
+        phone_number,
+        course_id,
+        academic_course (
+          course_id,
+          course_code,
+          course_name
+        )
+      `,
+      { count: 'exact' }
+    )
+    .eq('is_archived', false)
+    .order('sequence_number', { ascending: true, nullsFirst: false })
+    .order('student_number', { ascending: true })
+    .range(safeOffset, safeOffset + safeLimit - 1);
 
   if (error) throw error;
-  if (countError) throw countError;
 
   return {
     total: count || 0,

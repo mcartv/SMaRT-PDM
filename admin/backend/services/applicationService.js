@@ -1289,12 +1289,17 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             };
         }
 
+        // Manual close should block approvals.
+        if (openingStatus === 'closed') {
+            throw new Error('This opening is already closed.');
+        }
         // If slots are already exhausted, finalize the opening.
         if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
-                `   
+                `
                 UPDATE program_openings
                 SET posting_status = 'closed',
+                    filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
                     updated_at = NOW()
                 WHERE opening_id = $1
                 `,
@@ -1342,28 +1347,19 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         const nextFilledSlots = newApprovedCount;
         const shouldFinalizeOpening = slotCount > 0 && newApprovedCount >= slotCount;
 
-        if (slotCount > 0 && newApprovedCount >= slotCount) {
-            await client.query(
-                `
-                UPDATE program_openings
-                SET posting_status = 'closed',
-                    filled_slots = $2,
-                    updated_at = NOW()
-                WHERE opening_id = $1
-                `,
-                [row.opening_id, nextFilledSlots]
-            );
-        } else {
-            await client.query(
-                `
-                UPDATE program_openings
-                SET filled_slots = $2,
-                    updated_at = NOW()
-                WHERE opening_id = $1
-                `,
-                [row.opening_id, nextFilledSlots]
-            );
-        }
+        await client.query(
+            `
+            UPDATE program_openings
+            SET filled_slots = $2,
+                posting_status = CASE
+                    WHEN $3 = TRUE THEN 'closed'
+                    ELSE posting_status
+                END,
+                updated_at = NOW()
+            WHERE opening_id = $1
+            `,
+            [row.opening_id, nextFilledSlots, shouldFinalizeOpening]
+        );
 
         await client.query('COMMIT');
 
@@ -1374,7 +1370,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             notificationShouldSend: true,
             student_user_id: row.student_user_id || null,
             opening_auto_closed: shouldFinalizeOpening,
-            opening_archived: shouldFinalizeOpening,
+            opening_archived: false,
         };
     } catch (err) {
         await client.query('ROLLBACK');

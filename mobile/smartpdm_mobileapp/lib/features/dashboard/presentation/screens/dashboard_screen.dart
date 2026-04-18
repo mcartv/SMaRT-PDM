@@ -175,7 +175,7 @@ class _DashboardContentState extends State<DashboardContent> {
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.darkBrown,
+                      color: Colors.white,
                       letterSpacing: 0.6,
                     ),
                   ),
@@ -600,7 +600,7 @@ class _DashboardContentState extends State<DashboardContent> {
                         icon: const Icon(Icons.visibility),
                         label: const Text('View RO'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
+                          backgroundColor: AppColors.gold,
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -615,7 +615,7 @@ class _DashboardContentState extends State<DashboardContent> {
                         icon: const Icon(Icons.done_all),
                         label: const Text('Submit RO'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.darkBrown,
+                          foregroundColor: Colors.white,
                           side: BorderSide(
                             color: AppColors.gold.withOpacity(0.8),
                           ),

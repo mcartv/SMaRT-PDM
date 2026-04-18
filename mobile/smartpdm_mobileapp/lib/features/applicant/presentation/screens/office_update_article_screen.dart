@@ -69,7 +69,7 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: notification.accentColor,
+                        color: Colors.white,
                         letterSpacing: 0.5,
                       ),
                     ),

@@ -311,7 +311,7 @@ class _OfficeUpdatePreviewCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: notification.accentColor,
+                        color: Colors.white,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -400,7 +400,7 @@ class _NotificationTile extends StatelessWidget {
             color: notification.accentColor.withOpacity(0.18),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(notification.icon, color: notification.accentColor),
+          child: Icon(notification.icon, color: const Color(0xFFFCD450)),
         ),
         title: Row(
           children: [

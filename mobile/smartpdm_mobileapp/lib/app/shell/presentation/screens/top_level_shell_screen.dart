@@ -132,8 +132,16 @@ class _MessagingFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final badgeBorderColor =
-        isDark ? Colors.black.withOpacity(0.35) : Colors.white.withOpacity(0.9);
+    final fabGradient = isDark
+        ? const [AppColors.yellow, AppColors.gold]
+        : const [Color(0xFFF8F3ED), Color(0xFFF4E1B8)];
+    final fabForegroundColor = isDark ? AppColors.darkBrown : AppColors.brown;
+    final fabBorderColor = isDark
+        ? AppColors.gold.withOpacity(0.2)
+        : AppColors.gold.withOpacity(0.55);
+    final badgeBorderColor = isDark
+        ? Colors.black.withOpacity(0.35)
+        : Colors.white.withOpacity(0.9);
 
     return Stack(
       clipBehavior: Clip.none,
@@ -141,16 +149,19 @@ class _MessagingFab extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [AppColors.yellow, AppColors.gold],
+              colors: fabGradient,
             ),
+            border: Border.all(color: fabBorderColor),
             boxShadow: [
               BoxShadow(
-                color: AppColors.brown.withOpacity(0.28),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+                color: isDark
+                    ? AppColors.brown.withOpacity(0.28)
+                    : AppColors.brown.withOpacity(0.16),
+                blurRadius: isDark ? 18 : 14,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -160,7 +171,7 @@ class _MessagingFab extends StatelessWidget {
             elevation: 0,
             highlightElevation: 0,
             backgroundColor: Colors.transparent,
-            foregroundColor: AppColors.darkBrown,
+            foregroundColor: fabForegroundColor,
             child: const Icon(Icons.forum_rounded, size: 28),
           ),
         ),
@@ -174,10 +185,7 @@ class _MessagingFab extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.darkBrown,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: badgeBorderColor,
-                  width: 2,
-                ),
+                border: Border.all(color: badgeBorderColor, width: 2),
               ),
               child: Text(
                 unreadCount > 99 ? '99+' : '$unreadCount',

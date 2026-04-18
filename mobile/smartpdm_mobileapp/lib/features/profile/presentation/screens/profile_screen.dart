@@ -155,8 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final address = prefs.getString('user_address') ?? '';
     final studentId = prefs.getString('user_student_id') ?? '';
     final imagePath = prefs.getString('user_profile_image');
-    final hasScholarAccess =
-        prefs.getBool('user_has_scholar_access') ?? false;
+    final hasScholarAccess = prefs.getBool('user_has_scholar_access') ?? false;
 
     if (!mounted) return;
 
@@ -451,7 +450,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.transparent,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
-      selectedIndex: 3,
+      selectedIndex: 2,
       showBottomNav: widget.showBottomNav,
       showDrawer: true,
       child: _isProfileLoading

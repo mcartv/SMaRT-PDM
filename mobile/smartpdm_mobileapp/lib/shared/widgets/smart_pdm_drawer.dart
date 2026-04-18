@@ -189,12 +189,6 @@ class SmartPdmDrawer extends StatelessWidget {
           ),
           _buildDrawerItem(
             context: context,
-            icon: Icons.chat,
-            label: 'Messages',
-            route: AppRoutes.messaging,
-          ),
-          _buildDrawerItem(
-            context: context,
             icon: Icons.alternate_email,
             label: 'Change Email',
             route: AppRoutes.changeEmail,

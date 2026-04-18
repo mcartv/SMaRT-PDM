@@ -1,7 +1,7 @@
 node_modules/
 dist/
 build/
-
+mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
 
 # Flutter generated files
 **/generated_plugin_registrant.cc

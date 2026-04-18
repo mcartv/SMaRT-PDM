@@ -30,6 +30,7 @@ class AppTheme {
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
+        selectedItemColor: accentColor,
       ),
       visualDensity: VisualDensity.adaptivePlatformDensity,
     );

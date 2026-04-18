@@ -7,3 +7,18 @@ mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
 **/generated_plugin_registrant.cc
 **/generated_plugins.cmake
 **/GeneratedPluginRegistrant.swift
+
+# Supabase local metadata
+supabase/.temp/
+*.sql
+*.dump
+*.backup
+
+# Supabase CLI generated files
+supabase/**/linked-project.json
+supabase/**/project-ref
+supabase/**/pooler-url
+supabase/**/gotrue-version
+supabase/**/rest-version
+supabase/**/storage-version
+supabase/**/postgres-version

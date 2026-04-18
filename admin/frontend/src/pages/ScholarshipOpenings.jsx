@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,22 +26,22 @@ import {
     Users,
     Lock,
     Unlock,
+    LayoutGrid,
+    Table2,
 } from 'lucide-react';
 
 const C = {
-    brown: '#5c2d0e',
     brownMid: '#7c4a2e',
-    amber: '#d97706',
-    amberSoft: '#FFF7ED',
     green: '#16a34a',
     greenSoft: '#F0FDF4',
+    amber: '#d97706',
+    amberSoft: '#FFF7ED',
     red: '#dc2626',
     redSoft: '#FEF2F2',
     blueMid: '#2563EB',
     blueSoft: '#EFF6FF',
-    text: '#1c1917',
     bg: '#faf7f2',
-    muted: '#78716c',
+    line: '#e7e5e4',
 };
 
 const STATUS_META = {
@@ -140,7 +140,6 @@ function derivePersistedOpeningStatus(payload, existingStatus = '') {
         Number(payload.allocated_slots || 0) > 0;
 
     if (!hasRequiredFields) return 'draft';
-
     return 'open';
 }
 
@@ -153,24 +152,26 @@ function canOpeningBeOpened(openingLike = {}) {
     );
 }
 
-function StatCard({ label, value, icon: Icon, accent, soft }) {
+function MiniStat({ label, value, icon: Icon, soft, accent }) {
     return (
-        <Card className="border-stone-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
+        <div
+            className="rounded-xl border bg-white px-4 py-3"
+            style={{ borderColor: C.line }}
+        >
+            <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-[11px] font-medium text-stone-500">{label}</p>
+                    <p className="mt-0.5 text-xl font-semibold text-stone-900">{value}</p>
+                </div>
+
                 <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
                     style={{ background: soft }}
                 >
-                    <Icon className="w-4 h-4" style={{ color: accent }} />
+                    <Icon className="h-4 w-4" style={{ color: accent }} />
                 </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-                <div className="text-2xl font-semibold" style={{ color: C.text }}>
-                    {value}
-                </div>
-                <p className="text-xs text-stone-500 mt-0.5">{label}</p>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }
 
@@ -179,7 +180,7 @@ function EmptyState({ icon: Icon, title, subtitle }) {
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
             <Icon size={40} className="mb-3 text-stone-300" />
             <p className="text-sm font-semibold text-stone-700">{title}</p>
-            <p className="text-xs text-stone-400 mt-1">{subtitle}</p>
+            <p className="mt-1 text-xs text-stone-400">{subtitle}</p>
         </div>
     );
 }
@@ -198,7 +199,7 @@ function OpeningModal({
     if (!open) return null;
 
     const isEdit = mode === 'edit';
-    const title = isEdit ? 'Edit Scholarship Opening' : 'Open Program for New Batch';
+    const title = isEdit ? 'Edit Scholarship Opening' : 'Create Scholarship Opening';
     const previewStatus = getComputedDisplayStatus({
         ...form,
         posting_status: derivePersistedOpeningStatus(form, form.posting_status),
@@ -212,89 +213,79 @@ function OpeningModal({
             : 0;
 
     const audienceLabel = targetAudienceLabel(form.target_audience);
-    const audienceTooltip =
-        audienceLabel === 'Scholars & Applicants'
-            ? 'Visible to both scholars and applicants'
-            : audienceLabel === 'Scholars'
-                ? 'Visible only to existing scholars'
-                : 'Visible only to new applicants';
-
     const selectedAcademicYear =
         academicYears.find((y) => y.academic_year_id === form.academic_year_id) || null;
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
             onClick={onClose}
         >
             <Card
-                className="w-full max-w-4xl max-h-[90vh] flex flex-col border-stone-200 shadow-xl overflow-hidden"
+                className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden border-stone-200 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between shrink-0">
+                <div className="flex shrink-0 items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
                     <div>
                         <h3 className="text-base font-semibold text-stone-800">{title}</h3>
-                        <p className="text-xs text-stone-500 mt-0.5">
-                            {isEdit
-                                ? 'Update this scholarship opening'
-                                : 'Create a live scholarship opening from the selected template'}
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Configure the opening details, slots, and financial allocation.
                         </p>
                     </div>
 
                     <button
                         onClick={onClose}
-                        className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                        className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
                     >
                         <X size={16} />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                <div className="flex-1 space-y-5 overflow-y-auto p-5">
                     {template && (
                         <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                             <div className="flex items-start gap-3">
                                 <div
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
                                     style={{ background: C.blueSoft }}
                                 >
-                                    <Layers3 className="w-4 h-4" style={{ color: C.blueMid }} />
+                                    <Layers3 className="h-4 w-4" style={{ color: C.blueMid }} />
                                 </div>
 
                                 <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <p className="text-sm font-semibold text-stone-800">
                                             {template.program_name || 'Untitled Program'}
                                         </p>
 
-                                        <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
+                                        <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
                                             {template.benefactor_name || 'No Organization'}
                                         </Badge>
 
                                         <Badge
                                             variant="outline"
-                                            className={`text-[10px] ${previewStatus === 'open'
-                                                ? 'border-green-200 bg-green-50 text-green-700'
-                                                : previewStatus === 'closed'
-                                                    ? 'border-red-200 bg-red-50 text-red-700'
-                                                    : previewStatus === 'draft'
-                                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                                        : 'border-stone-200 bg-white text-stone-600'
-                                                }`}
+                                            className="border-purple-200 bg-purple-50 text-[10px] text-purple-700"
                                         >
-                                            Preview Status: {STATUS_META[previewStatus]?.label || 'Draft'}
+                                            <Users className="mr-1 h-3 w-3" />
+                                            {audienceLabel}
                                         </Badge>
 
                                         <Badge
                                             variant="outline"
-                                            className="text-[10px] border-purple-200 bg-purple-50 text-purple-700"
-                                            title={audienceTooltip}
+                                            className={`text-[10px] ${previewStatus === 'open'
+                                                    ? 'border-green-200 bg-green-50 text-green-700'
+                                                    : previewStatus === 'closed'
+                                                        ? 'border-red-200 bg-red-50 text-red-700'
+                                                        : previewStatus === 'draft'
+                                                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                            : 'border-stone-200 bg-white text-stone-600'
+                                                }`}
                                         >
-                                            <Users className="w-3 h-3 mr-1" />
-                                            Audience: {audienceLabel}
+                                            {STATUS_META[previewStatus]?.label || 'Draft'}
                                         </Badge>
                                     </div>
 
-                                    <p className="text-xs text-stone-500 mt-1">
+                                    <p className="mt-1 text-xs text-stone-500">
                                         {template.description || 'No default description set.'}
                                     </p>
                                 </div>
@@ -302,20 +293,8 @@ function OpeningModal({
                         </div>
                     )}
 
-                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-                        <p className="text-sm font-medium text-stone-800">Status behavior</p>
-                        <p className="text-xs text-stone-500 mt-1">
-                            Draft if incomplete. Open when ready. Closed means finalized or manually closed.
-                            Archived hides the opening from active lists.
-                        </p>
-                    </div>
-
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">
-                            Opening Information
-                        </h4>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                        <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                     Opening Title
@@ -323,24 +302,12 @@ function OpeningModal({
                                 <Input
                                     value={form.opening_title}
                                     onChange={(e) => setForm((prev) => ({ ...prev, opening_title: e.target.value }))}
-                                    placeholder="e.g. Kaizen Scholarship Opening 2025-2026"
+                                    placeholder="e.g. Kaizen Scholarship Opening 2026-2027"
                                     className="h-10 rounded-lg border-stone-200 text-sm"
                                 />
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Target Audience
-                                </label>
-                                <Input
-                                    value={audienceLabel}
-                                    readOnly
-                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
-                                    style={{ color: C.brownMid }}
-                                />
-                            </div>
-
-                            <div className="space-y-1.5 md:col-span-2">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                     Academic Year
                                 </label>
@@ -374,7 +341,7 @@ function OpeningModal({
                                 </Select>
                             </div>
 
-                            <div className="space-y-1.5 md:col-span-2">
+                            <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                     Selected School Year
                                 </label>
@@ -385,15 +352,21 @@ function OpeningModal({
                                     style={{ color: C.brownMid }}
                                 />
                             </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Target Audience
+                                </label>
+                                <Input
+                                    value={audienceLabel}
+                                    readOnly
+                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
+                                    style={{ color: C.brownMid }}
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">
-                            Financial and Slot Information
-                        </h4>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                     Allocated Slots
@@ -435,31 +408,31 @@ function OpeningModal({
                                     style={{ color: C.brownMid }}
                                 />
                             </div>
-                        </div>
 
-                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
-                            <p className="text-xs text-emerald-700">
-                                <span className="font-semibold">Allocated Slots:</span> {allocatedSlots}
-                                {' · '}
-                                <span className="font-semibold">Per Scholar:</span> ₱{perScholarFinancial.toLocaleString()}
-                            </p>
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                <p className="text-xs text-emerald-700">
+                                    <span className="font-semibold">Allocated Slots:</span> {allocatedSlots}
+                                    {' · '}
+                                    <span className="font-semibold">Per Scholar:</span> ₱{perScholarFinancial.toLocaleString()}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-semibold text-stone-800 border-b border-stone-200 pb-2">
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                             Opening Notes
-                        </h4>
+                        </label>
                         <Textarea
                             value={form.announcement_text}
                             onChange={(e) => setForm((prev) => ({ ...prev, announcement_text: e.target.value }))}
                             placeholder="Instructions, reminders, notes, or conditions..."
-                            className="min-h-[120px] rounded-lg border-stone-200 text-sm resize-none"
+                            className="min-h-[120px] resize-none rounded-lg border-stone-200 text-sm"
                         />
                     </div>
                 </div>
 
-                <div className="px-5 py-4 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2 shrink-0">
+                <div className="flex shrink-0 items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
                     <Button
                         variant="outline"
                         onClick={onClose}
@@ -476,10 +449,10 @@ function OpeningModal({
                             !form.academic_year_id ||
                             !form.program_id
                         }
-                        className="h-9 rounded-lg text-white text-xs border-none disabled:opacity-50"
+                        className="h-9 rounded-lg border-none text-xs text-white disabled:opacity-50"
                         style={{ background: C.brownMid }}
                     >
-                        {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                         {isEdit ? 'Save Changes' : 'Create Opening'}
                     </Button>
                 </div>
@@ -493,26 +466,26 @@ function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
             onClick={onClose}
         >
             <Card
-                className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
+                className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-5 py-4 border-b border-stone-100 bg-stone-50">
+                <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
                     <h3 className="text-base font-semibold text-stone-800">Opening Created</h3>
-                    <p className="text-xs text-stone-500 mt-0.5">
+                    <p className="mt-0.5 text-xs text-stone-500">
                         {opening.opening_title || 'Scholarship opening created successfully.'}
                     </p>
                 </div>
 
-                <CardContent className="p-5 space-y-4">
+                <CardContent className="space-y-4 p-5">
                     <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                         <p className="text-sm font-medium text-stone-800">
                             Do you want to create an announcement for this opening now?
                         </p>
-                        <p className="text-xs text-stone-500 mt-1">
+                        <p className="mt-1 text-xs text-stone-500">
                             This will redirect you to the announcements page with prefilled content.
                         </p>
                     </div>
@@ -527,16 +500,290 @@ function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
                         </Button>
                         <Button
                             onClick={onCreateAnnouncement}
-                            className="h-9 rounded-lg text-white text-xs border-none"
+                            className="h-9 rounded-lg border-none text-xs text-white"
                             style={{ background: C.brownMid }}
                         >
-                            <Megaphone className="w-4 h-4 mr-2" />
+                            <Megaphone className="mr-2 h-4 w-4" />
                             Create Announcement
                         </Button>
                     </div>
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+function TemplateCard({ template, onOpen }) {
+    return (
+        <Card className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300">
+            <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold text-stone-900">
+                                {template.program_name || 'Untitled Program'}
+                            </h3>
+
+                            <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
+                                {template.benefactor_name || 'No Organization'}
+                            </Badge>
+
+                            <Badge
+                                variant="outline"
+                                className="border-purple-200 bg-purple-50 text-[10px] text-purple-700"
+                            >
+                                <Users className="mr-1 h-3 w-3" />
+                                {targetAudienceLabel(template.target_audience || deriveTargetAudience(template))}
+                            </Badge>
+                        </div>
+
+                        <p className="mt-2 text-xs leading-relaxed text-stone-500">
+                            {template.description || 'No description available.'}
+                        </p>
+                    </div>
+
+                    <Button
+                        size="sm"
+                        className="h-8 shrink-0 rounded-lg border-none px-3 text-xs text-white"
+                        style={{ background: C.brownMid }}
+                        onClick={() => onOpen(template)}
+                    >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Open
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function OpeningCard({
+    opening,
+    actionLoadingId,
+    openEditModal,
+    handleUnarchiveOpening,
+    handleOpenDraftOpening,
+    handleMoveToDraft,
+    handleCloseOpening,
+    handleReopenOpening,
+    handleArchiveOpening,
+}) {
+    const computedStatus = getComputedDisplayStatus(opening);
+    const meta = STATUS_META[computedStatus] || STATUS_META.draft;
+    const audience = normalizeAudience(opening.target_audience) || 'Applicants';
+    const audienceLabelValue = targetAudienceLabel(audience);
+
+    const allocatedSlots = getAllocatedSlots(opening);
+    const filledSlots = getFilledSlots(opening);
+    const availableSlots = getAvailableSlots(opening);
+
+    const isArchived = computedStatus === 'archived';
+    const isClosed = computedStatus === 'closed';
+    const isDraft = computedStatus === 'draft';
+    const canBeOpened = canOpeningBeOpened(opening);
+    const canReopen = isClosed && availableSlots > 0;
+    const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
+    const isBusy = actionLoadingId === opening.opening_id;
+
+    const perScholar =
+        opening.per_scholar_amount ??
+        (allocatedSlots > 0
+            ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
+            : 0);
+
+    return (
+        <Card className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300">
+            <CardContent className="p-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="text-sm font-semibold text-stone-900">
+                                    {opening.opening_title || 'Untitled Opening'}
+                                </h3>
+
+                                <span
+                                    className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+                                    style={{ color: meta.color, background: meta.bg }}
+                                >
+                                    {meta.label}
+                                </span>
+                            </div>
+
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
+                                    {opening.program_name || 'No Program'}
+                                </Badge>
+
+                                <Badge
+                                    variant="outline"
+                                    className={`text-[10px] ${audience === 'Both'
+                                            ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                            : audience === 'Scholars'
+                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                                : 'border-sky-200 bg-sky-50 text-sky-700'
+                                        }`}
+                                >
+                                    <Users className="mr-1 h-3 w-3" />
+                                    {audienceLabelValue}
+                                </Badge>
+                            </div>
+
+                            <p className="mt-2 text-xs text-stone-500">
+                                {opening.benefactor_name || 'No Benefactor'}
+                            </p>
+
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">AY</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{opening.academic_year || 'N/A'}</p>
+                                </div>
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Slots</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{allocatedSlots}</p>
+                                </div>
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Filled</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{filledSlots}</p>
+                                </div>
+                                <div className="rounded-lg bg-stone-50 px-3 py-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Per Scholar</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{fmtMoney(perScholar)}</p>
+                                </div>
+                            </div>
+
+                            {opening.announcement_text && (
+                                <details className="mt-3 text-xs">
+                                    <summary className="cursor-pointer text-stone-500 hover:text-stone-700">
+                                        View notes
+                                    </summary>
+                                    <p className="mt-1 leading-relaxed text-stone-600">
+                                        {opening.announcement_text}
+                                    </p>
+                                </details>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
+                            {isArchived && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleUnarchiveOpening(opening)}
+                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Unarchive
+                                </Button>
+                            )}
+
+                            {!isArchived && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openEditModal(opening)}
+                                    className="h-7 rounded-md border-stone-200 px-2 text-[11px]"
+                                    disabled={isBusy}
+                                >
+                                    <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                                    Edit
+                                </Button>
+                            )}
+
+                            {!isArchived && isDraft && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenDraftOpening(opening)}
+                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                    disabled={isBusy || !canBeOpened}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Unlock className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Open
+                                </Button>
+                            )}
+
+                            {canMoveToDraft && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleMoveToDraft(opening)}
+                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Draft
+                                </Button>
+                            )}
+
+                            {!isArchived && !isClosed && !isDraft && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCloseOpening(opening.opening_id)}
+                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Lock className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Close
+                                </Button>
+                            )}
+
+                            {!isArchived && isClosed && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleReopenOpening(opening)}
+                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                    disabled={isBusy || !canReopen}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Unlock className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Reopen
+                                </Button>
+                            )}
+
+                            {!isArchived && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleArchiveOpening(opening.opening_id)}
+                                    className="h-7 rounded-md border-red-200 px-2 text-[11px] text-red-700 hover:bg-red-50"
+                                    disabled={isBusy}
+                                >
+                                    {isBusy ? (
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                    )}
+                                    Archive
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 
@@ -551,9 +798,10 @@ export default function ScholarshipOpenings() {
     const [actionLoadingId, setActionLoadingId] = useState(null);
 
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('All Statuses');
     const [programFilter, setProgramFilter] = useState('All Programs');
     const [audienceFilter, setAudienceFilter] = useState('All Audiences');
+    const [viewMode, setViewMode] = useState('cards');
+    const [pageTab, setPageTab] = useState('current');
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -654,10 +902,35 @@ export default function ScholarshipOpenings() {
     }, [openings]);
 
     const programOptions = useMemo(() => {
-        return ['All Programs', ...new Set(visibleOpenings.map((o) => o.program_name).filter(Boolean))];
-    }, [visibleOpenings]);
+        const source = pageTab === 'templates' ? templates : visibleOpenings;
+        const values = source.map((o) => o.program_name).filter(Boolean);
+        return ['All Programs', ...new Set(values)];
+    }, [templates, visibleOpenings, pageTab]);
 
     const audienceOptions = ['All Audiences', 'Applicants', 'Scholars', 'Both'];
+
+    const filteredTemplates = useMemo(() => {
+        const q = search.trim().toLowerCase();
+
+        return templates.filter((t) => {
+            const matchSearch =
+                !q ||
+                (t.program_name || '').toLowerCase().includes(q) ||
+                (t.benefactor_name || '').toLowerCase().includes(q) ||
+                (t.description || '').toLowerCase().includes(q);
+
+            const templateAudience = normalizeAudience(t.target_audience) || deriveTargetAudience(t);
+            const matchAudience =
+                audienceFilter === 'All Audiences' ||
+                templateAudience === audienceFilter;
+
+            const matchProgram =
+                programFilter === 'All Programs' ||
+                (t.program_name || '') === programFilter;
+
+            return matchSearch && matchAudience && matchProgram;
+        });
+    }, [templates, search, audienceFilter, programFilter]);
 
     const filteredOpenings = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -666,16 +939,18 @@ export default function ScholarshipOpenings() {
             .filter((o) => {
                 const computedStatus = getComputedDisplayStatus(o);
 
+                const inCurrentTab = pageTab === 'current' && computedStatus !== 'archived';
+                const inArchivedTab = pageTab === 'archived' && computedStatus === 'archived';
+
+                if (pageTab === 'templates') return false;
+                if (!inCurrentTab && !inArchivedTab) return false;
+
                 const matchSearch =
                     !q ||
                     (o.opening_title || '').toLowerCase().includes(q) ||
                     (o.program_name || '').toLowerCase().includes(q) ||
                     (o.benefactor_name || '').toLowerCase().includes(q) ||
                     (o.academic_year || '').toLowerCase().includes(q);
-
-                const matchStatus =
-                    statusFilter === 'All Statuses' ||
-                    computedStatus === statusFilter.toLowerCase();
 
                 const matchProgram =
                     programFilter === 'All Programs' ||
@@ -686,7 +961,7 @@ export default function ScholarshipOpenings() {
                     audienceFilter === 'All Audiences' ||
                     openingAudience === audienceFilter;
 
-                return matchSearch && matchStatus && matchProgram && matchAudience;
+                return matchSearch && matchProgram && matchAudience;
             })
             .sort((a, b) => {
                 const aCreated = a?.created_at ? new Date(a.created_at).getTime() : 0;
@@ -699,7 +974,7 @@ export default function ScholarshipOpenings() {
 
                 return bUpdated - aUpdated;
             });
-    }, [visibleOpenings, search, statusFilter, programFilter, audienceFilter]);
+    }, [visibleOpenings, search, programFilter, audienceFilter, pageTab]);
 
     const stats = useMemo(() => {
         return {
@@ -707,6 +982,7 @@ export default function ScholarshipOpenings() {
             total: visibleOpenings.length,
             open: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'open').length,
             draft: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'draft').length,
+            archived: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'archived').length,
         };
     }, [templates, visibleOpenings]);
 
@@ -905,7 +1181,6 @@ export default function ScholarshipOpenings() {
     const handleUnarchiveOpening = async (opening) => {
         const availableSlots = getAvailableSlots(opening);
         const nextStatus = availableSlots > 0 ? 'open' : 'closed';
-
         await updateOpeningStatus(opening.opening_id, nextStatus, { is_archived: false });
     };
 
@@ -963,9 +1238,9 @@ export default function ScholarshipOpenings() {
 
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-                <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-                <p className="text-xs text-stone-400 uppercase tracking-widest">
+            <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
+                <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
+                <p className="text-xs uppercase tracking-widest text-stone-400">
                     Loading scholarship openings.
                 </p>
             </div>
@@ -973,7 +1248,7 @@ export default function ScholarshipOpenings() {
     }
 
     return (
-        <div className="space-y-5 py-2" style={{ background: C.bg }}>
+        <div className="space-y-4 py-3" style={{ background: C.bg }}>
             <OpeningModal
                 open={modalOpen}
                 mode={modalMode}
@@ -1001,465 +1276,468 @@ export default function ScholarshipOpenings() {
                 onCreateAnnouncement={handleCreateAnnouncementRedirect}
             />
 
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                <div>
-                    <h1 className="text-xl font-semibold text-stone-900">Scholarship Openings</h1>
-                    <p className="text-sm text-stone-500">
-                        Open scholarship programs for a new academic year.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={fetchData}
-                        className="rounded-lg text-xs border-stone-200 text-stone-600"
-                    >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                        Refresh
-                    </Button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <StatCard
+            <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <MiniStat
                     label="Available Templates"
                     value={stats.templates}
                     icon={FolderOpen}
                     accent={C.blueMid}
                     soft={C.blueSoft}
                 />
-                <StatCard
+                <MiniStat
                     label="Total Openings"
                     value={stats.total}
                     icon={CalendarDays}
                     accent={C.brownMid}
                     soft={C.amberSoft}
                 />
-                <StatCard
+                <MiniStat
                     label="Open"
                     value={stats.open}
                     icon={CheckCircle2}
                     accent={C.green}
                     soft={C.greenSoft}
                 />
-                <StatCard
+                <MiniStat
                     label="Draft"
                     value={stats.draft}
                     icon={Clock3}
                     accent={C.amber}
                     soft={C.amberSoft}
                 />
-            </div>
+                <MiniStat
+                    label="Archived"
+                    value={stats.archived}
+                    icon={Archive}
+                    accent={'#57534e'}
+                    soft={'#f5f5f4'}
+                />
+            </section>
 
-            <Card className="border-stone-200 shadow-none overflow-hidden">
-                <CardHeader className="bg-stone-50/60 border-b border-stone-100">
-                    <CardTitle className="text-sm font-semibold text-stone-800">Published Scholarship Program Templates</CardTitle>
-                    <CardDescription className="text-xs">
-                        Choose a published template below to create a scholarship opening.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="p-4">
-                    {templates.length === 0 ? (
-                        <EmptyState
-                            icon={FolderOpen}
-                            title="No published templates found"
-                            subtitle="Create and publish scholarship programs first."
-                        />
-                    ) : (
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            {templates.map((template) => (
-                                <div
-                                    key={template.program_id}
-                                    className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
-                                >
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <h3 className="text-sm font-semibold text-stone-900">
-                                                    {template.program_name || 'Untitled Program'}
-                                                </h3>
-                                                <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                                    {template.benefactor_name || 'No Organization'}
-                                                </Badge>
-                                                <Badge
-                                                    variant="outline"
-                                                    className="text-[10px] border-purple-200 bg-purple-50 text-purple-700"
-                                                >
-                                                    <Users className="w-3 h-3 mr-1" />
-                                                    {targetAudienceLabel(template.target_audience || deriveTargetAudience(template))}
-                                                </Badge>
-                                            </div>
+            <section
+                className="rounded-2xl border bg-white p-3 sm:p-4"
+                style={{ borderColor: C.line }}
+            >
+                <div className="space-y-3">
+                    <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
+                        <button
+                            onClick={() => setPageTab('templates')}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'templates'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-600'
+                                }`}
+                        >
+                            Templates
+                        </button>
 
-                                            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                                                {template.description || 'No description available.'}
-                                            </p>
-                                        </div>
+                        <button
+                            onClick={() => setPageTab('current')}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'current'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-600'
+                                }`}
+                        >
+                            Current
+                        </button>
 
-                                        <Button
-                                            size="sm"
-                                            className="rounded-lg text-white text-xs border-none shrink-0"
-                                            style={{ background: C.brownMid }}
-                                            onClick={() => openCreateFromTemplate(template)}
-                                        >
-                                            <Plus className="w-3.5 h-3.5 mr-1.5" />
-                                            Open
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[240px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
-                    <Input
-                        placeholder="Search by opening title, program, benefactor, or academic year..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
-                    />
-                </div>
-
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[150px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All Statuses">All Statuses</SelectItem>
-                        <SelectItem value="open">Open</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="closed">Closed</SelectItem>
-                        <SelectItem value="archived">Archived</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <Select value={audienceFilter} onValueChange={setAudienceFilter}>
-                    <SelectTrigger className="w-[170px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue placeholder="Target Audience" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {audienceOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                                {option === 'Both' ? 'Scholars & Applicants' : option}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={programFilter} onValueChange={setProgramFilter}>
-                    <SelectTrigger className="w-[170px] h-9 rounded-lg border-stone-200 text-sm">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {programOptions.map((option) => (
-                            <SelectItem key={option} value={option}>
-                                {option}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                {(search || statusFilter !== 'All Statuses' || audienceFilter !== 'All Audiences' || programFilter !== 'All Programs') && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            setSearch('');
-                            setStatusFilter('All Statuses');
-                            setAudienceFilter('All Audiences');
-                            setProgramFilter('All Programs');
-                        }}
-                        className="h-9 rounded-lg text-xs border-stone-200"
-                    >
-                        Reset
-                    </Button>
-                )}
-            </div>
-
-            <Card className="border-stone-200 shadow-none overflow-hidden">
-                <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-                    <div>
-                        <CardTitle className="text-sm font-semibold text-stone-800">Opening Registry</CardTitle>
-                        <CardDescription className="text-xs">
-                            Active, draft, closed, and archived scholarship openings.
-                        </CardDescription>
+                        <button
+                            onClick={() => setPageTab('archived')}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'archived'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-600'
+                                }`}
+                        >
+                            Archived
+                        </button>
                     </div>
-                </CardHeader>
 
-                <CardContent className="p-4">
-                    {filteredOpenings.length === 0 ? (
-                        <EmptyState
-                            icon={EyeOff}
-                            title="No scholarship openings found"
-                            subtitle="Open a scholarship program from a published template to create one."
-                        />
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredOpenings.map((opening) => {
-                                const computedStatus = getComputedDisplayStatus(opening);
-                                const meta = STATUS_META[computedStatus] || STATUS_META.draft;
-                                const audience = normalizeAudience(opening.target_audience) || 'Applicants';
-                                const audienceLabelValue = targetAudienceLabel(audience);
-
-                                const allocatedSlots = getAllocatedSlots(opening);
-                                const filledSlots = getFilledSlots(opening);
-                                const availableSlots = getAvailableSlots(opening);
-
-                                const isArchived = computedStatus === 'archived';
-                                const isClosed = computedStatus === 'closed';
-                                const isDraft = computedStatus === 'draft';
-                                const canBeOpened = canOpeningBeOpened(opening);
-                                const canReopen = isClosed && availableSlots > 0;
-                                const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
-                                const isBusy = actionLoadingId === opening.opening_id;
-
-                                return (
-                                    <div
-                                        key={opening.opening_id}
-                                        className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
-                                    >
-                                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h3 className="text-sm font-semibold text-stone-900">
-                                                        {opening.opening_title || 'Untitled Opening'}
-                                                    </h3>
-
-                                                    <span
-                                                        className="text-[10px] font-medium px-2.5 py-1 rounded-full"
-                                                        style={{ color: meta.color, background: meta.bg }}
-                                                    >
-                                                        {meta.label}
-                                                    </span>
-
-                                                    <Badge variant="outline" className="text-[10px] border-stone-200 bg-white text-stone-600">
-                                                        {opening.program_name || 'No Program'}
-                                                    </Badge>
-
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={`text-[10px] ${audience === 'Both'
-                                                            ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                                            : audience === 'Scholars'
-                                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                                                : 'border-sky-200 bg-sky-50 text-sky-700'
-                                                            }`}
-                                                    >
-                                                        <Users className="w-3 h-3 mr-1" />
-                                                        {audienceLabelValue}
-                                                    </Badge>
-                                                </div>
-
-                                                <p className="text-xs text-stone-500 mt-1">
-                                                    {opening.benefactor_name || 'No Benefactor'}
-                                                </p>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
-                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Academic Year</p>
-                                                        <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {opening.academic_year || 'N/A'}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Allocated Slots</p>
-                                                        <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {allocatedSlots.toLocaleString()}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Filled Slots</p>
-                                                        <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {filledSlots.toLocaleString()}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Available Slots</p>
-                                                        <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {availableSlots.toLocaleString()}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3 mt-3">
-                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Per Scholar</p>
-                                                        <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {fmtMoney(
-                                                                opening.per_scholar_amount ??
-                                                                (allocatedSlots > 0
-                                                                    ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
-                                                                    : 0)
-                                                            )}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Admin Control</p>
-                                                        <p className="text-xs font-medium text-stone-800 mt-1">
-                                                            {isArchived
-                                                                ? 'Archived record'
-                                                                : isClosed
-                                                                    ? canReopen
-                                                                        ? 'Can reopen'
-                                                                        : 'Closed — no slots available'
-                                                                    : isDraft
-                                                                        ? canBeOpened
-                                                                            ? 'Draft — ready to open'
-                                                                            : 'Draft — incomplete'
-                                                                        : 'Active'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {opening.announcement_text && (
-                                                    <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                        <p className="text-[10px] uppercase tracking-wide text-stone-400">Notes</p>
-                                                        <p className="text-xs text-stone-700 mt-1 leading-relaxed">
-                                                            {opening.announcement_text}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                                {isArchived && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleUnarchiveOpening(opening)}
-                                                        className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
-                                                        disabled={isBusy}
-                                                    >
-                                                        {isBusy ? (
-                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                                        ) : (
-                                                            <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
-                                                        )}
-                                                        Unarchive
-                                                    </Button>
-                                                )}
-
-                                                {!isArchived && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => openEditModal(opening)}
-                                                        className="rounded-lg text-xs border-stone-200"
-                                                        disabled={isBusy}
-                                                    >
-                                                        <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                                                        Edit
-                                                    </Button>
-                                                )}
-
-                                                {!isArchived && isDraft && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleOpenDraftOpening(opening)}
-                                                        className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
-                                                        disabled={isBusy || !canBeOpened}
-                                                        title={
-                                                            !canBeOpened
-                                                                ? 'Complete the title, academic year, and allocated slots first.'
-                                                                : 'Open this scholarship opening'
-                                                        }
-                                                    >
-                                                        {isBusy ? (
-                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                                        ) : (
-                                                            <Unlock className="w-3.5 h-3.5 mr-1.5" />
-                                                        )}
-                                                        Open
-                                                    </Button>
-                                                )}
-
-                                                {canMoveToDraft && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleMoveToDraft(opening)}
-                                                        className="rounded-lg text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
-                                                        disabled={isBusy}
-                                                    >
-                                                        {isBusy ? (
-                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                                        ) : (
-                                                            <Clock3 className="w-3.5 h-3.5 mr-1.5" />
-                                                        )}
-                                                        Move to Draft
-                                                    </Button>
-                                                )}
-
-                                                {!isArchived && !isClosed && !isDraft && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleCloseOpening(opening.opening_id)}
-                                                        className="rounded-lg text-xs border-amber-200 text-amber-700 hover:bg-amber-50"
-                                                        disabled={isBusy}
-                                                    >
-                                                        {isBusy ? (
-                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                                        ) : (
-                                                            <Lock className="w-3.5 h-3.5 mr-1.5" />
-                                                        )}
-                                                        Close
-                                                    </Button>
-                                                )}
-
-                                                {!isArchived && isClosed && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleReopenOpening(opening)}
-                                                        className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
-                                                        disabled={isBusy || !canReopen}
-                                                        title={!canReopen ? 'Cannot reopen because no slots are available.' : 'Reopen opening'}
-                                                    >
-                                                        {isBusy ? (
-                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                                        ) : (
-                                                            <Unlock className="w-3.5 h-3.5 mr-1.5" />
-                                                        )}
-                                                        Reopen
-                                                    </Button>
-                                                )}
-
-                                                {!isArchived && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleArchiveOpening(opening.opening_id)}
-                                                        className="rounded-lg text-xs border-red-200 text-red-700 hover:bg-red-50"
-                                                        disabled={isBusy}
-                                                    >
-                                                        {isBusy ? (
-                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                                                        ) : (
-                                                            <Archive className="w-3.5 h-3.5 mr-1.5" />
-                                                        )}
-                                                        Archive
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="relative w-full xl:max-w-xl">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                placeholder={
+                                    pageTab === 'templates'
+                                        ? 'Search template, benefactor, or description...'
+                                        : 'Search by opening title, program, benefactor, or academic year...'
+                                }
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm"
+                            />
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+
+                        <div className="flex flex-wrap gap-2 lg:items-center">
+                            <Select value={audienceFilter} onValueChange={setAudienceFilter}>
+                                <SelectTrigger className="h-10 w-[170px] rounded-xl border-stone-200 bg-white text-sm">
+                                    <SelectValue placeholder="Target Audience" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {audienceOptions.map((option) => (
+                                        <SelectItem key={option} value={option}>
+                                            {option === 'Both' ? 'Scholars & Applicants' : option}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            <Select value={programFilter} onValueChange={setProgramFilter}>
+                                <SelectTrigger className="h-10 w-[170px] rounded-xl border-stone-200 bg-white text-sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {programOptions.map((option) => (
+                                        <SelectItem key={option} value={option}>
+                                            {option}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            {pageTab !== 'templates' && (
+                                <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
+                                    <button
+                                        onClick={() => setViewMode('cards')}
+                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'cards'
+                                                ? 'bg-white text-stone-900 shadow-sm'
+                                                : 'text-stone-600'
+                                            }`}
+                                    >
+                                        <LayoutGrid className="h-4 w-4" />
+                                        Cards
+                                    </button>
+
+                                    <button
+                                        onClick={() => setViewMode('table')}
+                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'table'
+                                                ? 'bg-white text-stone-900 shadow-sm'
+                                                : 'text-stone-600'
+                                            }`}
+                                    >
+                                        <Table2 className="h-4 w-4" />
+                                        Table
+                                    </button>
+                                </div>
+                            )}
+
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={fetchData}
+                                className="h-10 rounded-xl border-stone-200 text-xs text-stone-600"
+                            >
+                                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                Refresh
+                            </Button>
+
+                            <Button
+                                size="sm"
+                                className="h-10 rounded-xl border-none text-xs text-white"
+                                style={{ background: C.brownMid }}
+                                onClick={() => {
+                                    setModalMode('create');
+                                    setEditingOpeningId(null);
+                                    setActiveTemplate(null);
+                                    setForm(emptyForm);
+                                    setModalOpen(true);
+                                }}
+                            >
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                Create Opening
+                            </Button>
+                        </div>
+                    </div>
+
+                    {(search ||
+                        audienceFilter !== 'All Audiences' ||
+                        programFilter !== 'All Programs') && (
+                            <div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setSearch('');
+                                        setAudienceFilter('All Audiences');
+                                        setProgramFilter('All Programs');
+                                    }}
+                                    className="h-9 rounded-lg border-stone-200 text-xs"
+                                >
+                                    Reset Filters
+                                </Button>
+                            </div>
+                        )}
+                </div>
+            </section>
+
+            {pageTab === 'templates' && (
+                <section
+                    className="rounded-2xl border bg-white overflow-hidden"
+                    style={{ borderColor: C.line }}
+                >
+                    <div className="border-b border-stone-100 px-5 py-4">
+                        <h2 className="text-sm font-semibold text-stone-800">Published Scholarship Program Templates</h2>
+                        <p className="mt-1 text-xs text-stone-500">
+                            Use a published template to create a new scholarship opening quickly.
+                        </p>
+                    </div>
+
+                    <div className="p-4">
+                        {filteredTemplates.length === 0 ? (
+                            <EmptyState
+                                icon={FolderOpen}
+                                title="No published templates found"
+                                subtitle="Create and publish scholarship programs first."
+                            />
+                        ) : (
+                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                {filteredTemplates.map((template) => (
+                                    <TemplateCard
+                                        key={template.program_id}
+                                        template={template}
+                                        onOpen={openCreateFromTemplate}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
+
+            {pageTab !== 'templates' && (
+                <section
+                    className="rounded-2xl border bg-white overflow-hidden"
+                    style={{ borderColor: C.line }}
+                >
+                    <div className="border-b border-stone-100 px-5 py-4">
+                        <h2 className="text-sm font-semibold text-stone-800">
+                            {pageTab === 'current' ? 'Opening Registry' : 'Archived Openings'}
+                        </h2>
+                        <p className="mt-1 text-xs text-stone-500">
+                            {pageTab === 'current'
+                                ? 'Active, draft, and closed scholarship openings.'
+                                : 'Archived scholarship openings.'}
+                        </p>
+                    </div>
+
+                    <div className="p-4">
+                        {filteredOpenings.length === 0 ? (
+                            <EmptyState
+                                icon={EyeOff}
+                                title={pageTab === 'current' ? 'No scholarship openings found' : 'No archived openings found'}
+                                subtitle={
+                                    pageTab === 'current'
+                                        ? 'Open a scholarship program from a published template to create one.'
+                                        : 'Archived scholarship openings will appear here.'
+                                }
+                            />
+                        ) : viewMode === 'cards' ? (
+                            <div className="space-y-3">
+                                {filteredOpenings.map((opening) => (
+                                    <OpeningCard
+                                        key={opening.opening_id}
+                                        opening={opening}
+                                        actionLoadingId={actionLoadingId}
+                                        openEditModal={openEditModal}
+                                        handleUnarchiveOpening={handleUnarchiveOpening}
+                                        handleOpenDraftOpening={handleOpenDraftOpening}
+                                        handleMoveToDraft={handleMoveToDraft}
+                                        handleCloseOpening={handleCloseOpening}
+                                        handleReopenOpening={handleReopenOpening}
+                                        handleArchiveOpening={handleArchiveOpening}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[1100px]">
+                                    <thead className="bg-stone-50">
+                                        <tr className="border-b border-stone-200">
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Opening</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Program</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Audience</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Academic Year</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Slots</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Per Scholar</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Status</th>
+                                            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">Actions</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        {filteredOpenings.map((opening) => {
+                                            const computedStatus = getComputedDisplayStatus(opening);
+                                            const meta = STATUS_META[computedStatus] || STATUS_META.draft;
+                                            const audience = normalizeAudience(opening.target_audience) || 'Applicants';
+                                            const audienceLabelValue = targetAudienceLabel(audience);
+
+                                            const allocatedSlots = getAllocatedSlots(opening);
+                                            const filledSlots = getFilledSlots(opening);
+                                            const availableSlots = getAvailableSlots(opening);
+
+                                            const isArchived = computedStatus === 'archived';
+                                            const isClosed = computedStatus === 'closed';
+                                            const isDraft = computedStatus === 'draft';
+                                            const canBeOpened = canOpeningBeOpened(opening);
+                                            const canReopen = isClosed && availableSlots > 0;
+                                            const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
+                                            const isBusy = actionLoadingId === opening.opening_id;
+
+                                            const perScholar =
+                                                opening.per_scholar_amount ??
+                                                (allocatedSlots > 0
+                                                    ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
+                                                    : 0);
+
+                                            return (
+                                                <tr key={opening.opening_id} className="border-b border-stone-100 hover:bg-stone-50">
+                                                    <td className="px-4 py-4">
+                                                        <div>
+                                                            <p className="text-sm font-medium text-stone-900">
+                                                                {opening.opening_title || 'Untitled Opening'}
+                                                            </p>
+                                                            <p className="mt-1 text-xs text-stone-400">
+                                                                {opening.benefactor_name || 'No Benefactor'}
+                                                            </p>
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="px-4 py-4 text-sm text-stone-700">
+                                                        {opening.program_name || 'No Program'}
+                                                    </td>
+
+                                                    <td className="px-4 py-4">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={`text-[10px] ${audience === 'Both'
+                                                                    ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                                                    : audience === 'Scholars'
+                                                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                                                        : 'border-sky-200 bg-sky-50 text-sky-700'
+                                                                }`}
+                                                        >
+                                                            {audienceLabelValue}
+                                                        </Badge>
+                                                    </td>
+
+                                                    <td className="px-4 py-4 text-sm text-stone-700">
+                                                        {opening.academic_year || 'N/A'}
+                                                    </td>
+
+                                                    <td className="px-4 py-4 text-sm text-stone-700">
+                                                        <div>Allocated: {allocatedSlots}</div>
+                                                        <div>Filled: {filledSlots}</div>
+                                                        <div>Avail: {availableSlots}</div>
+                                                    </td>
+
+                                                    <td className="px-4 py-4 text-sm font-medium text-stone-900">
+                                                        {fmtMoney(perScholar)}
+                                                    </td>
+
+                                                    <td className="px-4 py-4">
+                                                        <span
+                                                            className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+                                                            style={{ color: meta.color, background: meta.bg }}
+                                                        >
+                                                            {meta.label}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="px-4 py-4 text-right">
+                                                        <div className="flex flex-wrap justify-end gap-1.5">
+                                                            {isArchived && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleUnarchiveOpening(opening)}
+                                                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Unarchive'}
+                                                                </Button>
+                                                            )}
+
+                                                            {!isArchived && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => openEditModal(opening)}
+                                                                    className="h-7 rounded-md border-stone-200 px-2 text-[11px]"
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    Edit
+                                                                </Button>
+                                                            )}
+
+                                                            {!isArchived && isDraft && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleOpenDraftOpening(opening)}
+                                                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                                                    disabled={isBusy || !canBeOpened}
+                                                                >
+                                                                    Open
+                                                                </Button>
+                                                            )}
+
+                                                            {canMoveToDraft && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleMoveToDraft(opening)}
+                                                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    Draft
+                                                                </Button>
+                                                            )}
+
+                                                            {!isArchived && !isClosed && !isDraft && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleCloseOpening(opening.opening_id)}
+                                                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    Close
+                                                                </Button>
+                                                            )}
+
+                                                            {!isArchived && isClosed && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleReopenOpening(opening)}
+                                                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
+                                                                    disabled={isBusy || !canReopen}
+                                                                >
+                                                                    Reopen
+                                                                </Button>
+                                                            )}
+
+                                                            {!isArchived && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleArchiveOpening(opening.opening_id)}
+                                                                    className="h-7 rounded-md border-red-200 px-2 text-[11px] text-red-700 hover:bg-red-50"
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    Archive
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }

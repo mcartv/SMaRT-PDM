@@ -3,13 +3,19 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 
 class AppTheme {
   static ThemeData light() {
-    return ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
-        primary: primaryColor,
-        secondary: accentColor,
-        brightness: Brightness.light,
-      ),
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: primaryColor,
+      primary: primaryColor,
+      secondary: accentColor,
+      brightness: Brightness.light,
+    ).copyWith(
+      surface: Colors.white,
+      onSurface: textColor,
+      onPrimary: Colors.white,
+    );
+
+    final baseTheme = ThemeData(
+      colorScheme: colorScheme,
       primarySwatch: MaterialColor(primaryColor.toARGB32(), <int, Color>{
         50: primaryColor.withValues(alpha: 0.1),
         100: primaryColor.withValues(alpha: 0.2),
@@ -23,6 +29,8 @@ class AppTheme {
         900: primaryColor.withValues(alpha: 1.0),
       }),
       scaffoldBackgroundColor: backgroundColor,
+      canvasColor: backgroundColor,
+      cardColor: Colors.white,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         foregroundColor: pdmDarkBrown,
@@ -33,6 +41,18 @@ class AppTheme {
         selectedItemColor: accentColor,
       ),
       visualDensity: VisualDensity.adaptivePlatformDensity,
+    );
+
+    return baseTheme.copyWith(
+      textTheme: baseTheme.textTheme.apply(
+        bodyColor: textColor,
+        displayColor: textColor,
+      ),
+      primaryTextTheme: baseTheme.primaryTextTheme.apply(
+        bodyColor: textColor,
+        displayColor: textColor,
+      ),
+      appBarTheme: baseTheme.appBarTheme.copyWith(foregroundColor: textColor),
     );
   }
 

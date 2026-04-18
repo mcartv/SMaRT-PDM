@@ -28,7 +28,7 @@ const Color pdmBlack = AppColors.black;
 
 const Color primaryColor = pdmBrown;
 const Color accentColor = pdmGold;
-const Color backgroundColor = pdmWhite;
+const Color backgroundColor = Color(0xFFF3F3F3);
 const Color textColor = pdmBlack;
 const Color mutedColor = pdmLightGray;
 

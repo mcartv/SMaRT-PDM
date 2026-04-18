@@ -75,7 +75,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : textColor;
 
     return Consumer<NotificationProvider>(
       builder: (context, notificationProvider, child) {
@@ -92,7 +92,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           appBar: AppBar(
             title: const Text('Notifications'),
             backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-            foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+            foregroundColor: isDark ? Colors.white : textColor,
             elevation: 0,
             actions: [
               if (_selectedFilter == _NotificationViewFilter.notifications &&
@@ -233,7 +233,7 @@ class _NotificationFilterChips extends StatelessWidget {
           labelStyle: TextStyle(
             fontWeight: FontWeight.w700,
             color: selectedFilter == _NotificationViewFilter.officeUpdates
-                ? AppColors.darkBrown
+                ? textColor
                 : (isDark ? Colors.white70 : Colors.black87),
           ),
         ),
@@ -245,7 +245,7 @@ class _NotificationFilterChips extends StatelessWidget {
           labelStyle: TextStyle(
             fontWeight: FontWeight.w700,
             color: selectedFilter == _NotificationViewFilter.notifications
-                ? AppColors.darkBrown
+                ? textColor
                 : (isDark ? Colors.white70 : Colors.black87),
           ),
         ),
@@ -270,7 +270,7 @@ class _OfficeUpdatePreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final titleColor = isDark ? Colors.white : textColor;
     final bodyColor = isDark ? Colors.white70 : Colors.black87;
     final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
 
@@ -386,9 +386,9 @@ class _NotificationTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
     final unreadCardColor = isDark ? const Color(0xFF3A2718) : Colors.blue[50]!;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final titleColor = isDark ? Colors.white : textColor;
     final subtitleColor = isDark ? Colors.white70 : Colors.grey;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+    final accentColor = isDark ? const Color(0xFFFFD54F) : textColor;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -476,7 +476,7 @@ class _NotificationDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final titleColor = isDark ? Colors.white : textColor;
     final subtitleColor = isDark ? Colors.white70 : Colors.grey;
 
     return DraggableScrollableSheet(

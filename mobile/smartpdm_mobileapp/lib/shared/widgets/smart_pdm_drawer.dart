@@ -23,15 +23,11 @@ class SmartPdmDrawer extends StatelessWidget {
     final headerBackground = isDark
         ? const Color(0xFF3A2718)
         : AppColors.gold.withOpacity(0.18);
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark
-        ? Colors.white70
-        : AppColors.brown.withOpacity(0.72);
-    final sectionColor = isDark
-        ? Colors.white70
-        : AppColors.brown.withOpacity(0.6);
-    final itemTextColor = isDark ? Colors.white : AppColors.darkBrown;
-    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+    final titleColor = isDark ? Colors.white : textColor;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final sectionColor = isDark ? Colors.white70 : Colors.black54;
+    final itemTextColor = isDark ? Colors.white : textColor;
+    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.gold;
 
     return Drawer(
       backgroundColor: drawerBackground,
@@ -248,8 +244,8 @@ class SmartPdmDrawer extends StatelessWidget {
     required String route,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
-    final textColor = isDark ? Colors.white : AppColors.darkBrown;
+    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.gold;
+    final textColor = isDark ? Colors.white : AppColors.black;
 
     return ListTile(
       leading: Icon(icon, color: iconColor),
@@ -274,8 +270,8 @@ class SmartPdmDrawer extends StatelessWidget {
     required Future<void> Function() onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
-    final textColor = isDark ? Colors.white : AppColors.darkBrown;
+    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.gold;
+    final textColor = isDark ? Colors.white : AppColors.black;
 
     return ListTile(
       leading: Icon(icon, color: iconColor),

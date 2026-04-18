@@ -86,6 +86,12 @@ smartpdm_mobileapp/
 - Flutter - The UI toolkit for building natively compiled applications for mobile, web, and desktop from a single codebase.
 - Provider - A state management library.
 
+## Database Restore Command
+
+To restore Supabase database:
+
+psql -h db.xxx.supabase.co -U postgres -d postgres -f full_backup.sql
+
 ## 📄 License
 
 This project is unlicensed. You are free to add a license of your choice.

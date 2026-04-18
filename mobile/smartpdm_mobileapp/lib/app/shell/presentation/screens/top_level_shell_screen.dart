@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
@@ -130,13 +131,38 @@ class _MessagingFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final badgeBorderColor =
+        isDark ? Colors.black.withOpacity(0.35) : Colors.white.withOpacity(0.9);
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        FloatingActionButton(
-          heroTag: 'messaging-fab',
-          onPressed: onPressed,
-          child: const Icon(Icons.chat_bubble_rounded),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.yellow, AppColors.gold],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.brown.withOpacity(0.28),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: FloatingActionButton(
+            heroTag: 'messaging-fab',
+            onPressed: onPressed,
+            elevation: 0,
+            highlightElevation: 0,
+            backgroundColor: Colors.transparent,
+            foregroundColor: AppColors.darkBrown,
+            child: const Icon(Icons.forum_rounded, size: 28),
+          ),
         ),
         if (unreadCount > 0)
           Positioned(
@@ -146,10 +172,10 @@ class _MessagingFab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
               decoration: BoxDecoration(
-                color: Colors.red.shade600,
+                color: AppColors.darkBrown,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.surface,
+                  color: badgeBorderColor,
                   width: 2,
                 ),
               ),

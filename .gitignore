@@ -10,7 +10,6 @@ mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
 
 # Supabase local metadata
 supabase/.temp/
-*.sql
 *.dump
 *.backup
 

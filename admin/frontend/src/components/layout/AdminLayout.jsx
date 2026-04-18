@@ -28,8 +28,8 @@ const navItems = [
   { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
-  { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
+  { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
@@ -112,8 +112,12 @@ export default function AdminLayout() {
         style={{ width: collapsed ? '76px' : '248px', background: SB_BASE }}
       >
         <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-[#8f5235] flex items-center justify-center shrink-0 shadow-sm">
-            <img src={pdmLogo} alt="PDM" className="w-5 h-5 object-contain" />
+          <div className="w-9 h-9 rounded-xl bg-[#8f5235] flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+            <img
+              src={pdmLogo}
+              alt="PDM"
+              className="w-10 h-10 object-contain scale-110 drop-shadow-sm"
+            />
           </div>
 
           {!collapsed && (

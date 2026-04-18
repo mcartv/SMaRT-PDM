@@ -5,7 +5,6 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
@@ -39,7 +38,7 @@ class DashboardScreen extends StatelessWidget {
                     tooltip: 'Open Notifications',
                     icon: Icon(
                       Icons.notifications_none,
-                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      color: isDark ? Colors.white : textColor,
                     ),
                   ),
                 ),
@@ -76,9 +75,9 @@ class _DashboardContentState extends State<DashboardContent> {
       _isDarkMode ? const Color(0xFF24180F) : Colors.white.withOpacity(0.96);
   Color get _surfaceColor =>
       _isDarkMode ? const Color(0xFF332216) : const Color(0xFFF8F3ED);
-  Color get _titleColor => _isDarkMode ? Colors.white : AppColors.darkBrown;
-  Color get _subtitleColor => _isDarkMode ? Colors.white70 : Colors.grey;
-  Color get _bodyColor => _isDarkMode ? Colors.white70 : AppColors.brown;
+  Color get _titleColor => _isDarkMode ? Colors.white : textColor;
+  Color get _subtitleColor => _isDarkMode ? Colors.white70 : Colors.black54;
+  Color get _bodyColor => _isDarkMode ? Colors.white70 : Colors.black87;
   Color get _heroOverlay => _isDarkMode
       ? const Color(0xFF4A331B).withOpacity(0.66)
       : Colors.white.withOpacity(0.58);
@@ -110,117 +109,63 @@ class _DashboardContentState extends State<DashboardContent> {
     }
   }
 
-  Future<void> _openOfficeUpdate(
-    BuildContext context,
-    AppNotification notification,
-  ) async {
-    if (!notification.isRead && notification.notificationId.isNotEmpty) {
-      await context.read<NotificationProvider>().markAsRead(
-        notification.notificationId,
-      );
-    }
-
-    if (!context.mounted) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OfficeUpdateArticleScreen(
-          notification: notification,
-          showBottomNav: false,
-        ),
-      ),
-    );
+  void _openOfficeUpdatesHub(BuildContext context) {
+    Navigator.pushNamed(context, AppRoutes.notifications);
   }
 
   void _openScholarshipOpenings(BuildContext context) {
     Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
   }
 
+  List<String> _officeUpdateTags(AppNotification notification) {
+    final haystack = '${notification.title} ${notification.message}'
+        .toUpperCase();
+    final tags = <String>[];
+
+    void addIfPresent(String keyword, String label) {
+      if (haystack.contains(keyword) && !tags.contains(label)) {
+        tags.add(label);
+      }
+    }
+
+    addIfPresent('CHED', 'CHED');
+    addIfPresent('UNIFAST', 'UNIFAST');
+    addIfPresent('TES', 'TES');
+    addIfPresent('TDP', 'TDP');
+
+    if ((haystack.contains('PRIVATE') ||
+            haystack.contains('GRANT') ||
+            haystack.contains('BENEFACTOR')) &&
+        !tags.contains('Private Grants')) {
+      tags.add('Private Grants');
+    }
+
+    if (tags.isEmpty && notification.isOpeningUpdate) {
+      tags.addAll(const ['Openings', 'Scholarship', 'Applicants']);
+    }
+
+    if (tags.isEmpty) {
+      tags.add(
+        notification.officeUpdateLabel == 'ANNOUNCEMENT'
+            ? 'Office Notice'
+            : 'Scholarship Update',
+      );
+    }
+
+    return tags.take(5).toList();
+  }
+
   Widget _buildOfficeUpdateFeaturedCard(
     BuildContext context,
     AppNotification notification,
   ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _surfaceColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.gold, width: 1.2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    notification.officeUpdateLabel,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => _openOfficeUpdate(context, notification),
-                  child: const Text(
-                    'READ MORE',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.orange,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              notification.title,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: _titleColor,
-                height: 1.15,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              notification.previewText,
-              style: TextStyle(fontSize: 14, color: _bodyColor, height: 1.45),
-            ),
-            if (notification.isOpeningUpdate && !_effectiveScholarAccess) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _openScholarshipOpenings(context),
-                  child: const Text('Apply Now'),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return _InteractiveOfficeUpdatesCard(
+      notification: notification,
+      tags: _officeUpdateTags(notification),
+      onTap: () => _openOfficeUpdatesHub(context),
+      onOpeningsTap: notification.isOpeningUpdate && !_effectiveScholarAccess
+          ? () => _openScholarshipOpenings(context)
+          : null,
     );
   }
 
@@ -233,23 +178,19 @@ class _DashboardContentState extends State<DashboardContent> {
           return _buildOfficeUpdateFallbackCard(context);
         }
 
-        return Column(
-          children: officeUpdates
-              .map(
-                (notification) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: GestureDetector(
-                    onTap: () => _openOfficeUpdate(context, notification),
-                    child: _buildOfficeUpdateFeaturedCard(
-                      context,
-                      notification,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        );
+        return _buildOfficeUpdateFeaturedCard(context, officeUpdates.first);
       },
+    );
+  }
+
+  Widget _buildOfficeUpdatesHeading(int totalUpdates) {
+    return Text(
+      'Office Updates',
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: _titleColor,
+      ),
     );
   }
 
@@ -357,40 +298,78 @@ class _DashboardContentState extends State<DashboardContent> {
     required VoidCallback onTap,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
+    final outerRadius = BorderRadius.circular(26);
+    final innerRadius = BorderRadius.circular(24);
 
-    return Card(
-      color: _surfaceColor,
+    return Material(
+      color: _isDarkMode ? const Color(0xFF342417) : Colors.white,
+      elevation: _isDarkMode ? 0 : 2,
+      borderRadius: outerRadius,
+      shadowColor: const Color(0xFF2E1607).withOpacity(0.12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: outerRadius,
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: isCompact ? 10 : 12,
-            vertical: isCompact ? 12 : 16,
+            horizontal: _isDarkMode ? 0 : (isCompact ? 3 : 4),
+            vertical: _isDarkMode ? 0 : (isCompact ? 3 : 4),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
-                size: isCompact ? 18 : 20,
+          child: Container(
+            decoration: BoxDecoration(
+              color: _isDarkMode ? const Color(0xFF342417) : Colors.white,
+              borderRadius: innerRadius,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _isDarkMode ? const Color(0xFF342417) : null,
+                borderRadius: innerRadius,
+                border: _isDarkMode
+                    ? null
+                    : Border.all(
+                        color: AppColors.gold.withOpacity(0.75),
+                        width: 1.2,
+                      ),
               ),
-              SizedBox(width: isCompact ? 8 : 10),
-              Flexible(
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: isCompact ? 11.5 : 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: _titleColor,
-                  ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? 10 : 12,
+                  vertical: isCompact ? 10 : 12,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: isCompact ? 34 : 38,
+                      height: isCompact ? 34 : 38,
+                      decoration: BoxDecoration(
+                        color: _isDarkMode ? Colors.transparent : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: AppColors.gold,
+                        size: isCompact ? 18 : 20,
+                      ),
+                    ),
+                    SizedBox(width: isCompact ? 8 : 10),
+                    Flexible(
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: isCompact ? 14 : 15,
+                          fontWeight: FontWeight.w800,
+                          color: _isDarkMode ? Colors.white : textColor,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -601,7 +580,9 @@ class _DashboardContentState extends State<DashboardContent> {
                         label: const Text('View RO'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.gold,
-                          foregroundColor: Colors.white,
+                          foregroundColor: _isDarkMode
+                              ? Colors.white
+                              : AppColors.darkBrown,
                         ),
                       ),
                     ),
@@ -615,7 +596,9 @@ class _DashboardContentState extends State<DashboardContent> {
                         icon: const Icon(Icons.done_all),
                         label: const Text('Submit RO'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
+                          foregroundColor: _isDarkMode
+                              ? Colors.white
+                              : AppColors.darkBrown,
                           side: BorderSide(
                             color: AppColors.gold.withOpacity(0.8),
                           ),
@@ -635,6 +618,11 @@ class _DashboardContentState extends State<DashboardContent> {
 
   @override
   Widget build(BuildContext context) {
+    final officeUpdateCount = context
+        .watch<NotificationProvider>()
+        .homeOfficeUpdatesItems
+        .length;
+
     return SizedBox.expand(
       child: Container(
         decoration: BoxDecoration(color: _pageBackground),
@@ -646,13 +634,8 @@ class _DashboardContentState extends State<DashboardContent> {
               children: [
                 _buildCampusHero(),
                 const SizedBox(height: 12),
-                Text(
-                  'Office Updates',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: _titleColor,
-                  ),
+                _buildOfficeUpdatesHeading(
+                  officeUpdateCount > 0 ? officeUpdateCount : 1,
                 ),
                 const SizedBox(height: 10),
                 _buildOfficeUpdatesSection(),
@@ -744,6 +727,230 @@ class _DashboardContentState extends State<DashboardContent> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InteractiveOfficeUpdatesCard extends StatefulWidget {
+  const _InteractiveOfficeUpdatesCard({
+    required this.notification,
+    required this.tags,
+    required this.onTap,
+    this.onOpeningsTap,
+  });
+
+  final AppNotification notification;
+  final List<String> tags;
+  final VoidCallback onTap;
+  final VoidCallback? onOpeningsTap;
+
+  @override
+  State<_InteractiveOfficeUpdatesCard> createState() =>
+      _InteractiveOfficeUpdatesCardState();
+}
+
+class _InteractiveOfficeUpdatesCardState
+    extends State<_InteractiveOfficeUpdatesCard> {
+  bool _isHovered = false;
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF3A2418) : Colors.white;
+    final titleColor = isDark ? Colors.white : textColor;
+    final bodyColor = isDark ? const Color(0xFFD5C1AE) : Colors.black87;
+    final borderColor = isDark ? const Color(0xFFD9A327) : AppColors.gold;
+    final chipBackground = isDark
+        ? const Color(0xFF7D5B1A).withOpacity(0.38)
+        : const Color(0xFFF2E5D1);
+    final chipTextColor = isDark ? const Color(0xFF2A180B) : textColor;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() {
+        _isHovered = false;
+        _isPressed = false;
+      }),
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapCancel: () => setState(() => _isPressed = false),
+        onTapUp: (_) => setState(() => _isPressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _isPressed ? 0.97 : 1,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: borderColor,
+                width: _isHovered ? 2.0 : 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(
+                    0xFF2E1607,
+                  ).withOpacity(_isHovered ? 0.18 : 0.10),
+                  blurRadius: _isHovered ? 24 : 16,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: chipBackground,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            widget.notification.officeUpdateLabel,
+                            style: TextStyle(
+                              color: chipTextColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          widget.notification.title,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: titleColor,
+                            height: 1.12,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          widget.notification.previewText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: bodyColor,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: widget.tags
+                              .map((tag) => _OfficeUpdateTag(label: tag))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: widget.onTap,
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: AppColors.darkBrown,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'View all updates',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(Icons.chevron_right_rounded, size: 20),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (widget.onOpeningsTap != null) ...[
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: widget.onOpeningsTap,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.brown,
+                                side: const BorderSide(
+                                  color: Color(0xFFD8B16A),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: const Text(
+                                'Apply to openings',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OfficeUpdateTag extends StatelessWidget {
+  const _OfficeUpdateTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF4A2F20) : const Color(0xFFF8EFD8),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark ? const Color(0xFFD8A425) : const Color(0xFFE4C789),
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isDark ? const Color(0xFFF0D7A0) : textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

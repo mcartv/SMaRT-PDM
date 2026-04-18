@@ -448,7 +448,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Profile'),
         elevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        foregroundColor: isDark ? Colors.white : textColor,
       ),
       selectedIndex: 2,
       showBottomNav: widget.showBottomNav,
@@ -508,8 +508,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final hasScholarAccess =
         context.watch<NotificationProvider>().hasScholarAccess ||
         _cachedScholarAccess;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final titleColor = isDark ? Colors.white : textColor;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
 
     return Container(
@@ -641,7 +641,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.darkBrown,
+                          color: textColor,
                         ),
                       ),
                     ),
@@ -689,7 +689,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 11,
               letterSpacing: 1,
-              color: isDark ? Colors.white60 : AppColors.brown.withOpacity(0.6),
+              color: isDark ? Colors.white60 : Colors.black54,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -700,7 +700,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13,
-              color: isDark ? Colors.white : AppColors.darkBrown,
+              color: isDark ? Colors.white : textColor,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -719,7 +719,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: TextStyle(
           fontSize: 11,
           letterSpacing: 1.2,
-          color: isDark ? Colors.white60 : AppColors.brown.withOpacity(0.65),
+          color: isDark ? Colors.white60 : Colors.black54,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -770,7 +770,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : AppColors.darkBrown,
+              color: isDark ? Colors.white : textColor,
             ),
           ),
           const SizedBox(height: 16),
@@ -895,7 +895,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: const Icon(Icons.close),
                   label: const Text('Cancel'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.darkBrown,
+                    foregroundColor: textColor,
                     side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -981,9 +981,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     VoidCallback? onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
-    final iconAccent = isDark ? const Color(0xFFFFD54F) : AppColors.darkBrown;
+    final titleColor = isDark ? Colors.white : textColor;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final iconAccent = isDark ? const Color(0xFFFFD54F) : textColor;
 
     return Container(
       decoration: BoxDecoration(
@@ -1024,7 +1024,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
         trailing: Icon(
           Icons.chevron_right,
-          color: isDark ? Colors.white54 : AppColors.brown.withOpacity(0.55),
+          color: isDark ? Colors.white54 : Colors.black45,
         ),
       ),
     );

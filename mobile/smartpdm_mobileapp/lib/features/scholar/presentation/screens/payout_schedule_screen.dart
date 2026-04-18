@@ -113,14 +113,14 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final titleColor = isDark ? Colors.white : textColor;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: const Text('Payout Schedule'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        foregroundColor: isDark ? Colors.white : textColor,
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
@@ -240,7 +240,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: _getStatusColor(payout.status).withOpacity(0.1),
+                                    color: _getStatusColor(
+                                      payout.status,
+                                    ).withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
@@ -251,7 +253,8 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         payout.title,
@@ -269,7 +272,8 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                           color: subtitleColor,
                                         ),
                                       ),
-                                      if ((payout.benefactorName ?? '').isNotEmpty) ...[
+                                      if ((payout.benefactorName ?? '')
+                                          .isNotEmpty) ...[
                                         const SizedBox(height: 2),
                                         Text(
                                           payout.benefactorName!,
@@ -300,7 +304,9 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: _getStatusColor(payout.status).withOpacity(0.2),
+                                        color: _getStatusColor(
+                                          payout.status,
+                                        ).withOpacity(0.2),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
@@ -319,12 +325,44 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                             const SizedBox(height: 14),
                             Divider(color: Colors.grey.withOpacity(0.2)),
                             const SizedBox(height: 10),
-                            _infoRow('Payout Date', payout.payoutDate.isEmpty ? 'TBA' : payout.payoutDate, subtitleColor),
-                            _infoRow('Semester', payout.semester.isEmpty ? '-' : payout.semester, subtitleColor),
-                            _infoRow('School Year', payout.schoolYear.isEmpty ? '-' : payout.schoolYear, subtitleColor),
-                            _infoRow('Payment Mode', payout.paymentMode.isEmpty ? '-' : payout.paymentMode, subtitleColor),
-                            _infoRow('Batch Status', payout.batchStatus.isEmpty ? '-' : payout.batchStatus, subtitleColor),
-                            _infoRow('Reference', payout.reference.isEmpty ? '-' : payout.reference, subtitleColor),
+                            _infoRow(
+                              'Payout Date',
+                              payout.payoutDate.isEmpty
+                                  ? 'TBA'
+                                  : payout.payoutDate,
+                              subtitleColor,
+                            ),
+                            _infoRow(
+                              'Semester',
+                              payout.semester.isEmpty ? '-' : payout.semester,
+                              subtitleColor,
+                            ),
+                            _infoRow(
+                              'School Year',
+                              payout.schoolYear.isEmpty
+                                  ? '-'
+                                  : payout.schoolYear,
+                              subtitleColor,
+                            ),
+                            _infoRow(
+                              'Payment Mode',
+                              payout.paymentMode.isEmpty
+                                  ? '-'
+                                  : payout.paymentMode,
+                              subtitleColor,
+                            ),
+                            _infoRow(
+                              'Batch Status',
+                              payout.batchStatus.isEmpty
+                                  ? '-'
+                                  : payout.batchStatus,
+                              subtitleColor,
+                            ),
+                            _infoRow(
+                              'Reference',
+                              payout.reference.isEmpty ? '-' : payout.reference,
+                              subtitleColor,
+                            ),
                           ],
                         ),
                       ),
@@ -355,10 +393,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(fontSize: 12, color: color),
-            ),
+            child: Text(value, style: TextStyle(fontSize: 12, color: color)),
           ),
         ],
       ),

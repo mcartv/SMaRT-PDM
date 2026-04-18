@@ -7,6 +7,7 @@ import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashb
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/payout_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_bottom_nav.dart';
@@ -28,6 +29,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   late final PageController _pageController;
   late int _currentIndex;
   bool _isVerifiedScholar = false;
+  bool _isRevertingLockedSwipe = false;
 
   late final List<Widget> _pages = [
     const DashboardScreen(showBottomNav: false),
@@ -87,6 +89,28 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     _pageController.jumpToPage(targetIndex);
   }
 
+  Future<void> _handlePageChanged(int index, bool hasScholarAccess) async {
+    if (_isRevertingLockedSwipe) return;
+
+    if (index == 1 && !hasScholarAccess) {
+      _isRevertingLockedSwipe = true;
+      ScholarAccessService.showLockedMessage(context);
+      await _pageController.animateToPage(
+        _currentIndex,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+      _isRevertingLockedSwipe = false;
+      return;
+    }
+
+    if (!mounted || index == _currentIndex) return;
+
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -116,7 +140,8 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       ),
       body: PageView(
         controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
+        physics: const PageScrollPhysics(),
+        onPageChanged: (index) => _handlePageChanged(index, hasScholarAccess),
         children: _pages,
       ),
     );
@@ -132,9 +157,9 @@ class _MessagingFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fabGradient = isDark
-        ? const [AppColors.yellow, AppColors.gold]
-        : const [Color(0xFFF8F3ED), Color(0xFFF4E1B8)];
+    final fabBackgroundColor = isDark
+        ? AppColors.gold
+        : const Color(0xFFF4E1B8);
     final fabForegroundColor = isDark ? AppColors.darkBrown : AppColors.brown;
     final fabBorderColor = isDark
         ? AppColors.gold.withOpacity(0.2)
@@ -149,11 +174,7 @@ class _MessagingFab extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: fabGradient,
-            ),
+            color: fabBackgroundColor,
             border: Border.all(color: fabBorderColor),
             boxShadow: [
               BoxShadow(

@@ -12,7 +12,7 @@ enum _NotificationViewFilter { officeUpdates, notifications }
 class NotificationsScreen extends StatefulWidget {
   final bool showBottomNav;
 
-  const NotificationsScreen({super.key, this.showBottomNav = true});
+  const NotificationsScreen({super.key, this.showBottomNav = false});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -38,9 +38,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   ) async {
     await notificationProvider.deleteNotification(notificationId);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Notification deleted')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Notification deleted')));
   }
 
   void _openNotification(AppNotification notification) {
@@ -85,8 +85,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         final unreadCount = notificationProvider.unreadCount;
         final activeItems =
             _selectedFilter == _NotificationViewFilter.officeUpdates
-                ? officeUpdates
-                : generalNotifications;
+            ? officeUpdates
+            : generalNotifications;
 
         return SmartPdmPageScaffold(
           appBar: AppBar(
@@ -104,17 +104,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       onPressed: notificationProvider.markAllAsRead,
                       child: Text(
                         'Mark all as read',
-                        style: TextStyle(
-                          color: accentColor,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: accentColor, fontSize: 12),
                       ),
                     ),
                   ),
                 ),
             ],
           ),
-          selectedIndex: 2,
+          selectedIndex: 0,
           unreadNotifications: unreadCount,
           showBottomNav: widget.showBottomNav,
           showDrawer: false,
@@ -150,8 +147,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     isDark: isDark,
                     label:
                         _selectedFilter == _NotificationViewFilter.officeUpdates
-                            ? 'No office updates'
-                            : 'No notifications',
+                        ? 'No office updates'
+                        : 'No notifications',
                   )
                 else if (_selectedFilter ==
                     _NotificationViewFilter.officeUpdates)
@@ -197,8 +194,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         onMarkRead: notification.isRead
                             ? null
                             : () => notificationProvider.markAsRead(
-                                  notification.notificationId,
-                                ),
+                                notification.notificationId,
+                              ),
                       ),
                     ),
                   ),
@@ -342,11 +339,7 @@ class _OfficeUpdatePreviewCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 notification.previewText,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: bodyColor,
-                  height: 1.45,
-                ),
+                style: TextStyle(fontSize: 14, color: bodyColor, height: 1.45),
               ),
               const SizedBox(height: 14),
               Text(
@@ -467,10 +460,7 @@ class _NotificationTile extends StatelessWidget {
                 value: 'read',
                 child: Text('Mark as read'),
               ),
-            const PopupMenuItem<String>(
-              value: 'delete',
-              child: Text('Delete'),
-            ),
+            const PopupMenuItem<String>(value: 'delete', child: Text('Delete')),
           ],
         ),
       ),
@@ -527,10 +517,7 @@ class _NotificationDetailSheet extends StatelessWidget {
                         ),
                         Text(
                           _formatTimestamp(notification.createdAt),
-                          style: TextStyle(
-                            color: subtitleColor,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: subtitleColor, fontSize: 12),
                         ),
                       ],
                     ),
@@ -540,11 +527,7 @@ class _NotificationDetailSheet extends StatelessWidget {
               const SizedBox(height: 20),
               Text(
                 notification.message,
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.6,
-                  color: titleColor,
-                ),
+                style: TextStyle(fontSize: 14, height: 1.6, color: titleColor),
               ),
               if ((notification.referenceType ?? '').isNotEmpty ||
                   (notification.referenceId ?? '').isNotEmpty) ...[
@@ -572,10 +555,7 @@ class _NotificationDetailSheet extends StatelessWidget {
 }
 
 class _NotificationsEmptyState extends StatelessWidget {
-  const _NotificationsEmptyState({
-    required this.isDark,
-    required this.label,
-  });
+  const _NotificationsEmptyState({required this.isDark, required this.label});
 
   final bool isDark;
   final String label;
@@ -628,11 +608,7 @@ class _NotificationsErrorState extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.cloud_off,
-                size: 52,
-                color: Colors.redAccent,
-              ),
+              const Icon(Icons.cloud_off, size: 52, color: Colors.redAccent),
               const SizedBox(height: 12),
               Text(
                 'Unable to load notifications',

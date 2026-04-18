@@ -18,6 +18,7 @@ import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/faqs_
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/status_tracking_screen.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/success_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/messaging_screen.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/chat_list_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/report_ticket_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
@@ -62,13 +63,13 @@ class AppRouter {
       case AppRoutes.notifications:
         return _buildProtectedRoute(
           settings,
-          (_) => const TopLevelShellScreen(initialIndex: 2),
+          (_) => const NotificationsScreen(showBottomNav: false),
         );
 
       case AppRoutes.profile:
         return _buildProtectedRoute(
           settings,
-          (_) => const TopLevelShellScreen(initialIndex: 3),
+          (_) => const TopLevelShellScreen(initialIndex: 2),
         );
 
       case AppRoutes.newApplicant:
@@ -104,9 +105,7 @@ class AppRouter {
       case AppRoutes.status:
         return _buildProtectedRoute(
           settings,
-          (_) => const ApplicantAccessGate(
-            child: StatusTrackingScreen(),
-          ),
+          (_) => const ApplicantAccessGate(child: StatusTrackingScreen()),
         );
 
       case AppRoutes.announcements:
@@ -122,16 +121,10 @@ class AppRouter {
         );
 
       case AppRoutes.faqs:
-        return _buildProtectedRoute(
-          settings,
-          (_) => const FaqsScreen(),
-        );
+        return _buildProtectedRoute(settings, (_) => const FaqsScreen());
 
       case AppRoutes.messaging:
-        return _buildProtectedRoute(
-          settings,
-          (_) => const ChatListScreen(),
-        );
+        return _buildProtectedRoute(settings, (_) => const ChatListScreen());
 
       case AppRoutes.chatThread:
         return _buildProtectedRoute(
@@ -142,41 +135,31 @@ class AppRouter {
       case AppRoutes.roAssignment:
         return _buildProtectedRoute(
           settings,
-          (_) => const ScholarAccessGate(
-            child: ROAssignmentScreen(),
-          ),
+          (_) => const ScholarAccessGate(child: ROAssignmentScreen()),
         );
 
       case AppRoutes.roCompletion:
         return _buildProtectedRoute(
           settings,
-          (_) => const ScholarAccessGate(
-            child: ROCompletionScreen(),
-          ),
+          (_) => const ScholarAccessGate(child: ROCompletionScreen()),
         );
 
       case AppRoutes.tickets:
         return _buildProtectedRoute(
           settings,
-          (_) => const ScholarAccessGate(
-            child: ReportTicketScreen(),
-          ),
+          (_) => const ScholarAccessGate(child: ReportTicketScreen()),
         );
 
       case AppRoutes.success:
         return _buildProtectedRoute(
           settings,
-          (_) => const ApplicantAccessGate(
-            child: SuccessScreen(),
-          ),
+          (_) => const ApplicantAccessGate(child: SuccessScreen()),
         );
 
       case AppRoutes.scholarshipOpenings:
         return _buildProtectedRoute(
           settings,
-          (_) => const ApplicantAccessGate(
-            child: ScholarshipOpeningsScreen(),
-          ),
+          (_) => const ApplicantAccessGate(child: ScholarshipOpeningsScreen()),
         );
 
       default:
@@ -225,10 +208,7 @@ class AppRouter {
     RouteSettings settings,
     WidgetBuilder builder,
   ) {
-    return MaterialPageRoute<void>(
-      builder: builder,
-      settings: settings,
-    );
+    return MaterialPageRoute<void>(builder: builder, settings: settings);
   }
 
   static MaterialPageRoute<void> _buildProtectedRoute(
@@ -237,9 +217,7 @@ class AppRouter {
   ) {
     return MaterialPageRoute<void>(
       settings: settings,
-      builder: (context) => ProfileCompletionGate(
-        child: builder(context),
-      ),
+      builder: (context) => ProfileCompletionGate(child: builder(context)),
     );
   }
 }

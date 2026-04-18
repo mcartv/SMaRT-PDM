@@ -8,7 +8,6 @@ import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
-import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -25,21 +24,21 @@ class DashboardScreen extends StatelessWidget {
         title: const Text('SMaRT-PDM'),
         automaticallyImplyLeading: false,
         actions: [
-          Consumer<MessagingProvider>(
-            builder: (context, messagingProvider, child) {
+          Consumer<NotificationProvider>(
+            builder: (context, notificationProvider, child) {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Badge(
-                  isLabelVisible: messagingProvider.unreadCount > 0,
-                  label: Text('${messagingProvider.unreadCount}'),
+                  isLabelVisible: notificationProvider.unreadCount > 0,
+                  label: Text('${notificationProvider.unreadCount}'),
                   backgroundColor: Colors.red,
                   child: IconButton(
                     onPressed: () {
-                      Navigator.pushNamed(context, AppRoutes.messaging);
+                      Navigator.pushNamed(context, AppRoutes.notifications);
                     },
-                    tooltip: 'Open Messaging',
+                    tooltip: 'Open Notifications',
                     icon: Icon(
-                      Icons.chat_bubble_outline,
+                      Icons.notifications_none,
                       color: isDark ? Colors.white : AppColors.darkBrown,
                     ),
                   ),
@@ -101,12 +100,7 @@ class _DashboardContentState extends State<DashboardContent> {
   Future<void> _loadAndDisplayUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final studentId = prefs.getString('user_student_id') ?? 'Student';
-    final hasScholarAccess =
-        prefs.getBool('user_has_scholar_access') ?? false;
-
-    if (mounted) {
-      context.read<MessagingProvider>().initializeChat();
-    }
+    final hasScholarAccess = prefs.getBool('user_has_scholar_access') ?? false;
 
     if (mounted) {
       setState(() {
@@ -426,9 +420,7 @@ class _DashboardContentState extends State<DashboardContent> {
               ListTile(
                 leading: Icon(
                   Icons.person_add,
-                  color: _isDarkMode
-                      ? const Color(0xFFFFD54F)
-                      : primaryColor,
+                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
                 ),
                 title: const Text('Apply for New Scholarship'),
                 subtitle: Text(
@@ -447,9 +439,7 @@ class _DashboardContentState extends State<DashboardContent> {
               ListTile(
                 leading: Icon(
                   Icons.settings_outlined,
-                  color: _isDarkMode
-                      ? const Color(0xFFFFD54F)
-                      : primaryColor,
+                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
                 ),
                 title: const Text('App Settings'),
                 subtitle: Text(
@@ -485,9 +475,7 @@ class _DashboardContentState extends State<DashboardContent> {
               ListTile(
                 leading: Icon(
                   Icons.question_answer,
-                  color: _isDarkMode
-                      ? const Color(0xFFFFD54F)
-                      : primaryColor,
+                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
                 ),
                 title: const Text('FAQs'),
                 subtitle: Text(
@@ -504,9 +492,7 @@ class _DashboardContentState extends State<DashboardContent> {
               ListTile(
                 leading: Icon(
                   Icons.notifications,
-                  color: _isDarkMode
-                      ? const Color(0xFFFFD54F)
-                      : primaryColor,
+                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
                 ),
                 title: const Text('View Notifications'),
                 subtitle: Text(
@@ -517,18 +503,14 @@ class _DashboardContentState extends State<DashboardContent> {
                   Icons.chevron_right,
                   color: _isDarkMode ? Colors.white54 : Colors.grey,
                 ),
-                onTap: () => AppNavigator.goToTopLevel(
-                  context,
-                  AppRoutes.notifications,
-                ),
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.notifications),
               ),
               const Divider(height: 1),
               ListTile(
                 leading: Icon(
                   Icons.file_upload,
-                  color: _isDarkMode
-                      ? const Color(0xFFFFD54F)
-                      : primaryColor,
+                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
                 ),
                 title: const Text('Upload Scholarship Requirements'),
                 subtitle: Text(
@@ -539,8 +521,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   Icons.chevron_right,
                   color: _isDarkMode ? Colors.white54 : Colors.grey,
                 ),
-                onTap: () =>
-                    Navigator.pushNamed(context, AppRoutes.documents),
+                onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
               ),
             ],
           ),
@@ -612,8 +593,10 @@ class _DashboardContentState extends State<DashboardContent> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () =>
-                            Navigator.pushNamed(context, AppRoutes.roAssignment),
+                        onPressed: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.roAssignment,
+                        ),
                         icon: const Icon(Icons.visibility),
                         label: const Text('View RO'),
                         style: ElevatedButton.styleFrom(
@@ -625,8 +608,10 @@ class _DashboardContentState extends State<DashboardContent> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            Navigator.pushNamed(context, AppRoutes.roCompletion),
+                        onPressed: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.roCompletion,
+                        ),
                         icon: const Icon(Icons.done_all),
                         label: const Text('Submit RO'),
                         style: OutlinedButton.styleFrom(
@@ -634,8 +619,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           side: BorderSide(
                             color: AppColors.gold.withOpacity(0.8),
                           ),
-                          backgroundColor:
-                              AppColors.gold.withOpacity(0.10),
+                          backgroundColor: AppColors.gold.withOpacity(0.10),
                         ),
                       ),
                     ),
@@ -696,18 +680,23 @@ class _DashboardContentState extends State<DashboardContent> {
                         SizedBox(
                           width: itemWidth,
                           child: _buildQuickActionTile(
-  context: context,
-  icon: Icons.upload_file,
-  label: 'Upload',
-  onTap: () {
-    final isScholar = context.read<NotificationProvider>().hasScholarAccess || _hasScholarAccess;
-    Navigator.pushNamed(
-      context,
-      isScholar ? AppRoutes.renewalDocuments : AppRoutes.documents,
-    );
-  },
-),
-
+                            context: context,
+                            icon: Icons.upload_file,
+                            label: 'Upload',
+                            onTap: () {
+                              final isScholar =
+                                  context
+                                      .read<NotificationProvider>()
+                                      .hasScholarAccess ||
+                                  _hasScholarAccess;
+                              Navigator.pushNamed(
+                                context,
+                                isScholar
+                                    ? AppRoutes.renewalDocuments
+                                    : AppRoutes.documents,
+                              );
+                            },
+                          ),
                         ),
                         SizedBox(
                           width: itemWidth,
@@ -715,7 +704,7 @@ class _DashboardContentState extends State<DashboardContent> {
                             context: context,
                             icon: Icons.campaign_outlined,
                             label: 'Announcements',
-                            onTap: () => AppNavigator.goToTopLevel(
+                            onTap: () => Navigator.pushNamed(
                               context,
                               AppRoutes.notifications,
                             ),
@@ -728,7 +717,11 @@ class _DashboardContentState extends State<DashboardContent> {
                             icon: Icons.assignment_turned_in,
                             label: 'Obligs',
                             onTap: () {
-                              final isScholar = context.read<NotificationProvider>().hasScholarAccess || _hasScholarAccess;
+                              final isScholar =
+                                  context
+                                      .read<NotificationProvider>()
+                                      .hasScholarAccess ||
+                                  _hasScholarAccess;
                               Navigator.pushNamed(
                                 context,
                                 isScholar

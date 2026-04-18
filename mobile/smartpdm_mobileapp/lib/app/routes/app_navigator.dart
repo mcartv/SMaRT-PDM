@@ -10,10 +10,8 @@ class AppNavigator {
         return 0;
       case AppRoutes.payouts:
         return 1;
-      case AppRoutes.notifications:
-        return 2;
       case AppRoutes.profile:
-        return 3;
+        return 2;
       default:
         return null;
     }

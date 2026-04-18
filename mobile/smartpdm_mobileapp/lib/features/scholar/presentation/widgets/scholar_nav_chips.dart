@@ -21,6 +21,7 @@ class _ScholarNavChipsState extends State<ScholarNavChips> {
   static double _savedOffset = 0;
 
   late final ScrollController _scrollController;
+  late final List<GlobalKey> _chipKeys;
 
   static const List<String> _labels = [
     'Payout Schedule',
@@ -32,27 +33,78 @@ class _ScholarNavChipsState extends State<ScholarNavChips> {
   @override
   void initState() {
     super.initState();
+    _chipKeys = List<GlobalKey>.generate(_labels.length, (_) => GlobalKey());
     _scrollController = ScrollController(initialScrollOffset: _savedOffset);
     _scrollController.addListener(_persistOffset);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _alignSelectedChip(jump: true),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ScholarNavChips oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedLabel != widget.selectedLabel) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _alignSelectedChip());
+    }
   }
 
   void _persistOffset() {
     _savedOffset = _scrollController.offset;
   }
 
-  @override
-  void dispose() {
-    _scrollController.removeListener(_persistOffset);
-    _savedOffset = _scrollController.hasClients ? _scrollController.offset : _savedOffset;
-    _scrollController.dispose();
-    super.dispose();
+  void _alignSelectedChip({bool jump = false}) {
+    if (!mounted || !_scrollController.hasClients) return;
+
+    final selectedIndex = _labels.indexOf(widget.selectedLabel);
+    if (selectedIndex < 0) return;
+
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    double targetOffset;
+
+    if (selectedIndex == 0) {
+      targetOffset = 0;
+    } else if (selectedIndex == _labels.length - 1) {
+      targetOffset = maxExtent;
+    } else {
+      final chipContext = _chipKeys[selectedIndex].currentContext;
+      final scrollContext = context;
+      if (chipContext == null) return;
+
+      final chipBox = chipContext.findRenderObject() as RenderBox?;
+      final scrollBox = scrollContext.findRenderObject() as RenderBox?;
+      if (chipBox == null || scrollBox == null) return;
+
+      final chipPosition = chipBox.localToGlobal(
+        Offset.zero,
+        ancestor: scrollBox,
+      );
+      final chipCenter = chipPosition.dx + (chipBox.size.width / 2);
+      final viewportCenter = scrollBox.size.width / 2;
+      targetOffset = _scrollController.offset + (chipCenter - viewportCenter);
+    }
+
+    final clampedOffset = targetOffset.clamp(0.0, maxExtent);
+    _savedOffset = clampedOffset;
+
+    if (jump) {
+      _scrollController.jumpTo(clampedOffset);
+      return;
+    }
+
+    _scrollController.animateTo(
+      clampedOffset,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
   }
 
-  Widget _buildChip(String label) {
+  Widget _buildChip(int index, String label) {
     final isSelected = widget.selectedLabel == label;
     final showPayoutBadge = label == 'Payout Schedule' && widget.hasNewPayouts;
 
     return Padding(
+      key: _chipKeys[index],
       padding: const EdgeInsets.only(right: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -104,12 +156,25 @@ class _ScholarNavChipsState extends State<ScholarNavChips> {
   }
 
   @override
+  void dispose() {
+    _scrollController.removeListener(_persistOffset);
+    _savedOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : _savedOffset;
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       controller: _scrollController,
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: _labels.map(_buildChip).toList(),
+        children: List<Widget>.generate(
+          _labels.length,
+          (index) => _buildChip(index, _labels[index]),
+        ),
       ),
     );
   }

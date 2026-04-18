@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/features/notifications/presentation/screens/notifications_screen.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/payout_schedule_screen.dart';
@@ -30,7 +31,6 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   late final List<Widget> _pages = [
     const DashboardScreen(showBottomNav: false),
     const ScholarAccessGate(child: PayoutScheduleScreen(showBottomNav: false)),
-    const NotificationsScreen(showBottomNav: false),
     const ProfileScreen(showBottomNav: false),
   ];
 
@@ -43,6 +43,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<NotificationProvider>().initialize();
+      context.read<MessagingProvider>().initializeChat();
     });
   }
 
@@ -94,10 +95,15 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
+    final messagingProvider = context.watch<MessagingProvider>();
     final hasScholarAccess =
         notificationProvider.hasScholarAccess || _isVerifiedScholar;
 
     return Scaffold(
+      floatingActionButton: _MessagingFab(
+        unreadCount: messagingProvider.unreadCount,
+        onPressed: () => Navigator.of(context).pushNamed(AppRoutes.messaging),
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: SmartPdmBottomNav(
@@ -112,6 +118,53 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
         physics: const NeverScrollableScrollPhysics(),
         children: _pages,
       ),
+    );
+  }
+}
+
+class _MessagingFab extends StatelessWidget {
+  const _MessagingFab({required this.unreadCount, required this.onPressed});
+
+  final int unreadCount;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        FloatingActionButton(
+          heroTag: 'messaging-fab',
+          onPressed: onPressed,
+          child: const Icon(Icons.chat_bubble_rounded),
+        ),
+        if (unreadCount > 0)
+          Positioned(
+            right: -2,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+              decoration: BoxDecoration(
+                color: Colors.red.shade600,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.surface,
+                  width: 2,
+                ),
+              ),
+              child: Text(
+                unreadCount > 99 ? '99+' : '$unreadCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

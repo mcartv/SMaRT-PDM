@@ -148,7 +148,7 @@ export default function PayoutManagement() {
       const [batchRes, openingRes, academicYearRes] = await Promise.all([
         fetch(`${API_BASE}/payouts`, { headers: getAuthHeaders(false) }),
         fetch(`${API_BASE}/payouts/openings`, { headers: getAuthHeaders(false) }),
-        fetch(`${API_BASE}/payouts/academic-years`, { headers: getAuthHeaders(false) }),
+        fetch(`${API_BASE}/academic-years`, { headers: getAuthHeaders(false) }),
       ]);
 
       if (!batchRes.ok) throw new Error('Failed to load payout batches');
@@ -837,9 +837,6 @@ export default function PayoutManagement() {
                           onChange={(e) => setForm(prev => ({ ...prev, payment_mode: e.target.value }))}
                         >
                           <option value="Cash">Cash</option>
-                          <option value="Bank">Bank</option>
-                          <option value="GCash">GCash</option>
-                          <option value="Cheque">Cheque</option>
                           <option value="Other">Other</option>
                         </select>
                       </div>

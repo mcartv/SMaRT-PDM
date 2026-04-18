@@ -144,6 +144,15 @@ function derivePersistedOpeningStatus(payload, existingStatus = '') {
     return 'open';
 }
 
+function canOpeningBeOpened(openingLike = {}) {
+    return (
+        !!String(openingLike.opening_title || '').trim() &&
+        !!String(openingLike.program_id || '').trim() &&
+        !!String(openingLike.academic_year_id || '').trim() &&
+        Number(openingLike.allocated_slots || 0) > 0
+    );
+}
+
 function StatCard({ label, value, icon: Icon, accent, soft }) {
     return (
         <Card className="border-stone-200 shadow-none">
@@ -798,6 +807,8 @@ export default function ScholarshipOpenings() {
 
             setSaving(true);
 
+            const computedStatus = derivePersistedOpeningStatus(form, form.posting_status);
+
             const payload = {
                 program_id: form.program_id,
                 opening_title: form.opening_title.trim(),
@@ -806,7 +817,7 @@ export default function ScholarshipOpenings() {
                 financial_allocation: financialAllocation,
                 per_scholar_amount: perScholarAmount,
                 announcement_text: form.announcement_text?.trim() || null,
-                posting_status: derivePersistedOpeningStatus(form, form.posting_status),
+                posting_status: computedStatus,
             };
 
             const isEdit = modalMode === 'edit' && editingOpeningId;
@@ -837,12 +848,16 @@ export default function ScholarshipOpenings() {
             setActiveTemplate(null);
             await fetchData();
 
-            if (!isEdit && String(payload.posting_status).toLowerCase() === 'open') {
+            if (!isEdit && String(computedStatus).toLowerCase() === 'open') {
                 setNewOpeningForPrompt({
                     ...(data || payload),
                     target_audience: form.target_audience,
                 });
                 setPostCreateOpen(true);
+            }
+
+            if (String(computedStatus).toLowerCase() === 'draft') {
+                alert('Opening saved as draft. Use the Open button in the registry once all required fields are complete.');
             }
         } catch (err) {
             console.error('SAVE OPENING ERROR:', err);
@@ -892,6 +907,15 @@ export default function ScholarshipOpenings() {
         const nextStatus = availableSlots > 0 ? 'open' : 'closed';
 
         await updateOpeningStatus(opening.opening_id, nextStatus, { is_archived: false });
+    };
+
+    const handleOpenDraftOpening = async (opening) => {
+        if (!canOpeningBeOpened(opening)) {
+            alert('This draft cannot be opened yet. Make sure it has an opening title, academic year, and allocated slots greater than 0.');
+            return;
+        }
+
+        await updateOpeningStatus(opening.opening_id, 'open', { is_archived: false });
     };
 
     const handleCloseOpening = async (openingId) => {
@@ -1189,6 +1213,7 @@ export default function ScholarshipOpenings() {
                                 const isArchived = computedStatus === 'archived';
                                 const isClosed = computedStatus === 'closed';
                                 const isDraft = computedStatus === 'draft';
+                                const canBeOpened = canOpeningBeOpened(opening);
                                 const canReopen = isClosed && availableSlots > 0;
                                 const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
                                 const isBusy = actionLoadingId === opening.opening_id;
@@ -1287,7 +1312,9 @@ export default function ScholarshipOpenings() {
                                                                         ? 'Can reopen'
                                                                         : 'Closed — no slots available'
                                                                     : isDraft
-                                                                        ? 'Draft — hidden from applicants'
+                                                                        ? canBeOpened
+                                                                            ? 'Draft — ready to open'
+                                                                            : 'Draft — incomplete'
                                                                         : 'Active'}
                                                         </p>
                                                     </div>
@@ -1331,6 +1358,28 @@ export default function ScholarshipOpenings() {
                                                     >
                                                         <Pencil className="w-3.5 h-3.5 mr-1.5" />
                                                         Edit
+                                                    </Button>
+                                                )}
+
+                                                {!isArchived && isDraft && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleOpenDraftOpening(opening)}
+                                                        className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
+                                                        disabled={isBusy || !canBeOpened}
+                                                        title={
+                                                            !canBeOpened
+                                                                ? 'Complete the title, academic year, and allocated slots first.'
+                                                                : 'Open this scholarship opening'
+                                                        }
+                                                    >
+                                                        {isBusy ? (
+                                                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                                        ) : (
+                                                            <Unlock className="w-3.5 h-3.5 mr-1.5" />
+                                                        )}
+                                                        Open
                                                     </Button>
                                                 )}
 

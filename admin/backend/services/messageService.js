@@ -1,4 +1,49 @@
 const db = require('../config/db');
+const supabase = require('../config/supabase');
+
+function extractAvatarStoragePath(value) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return null;
+
+  if (!/^https?:\/\//i.test(rawValue)) {
+    return rawValue.replace(/^avatars\//, '');
+  }
+
+  const markers = [
+    '/storage/v1/object/public/avatars/',
+    '/storage/v1/object/sign/avatars/',
+    '/storage/v1/object/authenticated/avatars/',
+  ];
+
+  for (const marker of markers) {
+    const markerIndex = rawValue.indexOf(marker);
+    if (markerIndex >= 0) {
+      return rawValue.slice(markerIndex + marker.length).split('?')[0];
+    }
+  }
+
+  return null;
+}
+
+async function resolveAvatarUrl(value) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return null;
+
+  const storagePath = extractAvatarStoragePath(rawValue);
+  if (!storagePath) {
+    return rawValue;
+  }
+
+  const { data, error } = await supabase.storage
+    .from('avatars')
+    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+  if (error) {
+    return rawValue;
+  }
+
+  return data?.signedUrl || rawValue;
+}
 
 async function getUserSummary(userId) {
   const result = await db.query(
@@ -8,6 +53,7 @@ async function getUserSummary(userId) {
       u.role,
       u.email,
       st.pdm_id AS student_number,
+      st.profile_photo_url,
       CASE
         WHEN st.student_id IS NOT NULL THEN TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, ''))
         WHEN ap.admin_id IS NOT NULL THEN TRIM(COALESCE(ap.first_name, '') || ' ' || COALESCE(ap.last_name, ''))
@@ -22,7 +68,16 @@ async function getUserSummary(userId) {
     [userId]
   );
 
-  return result.rows[0] || null;
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    profile_photo_url: row.profile_photo_url || null,
+    avatar_url: await resolveAvatarUrl(row.profile_photo_url),
+  };
 }
 
 async function ensureRoomMembership(userId, roomId) {
@@ -103,6 +158,8 @@ exports.fetchConversations = async (currentUserId) => {
       counterparty_id: row.counterparty_id,
       name: summary?.display_name || 'Unknown User',
       student_number: summary?.student_number || '',
+      profile_photo_url: summary?.profile_photo_url || null,
+      avatar_url: summary?.avatar_url || null,
       role: summary?.role || '',
       email: summary?.email || '',
       last_message: row.message_body || '',
@@ -141,7 +198,18 @@ exports.fetchConversationMessages = async (currentUserId, counterpartyId) => {
     [currentUserId, counterpartyId]
   );
 
-  return result.rows;
+  const summaries = new Map();
+
+  for (const senderId of [...new Set(result.rows.map((row) => row.sender_id).filter(Boolean))]) {
+    summaries.set(senderId, await getUserSummary(senderId));
+  }
+
+  return result.rows.map((row) => ({
+    ...row,
+    sender_name: summaries.get(row.sender_id)?.display_name || 'Unknown User',
+    sender_profile_photo_url: summaries.get(row.sender_id)?.profile_photo_url || null,
+    sender_avatar_url: summaries.get(row.sender_id)?.avatar_url || null,
+  }));
 };
 
 exports.markConversationRead = async (currentUserId, counterpartyId) => {
@@ -187,7 +255,15 @@ exports.sendMessage = async ({ senderId, receiverId, subject = null, messageBody
     [senderId, receiverId, subject, messageBody, attachmentUrl]
   );
 
-  return result.rows[0];
+  const message = result.rows[0];
+  const senderSummary = await getUserSummary(senderId);
+
+  return {
+    ...message,
+    sender_name: senderSummary?.display_name || 'Unknown User',
+    sender_profile_photo_url: senderSummary?.profile_photo_url || null,
+    sender_avatar_url: senderSummary?.avatar_url || null,
+  };
 };
 
 exports.fetchRooms = async (currentUserId) => {
@@ -248,7 +324,16 @@ exports.fetchRooms = async (currentUserId) => {
 };
 
 exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
-  const uniqueMemberIds = [...new Set([creatorId, ...memberIds.filter(Boolean)])];
+  const normalizedCreatorId = String(creatorId || '').trim();
+  const normalizedMemberIds = memberIds
+    .map((memberId) => String(memberId || '').trim())
+    .filter(Boolean);
+  const uniqueMemberIds = [...new Set(normalizedMemberIds.filter((userId) => userId !== normalizedCreatorId))];
+
+  if (!normalizedCreatorId) {
+    throw new Error('A valid room creator is required.');
+  }
+
   const client = await db.connect();
 
   try {
@@ -263,10 +348,24 @@ exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
       VALUES ($1, $2)
       RETURNING room_id, room_name, created_by, created_at, is_archived;
       `,
-      [roomName || 'New Group Chat', creatorId]
+      [roomName || 'New Group Chat', normalizedCreatorId]
     );
 
     const room = roomResult.rows[0];
+
+    await client.query(
+      `
+      INSERT INTO chat_room_members (
+        room_id,
+        user_id,
+        is_admin
+      )
+      VALUES ($1, $2, true)
+      ON CONFLICT (room_id, user_id) DO UPDATE
+      SET is_admin = true;
+      `,
+      [room.room_id, normalizedCreatorId]
+    );
 
     for (const userId of uniqueMemberIds) {
       await client.query(
@@ -279,7 +378,7 @@ exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
         VALUES ($1, $2, $3)
         ON CONFLICT (room_id, user_id) DO NOTHING;
         `,
-        [room.room_id, userId, userId === creatorId]
+        [room.room_id, userId, false]
       );
     }
 
@@ -287,7 +386,7 @@ exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
 
     return {
       ...room,
-      member_ids: uniqueMemberIds,
+      member_ids: [normalizedCreatorId, ...uniqueMemberIds],
     };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -319,7 +418,18 @@ exports.fetchRoomMessages = async (currentUserId, roomId) => {
     [roomId]
   );
 
-  return result.rows;
+  const summaries = new Map();
+
+  for (const senderId of [...new Set(result.rows.map((row) => row.sender_id).filter(Boolean))]) {
+    summaries.set(senderId, await getUserSummary(senderId));
+  }
+
+  return result.rows.map((row) => ({
+    ...row,
+    sender_name: summaries.get(row.sender_id)?.display_name || 'Unknown User',
+    sender_profile_photo_url: summaries.get(row.sender_id)?.profile_photo_url || null,
+    sender_avatar_url: summaries.get(row.sender_id)?.avatar_url || null,
+  }));
 };
 
 exports.sendRoomMessage = async ({ senderId, roomId, subject = null, messageBody, attachmentUrl = null }) => {
@@ -350,7 +460,15 @@ exports.sendRoomMessage = async ({ senderId, roomId, subject = null, messageBody
     [senderId, roomId, subject, messageBody, attachmentUrl]
   );
 
-  return result.rows[0];
+  const message = result.rows[0];
+  const senderSummary = await getUserSummary(senderId);
+
+  return {
+    ...message,
+    sender_name: senderSummary?.display_name || 'Unknown User',
+    sender_profile_photo_url: senderSummary?.profile_photo_url || null,
+    sender_avatar_url: senderSummary?.avatar_url || null,
+  };
 };
 
 exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
@@ -412,6 +530,9 @@ exports.fetchScholarMembers = async () => {
       s.scholar_id,
       st.student_id,
       st.pdm_id AS student_number,
+      st.first_name,
+      st.last_name,
+      st.profile_photo_url,
       TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
       COALESCE(ac.course_code, 'No Program') AS program_name,
       COALESCE(sp.program_name, 'Unassigned Benefactor') AS benefactor_name
@@ -430,13 +551,23 @@ exports.fetchScholarMembers = async () => {
     `
   );
 
-  return result.rows.map((row) => ({
-    user_id: row.user_id,
-    scholar_id: row.scholar_id,
-    student_id: row.student_id,
-    student_number: row.student_number || '',
-    student_name: row.student_name || 'Unknown Scholar',
-    program_name: row.program_name || 'No Program',
-    benefactor_name: row.benefactor_name || 'Unassigned Benefactor',
-  }));
+  const items = [];
+
+  for (const row of result.rows) {
+    items.push({
+      user_id: row.user_id,
+      scholar_id: row.scholar_id,
+      student_id: row.student_id,
+      student_number: row.student_number || '',
+      first_name: row.first_name || '',
+      last_name: row.last_name || '',
+      student_name: row.student_name || 'Unknown Scholar',
+      profile_photo_url: row.profile_photo_url || null,
+      avatar_url: await resolveAvatarUrl(row.profile_photo_url),
+      program_name: row.program_name || 'No Program',
+      benefactor_name: row.benefactor_name || 'Unassigned Benefactor',
+    });
+  }
+
+  return items;
 };

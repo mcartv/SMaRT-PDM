@@ -22,13 +22,50 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // In production, restrict this to your app's domain/origins
-    methods: ["GET", "POST"]
-  }
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:5000",
+      "https://smart-pdm-mipx.onrender.com"
+    ],
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ['websocket'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  // Add these for Render compatibility
+  allowUpgrades: true,
+  perMessageDeflate: false,
+  httpCompression: false
+});
+
+// Add connection error handling
+io.engine.on("connection_error", (err) => {
+  console.log("Connection error:", err);
 });
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.get('/', (req, res) => {
+  res.send('Backend is running! 🚀');
+});
+
+// Health check for WebSocket
+app.get('/api/socket-health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    websocket: 'enabled',
+    transports: ['websocket', 'polling']
+  });
+});
+
+// // Force WebSocket upgrade path
+// app.get('/socket.io/', (req, res) => {
+//   res.status(200).send('Socket.io endpoint ready');
+// });
 
 // Used by the mobile app to auto-detect the active development backend.
 app.get('/api/health', (_req, res) => {
@@ -46,32 +83,6 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// KEEP ONLY THIS ONE
-app.get('/api/courses', async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('academic_course')
-      .select('course_id, course_code, course_name')
-      .eq('is_archived', false)
-      .order('course_code', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    const items = (data || []).map((course) => ({
-      course_id: course.course_id,
-      course_code: course.course_code,
-      course_name: course.course_name,
-      label: `${course.course_code} - ${course.course_name}`,
-    }));
-
-    return res.status(200).json({ items });
-  } catch (error) {
-    console.error('GET COURSES ERROR:', error);
-    return res.status(500).json({ error: 'Failed to fetch courses' });
-  }
-});
 
 notificationService.configureNotificationService({ io, supabase });
 messageService.configureMessageService({ io, supabase });
@@ -4721,7 +4732,28 @@ io.on('connection', (socket) => {
   });
 });
 
+// ===== 404 HANDLER - MUST BE LAST =====
+app.use((req, res) => {
+  console.log(`404 Not Found: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({
+    error: `Cannot ${req.method} ${req.originalUrl}`,
+    message: 'The requested endpoint does not exist',
+    availableEndpoints: [
+      'GET /',
+      'GET /api/health',
+      'GET /api/socket-health',
+      'POST /api/auth/register',
+      'POST /api/auth/login',
+      'GET /api/courses',
+      'GET /api/faqs',
+      'GET /api/profile/me',
+      'GET /api/openings'
+    ]
+  });
+});
+
 const PORT = Number(process.env.PORT) || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running and listening on port ${PORT}`);
 });
+

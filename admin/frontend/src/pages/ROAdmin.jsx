@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -495,6 +495,10 @@ export default function ROAdmin() {
                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
                   <div className="xl:col-span-3 flex items-start gap-3">
                     <Avatar className="w-11 h-11 border border-stone-200 shadow-sm shrink-0">
+                      <AvatarImage
+                        src={ro.student.avatarUrl || undefined}
+                        alt={ro.student.name}
+                      />
                       <AvatarFallback className="text-xs font-semibold bg-blue-900 text-white">
                         {initials(ro.student.name)}
                       </AvatarFallback>

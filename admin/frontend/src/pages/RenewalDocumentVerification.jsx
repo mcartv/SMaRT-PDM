@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft,
@@ -273,6 +273,10 @@ export default function RenewalDocumentVerification() {
             <div className="p-5">
               <div className="flex items-center gap-3 mb-5">
                 <Avatar className="w-12 h-12 border border-stone-100">
+                  <AvatarImage
+                    src={renewal?.student?.avatar_url || undefined}
+                    alt={renewal?.student?.name || 'Scholar'}
+                  />
                   <AvatarFallback className="bg-blue-900 text-white text-sm font-semibold">
                     {renewal?.student?.initials || 'NA'}
                   </AvatarFallback>

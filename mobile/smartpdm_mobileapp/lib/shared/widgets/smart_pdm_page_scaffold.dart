@@ -43,6 +43,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
 
   bool _isScholar = false;
   String _userName = 'Scholar';
+  String? _avatarUrl;
 
   Timer? _idleTimer;
   DateTime? _backgroundedAt;
@@ -64,6 +65,12 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
   }
 
   @override
+  void didUpdateWidget(covariant SmartPdmPageScaffold oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _loadUserInfo();
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_loggingOut) return;
 
@@ -78,7 +85,9 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
       _backgroundedAt = null;
 
       if (previousBackgroundTime != null) {
-        final inactiveDuration = DateTime.now().difference(previousBackgroundTime);
+        final inactiveDuration = DateTime.now().difference(
+          previousBackgroundTime,
+        );
         if (inactiveDuration >= _idleLimit) {
           _handleAutoLogout();
           return;
@@ -97,6 +106,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
     setState(() {
       _isScholar = prefs.getBool('user_has_scholar_access') ?? false;
       _userName = prefs.getString('user_student_id') ?? 'Scholar';
+      _avatarUrl = prefs.getString('user_profile_image');
     });
   }
 
@@ -120,16 +130,17 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
 
     if (!mounted) return;
 
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.login,
-      (route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Session expired due to inactivity. Please log in again.'),
+          content: Text(
+            'Session expired due to inactivity. Please log in again.',
+          ),
         ),
       );
     });
@@ -141,10 +152,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
     final hasScholarAccess =
         notificationProvider.hasScholarAccess || _isScholar;
     final content = widget.applyPadding
-        ? Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: widget.child,
-          )
+        ? Padding(padding: const EdgeInsets.all(16.0), child: widget.child)
         : widget.child;
 
     return GestureDetector(
@@ -158,6 +166,7 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
             ? SmartPdmDrawer(
                 isScholar: hasScholarAccess,
                 userName: _userName,
+                avatarUrl: _avatarUrl,
               )
             : null,
         bottomNavigationBar: widget.showBottomNav
@@ -169,7 +178,8 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
                   unreadNotifications: widget.unreadNotifications > 0
                       ? widget.unreadNotifications
                       : notificationProvider.unreadCount,
-                  unreadPayoutNotifications: notificationProvider.unreadPayoutCount,
+                  unreadPayoutNotifications:
+                      notificationProvider.unreadPayoutCount,
                 ),
               )
             : null,

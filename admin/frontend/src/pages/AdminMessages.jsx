@@ -13,8 +13,10 @@ import {
   Plus,
   Check,
 } from 'lucide-react'
+import API_BASE_URL from '@/api';
 
-const MESSAGING_API_BASE = 'http://localhost:5000'
+
+const MESSAGING_API_BASE = API_BASE_URL;
 
 function getAdminMessagingToken() {
   return localStorage.getItem('adminToken') || ''

@@ -16,8 +16,9 @@ import {
   ScanSearch,
   XCircle,
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = buildApiUrl('/api');
 
 const DOC_STATUS = {
   verified: {

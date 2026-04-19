@@ -11,8 +11,9 @@ import {
   AlertTriangle, ShieldCheck, ScanText, ExternalLink,
   Columns2, RefreshCw, X,
 } from 'lucide-react';
+import API_BASE_URL from '@/api';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = API_BASE_URL;
 
 const C = {
   blue: '#1E3A8A',

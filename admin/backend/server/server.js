@@ -106,8 +106,6 @@ app.use('/api/academic-years', academicYearRoutes);
 // =========================
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
-console.log('Frontend build path:', frontendBuildPath);
-console.log('Frontend build path exists:', require('fs').existsSync(frontendBuildPath));
 app.use(express.static(frontendBuildPath));
 
 // =========================
@@ -127,20 +125,15 @@ app.get('/', (req, res) => {
 app.use((req, res, next) => {
     // Skip API routes
     if (req.path.startsWith('/api')) {
-        console.log('Skipping API route:', req.path);
         return next();
     }
 
     // Skip if already handled by static middleware
     if (req.path.startsWith('/assets/') || req.path.includes('.')) {
-        console.log('Static file request:', req.path);
         return next();
     }
 
-    console.log('Serving frontend for path:', req.path);
     const indexPath = path.join(frontendBuildPath, 'index.html');
-    console.log('Index path:', indexPath);
-
     res.sendFile(indexPath, (err) => {
         if (err) {
             console.error('Error serving index.html:', err);

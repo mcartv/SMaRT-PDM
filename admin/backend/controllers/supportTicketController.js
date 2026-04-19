@@ -1,4 +1,5 @@
 const supportTicketService = require('../services/supportTicketService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getSupportTickets = async (req, res) => {
     try {
@@ -24,6 +25,13 @@ exports.updateSupportTicket = async (req, res) => {
             status,
             assignToSelf,
             currentUser: req.user,
+        });
+
+        const io = req.app.get('io');
+        socketEvents.ticketUpdated(io, {
+            ticket_id: ticketId,
+            status: updated.status,
+            updated_at: new Date().toISOString()
         });
 
         res.status(200).json({

@@ -1,4 +1,5 @@
 const renewalService = require('../services/renewalService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getRenewals = async (req, res) => {
     try {
@@ -27,6 +28,13 @@ exports.saveRenewalReview = async (req, res) => {
             req.body,
             req.user
         );
+
+        const io = req.app.get('io');
+        socketEvents.renewalUpdated(io, {
+            renewal_id: req.params.id,
+            status: payload.renewal_status,
+            updated_at: new Date().toISOString()
+        });
 
         res.status(200).json({
             message: 'Renewal review saved successfully.',

@@ -80,33 +80,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =========================
-// ROUTES
-// =========================
-
-app.use('/api/auth', authRoutes);
-app.use('/api/scholars', scholarRoutes);
-app.use('/api/applications', applicationRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/announcements', announcementRoutes);
-app.use('/api/ro', roRoutes);
-app.use('/api/scholarship-program', scholarshipProgramRoutes);
-app.use('/api/program-openings', programOpeningRoutes);
-app.use('/api/courses', courseRoutes);
-app.use('/api/benefactors', benefactorRoutes);
-app.use('/api/departments', departmentRoutes);
-app.use('/api/renewals', renewalRoutes);
-app.use('/api/support-tickets', supportTicketRoutes);
-app.use('/api/payouts', payoutRoutes);
-app.use('/api/student-registry', studentRegistryRoutes);
-app.use('/api/academic-years', academicYearRoutes);
-
-// =========================
 // SERVE STATIC FILES (React Frontend)
 // =========================
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
+
+// =========================
+// ROUTES
+// =========================
 
 // =========================
 // HEALTH CHECK
@@ -117,27 +99,22 @@ app.get('/', (req, res) => {
 });
 
 // =========================
-// CATCH-ALL ROUTE FOR CLIENT-SIDE ROUTING
-// Serves index.html for any non-API route, allowing React Router to handle routing
+// CATCH-ALL HANDLER FOR SPA ROUTING
+// This runs after all routes - serves index.html for any unmatched requests
 // =========================
 
-// Use middleware instead of route to avoid path-to-regexp issues
-app.use((req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith('/api')) {
-        return next();
+app.use((req, res) => {
+    // If it's an API route that wasn't matched, return 404
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ message: 'API endpoint not found' });
     }
 
-    // Skip if already handled by static middleware
-    if (req.path.startsWith('/assets/') || req.path.includes('.')) {
-        return next();
-    }
-
+    // For all other requests (SPA routes), serve index.html
     const indexPath = path.join(frontendBuildPath, 'index.html');
     res.sendFile(indexPath, (err) => {
         if (err) {
-            console.error('Error serving index.html:', err);
-            res.status(404).json({ message: 'Frontend not found' });
+            console.error('Error serving index.html for path:', req.path, err);
+            res.status(500).json({ message: 'Internal server error' });
         }
     });
 });

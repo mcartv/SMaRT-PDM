@@ -30,8 +30,8 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
-const PAGE_SIZE = 10;
+import { buildApiUrl } from '@/api';
+const API_BASE = buildApiUrl('/api');const PAGE_SIZE = 10;
 
 // ─── Theme ───────────────────────────────────────────────────────
 const C = {

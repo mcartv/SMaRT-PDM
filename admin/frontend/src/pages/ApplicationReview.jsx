@@ -17,6 +17,7 @@ import {
   ChevronRight,
   RefreshCw,
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
 const C = {
   brown: '#5c2d0e',
@@ -260,13 +261,13 @@ export default function ApplicationReview() {
       const token = localStorage.getItem('adminToken');
 
       const [openingsRes, applicationsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/program-openings/admin/applications-summary', {
+        fetch(buildApiUrl('/api/program-openings/admin/applications-summary'), {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         }),
-        fetch('http://localhost:5000/api/applications', {
+        fetch(buildApiUrl('/api/applications'), {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',

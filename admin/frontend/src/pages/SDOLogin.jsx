@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Eye, EyeOff, ShieldCheck, Scale, Users } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
+import { buildApiUrl } from '@/api';
 
 // ─── GREEN SDO THEME ────────────────────────────────────────────
 const PANEL_BASE = '#2e4b43';
@@ -32,11 +33,11 @@ export default function SDOLogin() {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/sdo/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
+      const response = await fetch(buildApiUrl('/api/auth/sdo/login'), {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: normalizedEmail, password }),
+});
 
       const data = await response.json();
 

@@ -872,30 +872,42 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                             ),
                                           ),
                                         const SizedBox(height: 10),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              _isAutosaving
-                                                  ? Icons.sync
-                                                  : Icons.save_outlined,
-                                              size: 16,
-                                              color: AppColors.brown,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                _isAutosaving
-                                                    ? 'Saving draft...'
-                                                    : _autosaveError == null
-                                                    ? 'Draft autosaves as you complete the form.'
-                                                    : _autosaveError!,
-                                                style: const TextStyle(
-                                                  fontSize: 12,
+                                        ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            minHeight: 34,
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 1,
+                                                ),
+                                                child: Icon(
+                                                  _isAutosaving
+                                                      ? Icons.sync
+                                                      : Icons.save_outlined,
+                                                  size: 16,
                                                   color: AppColors.brown,
                                                 ),
                                               ),
-                                            ),
-                                          ],
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  _isAutosaving
+                                                      ? 'Saving draft...'
+                                                      : _autosaveError == null
+                                                      ? 'Draft autosaves as you complete the form.'
+                                                      : _autosaveError!,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: AppColors.brown,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                     ),

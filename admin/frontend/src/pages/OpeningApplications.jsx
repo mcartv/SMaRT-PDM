@@ -13,6 +13,7 @@ import {
     ArrowLeft, CalendarDays, CircleOff, Clock3,
     LayoutGrid, Table2,
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
 const C = {
     brown: '#5c2d0e',
@@ -313,13 +314,13 @@ export default function OpeningApplications() {
             const token = localStorage.getItem('adminToken');
 
             const [openingRes, applicationsRes] = await Promise.all([
-                fetch(`http://localhost:5000/api/program-openings/${openingId}`, {
+                fetch(buildApiUrl(`/api/program-openings/${openingId}`), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                 }),
-                fetch(`http://localhost:5000/api/program-openings/${openingId}/applications`, {
+                fetch(buildApiUrl(`/api/program-openings/${openingId}/applications`), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -438,7 +439,7 @@ export default function OpeningApplications() {
 
     const handleDisqualify = async (id, reason) => {
         try {
-            const res = await fetch(`http://localhost:5000/api/applications/${id}/disqualify`, {
+            const res = await fetch(buildApiUrl(`/api/applications/${id}/disqualify`), {
                 method: 'PATCH',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
@@ -480,7 +481,7 @@ export default function OpeningApplications() {
 
             const endpoint =
                 action === 'approve'
-                    ? `http://localhost:5000/api/applications/${id}/approve`
+                    ? buildApiUrl(`/api/applications/${id}/approve`)
                     : null;
 
             if (!endpoint) {
@@ -533,7 +534,7 @@ export default function OpeningApplications() {
         try {
             setRemarksSaving(true);
 
-            const res = await fetch(`http://localhost:5000/api/applications/${remarksModal.id}/remarks`, {
+            const res = await fetch(buildApiUrl(`/api/applications/${remarksModal.id}/remarks`), {
                 method: 'PATCH',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,

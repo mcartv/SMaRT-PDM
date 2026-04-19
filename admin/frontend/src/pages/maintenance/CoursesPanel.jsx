@@ -16,6 +16,7 @@ import {
     X,
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
+import { buildApiUrl } from '@/api';
 
 function CourseModal({
     open,
@@ -284,7 +285,7 @@ export default function CoursesPanel() {
     const [form, setForm] = useState(emptyForm);
 
     const fetchDepartments = async () => {
-        const res = await fetch('http://localhost:5000/api/departments', {
+        const res = await fetch(buildApiUrl('/api/departments'), {
             headers: {
                 Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                 'Content-Type': 'application/json',
@@ -300,7 +301,7 @@ export default function CoursesPanel() {
     };
 
     const fetchCourses = async () => {
-        const res = await fetch('http://localhost:5000/api/courses', {
+        const res = await fetch(buildApiUrl('/api/courses'), {
             headers: {
                 Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                 'Content-Type': 'application/json',
@@ -405,8 +406,8 @@ export default function CoursesPanel() {
 
             const isEdit = modalMode === 'edit' && editingCourseId;
             const url = isEdit
-                ? `http://localhost:5000/api/courses/${editingCourseId}`
-                : 'http://localhost:5000/api/courses';
+                ? buildApiUrl(`/api/courses/${editingCourseId}`)
+                : buildApiUrl('/api/courses');
 
             const method = isEdit ? 'PATCH' : 'POST';
 
@@ -450,7 +451,7 @@ export default function CoursesPanel() {
                 throw new Error('Department code is required');
             }
 
-            const res = await fetch('http://localhost:5000/api/departments', {
+            const res = await fetch(buildApiUrl('/api/departments'), {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
@@ -479,7 +480,7 @@ export default function CoursesPanel() {
 
     const handleArchiveToggle = async (course) => {
         try {
-            const res = await fetch(`http://localhost:5000/api/courses/${course.course_id}`, {
+            const res = await fetch(buildApiUrl(`/api/courses/${course.course_id}`), {
                 method: 'PATCH',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,

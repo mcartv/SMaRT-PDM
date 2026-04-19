@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ShieldAlert, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { buildApiUrl } from '@/api';
 
-const API_BASE = 'http://localhost:5000/api';
-
+const API_BASE = buildApiUrl('/api');
 // ─── Theme (matching Admin Dashboard) ───────────────────────────────────────
 const C = {
   brown: '#5c2d0e',

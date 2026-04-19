@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
     Plus,
@@ -11,49 +11,25 @@ import {
     CalendarRange,
     CheckCircle2,
     X,
+    Search,
 } from 'lucide-react';
 
 const C = {
-    brown: '#5c2d0e',
     brownMid: '#7c4a2e',
-    amber: '#d97706',
-    amberSoft: '#FFF7ED',
     green: '#16a34a',
     greenSoft: '#F0FDF4',
-    red: '#dc2626',
-    redSoft: '#FEF2F2',
+    amber: '#d97706',
+    amberSoft: '#FFF7ED',
     blueMid: '#2563EB',
     blueSoft: '#EFF6FF',
     text: '#1c1917',
     bg: '#faf7f2',
-    muted: '#78716c',
 };
-
-function StatCard({ label, value, icon: Icon, accent, soft }) {
-    return (
-        <Card className="border-stone-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
-                <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{ background: soft }}
-                >
-                    <Icon className="w-4 h-4" style={{ color: accent }} />
-                </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-                <div className="text-2xl font-semibold" style={{ color: C.text }}>
-                    {value}
-                </div>
-                <p className="text-xs text-stone-500 mt-0.5">{label}</p>
-            </CardContent>
-        </Card>
-    );
-}
 
 function EmptyState() {
     return (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
-            <CalendarRange size={40} className="mb-3 text-stone-300" />
+            <CalendarRange size={36} className="mb-3 text-stone-300" />
             <p className="text-sm font-semibold text-stone-700">No academic years found</p>
             <p className="text-xs text-stone-400 mt-1">
                 Add a school year to start using it across the system.
@@ -76,7 +52,6 @@ function AcademicYearModal({
     const isEdit = mode === 'edit';
     const start = Number(form.start_year || 0);
     const end = Number(form.end_year || 0);
-
     const computedLabel =
         start > 0 && end > 0 ? `${start}-${end}` : 'Preview not available';
 
@@ -284,14 +259,6 @@ export default function AcademicYearsPanel() {
             });
     }, [rows, search]);
 
-    const stats = useMemo(() => {
-        return {
-            total: rows.length,
-            active: rows.filter((row) => row.is_active).length,
-            inactive: rows.filter((row) => !row.is_active).length,
-        };
-    }, [rows]);
-
     const resetModal = () => {
         setModalOpen(false);
         setModalMode('create');
@@ -431,7 +398,7 @@ export default function AcademicYearsPanel() {
     }
 
     return (
-        <div className="space-y-5 py-2" style={{ background: C.bg }}>
+        <div className="space-y-4 py-1" style={{ background: C.bg }}>
             <AcademicYearModal
                 open={modalOpen}
                 mode={modalMode}
@@ -442,12 +409,14 @@ export default function AcademicYearsPanel() {
                 onSave={handleSave}
             />
 
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                <div>
-                    <h1 className="text-xl font-semibold text-stone-900">Academic Years</h1>
-                    <p className="text-sm text-stone-500">
-                        Manage school year records used across scholarship openings.
-                    </p>
+            <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                <div className="flex-1">
+                    <Input
+                        placeholder="Search academic year..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="h-9 text-sm bg-white rounded-lg border-stone-200"
+                    />
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -468,145 +437,74 @@ export default function AcademicYearsPanel() {
                         style={{ background: C.brownMid }}
                     >
                         <Plus className="w-3.5 h-3.5 mr-1.5" />
-                        Add Academic Year
+                        Add
                     </Button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <StatCard
-                    label="Total Academic Years"
-                    value={stats.total}
-                    icon={CalendarRange}
-                    accent={C.blueMid}
-                    soft={C.blueSoft}
-                />
-                <StatCard
-                    label="Active"
-                    value={stats.active}
-                    icon={CheckCircle2}
-                    accent={C.green}
-                    soft={C.greenSoft}
-                />
-                <StatCard
-                    label="Inactive"
-                    value={stats.inactive}
-                    icon={Pencil}
-                    accent={C.amber}
-                    soft={C.amberSoft}
-                />
-            </div>
+            {filteredRows.length === 0 ? (
+                <EmptyState />
+            ) : (
+                <div className="space-y-3">
+                    {filteredRows.map((row) => (
+                        <div
+                            key={row.academic_year_id}
+                            className="rounded-xl border border-stone-200 bg-white px-4 py-4 hover:border-stone-300 transition-colors"
+                        >
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-semibold text-stone-900">
+                                            {row.label || `${row.start_year}-${row.end_year}`}
+                                        </h3>
 
-            <Card className="border-stone-200 shadow-none overflow-hidden">
-                <CardHeader className="bg-stone-50/60 border-b border-stone-100">
-                    <CardTitle className="text-sm font-semibold text-stone-800">
-                        Academic Year Registry
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                        Add, review, and activate school years for the system.
-                    </CardDescription>
-                </CardHeader>
-
-                <CardContent className="p-4 space-y-4">
-                    <div className="flex flex-col md:flex-row gap-3">
-                        <Input
-                            placeholder="Search by label, start year, or end year..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="h-9 text-sm bg-white rounded-lg border-stone-200"
-                        />
-                    </div>
-
-                    {filteredRows.length === 0 ? (
-                        <EmptyState />
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredRows.map((row) => (
-                                <div
-                                    key={row.academic_year_id}
-                                    className="rounded-xl border border-stone-200 bg-white p-4 hover:border-stone-300 transition-colors"
-                                >
-                                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <h3 className="text-sm font-semibold text-stone-900">
-                                                    {row.label || `${row.start_year}-${row.end_year}`}
-                                                </h3>
-
-                                                {row.is_active ? (
-                                                    <Badge className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50">
-                                                        Active
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="border-stone-200 bg-white text-stone-600"
-                                                    >
-                                                        Inactive
-                                                    </Badge>
-                                                )}
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                                                <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                    <p className="text-[10px] uppercase tracking-wide text-stone-400">
-                                                        Start Year
-                                                    </p>
-                                                    <p className="text-xs font-medium text-stone-800 mt-1">
-                                                        {row.start_year}
-                                                    </p>
-                                                </div>
-
-                                                <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                    <p className="text-[10px] uppercase tracking-wide text-stone-400">
-                                                        End Year
-                                                    </p>
-                                                    <p className="text-xs font-medium text-stone-800 mt-1">
-                                                        {row.end_year}
-                                                    </p>
-                                                </div>
-
-                                                <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
-                                                    <p className="text-[10px] uppercase tracking-wide text-stone-400">
-                                                        Status
-                                                    </p>
-                                                    <p className="text-xs font-medium text-stone-800 mt-1">
-                                                        {row.is_active ? 'Currently Active' : 'Inactive'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            {!row.is_active && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleSetActive(row)}
-                                                    className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
-                                                >
-                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                                                    Set Active
-                                                </Button>
-                                            )}
-
-                                            <Button
-                                                size="sm"
+                                        {row.is_active ? (
+                                            <Badge className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50">
+                                                Active
+                                            </Badge>
+                                        ) : (
+                                            <Badge
                                                 variant="outline"
-                                                onClick={() => openEditModal(row)}
-                                                className="rounded-lg text-xs border-stone-200"
+                                                className="border-stone-200 bg-white text-stone-600"
                                             >
-                                                <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                                                Edit
-                                            </Button>
-                                        </div>
+                                                Inactive
+                                            </Badge>
+                                        )}
                                     </div>
+
+                                    <p className="mt-1 text-xs text-stone-500">
+                                        Start: {row.start_year} · End: {row.end_year}
+                                    </p>
                                 </div>
-                            ))}
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                    {!row.is_active && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleSetActive(row)}
+                                            className="rounded-lg text-xs border-green-200 text-green-700 hover:bg-green-50"
+                                        >
+                                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                            Set Active
+                                        </Button>
+                                    )}
+
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => openEditModal(row)}
+                                        className="rounded-lg text-xs border-stone-200"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                                        Edit
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

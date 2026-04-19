@@ -19,6 +19,16 @@ router.get('/', protect, applicationController.getApplications);
 // Applicant details / docs
 router.get('/:id', protect, applicationController.getApplicationDetails);
 router.get('/:id/documents', protect, applicationController.getApplicationDocuments);
+router.post(
+    '/:id/documents/:documentKey/iot-ocr',
+    protect,
+    applicationController.runApplicationDocumentIotOcr
+);
+router.patch(
+    '/:id/documents/:documentKey/ocr',
+    protect,
+    applicationController.saveApplicationDocumentOcrSnapshot
+);
 
 // Student/mobile uploads
 router.post(

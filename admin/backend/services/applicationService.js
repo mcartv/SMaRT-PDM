@@ -7,6 +7,10 @@ const STORAGE_BUCKET =
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'application-documents';
 const STUDENT_BACKEND_BASE_URL =
     process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
+const IOT_OCR_ENDPOINT_URL =
+    (process.env.IOT_OCR_ENDPOINT_URL || '').trim();
+const IOT_OCR_API_KEY =
+    (process.env.IOT_OCR_API_KEY || '').trim();
 const INTERNAL_NOTIFICATION_SECRET =
     (process.env.INTERNAL_NOTIFICATION_SECRET || '').trim();
 
@@ -406,6 +410,8 @@ function ensureDocumentCoverage(normalizedDocuments = []) {
                 status: 'pending',
                 admin_comment: '',
                 notes: null,
+                ocr: {},
+                ocr_confidence: null,
                 submitted_at: null,
                 reviewed_at: null,
             }
@@ -431,6 +437,45 @@ function resolveStorageContentType(fileExt, fallbackMime = '') {
     if (normalizedExt === '.webp') return 'image/webp';
 
     return fallbackMime || 'application/octet-stream';
+}
+
+function normalizeOcrResponse(payload = {}) {
+    const confidence =
+        payload?.ocr_confidence ??
+        payload?.confidence ??
+        payload?.ocr?.confidence ??
+        null;
+
+    const rawText =
+        payload?.raw_text ??
+        payload?.text ??
+        payload?.ocr_text ??
+        payload?.ocr?.raw_text ??
+        payload?.ocr?.text ??
+        '';
+
+    const extractedFields =
+        payload?.extracted_fields ??
+        payload?.fields ??
+        payload?.ocr?.extracted_fields ??
+        {};
+
+    const ocr =
+        payload?.ocr && typeof payload.ocr === 'object'
+            ? payload.ocr
+            : {
+                ...extractedFields,
+                raw_text: rawText,
+                confidence,
+            };
+
+    return {
+        ocr,
+        ocr_confidence: confidence,
+        raw_text: rawText,
+        extracted_fields: extractedFields,
+        source_payload: payload,
+    };
 }
 
 async function getSignedFileUrl(filePath) {
@@ -526,6 +571,7 @@ async function buildApplicationDetails(applicationId) {
         educationRecordsResult,
         documentsResult,
         reviewsResult,
+        ocrResult,
     ] = await Promise.all([
         supabase
             .from('student_profiles')
@@ -551,6 +597,28 @@ async function buildApplicationDetails(applicationId) {
             .from('application_document_reviews')
             .select('*')
             .eq('application_id', applicationId),
+        supabase
+            .from('ocr_extracted_documents')
+            .select(`
+                document_id,
+                student_id,
+                linked_record_id,
+                linked_record_type,
+                document_key,
+                document_type,
+                file_url,
+                scanned_via_iot,
+                iot_device_id,
+                ocr_extracted_name,
+                ocr_extracted_gwa,
+                ocr_confidence,
+                ocr_raw_text,
+                scanned_at,
+                updated_at
+            `)
+            .eq('linked_record_id', applicationId)
+            .eq('student_id', applicationRecord.student_id)
+            .eq('linked_record_type', 'application'),
     ]);
 
     const resultErrors = [
@@ -559,6 +627,7 @@ async function buildApplicationDetails(applicationId) {
         educationRecordsResult.error,
         documentsResult.error,
         reviewsResult.error,
+        ocrResult.error,
     ].filter(Boolean);
 
     if (resultErrors.length > 0) {
@@ -607,6 +676,31 @@ async function buildApplicationDetails(applicationId) {
     const reviewByKey = new Map(
         (reviewsResult.data || []).map((review) => [review.document_key, review])
     );
+    const ocrByKey = new Map(
+        (ocrResult.data || []).map((ocrRow) => {
+            const resolvedKey = normalizeDocumentType(
+                ocrRow.document_key || ocrRow.document_type || ''
+            );
+
+            return [
+                resolvedKey,
+                {
+                    id: ocrRow.document_id || null,
+                    document_key: resolvedKey,
+                    document_type: ocrRow.document_type || null,
+                    file_url: ocrRow.file_url || null,
+                    scanned_via_iot: !!ocrRow.scanned_via_iot,
+                    iot_device_id: ocrRow.iot_device_id || null,
+                    extracted_name: ocrRow.ocr_extracted_name || null,
+                    extracted_gwa: ocrRow.ocr_extracted_gwa ?? null,
+                    confidence: ocrRow.ocr_confidence ?? null,
+                    raw_text: ocrRow.ocr_raw_text || '',
+                    scanned_at: ocrRow.scanned_at || null,
+                    updated_at: ocrRow.updated_at || null,
+                },
+            ];
+        })
+    );
 
     const rawDocuments = documentsResult.data || [];
 
@@ -614,6 +708,7 @@ async function buildApplicationDetails(applicationId) {
         rawDocuments.map(async (document) => {
             const documentKey = inferDocumentKey(document);
             const review = reviewByKey.get(documentKey) || null;
+            const ocr = ocrByKey.get(documentKey) || null;
             const filePath = document.file_path || null;
             const signedUrl = filePath ? await getSignedFileUrl(filePath) : null;
 
@@ -630,6 +725,8 @@ async function buildApplicationDetails(applicationId) {
                 status: deriveReviewStatus(document, review),
                 admin_comment: review?.admin_comment || document.notes || '',
                 notes: document.notes || null,
+                ocr: ocr || {},
+                ocr_confidence: ocr?.confidence ?? null,
                 uploaded_at: document.submitted_at || null,
                 submitted_at: document.submitted_at || null,
                 reviewed_at: review?.reviewed_at || null,
@@ -650,6 +747,8 @@ async function buildApplicationDetails(applicationId) {
         status: reviewByKey.get('application_form')?.review_status || 'pending',
         admin_comment: reviewByKey.get('application_form')?.admin_comment || '',
         notes: null,
+        ocr: {},
+        ocr_confidence: null,
         uploaded_at: applicationRecord.submission_date || null,
         submitted_at: applicationRecord.submission_date || null,
         reviewed_at: reviewByKey.get('application_form')?.reviewed_at || null,
@@ -824,6 +923,279 @@ exports.fetchApplications = async () => {
 
 exports.fetchApplicationDetailsById = async (id) => buildApplicationDetails(id);
 exports.fetchApplicationDocumentsById = async (id) => buildApplicationDetails(id);
+
+exports.runApplicationDocumentIotOcr = async ({
+    applicationId,
+    documentKey,
+}) => {
+    if (!applicationId) {
+        throw new Error('applicationId is required');
+    }
+
+    const normalizedDocumentKey = normalizeDocumentType(documentKey);
+
+    if (!normalizedDocumentKey) {
+        throw new Error('documentKey is required');
+    }
+
+    if (normalizedDocumentKey === 'application_form') {
+        throw new Error('IoT OCR is only available for uploaded files');
+    }
+
+    if (!IOT_OCR_ENDPOINT_URL) {
+        throw new Error('IOT_OCR_ENDPOINT_URL is not configured');
+    }
+
+    const documentTypeName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
+
+    if (!documentTypeName) {
+        throw new Error('Invalid documentKey');
+    }
+
+    const { data: applicationRow, error: applicationError } = await supabase
+        .from('applications')
+        .select(`
+            application_id,
+            student_id,
+            students (
+                first_name,
+                middle_name,
+                last_name
+            )
+        `)
+        .eq('application_id', applicationId)
+        .maybeSingle();
+
+    if (applicationError) {
+        console.error('SUPABASE IOT OCR APPLICATION FETCH ERROR:', applicationError);
+        throw new Error(applicationError.message);
+    }
+
+    if (!applicationRow) {
+        throw new Error('Application not found');
+    }
+
+    if (!applicationRow.student_id) {
+        throw new Error('Application is missing student_id');
+    }
+
+    const student = applicationRow.students || {};
+    const studentName = [
+        student.first_name,
+        student.middle_name,
+        student.last_name,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const requestBody = {
+        application_id: applicationId,
+        student_id: applicationRow.student_id,
+        student_name: studentName || 'Unknown Student',
+        document_key: normalizedDocumentKey,
+        document_type: documentTypeName,
+    };
+
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+
+    if (IOT_OCR_API_KEY) {
+        headers['x-iot-ocr-key'] = IOT_OCR_API_KEY;
+    }
+
+    const response = await fetch(IOT_OCR_ENDPOINT_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+    });
+
+    const rawBody = await response.text();
+    let payload = {};
+
+    if (rawBody) {
+        try {
+            payload = JSON.parse(rawBody);
+        } catch (_error) {
+            payload = { raw_text: rawBody };
+        }
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            payload?.error ||
+            payload?.message ||
+            `IoT OCR request failed with status ${response.status}`
+        );
+    }
+
+    return {
+        application_id: applicationId,
+        student_id: applicationRow.student_id,
+        student_name: studentName || 'Unknown Student',
+        document_key: normalizedDocumentKey,
+        document_name: documentTypeName,
+        ...normalizeOcrResponse(payload),
+    };
+};
+
+exports.saveApplicationDocumentOcrSnapshot = async ({
+    applicationId,
+    documentKey,
+    rawText,
+}) => {
+    if (!applicationId) {
+        throw new Error('applicationId is required');
+    }
+
+    const normalizedDocumentKey = normalizeDocumentType(documentKey);
+
+    if (!normalizedDocumentKey) {
+        throw new Error('documentKey is required');
+    }
+
+    if (normalizedDocumentKey === 'application_form') {
+        throw new Error('OCR snapshot is only available for uploaded documents');
+    }
+
+    const documentTypeName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
+
+    if (!documentTypeName) {
+        throw new Error('Invalid documentKey');
+    }
+
+    const { data: applicationRow, error: applicationError } = await supabase
+        .from('applications')
+        .select(`
+            application_id,
+            student_id,
+            students (
+                first_name,
+                middle_name,
+                last_name
+            )
+        `)
+        .eq('application_id', applicationId)
+        .maybeSingle();
+
+    if (applicationError) {
+        console.error('SUPABASE OCR SNAPSHOT APPLICATION FETCH ERROR:', applicationError);
+        throw new Error(applicationError.message);
+    }
+
+    if (!applicationRow) {
+        throw new Error('Application not found');
+    }
+
+    const student = applicationRow.students || {};
+    const studentName = [
+        student.first_name,
+        student.middle_name,
+        student.last_name,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const now = new Date().toISOString();
+    const normalizedRawText = String(rawText || '');
+    const { data: sourceDocumentRow, error: sourceDocumentError } = await supabase
+        .from('application_documents')
+        .select('file_path, file_url')
+        .eq('application_id', applicationId)
+        .eq('document_type', documentTypeName)
+        .maybeSingle();
+
+    if (sourceDocumentError) {
+        console.error('SUPABASE OCR SNAPSHOT SOURCE DOCUMENT FETCH ERROR:', sourceDocumentError);
+        throw new Error(sourceDocumentError.message);
+    }
+
+    const sourceFileUrl = sourceDocumentRow?.file_path
+        ? await getSignedFileUrl(sourceDocumentRow.file_path)
+        : sourceDocumentRow?.file_url || null;
+
+    const { data: existingOcrRows, error: existingOcrError } = await supabase
+        .from('ocr_extracted_documents')
+        .select('document_id, scanned_via_iot, file_url, iot_device_id, scanned_at')
+        .eq('linked_record_id', applicationId)
+        .eq('student_id', applicationRow.student_id)
+        .eq('linked_record_type', 'application')
+        .eq('document_key', normalizedDocumentKey)
+        .limit(1);
+
+    if (existingOcrError) {
+        console.error('SUPABASE OCR SNAPSHOT EXISTING FETCH ERROR:', existingOcrError);
+        throw new Error(existingOcrError.message);
+    }
+
+    const existingRow = existingOcrRows?.[0] || null;
+    const payload = {
+        student_id: applicationRow.student_id,
+        linked_record_id: applicationId,
+        linked_record_type: 'application',
+        document_key: normalizedDocumentKey,
+        document_type: documentTypeName,
+        file_url: existingRow?.file_url || sourceFileUrl,
+        scanned_via_iot: existingRow?.scanned_via_iot ?? false,
+        iot_device_id: existingRow?.iot_device_id || null,
+        ocr_extracted_name: studentName || null,
+        ocr_raw_text: normalizedRawText,
+        scanned_at: existingRow?.scanned_at || now,
+        updated_at: now,
+    };
+
+    let result;
+
+    if (existingRow?.document_id) {
+        const { data, error } = await supabase
+            .from('ocr_extracted_documents')
+            .update(payload)
+            .eq('document_id', existingRow.document_id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('SUPABASE OCR SNAPSHOT UPDATE ERROR:', error);
+            throw new Error(error.message);
+        }
+
+        result = data;
+    } else {
+        const { data, error } = await supabase
+            .from('ocr_extracted_documents')
+            .insert(payload)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('SUPABASE OCR SNAPSHOT INSERT ERROR:', error);
+            throw new Error(error.message);
+        }
+
+        result = data;
+    }
+
+    return {
+        document_id: result.document_id,
+        application_id: applicationId,
+        student_id: applicationRow.student_id,
+        student_name: studentName || 'Unknown Student',
+        document_key: normalizedDocumentKey,
+        document_type: documentTypeName,
+        ocr: {
+            extracted_name: result.ocr_extracted_name || null,
+            extracted_gwa: result.ocr_extracted_gwa ?? null,
+            confidence: result.ocr_confidence ?? null,
+            raw_text: result.ocr_raw_text || '',
+        },
+        ocr_confidence: result.ocr_confidence ?? null,
+        raw_text: result.ocr_raw_text || '',
+    };
+};
 
 exports.uploadStudentApplicationDocument = async ({
     applicationId,
@@ -1430,6 +1802,8 @@ module.exports = {
     fetchApplications: exports.fetchApplications,
     fetchApplicationDetailsById: exports.fetchApplicationDetailsById,
     fetchApplicationDocumentsById: exports.fetchApplicationDocumentsById,
+    runApplicationDocumentIotOcr: exports.runApplicationDocumentIotOcr,
+    saveApplicationDocumentOcrSnapshot: exports.saveApplicationDocumentOcrSnapshot,
     uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
     markApplicationDisqualified: exports.markApplicationDisqualified,
     saveApplicationVerification: exports.saveApplicationVerification,

@@ -79,6 +79,53 @@ exports.uploadStudentDocument = async (req, res) => {
     }
 };
 
+exports.runApplicationDocumentIotOcr = async (req, res) => {
+    const { id, documentKey } = req.params;
+
+    try {
+        const result = await applicationService.runApplicationDocumentIotOcr({
+            applicationId: id,
+            documentKey,
+            user: req.user,
+        });
+
+        res.status(200).json({
+            message: 'IoT OCR completed successfully',
+            data: result,
+        });
+    } catch (err) {
+        console.error('RUN APPLICATION DOCUMENT IOT OCR CONTROLLER ERROR:', err.message);
+
+        res.status(500).json({
+            error: err.message || 'Failed to run IoT OCR',
+        });
+    }
+};
+
+exports.saveApplicationDocumentOcrSnapshot = async (req, res) => {
+    const { id, documentKey } = req.params;
+
+    try {
+        const result = await applicationService.saveApplicationDocumentOcrSnapshot({
+            applicationId: id,
+            documentKey,
+            rawText: req.body?.raw_text || '',
+            user: req.user,
+        });
+
+        res.status(200).json({
+            message: 'OCR snapshot saved successfully',
+            data: result,
+        });
+    } catch (err) {
+        console.error('SAVE APPLICATION DOCUMENT OCR SNAPSHOT CONTROLLER ERROR:', err.message);
+
+        res.status(500).json({
+            error: err.message || 'Failed to save OCR snapshot',
+        });
+    }
+};
+
 exports.saveApplicationVerification = async (req, res) => {
     const { id } = req.params;
 

@@ -16,6 +16,7 @@ import {
     Save,
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
+import { buildApiUrl } from '@/api';
 
 function BenefactorOnlyModal({
     open,
@@ -178,7 +179,7 @@ export default function BenefactorsPanel() {
         try {
             setLoading(true);
 
-            const res = await fetch('http://localhost:5000/api/benefactors', {
+            const res = await fetch(buildApiUrl('/api/benefactors'), {
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
@@ -262,8 +263,8 @@ export default function BenefactorsPanel() {
 
             const isEdit = modalMode === 'edit' && editingBenefactorId;
             const url = isEdit
-                ? `http://localhost:5000/api/benefactors/${editingBenefactorId}`
-                : 'http://localhost:5000/api/benefactors';
+    ? buildApiUrl(`/api/benefactors/${editingBenefactorId}`)
+    : buildApiUrl('/api/benefactors');
 
             const method = isEdit ? 'PATCH' : 'POST';
 
@@ -297,7 +298,7 @@ export default function BenefactorsPanel() {
     const handleArchiveToggle = async (benefactor) => {
         try {
             const res = await fetch(
-                `http://localhost:5000/api/benefactors/${benefactor.benefactor_id}`,
+    buildApiUrl(`/api/benefactors/${benefactor.benefactor_id}`),
                 {
                     method: 'PATCH',
                     headers: {

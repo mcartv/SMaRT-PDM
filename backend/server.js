@@ -81,7 +81,63 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableFetchError(error) {
+  const message = [error?.message, error?.details, error?.cause?.message]
+    .filter(Boolean)
+    .join(' ');
+
+  return [
+    'fetch failed',
+    'econnreset',
+    'etimedout',
+    'eai_again',
+    'enotfound',
+    'socket hang up',
+  ].some((token) => message.toLowerCase().includes(token));
+}
+
+function getRequestMethod(input, init) {
+  if (init?.method) return String(init.method).toUpperCase();
+  if (typeof input === 'object' && input?.method) {
+    return String(input.method).toUpperCase();
+  }
+
+  return 'GET';
+}
+
+async function supabaseFetchWithRetry(input, init) {
+  const method = getRequestMethod(input, init);
+  const canRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const maxAttempts = canRetry ? 3 : 1;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      lastError = error;
+
+      if (!canRetry || !isRetryableFetchError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+
+      await sleep(250 * attempt);
+    }
+  }
+
+  throw lastError;
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  global: {
+    fetch: supabaseFetchWithRetry,
+  },
+});
 
 
 notificationService.configureNotificationService({ io, supabase });
@@ -1012,6 +1068,7 @@ async function fetchVisibleProgramOpeningsForUser(userId) {
 function mapApplicantOpening(opening, {
   activeApplication = null,
   draft = null,
+  activeApplicationDocumentSummary = null,
 } = {}) {
   const isTes = isTesProgramName(opening.scholarship_program?.program_name || '');
   const isActiveOpening = activeApplication?.opening_id === opening.opening_id;
@@ -1047,6 +1104,13 @@ function mapApplicantOpening(opening, {
     existing_application_id: isActiveOpening
       ? activeApplication.application_id
       : null,
+    uploaded_document_count: isActiveOpening
+      ? activeApplicationDocumentSummary?.uploadedCount ?? 0
+      : 0,
+    required_document_count: isActiveOpening
+      ? activeApplicationDocumentSummary?.requiredCount ??
+          APPLICATION_DOCUMENT_DEFINITIONS.length
+      : 0,
   };
 }
 
@@ -1056,6 +1120,34 @@ async function buildApplicantOpeningsPayload(userId) {
     resolveActiveOpeningApplicationForUser(userId),
     fetchVisibleProgramOpeningsForUser(userId),
   ]);
+  let activeApplicationDocumentSummary = null;
+
+  if (activeApplicationResult?.application?.application_id) {
+    try {
+      const documentPackage = await buildApplicantDocumentPackage({
+        applicationId: activeApplicationResult.application.application_id,
+      });
+      const activeDocuments = documentPackage?.documents || [];
+
+      activeApplicationDocumentSummary = {
+        uploadedCount: (activeDocuments || []).filter(
+          (document) => document.is_submitted || !!document.file_url
+        ).length,
+        requiredCount:
+          activeDocuments.length || APPLICATION_DOCUMENT_DEFINITIONS.length,
+      };
+    } catch (error) {
+      console.warn('OPENINGS DOCUMENT SUMMARY WARNING:', {
+        message: error?.message || String(error),
+        details: error?.details || null,
+      });
+
+      activeApplicationDocumentSummary = {
+        uploadedCount: 0,
+        requiredCount: APPLICATION_DOCUMENT_DEFINITIONS.length,
+      };
+    }
+  }
 
   const items = [...visibleOpeningsResult.items];
   const existingIds = new Set(items.map((opening) => opening.opening_id));
@@ -1077,6 +1169,7 @@ async function buildApplicantOpeningsPayload(userId) {
     mapApplicantOpening(opening, {
       activeApplication: activeApplicationResult?.application || null,
       draft,
+      activeApplicationDocumentSummary,
     })
   );
 

@@ -9,12 +9,13 @@ import {
   Award,
 } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
+import { buildApiUrl } from '@/api';
 
 const SB_BASE = '#7c4a2e';
 const SB_TEXT = '#f0d9c8';
 const SB_SUB = '#d4a98a';
 const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
-const LOGIN_URL = 'http://localhost:5000/api/auth/login';
+const LOGIN_URL = buildApiUrl('/api/auth/login');
 
 const FEATURES = [
   { icon: GraduationCap, label: 'Scholarship Management' },

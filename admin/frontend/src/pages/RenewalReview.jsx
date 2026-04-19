@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Search, Loader2, Eye, RefreshCw, FolderSync } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
-
+import { buildApiUrl } from '@/api';
+const API_BASE = buildApiUrl('/api');
 const C = {
   text: '#1c1917',
   bg: '#faf7f2',

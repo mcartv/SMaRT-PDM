@@ -17,6 +17,7 @@ import {
     Users as UsersIcon,
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
+import { buildApiUrl } from '@/api';
 
 function ProgramModal({
     open,
@@ -298,7 +299,7 @@ export default function ProgramsPanel() {
     const [form, setForm] = useState(emptyForm);
 
     const fetchPrograms = async () => {
-        const res = await fetch('http://localhost:5000/api/scholarship-program', {
+        const res = await fetch(buildApiUrl('/api/scholarship-program'), {
             headers: {
                 Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                 'Content-Type': 'application/json',
@@ -315,7 +316,7 @@ export default function ProgramsPanel() {
     };
 
     const fetchBenefactors = async () => {
-        const res = await fetch('http://localhost:5000/api/benefactors', {
+        const res = await fetch(buildApiUrl('/api/benefactors'), {
             headers: {
                 Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                 'Content-Type': 'application/json',
@@ -452,9 +453,8 @@ export default function ProgramsPanel() {
 
             const isEdit = modalMode === 'edit' && editingProgramId;
             const url = isEdit
-                ? `http://localhost:5000/api/scholarship-program/${editingProgramId}`
-                : 'http://localhost:5000/api/scholarship-program';
-
+    ? buildApiUrl(`/api/scholarship-program/${editingProgramId}`)
+    : buildApiUrl('/api/scholarship-program');
             const method = isEdit ? 'PATCH' : 'POST';
 
             const res = await fetch(url, {
@@ -487,7 +487,7 @@ export default function ProgramsPanel() {
     const handleArchiveToggle = async (program) => {
         try {
             const res = await fetch(
-                `http://localhost:5000/api/scholarship-program/${program.program_id}`,
+                buildApiUrl(`/api/scholarship-program/${program.program_id}`),
                 {
                     method: 'PATCH',
                     headers: {

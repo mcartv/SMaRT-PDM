@@ -27,6 +27,7 @@ import {
   Search,
   ArchiveRestore,
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
 const C = {
   brown: '#5c2d0e',
@@ -549,13 +550,13 @@ export default function AnnouncementsManagement() {
         const token = localStorage.getItem('adminToken');
 
         const [activeRes, archivedRes] = await Promise.all([
-          fetch('http://localhost:5000/api/announcements', {
+          fetch(buildApiUrl('/api/announcements'), {
             headers: {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
             },
           }),
-          fetch('http://localhost:5000/api/announcements/archived', {
+          fetch(buildApiUrl('/api/announcements/archived'), {
             headers: {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
@@ -745,8 +746,8 @@ export default function AnnouncementsManagement() {
     const isEditing = !!editingAnnouncementId;
 
     const url = isEditing
-      ? `http://localhost:5000/api/announcements/${editingAnnouncementId}`
-      : 'http://localhost:5000/api/announcements';
+      ? buildApiUrl(`/api/announcements/${editingAnnouncementId}`)
+      : buildApiUrl('/api/announcements');
 
     const method = isEditing ? 'PATCH' : 'POST';
 
@@ -840,7 +841,7 @@ export default function AnnouncementsManagement() {
 
       const token = localStorage.getItem('adminToken');
 
-      const res = await fetch(`http://localhost:5000/api/announcements/${id}/archive`, {
+      const res = await fetch(buildApiUrl(`/api/announcements/${id}/archive`), {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -880,7 +881,7 @@ export default function AnnouncementsManagement() {
 
       const token = localStorage.getItem('adminToken');
 
-      const res = await fetch(`http://localhost:5000/api/announcements/${id}`, {
+      const res = await fetch(buildApiUrl(`/api/announcements/${id}`), {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -926,7 +927,7 @@ export default function AnnouncementsManagement() {
 
       const token = localStorage.getItem('adminToken');
 
-      const res = await fetch(`http://localhost:5000/api/announcements/${id}/publish`, {
+      const res = await fetch(buildApiUrl(`/api/announcements/${id}/publish`), {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,

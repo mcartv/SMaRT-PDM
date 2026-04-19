@@ -29,6 +29,7 @@ import {
     LayoutGrid,
     Table2,
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
 const C = {
     brownMid: '#7c4a2e',
@@ -273,12 +274,12 @@ function OpeningModal({
                                         <Badge
                                             variant="outline"
                                             className={`text-[10px] ${previewStatus === 'open'
-                                                    ? 'border-green-200 bg-green-50 text-green-700'
-                                                    : previewStatus === 'closed'
-                                                        ? 'border-red-200 bg-red-50 text-red-700'
-                                                        : previewStatus === 'draft'
-                                                            ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                                            : 'border-stone-200 bg-white text-stone-600'
+                                                ? 'border-green-200 bg-green-50 text-green-700'
+                                                : previewStatus === 'closed'
+                                                    ? 'border-red-200 bg-red-50 text-red-700'
+                                                    : previewStatus === 'draft'
+                                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                        : 'border-stone-200 bg-white text-stone-600'
                                                 }`}
                                         >
                                             {STATUS_META[previewStatus]?.label || 'Draft'}
@@ -618,10 +619,10 @@ function OpeningCard({
                                 <Badge
                                     variant="outline"
                                     className={`text-[10px] ${audience === 'Both'
-                                            ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                            : audience === 'Scholars'
-                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                                : 'border-sky-200 bg-sky-50 text-sky-700'
+                                        ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                        : audience === 'Scholars'
+                                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                            : 'border-sky-200 bg-sky-50 text-sky-700'
                                         }`}
                                 >
                                     <Users className="mr-1 h-3 w-3" />
@@ -831,19 +832,19 @@ export default function ScholarshipOpenings() {
             setLoading(true);
 
             const [templatesRes, openingsRes, academicYearsRes] = await Promise.all([
-                fetch('http://localhost:5000/api/scholarship-program', {
+                fetch(buildApiUrl('/api/scholarship-program'), {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
                     },
                 }),
-                fetch('http://localhost:5000/api/program-openings', {
+                fetch(buildApiUrl('/api/program-openings'), {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
                     },
                 }),
-                fetch('http://localhost:5000/api/academic-years', {
+                fetch(buildApiUrl('/api/academic-years'), {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
@@ -1098,8 +1099,8 @@ export default function ScholarshipOpenings() {
 
             const isEdit = modalMode === 'edit' && editingOpeningId;
             const url = isEdit
-                ? `http://localhost:5000/api/program-openings/${editingOpeningId}`
-                : 'http://localhost:5000/api/program-openings';
+                ? buildApiUrl(`/api/program-openings/${editingOpeningId}`)
+                : buildApiUrl('/api/program-openings');
 
             const method = isEdit ? 'PATCH' : 'POST';
 
@@ -1147,8 +1148,7 @@ export default function ScholarshipOpenings() {
         try {
             setActionLoadingId(openingId);
 
-            const res = await fetch(`http://localhost:5000/api/program-openings/${openingId}`, {
-                method: 'PATCH',
+const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {                method: 'PATCH',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
@@ -1323,8 +1323,8 @@ export default function ScholarshipOpenings() {
                         <button
                             onClick={() => setPageTab('templates')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'templates'
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
                                 }`}
                         >
                             Templates
@@ -1333,8 +1333,8 @@ export default function ScholarshipOpenings() {
                         <button
                             onClick={() => setPageTab('current')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'current'
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
                                 }`}
                         >
                             Current
@@ -1343,8 +1343,8 @@ export default function ScholarshipOpenings() {
                         <button
                             onClick={() => setPageTab('archived')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'archived'
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
                                 }`}
                         >
                             Archived
@@ -1398,8 +1398,8 @@ export default function ScholarshipOpenings() {
                                     <button
                                         onClick={() => setViewMode('cards')}
                                         className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'cards'
-                                                ? 'bg-white text-stone-900 shadow-sm'
-                                                : 'text-stone-600'
+                                            ? 'bg-white text-stone-900 shadow-sm'
+                                            : 'text-stone-600'
                                             }`}
                                     >
                                         <LayoutGrid className="h-4 w-4" />
@@ -1409,8 +1409,8 @@ export default function ScholarshipOpenings() {
                                     <button
                                         onClick={() => setViewMode('table')}
                                         className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'table'
-                                                ? 'bg-white text-stone-900 shadow-sm'
-                                                : 'text-stone-600'
+                                            ? 'bg-white text-stone-900 shadow-sm'
+                                            : 'text-stone-600'
                                             }`}
                                     >
                                         <Table2 className="h-4 w-4" />
@@ -1608,10 +1608,10 @@ export default function ScholarshipOpenings() {
                                                         <Badge
                                                             variant="outline"
                                                             className={`text-[10px] ${audience === 'Both'
-                                                                    ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                                                    : audience === 'Scholars'
-                                                                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                                                        : 'border-sky-200 bg-sky-50 text-sky-700'
+                                                                ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                                                : audience === 'Scholars'
+                                                                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                                                    : 'border-sky-200 bg-sky-50 text-sky-700'
                                                                 }`}
                                                         >
                                                             {audienceLabelValue}

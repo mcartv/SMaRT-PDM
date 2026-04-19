@@ -186,7 +186,9 @@ class _ScholarRenewalRequirementsScreenState
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Color _statusColor(String status) {
@@ -231,12 +233,31 @@ class _ScholarRenewalRequirementsScreenState
     return 'Upload both required documents to maintain your scholarship for the current release cycle.';
   }
 
+  List<ScholarRenewalDocument> _sortedDocuments(
+    List<ScholarRenewalDocument> documents,
+  ) {
+    final sorted = List<ScholarRenewalDocument>.from(documents);
+    sorted.sort((a, b) {
+      final submissionComparison = a.isSubmitted == b.isSubmitted
+          ? 0
+          : (a.isSubmitted ? 1 : -1);
+      if (submissionComparison != 0) {
+        return submissionComparison;
+      }
+      return 0;
+    });
+    return sorted;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+    final documents = _renewalPackage == null
+        ? const <ScholarRenewalDocument>[]
+        : _sortedDocuments(_renewalPackage!.documents);
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -263,10 +284,7 @@ class _ScholarRenewalRequirementsScreenState
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_errorMessage != null)
-              _RenewalErrorCard(
-                message: _errorMessage!,
-                onRetry: _loadRenewal,
-              )
+              _RenewalErrorCard(message: _errorMessage!, onRetry: _loadRenewal)
             else if (_renewalPackage == null)
               const _RenewalEmptyState()
             else ...[
@@ -292,7 +310,7 @@ class _ScholarRenewalRequirementsScreenState
                 style: TextStyle(fontSize: 12, color: subtitleColor),
               ),
               const SizedBox(height: 14),
-              ..._renewalPackage!.documents.map(
+              ...documents.map(
                 (document) => _buildDocumentRow(
                   document: document,
                   package: _renewalPackage!,
@@ -302,7 +320,9 @@ class _ScholarRenewalRequirementsScreenState
                   accentColor: accentColor,
                 ),
               ),
-              if ((_renewalPackage!.renewal.adminComment ?? '').trim().isNotEmpty)
+              if ((_renewalPackage!.renewal.adminComment ?? '')
+                  .trim()
+                  .isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Container(
@@ -310,7 +330,9 @@ class _ScholarRenewalRequirementsScreenState
                     decoration: BoxDecoration(
                       color: Colors.orange.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.orange.withOpacity(0.18)),
+                      border: Border.all(
+                        color: Colors.orange.withOpacity(0.18),
+                      ),
                     ),
                     child: Text(
                       _renewalPackage!.renewal.adminComment!,
@@ -329,10 +351,10 @@ class _ScholarRenewalRequirementsScreenState
                 child: ElevatedButton.icon(
                   onPressed:
                       _isSubmitting ||
-                              _renewalPackage!.renewal.isLockedForReview ||
-                              !_renewalPackage!.allRequiredUploaded
-                          ? null
-                          : _submitRenewal,
+                          _renewalPackage!.renewal.isLockedForReview ||
+                          !_renewalPackage!.allRequiredUploaded
+                      ? null
+                      : _submitRenewal,
                   icon: _isSubmitting
                       ? const SizedBox(
                           width: 16,
@@ -371,12 +393,14 @@ class _ScholarRenewalRequirementsScreenState
     final progress = package.documents.isEmpty
         ? 0.0
         : package.documents.where((document) => document.hasFile).length /
-            package.documents.length;
+              package.documents.length;
 
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2D1E12) : primaryColor.withOpacity(0.08),
+        color: isDark
+            ? const Color(0xFF2D1E12)
+            : primaryColor.withOpacity(0.08),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: primaryColor.withOpacity(0.12)),
       ),
@@ -560,15 +584,16 @@ class _ScholarRenewalRequirementsScreenState
                     runSpacing: 8,
                     children: [
                       OutlinedButton.icon(
-                        onPressed:
-                            isUploading || !canUpload
-                                ? null
-                                : () => _pickAndUploadDocument(document),
+                        onPressed: isUploading || !canUpload
+                            ? null
+                            : () => _pickAndUploadDocument(document),
                         icon: isUploading
                             ? const SizedBox(
                                 width: 14,
                                 height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Icon(
                                 document.hasFile
@@ -585,7 +610,9 @@ class _ScholarRenewalRequirementsScreenState
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: accentColor,
-                          side: BorderSide(color: accentColor.withOpacity(0.35)),
+                          side: BorderSide(
+                            color: accentColor.withOpacity(0.35),
+                          ),
                           backgroundColor: isDark
                               ? const Color(0xFF3A2718)
                               : primaryColor.withOpacity(0.04),

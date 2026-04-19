@@ -121,7 +121,7 @@ app.get('/', (req, res) => {
 // Serves index.html for any non-API route, allowing React Router to handle routing
 // =========================
 
-app.get('*', (req, res) => {
+app.get(/^\/(?!api).*/, (req, res) => {
     const indexPath = path.join(frontendBuildPath, 'index.html');
     res.sendFile(indexPath, (err) => {
         if (err) {

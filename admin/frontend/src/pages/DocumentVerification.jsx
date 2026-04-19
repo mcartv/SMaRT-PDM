@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -1233,6 +1233,10 @@ export default function DocumentVerification() {
             <div className="p-5">
               <div className="flex items-center gap-3 mb-5">
                 <Avatar className="w-12 h-12 border border-stone-100">
+                  <AvatarImage
+                    src={application?.student?.avatar_url || undefined}
+                    alt={application?.student?.name || 'Student'}
+                  />
                   <AvatarFallback className="bg-blue-900 text-white text-sm font-semibold">
                     {application?.student?.initials || 'NA'}
                   </AvatarFallback>

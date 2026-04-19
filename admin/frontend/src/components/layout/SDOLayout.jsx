@@ -17,6 +17,21 @@ const SB_SUB = '#a7f3d0';
 const SB_ACTIVE = '#3f655b';
 const MAIN_BG = '#f6f8f7';
 
+function resolveProfileImage(profile) {
+  const candidates = [
+    profile?.avatar_url,
+    profile?.profile_photo_url,
+    profile?.photo_url,
+    profile?.image_url,
+  ];
+
+  const match = candidates.find(
+    (value) => typeof value === 'string' && value.trim().length > 0
+  );
+
+  return match?.trim() || '';
+}
+
 const navItems = [
   { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
@@ -106,6 +121,8 @@ export default function SDOLayout() {
   const getDisplayPosition = () => {
     return profile?.position || 'Student Disciplinary Office';
   };
+
+  const profileImage = resolveProfileImage(profile);
 
   const handleProfileClick = () => {
     navigate('/sdo/profile');
@@ -267,9 +284,17 @@ export default function SDOLayout() {
               className="flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full border border-stone-200 bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer"
               title="Open Profile"
             >
-              <div className="w-8 h-8 rounded-full bg-[#2e4b43] text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
-                {getInitials()}
-              </div>
+              {profileImage ? (
+                <img
+                  src={profileImage}
+                  alt={getDisplayName()}
+                  className="w-8 h-8 rounded-full border-2 border-white shadow-sm shrink-0 object-cover"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#2e4b43] text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
+                  {getInitials()}
+                </div>
+              )}
 
               <div className="hidden sm:block leading-tight truncate max-w-[160px] text-left">
                 <p className="text-[12px] font-semibold text-stone-800 truncate">

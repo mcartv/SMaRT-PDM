@@ -1,6 +1,50 @@
 const supabase = require('../config/supabase');
 
-function mapRO(row, requiredHours, now = new Date()) {
+function extractAvatarStoragePath(value) {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return null;
+
+    if (!/^https?:\/\//i.test(rawValue)) {
+        return rawValue.replace(/^avatars\//, '');
+    }
+
+    const markers = [
+        '/storage/v1/object/public/avatars/',
+        '/storage/v1/object/sign/avatars/',
+        '/storage/v1/object/authenticated/avatars/',
+    ];
+
+    for (const marker of markers) {
+        const markerIndex = rawValue.indexOf(marker);
+        if (markerIndex >= 0) {
+            return rawValue.slice(markerIndex + marker.length).split('?')[0];
+        }
+    }
+
+    return null;
+}
+
+async function resolveAvatarUrl(value) {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return null;
+
+    const storagePath = extractAvatarStoragePath(rawValue);
+    if (!storagePath) {
+        return rawValue;
+    }
+
+    const { data, error } = await supabase.storage
+        .from('avatars')
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+    if (error) {
+        return rawValue;
+    }
+
+    return data?.signedUrl || rawValue;
+}
+
+async function mapRO(row, requiredHours, now = new Date()) {
     const deadline = row.deadline_date ? new Date(row.deadline_date) : null;
 
     let computedStatus = row.ro_status;
@@ -15,6 +59,7 @@ function mapRO(row, requiredHours, now = new Date()) {
             name: row.student_name || 'Unknown Student',
             id: row.student_number || 'N/A',
             program: row.program_name || 'Scholar',
+            avatarUrl: await resolveAvatarUrl(row.profile_photo_url),
         },
         obligation: row.task_description,
         type: row.department_assigned ? 'Assigned Duty' : 'General RO',
@@ -132,7 +177,8 @@ exports.getROList = async (status = 'pending') => {
                 students (
                     pdm_id,
                     first_name,
-                    last_name
+                    last_name,
+                    profile_photo_url
                 ),
                 scholarship_program (
                     program_name
@@ -153,9 +199,12 @@ exports.getROList = async (status = 'pending') => {
             : 'Unknown Student',
         student_number: row.scholars?.students?.pdm_id || 'N/A',
         program_name: row.scholars?.scholarship_program?.program_name || 'Scholar',
+        profile_photo_url: row.scholars?.students?.profile_photo_url || null,
     }));
 
-    const mapped = rows.map((row) => mapRO(row, config.requiredHours, now));
+    const mapped = await Promise.all(
+        rows.map((row) => mapRO(row, config.requiredHours, now))
+    );
 
     if (status === 'pending') return mapped.filter((r) => r.status === 'Pending');
     if (status === 'verified') return mapped.filter((r) => r.status === 'Verified');

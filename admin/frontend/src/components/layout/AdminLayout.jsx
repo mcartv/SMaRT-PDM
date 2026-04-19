@@ -24,6 +24,21 @@ const SB_BASE = '#7c4a2e';
 const SB_TEXT = '#f0d9c8';
 const SB_SUB = '#d4a98a';
 
+function resolveProfileImage(profile) {
+  const candidates = [
+    profile?.avatar_url,
+    profile?.profile_photo_url,
+    profile?.photo_url,
+    profile?.image_url,
+  ];
+
+  const match = candidates.find(
+    (value) => typeof value === 'string' && value.trim().length > 0
+  );
+
+  return match?.trim() || '';
+}
+
 const navItems = [
   { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
@@ -94,6 +109,8 @@ export default function AdminLayout() {
     if (names.length === 1) return names[0][0].toUpperCase();
     return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
   };
+
+  const profileImage = resolveProfileImage(adminData);
 
   const handleProfileClick = () => {
     navigate('/admin/adminprofile');
@@ -238,9 +255,17 @@ export default function AdminLayout() {
               className="flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full border border-stone-200 bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer"
               title="Open Profile"
             >
-              <div className="w-8 h-8 rounded-full bg-stone-800 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
-                {getInitials()}
-              </div>
+              {profileImage ? (
+                <img
+                  src={profileImage}
+                  alt={adminData?.name || 'Admin'}
+                  className="w-8 h-8 rounded-full border-2 border-white shadow-sm shrink-0 object-cover"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-stone-800 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
+                  {getInitials()}
+                </div>
+              )}
 
               <div className="hidden sm:block leading-tight truncate max-w-[140px] text-left">
                 <p className="text-[12px] font-semibold text-stone-800 truncate">

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -102,17 +102,31 @@ function StatCard({ label, value }) {
 // Main
 // ─────────────────────────────────────────────────────────────
 export default function AdminProfile() {
-    // Replace later with real admin data source
+    const [savedProfile] = useState(() => {
+        const saved = localStorage.getItem('adminProfile');
+        try {
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            return null;
+        }
+    });
+
     const [adminData] = useState({
-        firstName: 'Carmelita',
-        lastName: 'Dela Cruz',
-        email: 'cdelacruz@pdm.edu.ph',
-        phone: '+63 917 123 4567',
-        position: 'OSFA Administrator',
-        department: 'Office for Scholarship and Financial Assistance',
-        role: 'Super Admin',
-        status: 'Active',
+        firstName: savedProfile?.first_name || 'Carmelita',
+        lastName: savedProfile?.last_name || 'Dela Cruz',
+        email: savedProfile?.email || 'cdelacruz@pdm.edu.ph',
+        phone: savedProfile?.phone || savedProfile?.phone_number || '+63 917 123 4567',
+        position: savedProfile?.position || 'OSFA Administrator',
+        department: savedProfile?.department || 'Office for Scholarship and Financial Assistance',
+        role: savedProfile?.role || 'Super Admin',
+        status: savedProfile?.is_active === false ? 'Inactive' : 'Active',
         bio: 'Oversees scholarship records, scholar compliance, announcements, and administrative coordination for the SMaRT-PDM platform.',
+        avatarUrl:
+            savedProfile?.avatar_url ||
+            savedProfile?.profile_photo_url ||
+            savedProfile?.photo_url ||
+            savedProfile?.image_url ||
+            '',
     });
 
     const fullName = `${adminData.firstName} ${adminData.lastName}`.trim();
@@ -151,6 +165,7 @@ export default function AdminProfile() {
                         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
                             <div className="flex flex-col md:flex-row md:items-center gap-5">
                                 <Avatar className="w-24 h-24 border-4 border-white shadow-md">
+                                    <AvatarImage src={adminData.avatarUrl || undefined} alt={fullName} />
                                     <AvatarFallback className="bg-stone-800 text-white text-2xl font-bold">
                                         {initials}
                                     </AvatarFallback>

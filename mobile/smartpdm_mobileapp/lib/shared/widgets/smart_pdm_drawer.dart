@@ -7,11 +7,13 @@ import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 class SmartPdmDrawer extends StatelessWidget {
   final bool isScholar;
   final String userName;
+  final String? avatarUrl;
 
   const SmartPdmDrawer({
     super.key,
     this.isScholar = false,
     this.userName = 'Scholar',
+    this.avatarUrl,
   });
 
   @override
@@ -26,8 +28,6 @@ class SmartPdmDrawer extends StatelessWidget {
     final titleColor = isDark ? Colors.white : textColor;
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
     final sectionColor = isDark ? Colors.white70 : Colors.black54;
-    final itemTextColor = isDark ? Colors.white : textColor;
-    final iconColor = isDark ? const Color(0xFFFFD54F) : AppColors.gold;
 
     return Drawer(
       backgroundColor: drawerBackground,
@@ -46,19 +46,10 @@ class SmartPdmDrawer extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: Colors.white,
-                    child: Text(
-                      userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: isDark
-                            ? AppColors.darkBrown
-                            : AppColors.darkBrown,
-                      ),
-                    ),
+                  _DrawerAvatar(
+                    userName: userName,
+                    avatarUrl: avatarUrl,
+                    isDark: isDark,
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -279,6 +270,46 @@ class SmartPdmDrawer extends StatelessWidget {
       iconColor: iconColor,
       textColor: textColor,
       onTap: onTap,
+    );
+  }
+}
+
+class _DrawerAvatar extends StatelessWidget {
+  const _DrawerAvatar({
+    required this.userName,
+    required this.avatarUrl,
+    required this.isDark,
+  });
+
+  final String userName;
+  final String? avatarUrl;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmedAvatarUrl = avatarUrl?.trim() ?? '';
+    final initial = userName.isNotEmpty ? userName[0].toUpperCase() : 'U';
+
+    if (trimmedAvatarUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 32,
+        backgroundColor: Colors.white,
+        backgroundImage: NetworkImage(trimmedAvatarUrl),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
+
+    return CircleAvatar(
+      radius: 32,
+      backgroundColor: Colors.white,
+      child: Text(
+        initial,
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: isDark ? AppColors.darkBrown : AppColors.darkBrown,
+        ),
+      ),
     );
   }
 }

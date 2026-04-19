@@ -3534,6 +3534,66 @@ app.post('/api/profile/setup', protect, async (req, res) => {
   }
 });
 
+app.post('/api/auth/upload-avatar', protect, upload.single('image'), async (req, res) => {
+  try {
+    const userId = getRequestUserId(req);
+    const context = await loadStudentProfileContextByUserId(userId);
+
+    if (!context?.user) {
+      return res.status(404).json({ error: 'User profile not found.' });
+    }
+
+    if (!context.student?.student_id) {
+      return res.status(404).json({ error: 'No student profile is linked to this account.' });
+    }
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'An avatar image is required.' });
+    }
+
+    const sanitizedFileName = (file.originalname || 'avatar')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_');
+    const storagePath = `${userId}/avatar/${Date.now()}-${sanitizedFileName}`;
+
+    const { error: storageError } = await supabase.storage
+      .from('avatars')
+      .upload(storagePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (storageError) {
+      throw storageError;
+    }
+
+    const { error: studentUpdateError } = await supabase
+      .from('students')
+      .update({
+        profile_photo_url: storagePath,
+      })
+      .eq('student_id', context.student.student_id);
+
+    if (studentUpdateError) {
+      throw studentUpdateError;
+    }
+
+    const avatarUrl = await resolveAvatarUrl(storagePath);
+    const refreshedContext = await loadStudentProfileContextByUserId(userId);
+
+    return res.status(200).json({
+      message: 'Avatar uploaded successfully.',
+      avatarUrl,
+      ...(await buildMyProfileResponse(refreshedContext)),
+    });
+  } catch (error) {
+    console.error('AVATAR UPLOAD ERROR:', error);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || 'Failed to upload avatar.',
+    });
+  }
+});
+
 // 5. Account Recovery Lookup Route
 app.post('/api/auth/recovery/lookup', async (req, res) => {
   try {

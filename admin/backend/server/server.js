@@ -99,6 +99,12 @@ app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
 
+// =========================
+// SERVE STATIC FILES (React Frontend)
+// =========================
+
+const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendBuildPath));
 
 // =========================
 // HEALTH CHECK
@@ -106,6 +112,20 @@ app.use('/api/academic-years', academicYearRoutes);
 
 app.get('/', (req, res) => {
     res.send('API is running...');
+});
+
+// =========================
+// CATCH-ALL ROUTE FOR CLIENT-SIDE ROUTING
+// Serves index.html for any non-API route, allowing React Router to handle routing
+// =========================
+
+app.get('*', (req, res) => {
+    const indexPath = path.join(frontendBuildPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            res.status(404).json({ message: 'Not found' });
+        }
+    });
 });
 
 // =========================

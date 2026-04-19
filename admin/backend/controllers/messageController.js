@@ -1,4 +1,5 @@
 const messageService = require('../services/messageService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getConversations = async (req, res) => {
   try {
@@ -79,6 +80,14 @@ exports.sendMessage = async (req, res) => {
       subject: subject || null,
       messageBody: String(messageBody).trim(),
       attachmentUrl: attachmentUrl || null,
+    });
+
+    const io = req.app.get('io');
+    socketEvents.messageCreated(io, {
+      message_id: message.message_id,
+      sender_id: senderId,
+      receiver_id: counterpartyId,
+      created_at: new Date().toISOString()
     });
 
     res.status(201).json(message);

@@ -1,4 +1,6 @@
 const path = require('path');
+const http = require('http');
+const socketIO = require('socket.io');
 
 require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
@@ -141,13 +143,41 @@ app.use((err, req, res, next) => {
 });
 
 // =========================
-// SERVER START
+// SERVER START WITH SOCKET.IO
 // =========================
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+const io = socketIO(server, {
+    cors: {
+        origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
+        credentials: true
+    },
+    transports: ['websocket', 'polling']
+});
+
+// Make io instance available to routes
+app.set('io', io);
+
+// Socket.io connection handler
+io.on('connection', (socket) => {
+    console.log(`[Socket] User connected: ${socket.id}`);
+
+    // Join user to a room for targeted broadcasts
+    socket.on('user-join', (userId) => {
+        socket.join(`user:${userId}`);
+        console.log(`[Socket] User ${userId} joined their room`);
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`[Socket] User disconnected: ${socket.id}`);
+    });
+});
+
+server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`WebSocket enabled at ws://localhost:${PORT}`);
 });
 
 // =========================

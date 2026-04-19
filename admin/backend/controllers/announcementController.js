@@ -1,4 +1,5 @@
 const announcementService = require('../services/announcementService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getAnnouncements = async (req, res) => {
     try {
@@ -23,12 +24,28 @@ exports.getArchivedAnnouncements = async (req, res) => {
 exports.createAnnouncement = async (req, res) => {
     try {
         const created = await announcementService.createAnnouncement(req.body, req.user);
+        
+        const io = req.app.get('io');
+        socketEvents.announcementCreated(io, {
+            announcement_id: created.announcement_id,
+            title: created.title,
+            created_at: new Date().toISOString()
+        });
+        
         res.status(201).json({
             message: 'Announcement created successfully',
             data: created,
         });
     } catch (err) {
         console.error('CREATE ANNOUNCEMENT CONTROLLER ERROR:', err.message);
+        
+        const io = req.app.get('io');
+        socketEvents.announcementUpdated(io, {
+            announcement_id: updated.announcement_id,
+            title: updated.title,
+            updated_at: new Date().toISOString()
+        });
+        
         res.status(500).json({ error: err.message });
     }
 };

@@ -1,4 +1,5 @@
 const scholarService = require('../services/scholarService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getStats = async (req, res) => {
     try {
@@ -81,6 +82,13 @@ exports.updateSdoStatus = async (req, res) => {
             return res.status(404).json({ message: 'Scholar not found' });
         }
 
+        const io = req.app.get('io');
+        socketEvents.scholarUpdated(io, {
+            scholar_id: id,
+            sdo_status: updated.sdo_status,
+            updated_at: new Date().toISOString()
+        });
+
         res.json({
             message: 'Scholar probation status updated successfully',
             scholar: updated,
@@ -144,6 +152,13 @@ exports.saveScholarRenewalReview = async (req, res) => {
             req.body,
             req.user
         );
+
+        const io = req.app.get('io');
+        socketEvents.renewalApproved(io, {
+            scholar_id: scholarId,
+            renewal_status: data.renewal_status,
+            updated_at: new Date().toISOString()
+        });
 
         res.status(200).json({
             message: 'Renewal review saved successfully',

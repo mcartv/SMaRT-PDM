@@ -1,4 +1,5 @@
 const applicationService = require('../services/applicationService');
+const socketEvents = require('../utils/socketEvents');
 const ExcelJS = require('exceljs');
 
 function isApprovalStateError(message) {
@@ -205,6 +206,13 @@ exports.approveApplication = async (req, res) => {
 
         const updated = await applicationService.approveApplicationWithSlotCheck(id);
 
+        const io = req.app.get('io');
+        socketEvents.applicationApproved(io, {
+            application_id: id,
+            status: 'approved',
+            updated_at: new Date().toISOString()
+        });
+
         res.status(200).json({
             message: 'Application approved successfully',
             application: updated.application || updated,
@@ -233,6 +241,14 @@ exports.disqualifyApplication = async (req, res) => {
 
     try {
         const data = await applicationService.markApplicationDisqualified(id, reason);
+
+        const io = req.app.get('io');
+        socketEvents.applicationRejected(io, {
+            application_id: id,
+            status: 'rejected',
+            reason: reason,
+            updated_at: new Date().toISOString()
+        });
 
         res.status(200).json({
             message: 'Application disqualified successfully',

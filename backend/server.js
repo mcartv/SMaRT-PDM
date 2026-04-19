@@ -53,6 +53,10 @@ app.get('/', (req, res) => {
   res.send('Backend is running! 🚀');
 });
 
+app.get('/favicon.ico', (_req, res) => {
+  res.status(204).end();
+});
+
 // Health check for WebSocket
 app.get('/api/socket-health', (req, res) => {
   res.status(200).json({

@@ -2,7 +2,7 @@ services:
   - type: web
     name: smart-pdm-backend
     env: node
-    rootDir: backend
+    rootDir: admin/backend
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health

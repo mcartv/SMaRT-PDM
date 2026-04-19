@@ -2,17 +2,32 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Plus, Edit, Trash2, Send, Eye, Calendar, Users, X, Loader2,
-  AlertTriangle, FileText, Megaphone, Clock3, CheckCircle2,
-  Sparkles, Search, Filter
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Send,
+  Eye,
+  Calendar,
+  Users,
+  X,
+  Loader2,
+  FileText,
+  Sparkles,
+  Search,
+  ArchiveRestore,
 } from 'lucide-react';
 
-// ─── Shared Admin Palette ───────────────────────────────────────
 const C = {
   brown: '#5c2d0e',
   brownMid: '#7c4a2e',
@@ -28,13 +43,13 @@ const C = {
   muted: '#78716c',
   text: '#1c1917',
   bg: '#faf7f2',
-  white: '#FFFFFF',
 };
 
 const STATUS = {
   Published: { bg: C.greenSoft, color: C.green },
   Draft: { bg: '#f4f4f5', color: '#71717a' },
   Scheduled: { bg: C.amberSoft, color: C.amber },
+  Archived: { bg: '#f5f5f4', color: '#78716c' },
 };
 
 const AUDIENCE_LABEL = {
@@ -97,13 +112,17 @@ const ANNOUNCEMENT_TEMPLATES = {
 
 function StatusPill({ status }) {
   const s = STATUS[status] || { bg: '#f4f4f5', color: '#71717a' };
+
   return (
     <Badge
       variant="outline"
       className="border-none text-[10px] font-medium uppercase tracking-wide px-2.5 py-1"
       style={{ background: s.bg, color: s.color }}
     >
-      <span className="w-1.5 h-1.5 rounded-full mr-1.5" style={{ background: s.color }} />
+      <span
+        className="w-1.5 h-1.5 rounded-full mr-1.5"
+        style={{ background: s.color }}
+      />
       {status}
     </Badge>
   );
@@ -137,22 +156,24 @@ function ComposeAnnouncementModal({
   const scheduled = !!schedDate;
   const minScheduleDateTime = new Date(
     Date.now() - new Date().getTimezoneOffset() * 60000
-  ).toISOString().slice(0, 16);
+  )
+    .toISOString()
+    .slice(0, 16);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onRequestClose} />
 
-      <Card className="relative w-full max-w-5xl max-h-[92vh] overflow-hidden border-stone-200 shadow-xl bg-white">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 bg-stone-50/70">
+      <Card className="relative w-full max-w-5xl max-h-[92vh] overflow-hidden border-stone-200 shadow-xl bg-white rounded-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50/70">
           <div>
-            <h3 className="text-base font-semibold text-stone-800">
+            <h3 className="text-sm font-semibold text-stone-800">
               {isEditing ? 'Edit Announcement' : 'Compose Announcement'}
             </h3>
             <p className="text-xs text-stone-500 mt-0.5">
               {isEditing
-                ? 'Update an existing announcement'
-                : 'Create a post for students, applicants, or scholars'}
+                ? 'Update announcement details before saving'
+                : 'Create a new announcement for students or scholars'}
             </p>
           </div>
 
@@ -164,13 +185,15 @@ function ComposeAnnouncementModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto max-h-[calc(92vh-73px)] p-6">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            <div className="space-y-5">
+        <div className="overflow-y-auto max-h-[calc(92vh-73px)] p-5">
+          <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
+            <div className="space-y-4">
               <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="w-4 h-4 text-amber-600" />
-                  <p className="text-xs font-medium text-stone-700">Start from a template</p>
+                  <p className="text-xs font-medium text-stone-700">
+                    Template
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
@@ -193,13 +216,9 @@ function ComposeAnnouncementModal({
                     onClick={onApplyTemplate}
                     className="rounded-lg border-stone-200"
                   >
-                    Apply Template
+                    Apply
                   </Button>
                 </div>
-
-                <p className="text-xs text-stone-500 mt-3">
-                  Templates prefill the fields, but you can still edit everything before posting.
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -226,7 +245,7 @@ function ComposeAnnouncementModal({
                   placeholder="Write the announcement details here..."
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  rows={8}
+                  rows={9}
                   className={`rounded-lg bg-white border-stone-200 resize-none text-sm ${validationErrors.content ? 'border-red-300 ring-1 ring-red-200' : ''
                     }`}
                 />
@@ -238,7 +257,7 @@ function ComposeAnnouncementModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
-                    Target Audience
+                    Audience
                   </label>
                   <Select value={audience} onValueChange={setAudience}>
                     <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm">
@@ -256,7 +275,7 @@ function ComposeAnnouncementModal({
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
-                    Schedule (Optional)
+                    Schedule
                   </label>
                   <Input
                     type="datetime-local"
@@ -269,9 +288,6 @@ function ComposeAnnouncementModal({
                     }}
                     className="h-10 rounded-lg bg-white border-stone-200 text-sm"
                   />
-                  <p className="text-[11px] text-stone-400">
-                    Only current or future schedule times are allowed.
-                  </p>
                 </div>
               </div>
 
@@ -284,29 +300,20 @@ function ComposeAnnouncementModal({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="false" className="text-sm">Regular Announcement</SelectItem>
-                    <SelectItem value="true" className="text-sm">RO Voluntary Announcement</SelectItem>
+                    <SelectItem value="false" className="text-sm">
+                      Regular Announcement
+                    </SelectItem>
+                    <SelectItem value="true" className="text-sm">
+                      RO Voluntary Announcement
+                    </SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-stone-700">Publishing rules</p>
-                    <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                      Publishing requires both a subject and content. Saving to draft allows incomplete content.
-                      If a schedule is set, the announcement will be saved as scheduled.
-                    </p>
-                  </div>
-                </div>
               </div>
             </div>
 
             <div className="space-y-3">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">
-                Mobile Preview
+                Preview
               </label>
 
               <div className="rounded-3xl border-[6px] border-stone-800 bg-stone-100 shadow-xl p-4 min-h-[390px]">
@@ -350,7 +357,7 @@ function ComposeAnnouncementModal({
             </div>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-stone-100 flex flex-col sm:flex-row justify-end gap-3">
+          <div className="mt-6 pt-5 border-t border-stone-100 flex flex-col sm:flex-row justify-end gap-3">
             <Button
               variant="outline"
               onClick={onRequestClose}
@@ -373,7 +380,7 @@ function ComposeAnnouncementModal({
               ) : (
                 <>
                   <FileText className="w-4 h-4 mr-2" />
-                  Save to Draft
+                  Save Draft
                 </>
               )}
             </Button>
@@ -393,7 +400,7 @@ function ComposeAnnouncementModal({
                 <>
                   <Send className="w-4 h-4 mr-2" />
                   {isEditing
-                    ? (scheduled ? 'Update Scheduled Announcement' : 'Update Announcement')
+                    ? (scheduled ? 'Update Scheduled' : 'Update Announcement')
                     : (scheduled ? 'Schedule Announcement' : 'Post Announcement')}
                 </>
               )}
@@ -418,7 +425,7 @@ function DiscardAnnouncementModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onKeepEditing} />
 
-      <Card className="relative w-full max-w-md border-stone-200 shadow-xl bg-white overflow-hidden">
+      <Card className="relative w-full max-w-md border-stone-200 shadow-xl bg-white overflow-hidden rounded-2xl">
         <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/70">
           <h3 className="text-sm font-semibold text-stone-800">Unsaved announcement</h3>
           <p className="text-xs text-stone-500 mt-1">
@@ -474,7 +481,7 @@ function ConfirmTemplateApplyModal({
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onCancel} />
 
-      <Card className="relative w-full max-w-md border-stone-200 shadow-xl bg-white overflow-hidden">
+      <Card className="relative w-full max-w-md border-stone-200 shadow-xl bg-white overflow-hidden rounded-2xl">
         <div className="px-5 py-4 border-b border-stone-100 bg-stone-50/70">
           <h3 className="text-sm font-semibold text-stone-800">Apply template</h3>
           <p className="text-xs text-stone-500 mt-1">
@@ -508,6 +515,8 @@ export default function AnnouncementsManagement() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [tab, setTab] = useState('active');
+
   const [showForm, setShowForm] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showTemplateConfirmModal, setShowTemplateConfirmModal] = useState(false);
@@ -525,6 +534,7 @@ export default function AnnouncementsManagement() {
   const [draftSaving, setDraftSaving] = useState(false);
   const [publishingId, setPublishingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [restoringId, setRestoringId] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null);
 
@@ -538,20 +548,43 @@ export default function AnnouncementsManagement() {
 
         const token = localStorage.getItem('adminToken');
 
-        const res = await fetch('http://localhost:5000/api/announcements', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
+        const [activeRes, archivedRes] = await Promise.all([
+          fetch('http://localhost:5000/api/announcements', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }),
+          fetch('http://localhost:5000/api/announcements/archived', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }),
+        ]);
 
-        const data = await res.json().catch(() => ([]));
+        const activeData = await activeRes.json().catch(() => []);
+        const archivedData = await archivedRes.json().catch(() => []);
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to load announcements');
+        if (!activeRes.ok) {
+          throw new Error(activeData.error || 'Failed to load active announcements');
         }
 
-        setItems(Array.isArray(data) ? data : []);
+        if (!archivedRes.ok) {
+          throw new Error(archivedData.error || 'Failed to load archived announcements');
+        }
+
+        const activeItems = Array.isArray(activeData) ? activeData : [];
+        const archivedItems = Array.isArray(archivedData) ? archivedData : [];
+
+        setItems([
+          ...activeItems,
+          ...archivedItems.map((item) => ({
+            ...item,
+            is_archived: true,
+            status: 'Archived',
+          })),
+        ]);
       } catch (err) {
         console.error('LOAD ANNOUNCEMENTS ERROR:', err);
         alert(err.message || 'Failed to load announcements');
@@ -570,8 +603,6 @@ export default function AnnouncementsManagement() {
     if (prefill === 'opening') {
       const openingTitle = params.get('opening_title') || 'Scholarship Opening Announcement';
       const openingText = params.get('announcement_text') || '';
-      const programId = params.get('program_id') || '';
-      const openingId = params.get('opening_id') || '';
 
       setEditingAnnouncementId(null);
       setTitle(openingTitle);
@@ -583,15 +614,9 @@ export default function AnnouncementsManagement() {
       setValidationErrors({});
       setShowForm(true);
 
-      const cleanUrl = location.pathname;
-      navigate(cleanUrl, { replace: true });
-
-      void programId;
-      void openingId;
+      navigate(location.pathname, { replace: true });
     }
   }, [location.search, location.pathname, navigate]);
-
-  const totalViews = items.reduce((sum, item) => sum + Number(item.views || 0), 0);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -603,22 +628,36 @@ export default function AnnouncementsManagement() {
     );
   }, [title, content, audience, schedDate, isRoVoluntary]);
 
+  const activeItems = useMemo(
+    () => items.filter((item) => !item.is_archived && item.status !== 'Archived'),
+    [items]
+  );
+
+  const archivedItems = useMemo(
+    () => items.filter((item) => item.is_archived || item.status === 'Archived'),
+    [items]
+  );
+
+  const currentItems = tab === 'archived' ? archivedItems : activeItems;
+
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return items.filter((item) => {
+    return currentItems.filter((item) => {
       const matchSearch =
         !q ||
         (item.title || '').toLowerCase().includes(q) ||
         (item.content || '').toLowerCase().includes(q) ||
         (item.audience || '').toLowerCase().includes(q);
 
-      const matchStatus =
-        statusFilter === 'All' || item.status === statusFilter;
+      const effectiveStatus =
+        item.is_archived || item.status === 'Archived' ? 'Archived' : item.status;
+
+      const matchStatus = statusFilter === 'All' || effectiveStatus === statusFilter;
 
       return matchSearch && matchStatus;
     });
-  }, [items, search, statusFilter]);
+  }, [currentItems, search, statusFilter]);
 
   const resetForm = () => {
     setTitle('');
@@ -671,13 +710,8 @@ export default function AnnouncementsManagement() {
   const validateForPublish = () => {
     const errors = {};
 
-    if (!title.trim()) {
-      errors.title = 'Announcement subject is required.';
-    }
-
-    if (!content.trim()) {
-      errors.content = 'Announcement content is required.';
-    }
+    if (!title.trim()) errors.title = 'Announcement subject is required.';
+    if (!content.trim()) errors.content = 'Announcement content is required.';
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -697,15 +731,6 @@ export default function AnnouncementsManagement() {
 
   const handleApplyTemplate = () => {
     const hasContent = title.trim() || content.trim();
-
-    if (selectedTemplate === 'blank') {
-      if (hasContent) {
-        setShowTemplateConfirmModal(true);
-        return;
-      }
-      applyTemplateNow();
-      return;
-    }
 
     if (hasContent) {
       setShowTemplateConfirmModal(true);
@@ -829,12 +854,69 @@ export default function AnnouncementsManagement() {
         throw new Error(data.error || 'Failed to archive announcement');
       }
 
-      setItems((prev) => prev.filter((a) => a.id !== id));
+      setItems((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+              ...a,
+              ...data.data,
+              is_archived: true,
+              status: 'Archived',
+            }
+            : a
+        )
+      );
     } catch (err) {
       console.error('ARCHIVE ANNOUNCEMENT ERROR:', err);
       alert(err.message || 'Failed to archive announcement');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleRestore = async (id) => {
+    try {
+      setRestoringId(id);
+
+      const token = localStorage.getItem('adminToken');
+
+      const res = await fetch(`http://localhost:5000/api/announcements/${id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          is_archived: false,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to restore announcement');
+      }
+
+      setItems((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+              ...a,
+              ...data.data,
+              is_archived: false,
+              status:
+                data.data?.status && data.data.status !== 'Archived'
+                  ? data.data.status
+                  : 'Draft',
+            }
+            : a
+        )
+      );
+    } catch (err) {
+      console.error('RESTORE ANNOUNCEMENT ERROR:', err);
+      alert(err.message || 'Failed to restore announcement');
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -879,7 +961,7 @@ export default function AnnouncementsManagement() {
   }
 
   return (
-    <div className="space-y-5 py-2" style={{ background: C.bg }}>
+    <div className="space-y-4 py-2" style={{ background: C.bg }}>
       <ComposeAnnouncementModal
         open={showForm}
         onRequestClose={handleRequestCloseModal}
@@ -918,73 +1000,70 @@ export default function AnnouncementsManagement() {
         onConfirm={applyTemplateNow}
       />
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
-            Announcements
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            Broadcast management and public information posts
-          </p>
-        </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-stone-900">Announcements</h1>
 
-        <Button
-          onClick={handleOpenModal}
-          size="sm"
-          className="rounded-lg text-white text-xs border-none"
-          style={{ background: C.brownMid }}
+        {tab === 'active' && (
+          <Button
+            onClick={handleOpenModal}
+            size="sm"
+            className="rounded-lg text-white text-xs border-none"
+            style={{ background: C.brownMid }}
+          >
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            New
+          </Button>
+        )}
+      </div>
+
+      <div className="inline-flex items-center rounded-lg border border-stone-200 bg-stone-50 p-1">
+        <button
+          onClick={() => setTab('active')}
+          className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${tab === 'active'
+            ? 'bg-white text-stone-900 shadow-sm'
+            : 'text-stone-500 hover:text-stone-700'
+            }`}
         >
-          <Plus className="w-3.5 h-3.5 mr-1.5" />
-          New Announcement
-        </Button>
+          Active
+        </button>
+
+        <button
+          onClick={() => setTab('archived')}
+          className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${tab === 'archived'
+            ? 'bg-white text-stone-900 shadow-sm'
+            : 'text-stone-500 hover:text-stone-700'
+            }`}
+        >
+          Archived
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'Total Posts', value: String(items.length), icon: Megaphone, accent: C.brown, soft: C.amberSoft },
-          { label: 'Published', value: String(items.filter(i => i.status === 'Published').length), icon: CheckCircle2, accent: C.green, soft: C.greenSoft },
-          { label: 'Drafts', value: String(items.filter(i => i.status === 'Draft').length), icon: FileText, accent: C.muted, soft: '#f5f5f4' },
-          { label: 'Scheduled', value: String(items.filter(i => i.status === 'Scheduled').length), icon: Clock3, accent: C.amber, soft: C.amberSoft },
-        ].map((s) => (
-          <Card key={s.label} className="border-stone-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: s.soft }}
-              >
-                <s.icon className="w-4 h-4" style={{ color: s.accent }} />
-              </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="text-2xl font-semibold" style={{ color: C.text }}>
-                {s.value}
-              </div>
-              <p className="text-xs text-stone-500 mt-0.5">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[260px]">
+      <div className="flex gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-300" />
           <Input
-            placeholder="Search by title, content, or audience..."
+            placeholder={`Search ${tab === 'archived' ? 'archived' : 'active'} announcements...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9 text-sm bg-white rounded-lg border-stone-200"
+            className="pl-9 h-9 text-sm bg-white border-stone-200"
           />
         </div>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px] h-9 rounded-lg border-stone-200 text-sm">
+          <SelectTrigger className="w-[140px] h-9 text-sm border-stone-200">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="All">All Statuses</SelectItem>
-            <SelectItem value="Published">Published</SelectItem>
-            <SelectItem value="Draft">Draft</SelectItem>
-            <SelectItem value="Scheduled">Scheduled</SelectItem>
+            <SelectItem value="All">All</SelectItem>
+            {tab === 'active' ? (
+              <>
+                <SelectItem value="Published">Published</SelectItem>
+                <SelectItem value="Draft">Draft</SelectItem>
+                <SelectItem value="Scheduled">Scheduled</SelectItem>
+              </>
+            ) : (
+              <SelectItem value="Archived">Archived</SelectItem>
+            )}
           </SelectContent>
         </Select>
 
@@ -996,134 +1075,144 @@ export default function AnnouncementsManagement() {
               setSearch('');
               setStatusFilter('All');
             }}
-            className="h-9 rounded-lg text-xs border-stone-200"
+            className="h-9 text-xs border-stone-200"
           >
             Reset
           </Button>
         )}
       </div>
 
-      <Card className="border-stone-200 shadow-none overflow-hidden">
-        <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-          <CardTitle className="text-sm font-semibold text-stone-800">Archive & Active Posts</CardTitle>
-          <CardDescription className="text-xs">
-            Review drafts, scheduled announcements, and published records
-          </CardDescription>
-        </CardHeader>
+      <div className="rounded-lg border border-stone-200 bg-white divide-y overflow-hidden">
+        {filteredItems.map((a) => {
+          const effectiveStatus =
+            a.is_archived || a.status === 'Archived' ? 'Archived' : a.status;
 
-        <div className="divide-y divide-stone-100">
-          {filteredItems.map((a) => (
+          return (
             <div
               key={a.id}
-              className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 hover:bg-stone-50/50 transition-colors"
+              className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-stone-50/40 transition"
             >
-              <div className="flex gap-4 min-w-0">
-                <div
-                  className="w-1 rounded-full shrink-0"
-                  style={{ background: STATUS[a.status]?.color || '#cbd5e1' }}
-                />
-
-                <div className="space-y-1.5 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <p className="text-sm font-semibold text-stone-900 truncate">{a.title}</p>
-                    <StatusPill status={a.status} />
-                  </div>
-
-                  <p className="text-xs text-stone-500 line-clamp-2 leading-relaxed">
-                    {a.content}
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-stone-900 truncate">
+                    {a.title}
                   </p>
+                  <StatusPill status={effectiveStatus} />
+                </div>
 
-                  <div className="flex items-center gap-4 text-[10px] font-medium text-stone-400 uppercase tracking-wide flex-wrap">
-                    <span className="flex items-center gap-1.5">
-                      <Calendar size={12} />
-                      {a.date
-                        ? new Date(a.date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
-                        : 'TBD'}
+                <p className="text-xs text-stone-500 line-clamp-2 leading-relaxed">
+                  {a.content}
+                </p>
+
+                <div className="flex flex-wrap gap-3 text-[10px] text-stone-400 uppercase tracking-wide">
+                  <span className="flex items-center gap-1">
+                    <Calendar size={12} />
+                    {a.date
+                      ? new Date(a.date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                      : 'No date'}
+                  </span>
+
+                  <span className="flex items-center gap-1">
+                    <Users size={12} />
+                    {AUDIENCE_LABEL[a.audienceKey || a.audience] || a.audience || 'Audience'}
+                  </span>
+
+                  {effectiveStatus === 'Published' && (
+                    <span className="flex items-center gap-1 text-stone-700">
+                      <Eye size={12} />
+                      {a.views}
                     </span>
-
-                    <span className="flex items-center gap-1.5">
-                      <Users size={12} />
-                      {AUDIENCE_LABEL[a.audienceKey || a.audience] || a.audience || 'Audience'}
-                    </span>
-
-                    {a.status === 'Published' && (
-                      <span className="flex items-center gap-1.5 text-stone-700 bg-stone-100 px-2 py-0.5 rounded">
-                        <Eye size={12} /> {a.views}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEdit(a)}
-                  className="h-8 rounded-lg text-[11px] border-stone-200 text-stone-600"
-                >
-                  <Edit className="w-3.5 h-3.5 mr-1.5" />
-                  Edit
-                </Button>
+              <div className="flex gap-1 shrink-0 self-end md:self-auto">
+                {tab === 'active' ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(a)}
+                      className="h-8 text-[11px] border-stone-200"
+                    >
+                      <Edit className="w-3.5 h-3.5 mr-1.5" />
+                      Edit
+                    </Button>
 
-                {a.status === 'Draft' && (
+                    {a.status === 'Draft' && (
+                      <Button
+                        size="sm"
+                        onClick={() => handlePublish(a.id)}
+                        disabled={publishingId === a.id}
+                        className="h-8 text-[11px] bg-green-600 text-white hover:bg-green-700 border-none disabled:opacity-60"
+                      >
+                        {publishingId === a.id ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            Publishing
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-3.5 h-3.5 mr-1.5" />
+                            Publish
+                          </>
+                        )}
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleArchive(a.id)}
+                      disabled={deletingId === a.id}
+                      className="h-8 text-[11px] text-red-500 border-red-200 disabled:opacity-60"
+                    >
+                      {deletingId === a.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                          Archive
+                        </>
+                      )}
+                    </Button>
+                  </>
+                ) : (
                   <Button
-                    onClick={() => handlePublish(a.id)}
-                    disabled={publishingId === a.id}
+                    variant="outline"
                     size="sm"
-                    className="h-8 rounded-lg text-[11px] bg-green-600 text-white hover:bg-green-700 border-none shadow-none disabled:opacity-60"
+                    onClick={() => handleRestore(a.id)}
+                    disabled={restoringId === a.id}
+                    className="h-8 text-[11px] border-stone-200"
                   >
-                    {publishingId === a.id ? (
+                    {restoringId === a.id ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                        Publishing
+                        Restoring
                       </>
                     ) : (
                       <>
-                        <Send className="w-3.5 h-3.5 mr-1.5" />
-                        Publish
+                        <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
+                        Restore
                       </>
                     )}
                   </Button>
                 )}
-
-                <Button
-                  onClick={() => handleArchive(a.id)}
-                  disabled={deletingId === a.id}
-                  variant="outline"
-                  size="sm"
-                  className="h-8 rounded-lg border-red-100 text-red-500 hover:bg-red-50 disabled:opacity-60"
-                >
-                  {deletingId === a.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                      Archive
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
-          ))}
+          );
+        })}
 
-          {filteredItems.length === 0 && (
-            <div className="p-10 text-center text-sm text-stone-400">
-              No announcements found.
-            </div>
-          )}
-        </div>
-      </Card>
-
-      <footer className="pt-6 pb-2 border-t border-stone-100">
-        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · Broadcast Management Layer
-        </p>
-      </footer>
+        {filteredItems.length === 0 && (
+          <div className="p-8 text-center text-sm text-stone-400">
+            {tab === 'archived' ? 'No archived announcements found' : 'No announcements found'}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

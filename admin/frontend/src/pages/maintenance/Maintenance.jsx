@@ -21,11 +21,6 @@ import AuditPanel from './AuditPanel';
 
 const C = {
   bg: '#faf7f2',
-  line: '#e7e5e4',
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
-  brownSoft: '#f6efe8',
-  text: '#1c1917',
 };
 
 const TABS = [
@@ -43,18 +38,18 @@ function NavItem({ item, active, onClick }) {
 
   return (
     <button
+      type="button"
       onClick={() => onClick(item.key)}
-      className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm transition ${
-        active
-          ? 'bg-[#f6efe8] text-[#5c2d0e]'
-          : 'text-stone-600 hover:bg-stone-100'
-      }`}
+      className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm transition ${active
+        ? 'bg-[#f6efe8] text-[#5c2d0e]'
+        : 'text-stone-600 hover:bg-stone-100'
+        }`}
     >
-      <div className="flex items-center gap-3">
-        <Icon size={16} />
-        <span className="font-medium">{item.label}</span>
+      <div className="flex items-center gap-3 min-w-0">
+        <Icon size={16} className="shrink-0" />
+        <span className="font-medium truncate">{item.label}</span>
       </div>
-      <ChevronRight size={14} className="opacity-50" />
+      <ChevronRight size={14} className="opacity-50 shrink-0" />
     </button>
   );
 }
@@ -90,15 +85,15 @@ export default function Maintenance() {
 
   return (
     <div
-      className="h-[calc(100vh-80px)] flex gap-4 overflow-hidden"
-      style={{ background: C.bg }}
+      className="flex gap-4"
+      style={{
+        background: C.bg,
+        minHeight: 'calc(100dvh - 150px)',
+      }}
     >
-      {/* LEFT NAVIGATION */}
-      <aside className="w-[260px] shrink-0">
-        <Card className="h-full border-stone-200 shadow-none flex flex-col overflow-hidden">
-          
-          {/* Header */}
-          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50">
+      <aside className="w-[260px] shrink-0 self-start sticky top-0">
+        <Card className="border-stone-200 shadow-none flex flex-col overflow-hidden rounded-2xl">
+          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 shrink-0">
             <h1 className="text-sm font-semibold text-stone-900">
               Maintenance
             </h1>
@@ -107,8 +102,7 @@ export default function Maintenance() {
             </p>
           </div>
 
-          {/* Scrollable Tabs */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <div className="max-h-[calc(100dvh-230px)] overflow-y-auto p-3 space-y-1">
             {TABS.map((item) => (
               <NavItem
                 key={item.key}
@@ -121,18 +115,14 @@ export default function Maintenance() {
         </Card>
       </aside>
 
-      {/* RIGHT PANEL */}
       <main className="flex-1 min-w-0">
-        <Card className="h-full border-stone-200 shadow-none flex flex-col overflow-hidden">
-          
-          {/* Panel Header */}
-          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50">
+        <Card className="border-stone-200 shadow-none flex flex-col overflow-hidden rounded-2xl min-h-[calc(100dvh-150px)]">
+          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 shrink-0">
             <h2 className="text-sm font-semibold text-stone-900">
               {activeTab.label}
             </h2>
           </div>
 
-          {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-5">
             {renderActiveTab()}
           </div>

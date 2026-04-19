@@ -1,6 +1,5 @@
 const path = require('path');
 
-// ✅ Ensure .env loads correctly from backend root
 require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
 });
@@ -8,7 +7,7 @@ require('dotenv').config({
 const express = require('express');
 const cors = require('cors');
 
-// ✅ Route imports
+// Route imports
 const authRoutes = require('../routes/authRoutes');
 const scholarRoutes = require('../routes/scholarRoutes');
 const applicationRoutes = require('../routes/applicationRoutes');
@@ -27,13 +26,13 @@ const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
 
-// ✅ Services
+// Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
 
 const app = express();
 
 // =========================
-// 🔧 MIDDLEWARE
+// MIDDLEWARE
 // =========================
 
 app.use(cors({
@@ -48,7 +47,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =========================
-// 📡 ROUTES
+// ROUTES
 // =========================
 
 app.use('/api/auth', authRoutes);
@@ -71,7 +70,7 @@ app.use('/api/academic-years', academicYearRoutes);
 
 
 // =========================
-// 🧪 HEALTH CHECK
+// HEALTH CHECK
 // =========================
 
 app.get('/', (req, res) => {
@@ -79,7 +78,7 @@ app.get('/', (req, res) => {
 });
 
 // =========================
-// ❌ ERROR HANDLER
+// ERROR HANDLER
 // =========================
 
 app.use((err, req, res, next) => {
@@ -91,7 +90,7 @@ app.use((err, req, res, next) => {
 });
 
 // =========================
-// 🚀 SERVER START
+// SERVER START
 // =========================
 
 const PORT = process.env.PORT || 5000;
@@ -101,7 +100,7 @@ app.listen(PORT, () => {
 });
 
 // =========================
-// ⏱️ SCHEDULER
+// SCHEDULER
 // =========================
 
 if (!global._announcementSchedulerRunning) {

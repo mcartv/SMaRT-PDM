@@ -14,11 +14,12 @@ function mapAnnouncementRow(row) {
         id: row.announcement_id,
         title: row.subject,
         content: row.content,
-        status: row.status,
+        status: row.is_archived ? 'Archived' : row.status,
         date: row.published_at || row.scheduled_at || row.publish_date || row.created_at,
         audience: AUDIENCE_LABEL[row.target_audience] || row.target_audience,
         audienceKey: row.target_audience,
         isRoVoluntary: !!row.is_ro_voluntary,
+        is_archived: !!row.is_archived,
         views: 0,
     };
 }
@@ -81,6 +82,21 @@ exports.fetchAnnouncements = async () => {
     return (data || []).map(mapAnnouncementRow);
 };
 
+exports.fetchArchivedAnnouncements = async () => {
+    const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('is_archived', true)
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        console.error('SUPABASE FETCH ARCHIVED ANNOUNCEMENTS ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return (data || []).map(mapAnnouncementRow);
+};
+
 exports.createAnnouncement = async (payload, user) => {
     const {
         title,
@@ -109,6 +125,7 @@ exports.createAnnouncement = async (payload, user) => {
     }
 
     const isScheduled = !!schedDate && !forceDraft;
+    const nowIso = new Date().toISOString();
 
     const insertRow = {
         author_id: user?.userId || null,
@@ -116,11 +133,11 @@ exports.createAnnouncement = async (payload, user) => {
         content: (content || '').trim(),
         target_audience: audience,
         is_ro_voluntary: !!isRoVoluntary,
-        publish_date: forceDraft ? null : (isScheduled ? null : new Date().toISOString()),
+        publish_date: forceDraft ? null : (isScheduled ? null : nowIso),
         status: forceDraft ? 'Draft' : (isScheduled ? 'Scheduled' : 'Published'),
         scheduled_at: forceDraft ? null : (isScheduled ? schedDate : null),
-        published_at: forceDraft ? null : (isScheduled ? null : new Date().toISOString()),
-        updated_at: new Date().toISOString(),
+        published_at: forceDraft ? null : (isScheduled ? null : nowIso),
+        updated_at: nowIso,
         is_archived: false,
     };
 
@@ -170,6 +187,7 @@ exports.updateAnnouncement = async (announcementId, payload) => {
     }
 
     const isScheduled = !!schedDate && !forceDraft;
+    const nowIso = new Date().toISOString();
 
     const updateRow = {
         subject: (title || '').trim(),
@@ -178,9 +196,9 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         is_ro_voluntary: !!isRoVoluntary,
         status: forceDraft ? 'Draft' : (isScheduled ? 'Scheduled' : 'Published'),
         scheduled_at: forceDraft ? null : (isScheduled ? schedDate : null),
-        publish_date: forceDraft ? null : (isScheduled ? null : new Date().toISOString()),
-        published_at: forceDraft ? null : (isScheduled ? null : new Date().toISOString()),
-        updated_at: new Date().toISOString(),
+        publish_date: forceDraft ? null : (isScheduled ? null : nowIso),
+        published_at: forceDraft ? null : (isScheduled ? null : nowIso),
+        updated_at: nowIso,
     };
 
     const { data, error } = await supabase
@@ -240,18 +258,45 @@ exports.publishDueAnnouncements = async () => {
 };
 
 exports.archiveAnnouncement = async (announcementId) => {
-    const { error } = await supabase
+    const nowIso = new Date().toISOString();
+
+    const { data, error } = await supabase
         .from('announcements')
         .update({
             is_archived: true,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
         })
-        .eq('announcement_id', announcementId);
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', false)
+        .select()
+        .single();
 
     if (error) {
         console.error('SUPABASE ARCHIVE ANNOUNCEMENT ERROR:', error);
         throw new Error(error.message);
     }
 
-    return true;
+    return mapAnnouncementRow(data);
+};
+
+exports.restoreAnnouncement = async (announcementId) => {
+    const nowIso = new Date().toISOString();
+
+    const { data, error } = await supabase
+        .from('announcements')
+        .update({
+            is_archived: false,
+            updated_at: nowIso,
+        })
+        .eq('announcement_id', announcementId)
+        .eq('is_archived', true)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('SUPABASE RESTORE ANNOUNCEMENT ERROR:', error);
+        throw new Error(error.message);
+    }
+
+    return mapAnnouncementRow(data);
 };

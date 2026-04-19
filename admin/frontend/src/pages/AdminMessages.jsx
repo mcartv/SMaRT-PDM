@@ -4,6 +4,7 @@ import {
   MessageSquareMore,
   SendHorizonal,
   UserRound,
+  UserPlus,
   Search,
   X,
   Filter,
@@ -62,6 +63,16 @@ function normalizeConversation(raw = {}) {
       raw.lastSentAt?.toString() ||
       raw.last_sent_at?.toString() ||
       '',
+    createdAt:
+      raw.createdAt?.toString() ||
+      raw.created_at?.toString() ||
+      '',
+    avatarUrl:
+      raw.avatarUrl?.toString() ||
+      raw.profilePhotoUrl?.toString() ||
+      raw.avatar_url?.toString() ||
+      raw.profile_photo_url?.toString() ||
+      '',
     unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
   }
 }
@@ -74,6 +85,10 @@ function normalizeRoom(raw = {}) {
     studentNumber: `${Number(raw.member_count || 0)} members`,
     lastMessage: raw.last_message?.toString() || '',
     lastSentAt: raw.last_sent_at?.toString() || '',
+    createdAt:
+      raw.createdAt?.toString() ||
+      raw.created_at?.toString() ||
+      '',
     unreadCount: 0,
   }
 }
@@ -84,9 +99,35 @@ function normalizeScholarMember(raw = {}) {
     scholarId: raw.scholar_id?.toString() || '',
     studentId: raw.student_id?.toString() || '',
     studentNumber: raw.student_number?.toString() || '',
+    firstName: raw.first_name?.toString() || '',
+    lastName: raw.last_name?.toString() || '',
     studentName: raw.student_name?.toString() || 'Unknown Scholar',
+    avatarUrl:
+      raw.avatarUrl?.toString() ||
+      raw.profilePhotoUrl?.toString() ||
+      raw.avatar_url?.toString() ||
+      raw.profile_photo_url?.toString() ||
+      '',
     programName: raw.program_name?.toString() || 'No Program',
     benefactorName: raw.benefactor_name?.toString() || 'Unassigned Benefactor',
+  }
+}
+
+function toScholarSearchItem(raw = {}) {
+  return {
+    id: raw.userId || '',
+    type: 'private',
+    name: raw.studentName || 'Unknown Scholar',
+    studentNumber: raw.studentNumber || raw.studentId || '',
+    studentId: raw.studentId || '',
+    firstName: raw.firstName || '',
+    lastName: raw.lastName || '',
+    avatarUrl: raw.avatarUrl || '',
+    lastMessage: '',
+    lastSentAt: '',
+    createdAt: '',
+    unreadCount: 0,
+    isSearchResult: true,
   }
 }
 
@@ -122,6 +163,16 @@ function normalizeMessage(raw = {}) {
       raw.attachmentUrl?.toString() ||
       raw.attachment_url?.toString() ||
       null,
+    senderName:
+      raw.senderName?.toString() ||
+      raw.sender_name?.toString() ||
+      '',
+    senderAvatarUrl:
+      raw.senderAvatarUrl?.toString() ||
+      raw.senderProfilePhotoUrl?.toString() ||
+      raw.sender_avatar_url?.toString() ||
+      raw.sender_profile_photo_url?.toString() ||
+      '',
   }
 }
 
@@ -132,10 +183,9 @@ function sortMessages(items = []) {
 }
 
 function sortItems(items = []) {
-  return [...items].sort(
-    (left, right) =>
-      new Date(right.lastSentAt || 0).getTime() - new Date(left.lastSentAt || 0).getTime()
-  )
+  const getSortTime = (item) => new Date(item.lastSentAt || item.createdAt || 0).getTime()
+
+  return [...items].sort((left, right) => getSortTime(right) - getSortTime(left))
 }
 
 function upsertMessage(items, message) {
@@ -185,6 +235,28 @@ function formatMessageTime(value) {
   }).format(new Date(value))
 }
 
+function Avatar({ src = '', alt = '', name = '', type = 'private', className = '' }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={alt || name || 'Profile picture'}
+        className={className}
+      />
+    )
+  }
+
+  return (
+    <div className={className}>
+      {type === 'group' ? (
+        <Users className="h-5 w-5" />
+      ) : (
+        <UserRound className="h-5 w-5" />
+      )}
+    </div>
+  )
+}
+
 async function parseApiResponse(response, fallbackMessage) {
   const payload = await response.json().catch(() => ({}))
 
@@ -202,6 +274,7 @@ function CreateGroupModal({
   creating,
   scholars,
   loadingScholars,
+  currentUserId,
 }) {
   const [roomName, setRoomName] = useState('')
   const [search, setSearch] = useState('')
@@ -234,6 +307,9 @@ function CreateGroupModal({
       const matchesSearch =
         !query ||
         [
+          item.studentId,
+          item.firstName,
+          item.lastName,
           item.studentName,
           item.studentNumber,
           item.programName,
@@ -326,7 +402,7 @@ function CreateGroupModal({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search scholar, student number, program, or benefactor"
+              placeholder="Search student ID, first name, last name, program, or benefactor"
               className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             />
           </div>
@@ -448,7 +524,7 @@ function CreateGroupModal({
             onClick={() =>
               onCreate({
                 roomName: roomName.trim(),
-                memberIds: selectedMembers,
+                memberIds: [currentUserId, ...selectedMembers].filter(Boolean),
               })
             }
             className="inline-flex h-11 items-center rounded-2xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
@@ -462,6 +538,268 @@ function CreateGroupModal({
               <>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Group
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AddMembersModal({
+  open,
+  onClose,
+  onAdd,
+  adding,
+  scholars,
+  loadingScholars,
+}) {
+  const [search, setSearch] = useState('')
+  const [programFilter, setProgramFilter] = useState('All Programs')
+  const [benefactorFilter, setBenefactorFilter] = useState('All Benefactors')
+  const [selectedMembers, setSelectedMembers] = useState([])
+
+  useEffect(() => {
+    if (!open) {
+      setSearch('')
+      setProgramFilter('All Programs')
+      setBenefactorFilter('All Benefactors')
+      setSelectedMembers([])
+    }
+  }, [open])
+
+  const programOptions = useMemo(() => {
+    return ['All Programs', ...new Set(scholars.map((item) => item.programName).filter(Boolean))]
+  }, [scholars])
+
+  const benefactorOptions = useMemo(() => {
+    return ['All Benefactors', ...new Set(scholars.map((item) => item.benefactorName).filter(Boolean))]
+  }, [scholars])
+
+  const filteredScholars = useMemo(() => {
+    const query = search.trim().toLowerCase()
+
+    return scholars.filter((item) => {
+      const matchesSearch =
+        !query ||
+        [
+          item.studentId,
+          item.firstName,
+          item.lastName,
+          item.studentName,
+          item.studentNumber,
+          item.programName,
+          item.benefactorName,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+
+      const matchesProgram =
+        programFilter === 'All Programs' || item.programName === programFilter
+
+      const matchesBenefactor =
+        benefactorFilter === 'All Benefactors' || item.benefactorName === benefactorFilter
+
+      return matchesSearch && matchesProgram && matchesBenefactor
+    })
+  }, [scholars, search, programFilter, benefactorFilter])
+
+  if (!open) return null
+
+  const toggleMember = (userId) => {
+    setSelectedMembers((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+    )
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-stone-900">Add Scholars To Group</h3>
+            <p className="mt-1 text-sm text-stone-500">
+              Search scholars, filter them, then add them to the selected group chat.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="border-b border-stone-100 px-5 py-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px]">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search student ID, first name, last name, program, or benefactor"
+              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+            />
+
+            <select
+              value={programFilter}
+              onChange={(e) => setProgramFilter(e.target.value)}
+              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+            >
+              {programOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <select
+              value={benefactorFilter}
+              onChange={(e) => setBenefactorFilter(e.target.value)}
+              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+            >
+              {benefactorOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {loadingScholars ? (
+              <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Loading scholars
+              </div>
+            ) : filteredScholars.length ? (
+              <div className="space-y-2">
+                {filteredScholars.map((item) => {
+                  const checked = selectedMembers.includes(item.userId)
+
+                  return (
+                    <label
+                      key={item.userId}
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
+                        checked
+                          ? 'border-[#7c4a2e] bg-amber-50'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleMember(item.userId)}
+                        className="mt-1 h-4 w-4 accent-[#7c4a2e]"
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="truncate text-sm font-semibold text-stone-900">
+                            {item.studentName}
+                          </p>
+
+                          {checked && (
+                            <span className="inline-flex items-center rounded-full bg-[#7c4a2e] px-2 py-0.5 text-[10px] font-semibold text-white">
+                              <Check className="mr-1 h-3 w-3" />
+                              Selected
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-1 text-xs text-stone-500">
+                          {item.studentNumber || 'No student number'}
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-700">
+                            {item.programName}
+                          </span>
+                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-700">
+                            {item.benefactorName}
+                          </span>
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-stone-500">
+                No scholars match the current filters.
+              </div>
+            )}
+          </div>
+
+          <div className="w-[260px] border-l border-stone-100 bg-stone-50/70 px-5 py-4">
+            <p className="text-sm font-semibold text-stone-900">Selected Scholars</p>
+            <p className="mt-1 text-xs text-stone-500">
+              {selectedMembers.length} selected
+            </p>
+
+            <div className="mt-4 space-y-2">
+              {selectedMembers.length ? (
+                selectedMembers.map((userId) => {
+                  const scholar = scholars.find((item) => item.userId === userId)
+                  if (!scholar) return null
+
+                  return (
+                    <div
+                      key={userId}
+                      className="rounded-2xl border border-stone-200 bg-white px-3 py-2"
+                    >
+                      <p className="text-sm font-medium text-stone-900">
+                        {scholar.studentName}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {scholar.studentNumber || 'No student number'}
+                      </p>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-4 text-sm text-stone-500">
+                  No scholars selected yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-stone-100 px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            disabled={adding || !selectedMembers.length}
+            onClick={() => onAdd(selectedMembers)}
+            className="inline-flex h-11 items-center rounded-2xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {adding ? (
+              <>
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                Adding
+              </>
+            ) : (
+              <>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add To Group
               </>
             )}
           </button>
@@ -497,6 +835,8 @@ export default function AdminMessages() {
   const [sending, setSending] = useState(false)
   const [createRoomOpen, setCreateGroupOpen] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
+  const [addMembersOpen, setAddMembersOpen] = useState(false)
+  const [addingMembers, setAddingMembers] = useState(false)
 
   const activeConversationRef = useRef('')
   const activeRoomRef = useRef('')
@@ -507,10 +847,27 @@ export default function AdminMessages() {
     [conversations]
   )
 
+  const scholarByUserId = useMemo(
+    () =>
+      new Map(
+        scholars
+          .filter((item) => item.userId)
+          .map((item) => [item.userId, item])
+      ),
+    [scholars]
+  )
+
   const mergedItems = useMemo(() => {
     const privateItems = conversations.map((item) => ({
       ...item,
       type: 'private',
+      name: item.name || scholarByUserId.get(item.id)?.studentName || 'Unknown user',
+      studentNumber:
+        item.studentNumber ||
+        scholarByUserId.get(item.id)?.studentNumber ||
+        scholarByUserId.get(item.id)?.studentId ||
+        '',
+      avatarUrl: item.avatarUrl || scholarByUserId.get(item.id)?.avatarUrl || '',
     }))
 
     const groupItems = rooms.map((item) => ({
@@ -519,12 +876,49 @@ export default function AdminMessages() {
     }))
 
     return sortItems([...privateItems, ...groupItems])
-  }, [conversations, rooms])
+  }, [conversations, rooms, scholarByUserId])
+
+  const scholarSearchItems = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+
+    if (!query || showUnreadOnly) {
+      return []
+    }
+
+    const existingPrivateIds = new Set(
+      mergedItems
+        .filter((item) => item.type === 'private')
+        .map((item) => item.id)
+        .filter(Boolean)
+    )
+
+    return scholars
+      .filter((item) => {
+        if (!item.userId || existingPrivateIds.has(item.userId)) {
+          return false
+        }
+
+        return [
+          item.studentId,
+          item.firstName,
+          item.lastName,
+          item.studentName,
+          item.studentNumber,
+          item.programName,
+          item.benefactorName,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      })
+      .map(toScholarSearchItem)
+  }, [mergedItems, scholars, searchTerm, showUnreadOnly])
 
   const filteredItems = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
 
-    return mergedItems.filter((item) => {
+    const matchedThreads = mergedItems.filter((item) => {
       const matchesUnread = showUnreadOnly ? item.unreadCount > 0 : true
       const searchText = [item.name, item.studentNumber, item.lastMessage]
         .filter(Boolean)
@@ -534,7 +928,13 @@ export default function AdminMessages() {
       const matchesSearch = query ? searchText.includes(query) : true
       return matchesUnread && matchesSearch
     })
-  }, [mergedItems, searchTerm, showUnreadOnly])
+
+    if (!query || showUnreadOnly) {
+      return matchedThreads
+    }
+
+    return [...matchedThreads, ...scholarSearchItems]
+  }, [mergedItems, scholarSearchItems, searchTerm, showUnreadOnly])
 
   const selectedItem = useMemo(() => {
     if (activeType === 'group') {
@@ -602,7 +1002,7 @@ export default function AdminMessages() {
   const fetchRooms = useCallback(
     async (preferredRoomId = activeRoomRef.current) => {
       try {
-        const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms/admin`, {
+        const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms`, {
           headers: buildMessagingHeaders(token),
         })
         const payload = await parseApiResponse(response, 'Failed to load rooms.')
@@ -685,7 +1085,7 @@ export default function AdminMessages() {
 
       try {
         const response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/thread`,
+          `${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/messages`,
           {
             headers: buildMessagingHeaders(token),
           }
@@ -769,7 +1169,7 @@ export default function AdminMessages() {
 
       if (activeType === 'group' && activeRoomId) {
         response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/send`,
+          `${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/messages`,
           {
             method: 'POST',
             headers: buildMessagingHeaders(token, { json: true }),
@@ -811,17 +1211,26 @@ export default function AdminMessages() {
         )
       } else {
         setConversations((current) =>
-          sortItems(
-            current.map((item) =>
-              item.id === activeConversationId
-                ? {
-                    ...item,
-                    lastMessage: message.messageBody,
-                    lastSentAt: message.sentAt,
-                  }
-                : item
-            )
-          )
+          sortItems([
+            ...current
+              .filter((item) => item.id !== activeConversationId)
+              .map((item) => ({
+                ...item,
+                lastMessage: item.lastMessage,
+                lastSentAt: item.lastSentAt,
+              })),
+            {
+              id: activeConversationId,
+              type: 'private',
+              name: selectedItem?.name || 'Unknown user',
+              studentNumber: selectedItem?.studentNumber || '',
+              avatarUrl: selectedItem?.avatarUrl || '',
+              lastMessage: message.messageBody,
+              lastSentAt: message.sentAt,
+              createdAt: message.sentAt,
+              unreadCount: 0,
+            },
+          ])
         )
       }
 
@@ -855,6 +1264,30 @@ export default function AdminMessages() {
     }
   }
 
+  async function handleAddMembers(memberIds) {
+    if (!activeRoomId || !memberIds.length) return
+
+    try {
+      setAddingMembers(true)
+
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms/${activeRoomId}/members`, {
+        method: 'POST',
+        headers: buildMessagingHeaders(token, { json: true }),
+        body: JSON.stringify({ memberIds }),
+      })
+
+      await parseApiResponse(response, 'Failed to add members to group chat.')
+
+      setAddMembersOpen(false)
+      setError('')
+      await fetchRooms(activeRoomId)
+    } catch (err) {
+      setError(err.message || 'Failed to add members to group chat.')
+    } finally {
+      setAddingMembers(false)
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -869,10 +1302,16 @@ export default function AdminMessages() {
   }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
 
   useEffect(() => {
-    if (createRoomOpen && !scholars.length) {
+    if (isOpen) {
       fetchScholarMembers()
     }
-  }, [createRoomOpen, scholars.length, fetchScholarMembers])
+  }, [isOpen, fetchScholarMembers])
+
+  useEffect(() => {
+    if ((createRoomOpen || addMembersOpen) && !scholars.length) {
+      fetchScholarMembers()
+    }
+  }, [createRoomOpen, addMembersOpen, scholars.length, fetchScholarMembers])
 
   useEffect(() => {
     if (!isOpen) return
@@ -962,6 +1401,16 @@ export default function AdminMessages() {
         creating={creatingGroup}
         scholars={scholars}
         loadingScholars={loadingScholars}
+        currentUserId={currentUserId}
+      />
+
+      <AddMembersModal
+        open={addMembersOpen}
+        onClose={() => setAddMembersOpen(false)}
+        onAdd={handleAddMembers}
+        adding={addingMembers}
+        scholars={scholars}
+        loadingScholars={loadingScholars}
       />
 
       {isOpen && (
@@ -1022,7 +1471,7 @@ export default function AdminMessages() {
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search messages or rooms..."
+                      placeholder="Search messages, rooms, student ID, first name, or last name..."
                       className="h-11 w-full rounded-2xl border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
                     />
                   </div>
@@ -1077,13 +1526,13 @@ export default function AdminMessages() {
                             isActive ? 'bg-amber-50/70' : 'hover:bg-stone-50'
                           }`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-100 text-stone-600">
-                            {item.type === 'group' ? (
-                              <Users className="h-5 w-5" />
-                            ) : (
-                              <UserRound className="h-5 w-5" />
-                            )}
-                          </div>
+                          <Avatar
+                            src={item.avatarUrl}
+                            alt={item.name}
+                            name={item.name}
+                            type={item.type}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-100 object-cover text-stone-600"
+                          />
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
@@ -1129,15 +1578,30 @@ export default function AdminMessages() {
                 {selectedItem ? (
                   <>
                     <div className="border-b border-stone-100 px-5 py-4 sm:px-6 sm:py-5">
-                      <div className="flex items-center gap-2">
-                        {selectedItem.type === 'group' ? (
-                          <Users className="h-5 w-5 text-stone-500" />
-                        ) : (
-                          <UserRound className="h-5 w-5 text-stone-500" />
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar
+                            src={selectedItem.avatarUrl}
+                            alt={selectedItem.name}
+                            name={selectedItem.name}
+                            type={selectedItem.type}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-100 object-cover text-stone-500"
+                          />
+                          <p className="text-lg font-semibold text-stone-900">
+                            {selectedItem.name}
+                          </p>
+                        </div>
+
+                        {selectedItem.type === 'group' && (
+                          <button
+                            type="button"
+                            onClick={() => setAddMembersOpen(true)}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                            Add Scholars
+                          </button>
                         )}
-                        <p className="text-lg font-semibold text-stone-900">
-                          {selectedItem.name}
-                        </p>
                       </div>
 
                       <p className="mt-1 text-sm text-stone-500">
@@ -1163,22 +1627,36 @@ export default function AdminMessages() {
                                 key={message.messageId}
                                 className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
                               >
-                                <div
-                                  className={`max-w-[85%] rounded-3xl px-4 py-3 shadow-sm sm:max-w-[75%] ${
-                                    isMine
-                                      ? 'bg-[#7c4a2e] text-white'
-                                      : 'border border-stone-200 bg-white text-stone-800'
-                                  }`}
-                                >
-                                  <p className="whitespace-pre-wrap text-sm leading-6">
-                                    {message.messageBody}
-                                  </p>
+                                <div className={`flex max-w-[85%] items-end gap-2 sm:max-w-[75%] ${isMine ? 'flex-row-reverse' : ''}`}>
+                                  <Avatar
+                                    src={isMine ? '' : message.senderAvatarUrl || selectedItem?.avatarUrl}
+                                    alt={message.senderName || selectedItem?.name}
+                                    name={message.senderName || selectedItem?.name}
+                                    type="private"
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-stone-100 object-cover text-stone-500"
+                                  />
                                   <div
-                                    className={`mt-2 text-[11px] ${
-                                      isMine ? 'text-amber-100' : 'text-stone-400'
+                                    className={`rounded-3xl px-4 py-3 shadow-sm ${
+                                      isMine
+                                        ? 'bg-[#7c4a2e] text-white'
+                                        : 'border border-stone-200 bg-white text-stone-800'
                                     }`}
                                   >
-                                    {formatMessageTime(message.sentAt)}
+                                    {!isMine && message.senderName && selectedItem?.type === 'group' && (
+                                      <p className="mb-1 text-xs font-semibold text-stone-500">
+                                        {message.senderName}
+                                      </p>
+                                    )}
+                                    <p className="whitespace-pre-wrap text-sm leading-6">
+                                      {message.messageBody}
+                                    </p>
+                                    <div
+                                      className={`mt-2 text-[11px] ${
+                                        isMine ? 'text-amber-100' : 'text-stone-400'
+                                      }`}
+                                    >
+                                      {formatMessageTime(message.sentAt)}
+                                    </div>
                                   </div>
                                 </div>
                               </div>

@@ -1,62 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
-  Database,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Upload,
   RefreshCcw,
   FileSpreadsheet,
   Download,
   AlertCircle,
-  CheckCircle2,
-  Inbox,
   X,
+  Search,
+  Inbox,
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:5000/api';
 
-const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
-  amber: '#d97706',
-  amberSoft: '#FFF7ED',
-  green: '#16a34a',
-  greenSoft: '#F0FDF4',
-  red: '#dc2626',
-  redSoft: '#FEF2F2',
-  border: '#e7e5e4',
-  muted: '#78716c',
-  bg: '#faf7f2',
-};
-
 function getAuthHeaders() {
   const token = localStorage.getItem('adminToken');
   return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function StatCard({ label, value, tone = 'neutral' }) {
-  const toneMap = {
-    neutral: { bg: '#fff', color: C.brown },
-    success: { bg: C.greenSoft, color: C.green },
-    warning: { bg: C.amberSoft, color: C.amber },
-    danger: { bg: C.redSoft, color: C.red },
-  };
-
-  const styles = toneMap[tone] || toneMap.neutral;
-
-  return (
-    <div
-      className="rounded-2xl border px-4 py-4"
-      style={{ borderColor: C.border, background: styles.bg }}
-    >
-      <p className="text-[11px] uppercase tracking-[0.2em] text-stone-400">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold" style={{ color: styles.color }}>
-        {value}
-      </p>
-    </div>
-  );
 }
 
 function formatFileSize(bytes) {
@@ -74,23 +42,24 @@ export default function RegistrarSync() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState('');
-  const [summary, setSummary] = useState(null);
   const [registry, setRegistry] = useState([]);
   const [total, setTotal] = useState(0);
+
+  const [search, setSearch] = useState('');
+  const [courseFilter, setCourseFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
 
   const loadRegistry = async () => {
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE}/student-registry?limit=25`, {
+      const res = await fetch(`${API_BASE}/student-registry?limit=200`, {
         headers: getAuthHeaders(),
       });
-      const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Failed to load registry');
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || 'Failed to load registry');
 
       setRegistry(Array.isArray(data.items) ? data.items : []);
       setTotal(Number(data.total || 0));
@@ -105,53 +74,43 @@ export default function RegistrarSync() {
     loadRegistry();
   }, []);
 
-  const handleFileSelect = (selectedFile) => {
-    if (!selectedFile) return;
+  const handleFileSelect = (f) => {
+    if (!f) return;
 
-    const allowedExtensions = ['.xlsx', '.xls', '.csv'];
-    const lowerName = selectedFile.name.toLowerCase();
-    const isValid = allowedExtensions.some((ext) => lowerName.endsWith(ext));
+    const valid = ['.xlsx', '.xls', '.csv'].some((ext) =>
+      f.name.toLowerCase().endsWith(ext)
+    );
 
-    if (!isValid) {
+    if (!valid) {
       setError('Only .xlsx, .xls, and .csv files are allowed.');
       return;
     }
 
     setError('');
-    setFile(selectedFile);
+    setFile(f);
   };
 
   const handleImport = async () => {
-    if (!file) {
-      setError('Choose an Excel or CSV file first.');
-      return;
-    }
+    if (!file) return;
 
     setIsImporting(true);
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const fd = new FormData();
+      fd.append('file', file);
 
-      const response = await fetch(`${API_BASE}/student-registry/import`, {
+      const res = await fetch(`${API_BASE}/student-registry/import`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: formData,
+        body: fd,
       });
 
-      const data = await response.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || 'Import failed');
 
-      if (!response.ok) {
-        throw new Error(data.error || data.message || 'Import failed');
-      }
-
-      setSummary(data);
       setFile(null);
-
-      if (inputRef.current) {
-        inputRef.current.value = '';
-      }
+      if (inputRef.current) inputRef.current.value = '';
 
       await loadRegistry();
     } catch (err) {
@@ -167,9 +126,7 @@ export default function RegistrarSync() {
     setIsDragging(false);
 
     const droppedFile = e.dataTransfer?.files?.[0];
-    if (droppedFile) {
-      handleFileSelect(droppedFile);
-    }
+    if (droppedFile) handleFileSelect(droppedFile);
   };
 
   const handleDragOver = (e) => {
@@ -184,275 +141,241 @@ export default function RegistrarSync() {
     setIsDragging(false);
   };
 
-  const recentRows = useMemo(() => registry.slice(0, 25), [registry]);
+  const courseOptions = useMemo(() => {
+    const unique = Array.from(
+      new Set(
+        registry
+          .map((row) => row.academic_course?.course_code)
+          .filter(Boolean)
+      )
+    );
+    return unique.sort((a, b) => String(a).localeCompare(String(b)));
+  }, [registry]);
+
+  const yearOptions = useMemo(() => {
+    const unique = Array.from(
+      new Set(
+        registry
+          .map((row) => row.year_level)
+          .filter((value) => value !== null && value !== undefined && value !== '')
+          .map((value) => String(value))
+      )
+    );
+    return unique.sort((a, b) => Number(a) - Number(b));
+  }, [registry]);
+
+  const filteredRegistry = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return registry.filter((row) => {
+      const fullName = [row.given_name, row.middle_name, row.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      const studentNumber = String(row.student_number || '').toLowerCase();
+      const courseCode = String(row.academic_course?.course_code || '');
+      const yearLevel = String(row.year_level || '');
+
+      const matchesSearch =
+        !q ||
+        fullName.includes(q) ||
+        studentNumber.includes(q);
+
+      const matchesCourse =
+        courseFilter === 'all' || courseCode === courseFilter;
+
+      const matchesYear =
+        yearFilter === 'all' || yearLevel === yearFilter;
+
+      return matchesSearch && matchesCourse && matchesYear;
+    });
+  }, [registry, search, courseFilter, yearFilter]);
+
+  const rows = useMemo(() => filteredRegistry.slice(0, 50), [filteredRegistry]);
 
   return (
-    <div className="space-y-6 py-3">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-stone-500">
-          <Database className="h-4 w-4" />
-          Registrar Sync
-        </div>
-        <h1 className="text-3xl font-bold tracking-tight text-stone-900">
-          Student Registry Import
-        </h1>
-        <p className="max-w-3xl text-sm leading-6 text-stone-500">
-          Upload the official registrar workbook or CSV to sync the master student
-          registry. Only students found in this registry can continue registration
-          and scholarship application flows.
-        </p>
-      </div>
-
+    <div className="space-y-4">
       {error && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <div className="text-xs text-red-500 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
         </div>
       )}
 
-      {summary && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <StatCard label="Imported" value={summary.total ?? 0} tone="success" />
-          <StatCard label="Inserted" value={summary.inserted ?? 0} tone="success" />
-          <StatCard label="Replaced Old Rows" value={summary.updated ?? 0} tone="warning" />
-          <StatCard
-            label="Duplicates / Skipped"
-            value={`${summary.duplicate_count ?? 0} / ${(summary.skipped || []).length}`}
-            tone="danger"
-          />
-        </div>
-      )}
+      <div className="grid gap-4 xl:grid-cols-12">
+        {/* LEFT */}
+        <Card className="xl:col-span-4 p-4 space-y-4 border-stone-200 shadow-none">
+          <div
+            onClick={() => inputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition ${isDragging
+                ? 'border-stone-500 bg-stone-50'
+                : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
+              }`}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => handleFileSelect(e.target.files?.[0])}
+            />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <Card className="overflow-hidden border-stone-200 shadow-sm xl:col-span-4">
-          <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-            <h2 className="text-sm font-bold text-stone-800">Upload Registrar File</h2>
-            <p className="mt-1 text-xs text-stone-500">
-              Drag and drop the file or browse manually.
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-stone-200 bg-white">
+              <Inbox className="h-5 w-5 text-stone-500" />
+            </div>
+
+            <p className="text-sm font-medium text-stone-800">
+              Drag and drop registrar file
+            </p>
+            <p className="mt-1 text-xs text-stone-400">
+              or click to browse
+            </p>
+            <p className="mt-3 text-[11px] text-stone-400">
+              Accepted: .xlsx, .xls, .csv
             </p>
           </div>
 
-          <CardContent className="p-5 space-y-4">
-            <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/70 p-4">
-              <p className="text-sm font-medium text-stone-800">Accepted columns</p>
-              <ul className="mt-3 space-y-1 text-xs text-stone-500">
-                <li>pdm_id</li>
-                <li>first_name</li>
-                <li>middle_name</li>
-                <li>last_name</li>
-                <li>course_id</li>
-                <li>year_level</li>
-                <li>gwa</li>
-                <li>profile_photo_url</li>
-                <li>is_active_scholar</li>
-                <li>account_status</li>
-                <li>sdo_status</li>
-                <li>is_archived</li>
-                <li>learners_reference_number</li>
-                <li>sex_at_birth</li>
-                <li>email_address</li>
-                <li>phone_number</li>
-              </ul>
-            </div>
-
-            {file && (
-              <div className="flex items-start justify-between gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-stone-800">
-                    {file.name}
-                  </p>
-                  <p className="mt-1 text-xs text-stone-500">
-                    {formatFileSize(file.size)}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFile(null);
-                    if (inputRef.current) inputRef.current.value = '';
-                  }}
-                  className="rounded-lg p-1 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+          {file && (
+            <div className="flex justify-between items-center border border-stone-200 px-3 py-2 rounded-lg bg-white">
+              <div className="min-w-0 text-xs">
+                <p className="truncate text-stone-700 font-medium">{file.name}</p>
+                <span className="block text-stone-400">
+                  {formatFileSize(file.size)}
+                </span>
               </div>
-            )}
 
-            <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-              <p className="text-sm font-semibold text-stone-800">Accepted columns</p>
-              <div className="mt-3 grid grid-cols-1 gap-y-1 text-xs text-stone-500 sm:grid-cols-2">
-                <span>Sequence Number</span>
-                <span>Student Number</span>
-                <span>Learner&apos;s Reference Number</span>
-                <span>Last Name</span>
-                <span>Given Name</span>
-                <span>Middle Name</span>
-                <span>Degree Program</span>
-                <span>Year Level</span>
-                <span>Sex at Birth</span>
-                <span>Email Address</span>
-                <span>Phone Number</span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <Button
-                onClick={handleImport}
-                disabled={isImporting || !file}
-                className="rounded-xl border-none text-white"
-                style={{ background: C.brown }}
+              <button
+                type="button"
+                onClick={() => {
+                  setFile(null);
+                  if (inputRef.current) inputRef.current.value = '';
+                }}
+                className="rounded-md p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
               >
-                <Upload className="mr-2 h-4 w-4" />
-                {isImporting ? 'Importing...' : 'Import Registry'}
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={loadRegistry}
-                disabled={isLoading}
-                className="rounded-xl border-stone-200 text-stone-700"
-              >
-                <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-
-              <Button
-                asChild
-                variant="outline"
-                className="rounded-xl border-stone-200 text-stone-700"
-              >
-                <a href="/templates/student-registry-import-template.csv" download>
-                  <Download className="mr-2 h-4 w-4" />
-                  Template
-                </a>
-              </Button>
+                <X className="h-4 w-4" />
+              </button>
             </div>
+          )}
 
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
-              Registration and application submission are blocked unless the
-              student number exists in this registry.
-            </div>
-          </CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handleImport} disabled={!file || isImporting}>
+              <Upload className="h-4 w-4 mr-1" />
+              {isImporting ? 'Importing' : 'Import'}
+            </Button>
+
+            <Button variant="outline" onClick={loadRegistry}>
+              <RefreshCcw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+
+            <Button asChild variant="outline">
+              <a href="/templates/student-registry-import-template.csv" download>
+                <Download className="h-4 w-4 mr-1" />
+                Template
+              </a>
+            </Button>
+          </div>
+
+          <p className="text-xs text-stone-400 leading-6">
+            Only students in this registry can register and apply.
+          </p>
         </Card>
 
-        <Card className="overflow-hidden border-stone-200 shadow-sm xl:col-span-8">
-          <div className="flex items-center justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-            <div>
-              <h2 className="text-sm font-bold text-stone-800">Registry Preview</h2>
-              <p className="mt-1 text-xs text-stone-500">
-                {total} total records stored in the registry
-              </p>
+        {/* RIGHT */}
+        <Card className="xl:col-span-8 border-stone-200 overflow-hidden shadow-none">
+          <div className="flex flex-col gap-3 px-4 py-3 border-b bg-white">
+            <div className="flex justify-between items-center text-xs text-stone-500">
+              <span>{total} records</span>
+              <span className="flex items-center gap-1">
+                <FileSpreadsheet className="h-4 w-4" />
+                {rows.length} shown
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-stone-500">
-              <FileSpreadsheet className="h-4 w-4" />
-              Latest {recentRows.length} rows
+            <div className="grid gap-2 md:grid-cols-[1fr_160px_120px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search student number or name..."
+                  className="pl-9"
+                />
+              </div>
+
+              <Select value={courseFilter} onValueChange={setCourseFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Course" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Courses</SelectItem>
+                  {courseOptions.map((course) => (
+                    <SelectItem key={course} value={course}>
+                      {course}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={yearFilter} onValueChange={setYearFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {yearOptions.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      Year {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          <CardContent className="p-0">
-            <div className="overflow-hidden">
-              <div className="max-h-[520px] overflow-auto">
-                <table className="min-w-full border-collapse text-left">
-                  <thead className="sticky top-0 z-10 bg-stone-50 text-[11px] uppercase tracking-[0.2em] text-stone-400">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Seq</th>
-                      <th className="px-4 py-3 font-semibold">Student Number</th>
-                      <th className="px-4 py-3 font-semibold">Name</th>
-                      <th className="px-4 py-3 font-semibold">Course</th>
-                      <th className="px-4 py-3 font-semibold">Year</th>
-                      <th className="px-4 py-3 font-semibold">Sex</th>
-                      <th className="px-4 py-3 font-semibold">Email</th>
-                      <th className="px-4 py-3 font-semibold">Phone</th>
+          {/* KEEP TABLE STRUCTURE */}
+          <div className="max-h-[520px] overflow-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-stone-50 text-stone-400 uppercase">
+                <tr>
+                  <th className="px-3 py-2">#</th>
+                  <th className="px-3 py-2">Student</th>
+                  <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">Course</th>
+                  <th className="px-3 py-2">Year</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-10 text-stone-400">
+                      {isLoading ? 'Loading...' : 'No data'}
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((r) => (
+                    <tr key={r.registry_id} className="border-t">
+                      <td className="px-3 py-2">{r.sequence_number}</td>
+                      <td className="px-3 py-2 font-mono">{r.student_number}</td>
+                      <td className="px-3 py-2">
+                        {[r.given_name, r.last_name].filter(Boolean).join(' ')}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.academic_course?.course_code || '-'}
+                      </td>
+                      <td className="px-3 py-2">{r.year_level}</td>
                     </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-stone-100">
-                    {recentRows.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-4 py-12 text-center text-sm text-stone-400"
-                        >
-                          {isLoading ? 'Loading registry...' : 'No registry records yet.'}
-                        </td>
-                      </tr>
-                    ) : (
-                      recentRows.map((row) => (
-                        <tr key={row.registry_id} className="transition hover:bg-stone-50/70">
-                          <td className="px-4 py-3 text-sm text-stone-600">
-                            {row.sequence_number ?? '-'}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-mono text-stone-800">
-                            {row.student_number}
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-stone-700">
-                            {[row.given_name, row.middle_name, row.last_name]
-                              .filter(Boolean)
-                              .join(' ')}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-stone-600">
-                            {row.academic_course?.course_code ||
-                              row.academic_course?.course_name ||
-                              '-'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-stone-600">
-                            {row.year_level || '-'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-stone-600">
-                            {row.sex_at_birth || '-'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-stone-600">
-                            {row.email_address || '-'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-stone-600">
-                            {row.phone_number || '-'}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CardContent>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.border }}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            Validation rule
-          </div>
-          <p className="mt-2 text-xs leading-6 text-stone-500">
-            A user can proceed only if the student number exists in the imported
-            registrar registry.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.border }}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            Applicant detection
-          </div>
-          <p className="mt-2 text-xs leading-6 text-stone-500">
-            A valid student becomes an applicant only after at least one
-            application record exists.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border bg-white p-4" style={{ borderColor: C.border }}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            Scholar detection
-          </div>
-          <p className="mt-2 text-xs leading-6 text-stone-500">
-            Existing scholars are still resolved from the scholars table and are
-            not determined by this import.
-          </p>
-        </div>
       </div>
     </div>
   );

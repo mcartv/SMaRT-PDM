@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft,
@@ -241,7 +241,9 @@ export default function RenewalDocumentVerification() {
   }
 
   return (
-    <div className="space-y-5 py-2 animate-in fade-in duration-300">
+    <div className="space-y-4 py-2 animate-in fade-in duration-300">
+
+      {/* HEADER */}
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
@@ -249,189 +251,202 @@ export default function RenewalDocumentVerification() {
           onClick={() => navigate('/admin/renewals')}
           className="h-8 w-8 p-0 rounded-lg border-stone-200 bg-white"
         >
-          <ArrowLeft size={15} className="text-stone-500" />
+          <ArrowLeft size={15} />
         </Button>
+
         <div>
-          <div className="flex items-center gap-1.5 text-xs text-stone-400">
-            <span className="hover:text-stone-600 cursor-pointer" onClick={() => navigate('/admin/renewals')}>
-              Scholar Renewals
-            </span>
-            <ChevronRight size={11} />
-            <span className="text-stone-600">{id}</span>
-          </div>
-          <h1 className="text-xl font-semibold text-stone-900 mt-0.5">Renewal Verification</h1>
+          <p className="text-[11px] text-stone-400">
+            Scholar Renewals / {id}
+          </p>
+          <h1 className="text-lg font-semibold text-stone-900">
+            Renewal Verification
+          </h1>
         </div>
-        <Button variant="outline" size="sm" className="ml-auto border-stone-200 bg-white" onClick={loadRenewal}>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto border-stone-200"
+          onClick={loadRenewal}
+        >
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="border-stone-200 shadow-none bg-white">
-            <div className="p-5">
-              <div className="flex items-center gap-3 mb-5">
-                <Avatar className="w-12 h-12 border border-stone-100">
-                  <AvatarImage
-                    src={renewal?.student?.avatar_url || undefined}
-                    alt={renewal?.student?.name || 'Scholar'}
-                  />
-                  <AvatarFallback className="bg-blue-900 text-white text-sm font-semibold">
-                    {renewal?.student?.initials || 'NA'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h2 className="text-base font-semibold text-stone-900">{renewal?.student?.name}</h2>
-                  <p className="text-xs font-mono text-stone-400">{renewal?.student?.pdm_id}</p>
-                  <Badge className="mt-1.5 bg-blue-50 text-blue-700 border-blue-100 font-medium text-[10px] uppercase tracking-wide">
-                    {renewal?.student?.program}
-                  </Badge>
-                </div>
-              </div>
+      {/* MAIN GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5">
 
-              <div className="space-y-3.5 pt-4 border-t border-stone-100">
-                <InfoRow label="Email Address" value={renewal?.student?.email} />
-                <InfoRow label="Phone Number" value={renewal?.student?.phone} />
-                <InfoRow
-                  label="Renewal Cycle"
-                  value={`${renewal?.renewal?.semester_label} Sem AY ${renewal?.renewal?.school_year_label}`}
-                />
-                <InfoRow label="Renewal Status" value={renewal?.renewal_status} />
-                <InfoRow label="Document Status" value={renewal?.document_status} />
-                <InfoRow label="Batch Year" value={renewal?.scholar?.batch_year} />
+        {/* LEFT SIDEBAR */}
+        <div className="space-y-4">
+
+          {/* STUDENT */}
+          <div className="p-4 rounded-xl bg-white border border-stone-200">
+            <div className="flex items-center gap-3">
+              <Avatar className="w-10 h-10">
+                <AvatarFallback className="bg-blue-900 text-white text-xs">
+                  {renewal?.student?.initials || 'NA'}
+                </AvatarFallback>
+              </Avatar>
+
+              <div>
+                <p className="text-sm font-semibold text-stone-900">
+                  {renewal?.student?.name}
+                </p>
+                <p className="text-[11px] text-stone-400">
+                  {renewal?.student?.pdm_id}
+                </p>
               </div>
             </div>
-          </Card>
 
-          <Card className="border-stone-200 shadow-none bg-white">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 bg-stone-50/50">
-              <h3 className="text-xs font-semibold text-stone-700 uppercase tracking-wider">Checklist</h3>
-              <span className="text-xs text-stone-400">{uploadedCount}/{documents.length} uploaded</span>
+            <div className="mt-4 space-y-2 text-xs text-stone-500">
+              <p>{renewal?.student?.program}</p>
+              <p>{renewal?.renewal_status}</p>
             </div>
+          </div>
 
-            <div className="p-3 space-y-1.5">
-              {documents.map((doc) => {
-                const meta = DOC_STATUS[doc.status] || DOC_STATUS.pending;
-                const isActive = activeDoc?.id === doc.id;
+          {/* CHECKLIST */}
+          <div className="space-y-1">
+            {documents.map((doc) => {
+              const meta = DOC_STATUS[doc.status] || DOC_STATUS.pending;
+              const isActive = activeDoc?.id === doc.id;
 
-                return (
-                  <button
-                    key={doc.id}
-                    onClick={() => setDocKey(doc.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg border text-left ${isActive
-                        ? 'border-blue-800 bg-blue-50 shadow-sm'
-                        : 'border-stone-100 bg-white hover:border-stone-200'
-                      }`}
+              return (
+                <button
+                  key={doc.id}
+                  onClick={() => setDocKey(doc.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition ${isActive
+                      ? 'bg-blue-50 text-blue-900'
+                      : 'text-stone-600 hover:bg-stone-100'
+                    }`}
+                >
+                  <span className="truncate">{doc.name}</span>
+                  <span
+                    className="ml-2 text-[10px] px-2 py-0.5 rounded-full"
+                    style={{ background: meta.bg, color: meta.color }}
                   >
-                    <div>
-                      <p className={`text-xs ${isActive ? 'font-semibold text-blue-900' : 'font-medium text-stone-700'}`}>
-                        {doc.name}
-                      </p>
-                      <p className="text-[10px] text-stone-400 mt-0.5">
-                        {doc.url ? 'File uploaded' : 'No file uploaded'}
-                      </p>
-                    </div>
-                    <span
-                      className="text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0 ml-2"
-                      style={{ background: meta.bg, color: meta.color }}
-                    >
-                      {meta.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
+                    {meta.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="lg:col-span-3 space-y-4">
-          <DocumentPanel activeDoc={activeDoc} />
+        {/* RIGHT MAIN */}
+        <div className="space-y-4">
 
-          <Card className="border-stone-200 shadow-none bg-white">
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
-                  Document Feedback
-                </label>
-                <Textarea
-                  placeholder={activeDoc?.url ? 'Enter feedback for this document...' : 'No uploaded document selected yet.'}
-                  value={comment}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setComment(nextValue);
-                    if (activeDoc) {
-                      setDocComments((prev) => ({ ...prev, [activeDoc.id]: nextValue }));
-                    }
-                  }}
-                  disabled={!activeDoc?.url}
-                  className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-20 text-sm"
+          {/* DOCUMENT VIEW */}
+          <Card className="border-stone-200 bg-white overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-stone-50">
+              <p className="text-sm font-medium text-stone-800">
+                {activeDoc?.name || 'Document'}
+              </p>
+
+              {activeDoc?.url && (
+                <a
+                  href={activeDoc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-700 flex items-center gap-1"
+                >
+                  Open <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+
+            <div className="h-[520px] bg-stone-50 flex items-center justify-center">
+              {activeDoc?.url ? (
+                <iframe
+                  src={activeDoc.url}
+                  className="w-full h-full"
+                  title="doc"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!activeDoc?.url}
-                  onClick={() => setActiveStatus('verified')}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200"
-                >
-                  <CheckCircle size={13} className="mr-1.5" /> Verify
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!activeDoc?.url}
-                  onClick={() => setActiveStatus('rejected')}
-                  className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200"
-                >
-                  <XCircle size={13} className="mr-1.5" /> Request Re-upload
-                </Button>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider block mb-1.5">
-                  Final Admin Remarks
-                </label>
-                <Textarea
-                  value={finalComment}
-                  onChange={(e) => setFinalComment(e.target.value)}
-                  placeholder="Add summary remarks for the scholar renewal review..."
-                  className="rounded-lg bg-stone-50/50 border-stone-200 resize-none h-24 text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <Button
-                  disabled={submittingAction === 'approve' || !allUploaded || verifiedCount !== documents.length}
-                  onClick={() => handleSubmitReview('approve')}
-                  className="bg-green-700 hover:bg-green-800"
-                >
-                  {submittingAction === 'approve' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Approve Renewal
-                </Button>
-                <Button
-                  disabled={submittingAction === 'reupload'}
-                  variant="outline"
-                  className="border-orange-200 text-orange-700 hover:bg-orange-50"
-                  onClick={() => handleSubmitReview('reupload')}
-                >
-                  {submittingAction === 'reupload' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Mark for Re-upload
-                </Button>
-                <Button
-                  disabled={submittingAction === 'reject'}
-                  variant="outline"
-                  className="border-red-200 text-red-700 hover:bg-red-50"
-                  onClick={() => handleSubmitReview('reject')}
-                >
-                  {submittingAction === 'reject' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Reject Renewal
-                </Button>
-              </div>
+              ) : (
+                <p className="text-xs text-stone-400">
+                  No document uploaded
+                </p>
+              )}
             </div>
           </Card>
+
+          {/* ACTIONS */}
+          <div className="grid lg:grid-cols-2 gap-4">
+
+            {/* DOCUMENT ACTION */}
+            <Card className="p-4 border-stone-200">
+              <p className="text-[11px] uppercase text-stone-400 mb-2">
+                Document Feedback
+              </p>
+
+              <Textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                disabled={!activeDoc?.url}
+                className="h-20 text-sm"
+              />
+
+              <div className="flex gap-2 mt-3">
+                <Button
+                  size="sm"
+                  onClick={() => setActiveStatus('verified')}
+                  disabled={!activeDoc?.url}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Verify
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActiveStatus('rejected')}
+                >
+                  Re-upload
+                </Button>
+              </div>
+            </Card>
+
+            {/* FINAL ACTION */}
+            <Card className="p-4 border-stone-200">
+              <p className="text-[11px] uppercase text-stone-400 mb-2">
+                Final Decision
+              </p>
+
+              <Textarea
+                value={finalComment}
+                onChange={(e) => setFinalComment(e.target.value)}
+                className="h-20 text-sm"
+              />
+
+              <div className="grid grid-cols-3 gap-2 mt-3">
+                <Button
+                  size="sm"
+                  className="bg-green-700"
+                  onClick={() => handleSubmitReview('approve')}
+                >
+                  Approve
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleSubmitReview('reupload')}
+                >
+                  Re-upload
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 border-red-200"
+                  onClick={() => handleSubmitReview('reject')}
+                >
+                  Reject
+                </Button>
+              </div>
+            </Card>
+
+          </div>
         </div>
       </div>
     </div>

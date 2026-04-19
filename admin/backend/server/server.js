@@ -123,10 +123,17 @@ app.get('/', (req, res) => {
 // Serves index.html for any non-API route, allowing React Router to handle routing
 // =========================
 
-app.get('*', (req, res, next) => {
+// Use middleware instead of route to avoid path-to-regexp issues
+app.use((req, res, next) => {
     // Skip API routes
     if (req.path.startsWith('/api')) {
         console.log('Skipping API route:', req.path);
+        return next();
+    }
+
+    // Skip if already handled by static middleware
+    if (req.path.startsWith('/assets/') || req.path.includes('.')) {
+        console.log('Static file request:', req.path);
         return next();
     }
 

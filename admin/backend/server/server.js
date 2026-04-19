@@ -106,6 +106,8 @@ app.use('/api/academic-years', academicYearRoutes);
 // =========================
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+console.log('Frontend build path:', frontendBuildPath);
+console.log('Frontend build path exists:', require('fs').existsSync(frontendBuildPath));
 app.use(express.static(frontendBuildPath));
 
 // =========================
@@ -121,11 +123,21 @@ app.get('/', (req, res) => {
 // Serves index.html for any non-API route, allowing React Router to handle routing
 // =========================
 
-app.get(/^\/(?!api).*/, (req, res) => {
+app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+        console.log('Skipping API route:', req.path);
+        return next();
+    }
+
+    console.log('Serving frontend for path:', req.path);
     const indexPath = path.join(frontendBuildPath, 'index.html');
+    console.log('Index path:', indexPath);
+
     res.sendFile(indexPath, (err) => {
         if (err) {
-            res.status(404).json({ message: 'Not found' });
+            console.error('Error serving index.html:', err);
+            res.status(404).json({ message: 'Frontend not found' });
         }
     });
 });

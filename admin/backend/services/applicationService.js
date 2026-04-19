@@ -84,6 +84,50 @@ const DOCUMENT_TYPE_TO_NAME = {
     application_form: 'Application Form',
 };
 
+function extractAvatarStoragePath(value) {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return null;
+
+    if (!/^https?:\/\//i.test(rawValue)) {
+        return rawValue.replace(/^avatars\//, '');
+    }
+
+    const markers = [
+        '/storage/v1/object/public/avatars/',
+        '/storage/v1/object/sign/avatars/',
+        '/storage/v1/object/authenticated/avatars/',
+    ];
+
+    for (const marker of markers) {
+        const markerIndex = rawValue.indexOf(marker);
+        if (markerIndex >= 0) {
+            return rawValue.slice(markerIndex + marker.length).split('?')[0];
+        }
+    }
+
+    return null;
+}
+
+async function resolveAvatarUrl(value) {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return null;
+
+    const storagePath = extractAvatarStoragePath(rawValue);
+    if (!storagePath) {
+        return rawValue;
+    }
+
+    const { data, error } = await supabase.storage
+        .from('avatars')
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+    if (error) {
+        return rawValue;
+    }
+
+    return data?.signedUrl || rawValue;
+}
+
 function getOrdinalSuffix(n) {
     const num = Number(n);
     if (num === 1) return 'st';
@@ -430,6 +474,7 @@ async function buildApplicationDetails(applicationId) {
                 middle_name,
                 last_name,
                 pdm_id,
+                profile_photo_url,
                 gwa,
                 year_level,
                 course_id
@@ -637,6 +682,7 @@ async function buildApplicationDetails(applicationId) {
             initials:
                 `${student.first_name?.[0] || ''}${student.last_name?.[0] || ''}`.toUpperCase() ||
                 'NA',
+            avatar_url: await resolveAvatarUrl(student.profile_photo_url),
             pdm_id: student.pdm_id || 'N/A',
             email: userContact.email || 'N/A',
             phone: userContact.phone_number || 'N/A',

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -136,6 +136,12 @@ export default function SDOProfile() {
     department: profile?.department || 'Student Disciplinary Office',
     role: profile?.role || 'SDO Staff',
     status: profile?.is_active === false ? 'Inactive' : 'Active',
+    avatarUrl:
+      profile?.avatar_url ||
+      profile?.profile_photo_url ||
+      profile?.photo_url ||
+      profile?.image_url ||
+      '',
     bio:
       'Handles disciplinary monitoring, probation-related records, scholar case visibility, and coordination of status updates inside the SMaRT-PDM platform.',
   };
@@ -176,6 +182,7 @@ export default function SDOProfile() {
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
               <div className="flex flex-col md:flex-row md:items-center gap-5">
                 <Avatar className="w-24 h-24 border-4 border-white shadow-md">
+                  <AvatarImage src={sdoData.avatarUrl || undefined} alt={fullName} />
                   <AvatarFallback className="bg-[#2e4b43] text-white text-2xl font-bold">
                     {initials}
                   </AvatarFallback>

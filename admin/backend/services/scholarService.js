@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const supabase = require('../config/supabase');
 
 const SDO_STATUS_MAP = {
   clear: 'Clear',
@@ -30,6 +31,50 @@ function mapStudentStatusFromLevel(level) {
   if (level === 'minor') return SDO_STATUS_MAP.minor;
   if (level === 'major') return SDO_STATUS_MAP.major;
   return SDO_STATUS_MAP.clear;
+}
+
+function extractAvatarStoragePath(value) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return null;
+
+  if (!/^https?:\/\//i.test(rawValue)) {
+    return rawValue.replace(/^avatars\//, '');
+  }
+
+  const markers = [
+    '/storage/v1/object/public/avatars/',
+    '/storage/v1/object/sign/avatars/',
+    '/storage/v1/object/authenticated/avatars/',
+  ];
+
+  for (const marker of markers) {
+    const markerIndex = rawValue.indexOf(marker);
+    if (markerIndex >= 0) {
+      return rawValue.slice(markerIndex + marker.length).split('?')[0];
+    }
+  }
+
+  return null;
+}
+
+async function resolveAvatarUrl(value) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return null;
+
+  const storagePath = extractAvatarStoragePath(rawValue);
+  if (!storagePath) {
+    return rawValue;
+  }
+
+  const { data, error } = await supabase.storage
+    .from('avatars')
+    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+  if (error) {
+    return rawValue;
+  }
+
+  return data?.signedUrl || rawValue;
 }
 
 exports.fetchScholarStats = async () => {
@@ -192,7 +237,7 @@ exports.fetchAllScholars = async () => {
     }
   }
 
-  return result.rows.map((row) => ({
+  return Promise.all(result.rows.map(async (row) => ({
     scholar_id: row.scholar_id,
     student_id: row.student_id,
     application_id: row.application_id,
@@ -224,6 +269,7 @@ exports.fetchAllScholars = async () => {
     email: row.email,
     phone_number: row.phone_number,
     profile_photo_url: row.profile_photo_url,
+    avatar_url: await resolveAvatarUrl(row.profile_photo_url),
     program_name: row.program_name || 'N/A',
 
     sdu_level: mapSdoLevelFromRecord(
@@ -231,7 +277,7 @@ exports.fetchAllScholars = async () => {
       row.sdo_record_status,
       row.sdo_status
     ),
-  }));
+  })));
 };
 
 exports.fetchScholarById = async (scholarId) => {
@@ -354,7 +400,7 @@ exports.fetchScholarById = async (scholarId) => {
 
     email: row.email || 'N/A',
     phone_number: row.phone_number || 'N/A',
-    avatar_url: row.profile_photo_url || null,
+    avatar_url: await resolveAvatarUrl(row.profile_photo_url),
 
     program_name: row.program_name || 'N/A',
     address_summary: addressSummary || 'Not available',

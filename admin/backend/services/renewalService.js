@@ -5,6 +5,50 @@ const REQUIRED_RENEWAL_DOCUMENTS = [
     'Grade Form / Transcript',
 ];
 
+function extractAvatarStoragePath(value) {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return null;
+
+    if (!/^https?:\/\//i.test(rawValue)) {
+        return rawValue.replace(/^avatars\//, '');
+    }
+
+    const markers = [
+        '/storage/v1/object/public/avatars/',
+        '/storage/v1/object/sign/avatars/',
+        '/storage/v1/object/authenticated/avatars/',
+    ];
+
+    for (const marker of markers) {
+        const markerIndex = rawValue.indexOf(marker);
+        if (markerIndex >= 0) {
+            return rawValue.slice(markerIndex + marker.length).split('?')[0];
+        }
+    }
+
+    return null;
+}
+
+async function resolveAvatarUrl(value) {
+    const rawValue = String(value || '').trim();
+    if (!rawValue) return null;
+
+    const storagePath = extractAvatarStoragePath(rawValue);
+    if (!storagePath) {
+        return rawValue;
+    }
+
+    const { data, error } = await supabase.storage
+        .from('avatars')
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+    if (error) {
+        return rawValue;
+    }
+
+    return data?.signedUrl || rawValue;
+}
+
 function normalizeStatus(value) {
     return String(value || '')
         .trim()
@@ -112,7 +156,8 @@ exports.fetchRenewals = async () => {
                     student_id,
                     pdm_id,
                     first_name,
-                    last_name
+                    last_name,
+                    profile_photo_url
                 )
             )
         `)
@@ -193,6 +238,7 @@ exports.fetchRenewalDetailsById = async (renewalId) => {
                     pdm_id,
                     first_name,
                     last_name,
+                    profile_photo_url,
                     gwa,
                     year_level,
                     course_id
@@ -280,6 +326,7 @@ exports.fetchRenewalDetailsById = async (renewalId) => {
         student: {
             name: `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown Scholar',
             initials: buildInitials(student.first_name, student.last_name),
+            avatar_url: await resolveAvatarUrl(student.profile_photo_url),
             pdm_id: student.pdm_id || 'N/A',
             email: userContact.email || 'N/A',
             phone: userContact.phone_number || 'N/A',

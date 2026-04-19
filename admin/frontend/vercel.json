@@ -11,12 +11,19 @@
   ],
   "routes": [
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "https://smart-pdm.onrender.com/api/$1"
     },
     {
       "src": "/socket.io/(.*)",
       "dest": "https://smart-pdm.onrender.com/socket.io/$1"
+    },
+    {
+      "src": "/(.*\\..*)",
+      "status": 404
     },
     {
       "src": "/(.*)",

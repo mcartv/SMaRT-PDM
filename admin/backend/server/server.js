@@ -36,9 +36,27 @@ const allowedOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_URL
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+const allowedOriginSuffixes = (process.env.FRONTEND_ORIGIN_SUFFIXES || '.vercel.app')
+    .split(',')
+    .map((suffix) => suffix.trim().toLowerCase())
+    .filter(Boolean);
+
 if (!allowedOrigins.length) {
     allowedOrigins.push('http://localhost:5173', 'http://127.0.0.1:5173');
 }
+
+const isAllowedOrigin = (origin) => {
+    if (!origin) return true;
+    if (allowedOrigins.includes(origin)) return true;
+
+    try {
+        const { hostname } = new URL(origin);
+        const normalizedHostname = hostname.toLowerCase();
+        return allowedOriginSuffixes.some((suffix) => normalizedHostname.endsWith(suffix));
+    } catch (error) {
+        return false;
+    }
+};
 
 // =========================
 // MIDDLEWARE
@@ -46,7 +64,7 @@ if (!allowedOrigins.length) {
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (isAllowedOrigin(origin)) {
             callback(null, true);
             return;
         }

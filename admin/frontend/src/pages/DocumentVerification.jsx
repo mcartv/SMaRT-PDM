@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -310,6 +310,37 @@ function buildExtractedData(activeDoc, application) {
     default:
       return base;
   }
+}
+
+function buildRawOcrSnapshot(activeDoc, application) {
+  if (!activeDoc) return '';
+
+  const student = application?.student || {};
+  const ocr = activeDoc?.ocr || {};
+  const rawText = String(ocr.raw_text || ocr.text || '').trim();
+  const confidence = ocr.confidence ?? activeDoc?.ocr_confidence ?? null;
+  const extractedName = ocr.extracted_name || null;
+  const extractedGwa = ocr.extracted_gwa ?? null;
+
+  const sections = [
+    `Document: ${activeDoc.name || 'N/A'}`,
+    `Student: ${student.name || 'Unknown'}`,
+    `PDM ID: ${student.pdm_id || 'N/A'}`,
+    `Program: ${student.program || 'N/A'}`,
+    `Course: ${student.course || 'N/A'}`,
+    confidence !== null && confidence !== undefined
+      ? `OCR Confidence: ${confidence}%`
+      : 'OCR Confidence: N/A',
+    extractedName ? `Extracted Name: ${extractedName}` : null,
+    extractedGwa !== null && extractedGwa !== undefined
+      ? `Extracted GWA: ${extractedGwa}`
+      : null,
+    '',
+    'Extracted Text:',
+    rawText || '(No OCR text yet)',
+  ].filter((value) => value !== null);
+
+  return sections.join('\n');
 }
 
 function formatYesNo(value) {
@@ -686,8 +717,20 @@ function DocumentPreviewPanel({ activeDoc, application }) {
   );
 }
 
-function OCRPanel({ activeDoc, application, extractedData }) {
+function OCRPanel({
+  activeDoc,
+  application,
+  extractedData,
+  onRunIotOcr,
+  runningIotOcr,
+  iotOcrError,
+  rawOcrSnapshot,
+  onRawOcrChange,
+  onSaveRawOcr,
+  savingRawOcr,
+}) {
   const confidence = activeDoc?.ocr?.confidence ?? activeDoc?.ocr_confidence ?? null;
+  const canRunIotOcr = activeDoc?.id !== 'application_form';
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -701,6 +744,25 @@ function OCRPanel({ activeDoc, application, extractedData }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRunIotOcr}
+            disabled={!canRunIotOcr || runningIotOcr}
+            className="h-8 rounded-lg border-stone-200 text-[11px]"
+          >
+            {runningIotOcr ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Running IoT OCR
+              </>
+            ) : (
+              <>
+                <ScanText className="w-3.5 h-3.5 mr-1.5" />
+                Use IoT OCR
+              </>
+            )}
+          </Button>
           {confidence !== null && confidence !== undefined && (
             <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-[10px] font-medium">
               Confidence: {confidence}%
@@ -713,6 +775,12 @@ function OCRPanel({ activeDoc, application, extractedData }) {
       </div>
 
       <div className="p-4 min-h-[520px] space-y-4">
+        {iotOcrError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {iotOcrError}
+          </div>
+        )}
+
         <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-4 h-4 text-green-600" />
@@ -758,20 +826,31 @@ function OCRPanel({ activeDoc, application, extractedData }) {
         </div>
 
         <div className="rounded-lg border border-stone-200 bg-white p-3">
-          <p className="text-[11px] uppercase tracking-wide text-stone-400 mb-1">Raw OCR Snapshot</p>
-          <div className="text-xs text-stone-600 leading-relaxed whitespace-pre-wrap font-mono bg-stone-50 rounded-lg p-3 border border-stone-100">
-            {`DOCUMENT: ${activeDoc.name}
-STUDENT: ${application?.student?.name || 'Unknown'}
-PDM ID: ${application?.student?.pdm_id || 'N/A'}
-PROGRAM: ${application?.student?.program || 'N/A'}
-COURSE: ${application?.student?.course || 'N/A'}
-GWA: ${application?.student?.gwa ?? 'N/A'}
-
-STATUS:
-- Source ${activeDoc.id === 'application_form' ? 'is text-based form data' : activeDoc.url ? 'detected and readable' : 'not uploaded'}
-- OCR fields available for manual admin validation
-- Final approval depends on review status`}
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <p className="text-[11px] uppercase tracking-wide text-stone-400">Raw OCR Snapshot</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSaveRawOcr}
+              disabled={savingRawOcr || activeDoc?.id === 'application_form'}
+              className="h-8 rounded-lg border-stone-200 text-[11px]"
+            >
+              {savingRawOcr ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Saving
+                </>
+              ) : (
+                'Save OCR Snapshot'
+              )}
+            </Button>
           </div>
+          <Textarea
+            value={rawOcrSnapshot}
+            onChange={(e) => onRawOcrChange(e.target.value)}
+            disabled={activeDoc?.id === 'application_form'}
+            className="min-h-[220px] text-xs text-stone-600 leading-relaxed whitespace-pre-wrap font-mono bg-stone-50 rounded-lg p-3 border border-stone-100 resize-y"
+          />
         </div>
       </div>
     </div>
@@ -942,6 +1021,12 @@ export default function DocumentVerification() {
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState('preview');
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [runningIotOcr, setRunningIotOcr] = useState(false);
+  const [iotOcrError, setIotOcrError] = useState('');
+  const [iotOcrResults, setIotOcrResults] = useState({});
+  const [rawOcrSnapshot, setRawOcrSnapshot] = useState('');
+  const [savingRawOcr, setSavingRawOcr] = useState(false);
+  const iotOcrPollingRef = useRef(null);
 
   const fetchApplicationDocuments = async ({ soft = false } = {}) => {
     try {
@@ -964,8 +1049,15 @@ export default function DocumentVerification() {
 
       const data = await res.json();
       const normalizedDocs = normalizeRequiredDocuments(data?.documents || []);
+      const nextActiveDoc =
+        normalizedDocs.find((d) => d.id === doc)?.id
+        || normalizedDocs.find((d) => d.id !== 'application_form')?.id
+        || normalizedDocs.find((d) => d.url)?.id
+        || normalizedDocs[0]?.id
+        || 'certificate_of_registration';
       const firstAvailable =
-        normalizedDocs.find((d) => d.id === 'application_form' || d.url)?.id ||
+        normalizedDocs.find((d) => d.id !== 'application_form')?.id ||
+        normalizedDocs.find((d) => d.url)?.id ||
         normalizedDocs[0]?.id ||
         'certificate_of_registration';
 
@@ -981,9 +1073,10 @@ export default function DocumentVerification() {
         ...data,
         documents: normalizedDocs,
       });
+      setIotOcrResults({});
       setDocStatuses(initialStatuses);
       setDocComments(initialComments);
-      setDoc(firstAvailable);
+      setDoc(soft ? nextActiveDoc : firstAvailable);
     } catch (err) {
       console.error('Document fetch error:', err);
       setError(err.message || 'Failed to load document data');
@@ -1003,8 +1096,14 @@ export default function DocumentVerification() {
       ...d,
       status: docStatuses[d.id] || d.status || 'pending',
       admin_comment: docComments[d.id] || '',
+      ocr: iotOcrResults[d.id]?.ocr || d.ocr || {},
+      ocr_confidence:
+        iotOcrResults[d.id]?.ocr_confidence ??
+        iotOcrResults[d.id]?.ocr?.confidence ??
+        d.ocr_confidence ??
+        null,
     }));
-  }, [application, docStatuses, docComments]);
+  }, [application, docStatuses, docComments, iotOcrResults]);
 
   const isDocumentAvailable = (document) =>
     document?.id === 'application_form' ? true : !!document?.url;
@@ -1044,8 +1143,11 @@ export default function DocumentVerification() {
   useEffect(() => {
     if (activeDoc) {
       setComment(docComments[activeDoc.id] || '');
+      setIotOcrError('');
+      const nextRawSnapshot = buildRawOcrSnapshot(activeDoc, application);
+      setRawOcrSnapshot(nextRawSnapshot);
     }
-  }, [activeDoc, docComments]);
+  }, [activeDoc, docComments, application]);
 
   const handleCommentChange = (value) => {
     setComment(value);
@@ -1086,6 +1188,155 @@ export default function DocumentVerification() {
     updateActiveDocStatus('rejected', finalComment);
     setRejectModalOpen(false);
   };
+
+  const handleRunIotOcr = async () => {
+    if (!activeDoc || activeDoc.id === 'application_form') return;
+
+    try {
+      setRunningIotOcr(true);
+      setIotOcrError('');
+
+      const res = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload.error || 'Failed to run IoT OCR');
+      }
+
+      const result = payload?.data || {};
+
+      setIotOcrResults((prev) => ({
+        ...prev,
+        [activeDoc.id]: {
+          ocr: result.ocr || {},
+          ocr_confidence:
+            result.ocr_confidence ?? result.ocr?.confidence ?? null,
+          raw_text:
+            result.raw_text ??
+            result.ocr?.raw_text ??
+            result.ocr?.text ??
+            '',
+          extracted_fields: result.extracted_fields || {},
+          source_payload: result.source_payload || null,
+        },
+      }));
+
+      if (iotOcrPollingRef.current) {
+        clearInterval(iotOcrPollingRef.current);
+      }
+
+      let attempts = 0;
+      const maxAttempts = 30;
+      iotOcrPollingRef.current = setInterval(async () => {
+        attempts += 1;
+
+        try {
+          await fetchApplicationDocuments({ soft: true });
+        } catch (_error) {
+          // Keep polling through transient fetch failures.
+        }
+
+        if (attempts >= maxAttempts) {
+          clearInterval(iotOcrPollingRef.current);
+          iotOcrPollingRef.current = null;
+          setRunningIotOcr(false);
+        }
+      }, 3000);
+    } catch (err) {
+      console.error('RUN IOT OCR ERROR:', err);
+      setIotOcrError(err.message || 'Failed to run IoT OCR');
+      setRunningIotOcr(false);
+    }
+  };
+
+  const handleSaveRawOcr = async () => {
+    if (!activeDoc || activeDoc.id === 'application_form') return;
+
+    try {
+      setSavingRawOcr(true);
+      setIotOcrError('');
+
+      const res = await fetch(
+        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/ocr`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            raw_text: rawOcrSnapshot,
+          }),
+        }
+      );
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload.error || 'Failed to save OCR snapshot');
+      }
+
+      const result = payload?.data || {};
+
+      setIotOcrResults((prev) => ({
+        ...prev,
+        [activeDoc.id]: {
+          ocr: result.ocr || {
+            raw_text: rawOcrSnapshot,
+          },
+          ocr_confidence:
+            result.ocr_confidence ?? result.ocr?.confidence ?? null,
+          raw_text: result.raw_text ?? rawOcrSnapshot,
+          extracted_fields: result.extracted_fields || {},
+          source_payload: result.source_payload || null,
+        },
+      }));
+
+      await fetchApplicationDocuments({ soft: true });
+    } catch (err) {
+      console.error('SAVE RAW OCR ERROR:', err);
+      setIotOcrError(err.message || 'Failed to save OCR snapshot');
+    } finally {
+      setSavingRawOcr(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!runningIotOcr || !activeDoc || activeDoc.id === 'application_form') return;
+
+    const latestDoc = (application?.documents || []).find((d) => d.id === activeDoc.id);
+    const hasOcrResult = !!(
+      latestDoc?.ocr?.raw_text
+      || latestDoc?.ocr?.text
+      || latestDoc?.ocr_confidence !== null
+      || latestDoc?.ocr?.confidence !== undefined
+    );
+
+    if (hasOcrResult) {
+      if (iotOcrPollingRef.current) {
+        clearInterval(iotOcrPollingRef.current);
+        iotOcrPollingRef.current = null;
+      }
+      setRunningIotOcr(false);
+    }
+  }, [runningIotOcr, application, activeDoc]);
+
+  useEffect(() => {
+    return () => {
+      if (iotOcrPollingRef.current) {
+        clearInterval(iotOcrPollingRef.current);
+        iotOcrPollingRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCompleteVerification = async () => {
     try {
@@ -1422,6 +1673,13 @@ export default function DocumentVerification() {
                   activeDoc={activeDoc}
                   application={application}
                   extractedData={extractedData}
+                  onRunIotOcr={handleRunIotOcr}
+                  runningIotOcr={runningIotOcr}
+                  iotOcrError={iotOcrError}
+                  rawOcrSnapshot={rawOcrSnapshot}
+                  onRawOcrChange={setRawOcrSnapshot}
+                  onSaveRawOcr={handleSaveRawOcr}
+                  savingRawOcr={savingRawOcr}
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1430,6 +1688,13 @@ export default function DocumentVerification() {
                     activeDoc={activeDoc}
                     application={application}
                     extractedData={extractedData}
+                    onRunIotOcr={handleRunIotOcr}
+                    runningIotOcr={runningIotOcr}
+                    iotOcrError={iotOcrError}
+                    rawOcrSnapshot={rawOcrSnapshot}
+                    onRawOcrChange={setRawOcrSnapshot}
+                    onSaveRawOcr={handleSaveRawOcr}
+                    savingRawOcr={savingRawOcr}
                   />
                 </div>
               )}

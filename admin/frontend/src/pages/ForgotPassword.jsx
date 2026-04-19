@@ -1,14 +1,37 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-    Mail, KeyRound, Eye, EyeOff, ShieldCheck,
-    RefreshCw, ArrowLeft, CheckCircle2, GraduationCap, BookOpen, Award
+    Mail,
+    KeyRound,
+    Eye,
+    EyeOff,
+    ShieldCheck,
+    RefreshCw,
+    ArrowLeft,
+    CheckCircle2,
+    GraduationCap,
+    BookOpen,
+    Award,
 } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
 
-// THEME (same as AdminLogin)
 const SB_BASE = '#7c4a2e';
 const SB_SUB = '#d4a98a';
+
+const FEATURES = [
+    { icon: GraduationCap, label: 'Scholarship Management' },
+    { icon: BookOpen, label: 'Application Review' },
+    { icon: Award, label: 'Financial Assistance' },
+];
+
+const inputClass =
+    'w-full h-11 px-4 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all';
+
+const buttonClass =
+    'w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2';
+
+const otpInputClass =
+    'w-11 h-11 text-center text-sm font-semibold rounded-xl border border-stone-200 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all';
 
 export default function ForgotPassword() {
     const navigate = useNavigate();
@@ -23,20 +46,28 @@ export default function ForgotPassword() {
     const [loading, setLoading] = useState(false);
     const [resendTimer, setResendTimer] = useState(0);
 
-    // ===============================
-    // HELPERS
-    // ===============================
+    const buttonStyle = {
+        background: SB_BASE,
+        boxShadow: loading ? 'none' : `0 8px 20px -6px ${SB_BASE}80`,
+    };
+
     const fakeAsync = (cb, ms = 1200) => {
         setLoading(true);
-        setTimeout(() => { setLoading(false); cb(); }, ms);
+        setTimeout(() => {
+            setLoading(false);
+            cb();
+        }, ms);
     };
 
     const startResendTimer = () => {
         setResendTimer(60);
-        const iv = setInterval(() => {
-            setResendTimer(t => {
-                if (t <= 1) { clearInterval(iv); return 0; }
-                return t - 1;
+        const interval = setInterval(() => {
+            setResendTimer((time) => {
+                if (time <= 1) {
+                    clearInterval(interval);
+                    return 0;
+                }
+                return time - 1;
             });
         }, 1000);
     };
@@ -60,40 +91,86 @@ export default function ForgotPassword() {
         fakeAsync(() => setStep('done'), 1000);
     };
 
-    const handleOtpChange = (val, idx) => {
-        const digit = val.replace(/\D/g, '').slice(0, 1);
+    const handleOtpChange = (value, index) => {
+        const digit = value.replace(/\D/g, '').slice(0, 1);
         const next = [...otp];
-        next[idx] = digit;
+        next[index] = digit;
         setOtp(next);
 
-        if (digit && idx < 5) {
-            document.getElementById('otp-' + (idx + 1))?.focus();
+        if (digit && index < 5) {
+            document.getElementById(`otp-${index + 1}`)?.focus();
         }
     };
 
-    const handleOtpKeyDown = (e, idx) => {
-        if (e.key === 'Backspace' && !otp[idx] && idx > 0) {
-            document.getElementById('otp-' + (idx - 1))?.focus();
+    const handleOtpKeyDown = (e, index) => {
+        if (e.key === 'Backspace' && !otp[index] && index > 0) {
+            document.getElementById(`otp-${index - 1}`)?.focus();
         }
     };
 
-    const otpComplete = otp.every(d => d !== '');
+    const otpComplete = otp.every((digit) => digit !== '');
     const passwordsMatch = newPassword && confirmPass && newPassword === confirmPass;
 
-    // ===============================
-    // SHARED STYLES
-    // ===============================
-    const inputClass =
-        "w-full h-11 px-4 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all";
+    const renderBrandingPanel = () => (
+        <div
+            className="hidden lg:flex lg:w-[52%] flex-col justify-between relative overflow-hidden"
+            style={{ background: SB_BASE }}
+        >
+            <div
+                className="absolute inset-0 opacity-10"
+                style={{
+                    backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
+                    backgroundSize: '28px 28px',
+                }}
+            />
 
-    const buttonClass =
-        "w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2";
+            <div className="relative z-10 p-10 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
+                    <img
+                        src={pdmLogo}
+                        alt="Logo"
+                        className="w-16 h-16 object-contain block mx-auto"
+                    />
+                </div>
+                <div>
+                    <p className="text-white text-xs font-bold tracking-wide uppercase">PDM · OSFA</p>
+                    <p className="text-[10px]" style={{ color: SB_SUB }}>
+                        Admin Portal
+                    </p>
+                </div>
+            </div>
 
-    // ===============================
-    // UI STEPS
-    // ===============================
+            <div className="relative z-10 px-12">
+                <h2
+                    className="text-4xl font-bold leading-tight mb-10 text-white"
+                    style={{ fontFamily: 'serif' }}
+                >
+                    Scholarship <br />
+                    <span className="text-yellow-400">Monitoring System</span>
+                </h2>
 
-    const EmailStep = (
+                <div className="space-y-3 max-w-xs">
+                    {FEATURES.map(({ icon: Icon, label }) => (
+                        <div
+                            key={label}
+                            className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10"
+                        >
+                            <div className="w-8 h-8 rounded-lg bg-yellow-400/20 flex items-center justify-center">
+                                <Icon className="w-4 h-4 text-yellow-400" />
+                            </div>
+                            <p className="text-sm font-medium text-stone-200">{label}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="relative z-10 p-10 text-[10px] text-white/30 uppercase tracking-widest">
+                © 2026 Office for Scholarship and Financial Assistance
+            </div>
+        </div>
+    );
+
+    const renderEmailStep = () => (
         <>
             <div className="mb-8">
                 <div className="flex items-center gap-2 mb-2 text-orange-800">
@@ -127,10 +204,7 @@ export default function ForgotPassword() {
                     type="submit"
                     disabled={loading || !email}
                     className={buttonClass}
-                    style={{
-                        background: SB_BASE,
-                        boxShadow: loading ? 'none' : `0 8px 20px -6px ${SB_BASE}80`
-                    }}
+                    style={buttonStyle}
                 >
                     {loading ? 'Sending code...' : 'Send Recovery Code'}
                 </button>
@@ -138,7 +212,7 @@ export default function ForgotPassword() {
         </>
     );
 
-    const OtpStep = (
+    const renderOtpStep = () => (
         <>
             <div className="mb-8">
                 <div className="flex items-center gap-2 mb-2 text-orange-800">
@@ -155,16 +229,16 @@ export default function ForgotPassword() {
 
             <form onSubmit={handleVerifyOtp} className="space-y-6">
                 <div className="flex gap-2 justify-between">
-                    {otp.map((digit, idx) => (
+                    {otp.map((digit, index) => (
                         <input
-                            key={idx}
-                            id={'otp-' + idx}
+                            key={index}
+                            id={`otp-${index}`}
                             type="text"
                             maxLength={1}
                             value={digit}
-                            onChange={(e) => handleOtpChange(e.target.value, idx)}
-                            onKeyDown={(e) => handleOtpKeyDown(e, idx)}
-                            className="w-11 h-11 text-center text-sm font-semibold rounded-xl border border-stone-200 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all"
+                            onChange={(e) => handleOtpChange(e.target.value, index)}
+                            onKeyDown={(e) => handleOtpKeyDown(e, index)}
+                            className={otpInputClass}
                         />
                     ))}
                 </div>
@@ -173,26 +247,22 @@ export default function ForgotPassword() {
                     type="submit"
                     disabled={!otpComplete || loading}
                     className={buttonClass}
-                    style={{
-                        background: SB_BASE,
-                        boxShadow: loading ? 'none' : `0 8px 20px -6px ${SB_BASE}80`
-                    }}
+                    style={buttonStyle}
                 >
                     {loading ? 'Verifying...' : 'Verify Code'}
                 </button>
 
                 <div className="text-center">
                     {resendTimer > 0 ? (
-                        <p className="text-xs text-stone-400">
-                            Resend in {resendTimer}s
-                        </p>
+                        <p className="text-xs text-stone-400">Resend in {resendTimer}s</p>
                     ) : (
                         <button
                             type="button"
                             onClick={startResendTimer}
                             className="text-xs font-bold text-orange-800 hover:underline flex items-center gap-1.5 mx-auto"
                         >
-                            <RefreshCw size={14} /> Resend Code
+                            <RefreshCw size={14} />
+                            Resend Code
                         </button>
                     )}
                 </div>
@@ -200,7 +270,7 @@ export default function ForgotPassword() {
         </>
     );
 
-    const ResetStep = (
+    const renderResetStep = () => (
         <>
             <div className="mb-8">
                 <div className="flex items-center gap-2 mb-2 text-orange-800">
@@ -227,7 +297,7 @@ export default function ForgotPassword() {
                         />
                         <button
                             type="button"
-                            onClick={() => setShowNew(!showNew)}
+                            onClick={() => setShowNew((prev) => !prev)}
                             className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400"
                         >
                             {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -249,7 +319,7 @@ export default function ForgotPassword() {
                         />
                         <button
                             type="button"
-                            onClick={() => setShowConfirm(!showConfirm)}
+                            onClick={() => setShowConfirm((prev) => !prev)}
                             className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400"
                         >
                             {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -261,10 +331,7 @@ export default function ForgotPassword() {
                     type="submit"
                     disabled={!passwordsMatch || loading}
                     className={buttonClass}
-                    style={{
-                        background: SB_BASE,
-                        boxShadow: loading ? 'none' : `0 8px 20px -6px ${SB_BASE}80`
-                    }}
+                    style={buttonStyle}
                 >
                     {loading ? 'Saving...' : 'Set New Password'}
                 </button>
@@ -272,7 +339,7 @@ export default function ForgotPassword() {
         </>
     );
 
-    const DoneStep = (
+    const renderDoneStep = () => (
         <div className="text-center">
             <div className="w-20 h-20 rounded-full bg-green-50 border border-green-100 flex items-center justify-center mx-auto mb-6">
                 <CheckCircle2 className="w-10 h-10 text-green-600" />
@@ -291,82 +358,41 @@ export default function ForgotPassword() {
         </div>
     );
 
-    // ===============================
-    // MAIN RENDER
-    // ===============================
+    const renderStep = () => {
+        switch (step) {
+            case 'email':
+                return renderEmailStep();
+            case 'otp':
+                return renderOtpStep();
+            case 'reset':
+                return renderResetStep();
+            case 'done':
+                return renderDoneStep();
+            default:
+                return renderEmailStep();
+        }
+    };
+
     return (
-        <div className="min-h-screen flex bg-white" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <div
+            className="min-h-screen flex bg-white"
+            style={{ fontFamily: "'Inter', sans-serif" }}
+        >
+            {renderBrandingPanel()}
 
-            {/* LEFT PANEL (same as login) */}
-            <div className="hidden lg:flex lg:w-[52%] flex-col justify-between relative overflow-hidden" style={{ background: SB_BASE }}>
-
-                {/* Background Pattern */}
-                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
-
-                {/* Top Header Logo */}
-                <div className="relative z-10 p-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-                        <img
-                            src={pdmLogo}
-                            alt="Logo"
-                            className="w-16 h-16 object-contain block mx-auto"
-                        />
-                    </div>
-                    <div>
-                        <p className="text-white text-xs font-bold tracking-wide uppercase">PDM · OSFA</p>
-                        <p className="text-[10px]" style={{ color: SB_SUB }}>Admin Portal</p>
-                    </div>
-                </div>
-
-                {/* Center Welcome Text & Features */}
-                <div className="relative z-10 px-12">
-                    <h2 className="text-4xl font-bold leading-tight mb-10 text-white" style={{ fontFamily: "serif" }}>
-                        Scholarship <br />
-                        <span className="text-yellow-400">Monitoring System</span>
-                    </h2>
-
-                    {/* Feature List */}
-                    <div className="space-y-3 max-w-xs">
-                        {[
-                            { icon: GraduationCap, label: 'Scholarship Management' },
-                            { icon: BookOpen, label: 'Application Review' },
-                            { icon: Award, label: 'Financial Assistance' }
-                        ].map(({ icon: Icon, label }) => (
-                            <div key={label} className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10">
-                                <div className="w-8 h-8 rounded-lg bg-yellow-400/20 flex items-center justify-center">
-                                    <Icon className="w-4 h-4 text-yellow-400" />
-                                </div>
-                                <p className="text-sm font-medium text-stone-200">{label}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Footer Copyright */}
-                <div className="relative z-10 p-10 text-[10px] text-white/30 uppercase tracking-widest">
-                    © 2026 Office for Scholarship and Financial Assistance
-                </div>
-            </div>
-
-            {/* RIGHT PANEL */}
             <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
                 <div className="w-full max-w-[380px]">
-
-                    {step === 'email' && EmailStep}
-                    {step === 'otp' && OtpStep}
-                    {step === 'reset' && ResetStep}
-                    {step === 'done' && DoneStep}
+                    {renderStep()}
 
                     {step !== 'done' && (
                         <button
-                            onClick={() => step === 'email' ? navigate('/') : setStep('email')}
+                            onClick={() => (step === 'email' ? navigate('/') : setStep('email'))}
                             className="mt-8 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-stone-400 hover:text-stone-900 mx-auto"
                         >
                             <ArrowLeft size={14} />
                             {step === 'email' ? 'Back to sign in' : 'Change email'}
                         </button>
                     )}
-
                 </div>
             </div>
         </div>

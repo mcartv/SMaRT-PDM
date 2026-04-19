@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://smart-pdm.onrender.com/api/$1"
+    },
+    {
+      "src": "/socket.io/(.*)",
+      "dest": "https://smart-pdm.onrender.com/socket.io/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://smart-pdm.onrender.com",
+    "VITE_SUPABASE_URL": "https://ngqwdetlpsqetbahjvto.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ncXdkZXRscHNxZXRiYWhqdnRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MTIwNTAsImV4cCI6MjA5MDE4ODA1MH0.jYIytONa7pJjCE9zLrhLhW9a6IKfFUNj4uec0zk3Org"
+  }
+}

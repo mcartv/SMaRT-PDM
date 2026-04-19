@@ -1,10 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Search, LifeBuoy, UserRoundCheck } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Loader2,
+  RefreshCw,
+  Search,
+  LifeBuoy,
+  UserRoundCheck,
+} from 'lucide-react';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -19,7 +30,6 @@ const STATUS_STYLES = {
 
 function formatDate(value) {
   if (!value) return 'N/A';
-
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
 
@@ -34,7 +44,6 @@ function formatDate(value) {
 
 function getAuthHeaders() {
   const token = localStorage.getItem('adminToken') || localStorage.getItem('sdoToken');
-
   return {
     Authorization: `Bearer ${token || ''}`,
     'Content-Type': 'application/json',
@@ -46,11 +55,20 @@ function StatusBadge({ status }) {
 
   return (
     <Badge
-      className="border-none text-[10px] uppercase tracking-wide"
+      className="border-none text-[10px] uppercase tracking-wide px-2 py-0.5"
       style={{ background: style.bg, color: style.color }}
     >
       {status}
     </Badge>
+  );
+}
+
+function Meta({ label, value }) {
+  return (
+    <div>
+      <p className="text-[10px] text-stone-400 uppercase">{label}</p>
+      <p className="text-xs text-stone-700">{value}</p>
+    </div>
   );
 }
 
@@ -67,18 +85,16 @@ export default function SupportTickets() {
       setLoading(true);
       setError('');
 
-      const response = await fetch(`${API_BASE}/support-tickets`, {
+      const res = await fetch(`${API_BASE}/support-tickets`, {
         headers: getAuthHeaders(),
       });
 
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || 'Failed to load support tickets');
-      }
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error);
 
-      setTickets(Array.isArray(payload.items) ? payload.items : []);
+      setTickets(payload.items || []);
     } catch (err) {
-      setError(err.message || 'Failed to load support tickets');
+      setError(err.message || 'Failed');
     } finally {
       setLoading(false);
     }
@@ -88,47 +104,44 @@ export default function SupportTickets() {
     loadTickets();
   }, []);
 
-  const filteredTickets = useMemo(() => {
-    return tickets.filter((ticket) => {
-      const haystack = [
-        ticket.issue_category,
-        ticket.description,
-        ticket.student_name,
-        ticket.student_number,
-        ticket.handler_name,
+  const filtered = useMemo(() => {
+    return tickets.filter((t) => {
+      const text = [
+        t.issue_category,
+        t.description,
+        t.student_name,
+        t.student_number,
+        t.handler_name,
       ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
 
-      const matchesSearch = !search || haystack.includes(search.toLowerCase());
-      const matchesStatus = status === 'All' || ticket.status === status;
-
-      return matchesSearch && matchesStatus;
+      return (
+        (!search || text.includes(search.toLowerCase())) &&
+        (status === 'All' || t.status === status)
+      );
     });
   }, [tickets, search, status]);
 
-  const patchTicket = async (ticketId, body) => {
+  const patchTicket = async (id, body) => {
     try {
-      setSavingTicketId(ticketId);
+      setSavingTicketId(id);
 
-      const response = await fetch(`${API_BASE}/support-tickets/${ticketId}`, {
+      const res = await fetch(`${API_BASE}/support-tickets/${id}`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
         body: JSON.stringify(body),
       });
 
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || 'Failed to update support ticket');
-      }
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error);
 
-      const updated = payload.data;
-      setTickets((current) =>
-        current.map((ticket) => (ticket.ticket_id === ticketId ? updated : ticket))
+      setTickets((prev) =>
+        prev.map((t) => (t.ticket_id === id ? payload.data : t))
       );
     } catch (err) {
-      setError(err.message || 'Failed to update support ticket');
+      setError(err.message);
     } finally {
       setSavingTicketId('');
     }
@@ -136,162 +149,118 @@ export default function SupportTickets() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-        <p className="text-xs uppercase tracking-widest text-stone-400">
-          Loading support tickets...
-        </p>
+      <div className="flex min-h-[420px] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-stone-300" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 py-2">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-stone-900">Support Tickets</h1>
-          <p className="mt-1 text-sm text-stone-500">
-            Review student concerns from the live <code>support_tickets</code> queue.
-          </p>
+    <div className="space-y-3 py-2">
+
+      {/* FILTER BAR */}
+      <div className="flex gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search..."
+            className="pl-9 h-9"
+          />
         </div>
 
-        <Button variant="outline" className="border-stone-200 bg-white" onClick={loadTickets}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="outline"
+          className="h-9"
+          onClick={loadTickets}
+        >
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
-      {error ? (
-        <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
+      {/* ERROR */}
+      {error && (
+        <div className="text-xs text-red-500">{error}</div>
+      )}
 
-      <Card className="border-stone-200 shadow-none">
-        <CardContent className="flex flex-col gap-3 p-4 md:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search category, student, description, or handler"
-              className="border-stone-200 pl-9"
-            />
-          </div>
-          <div className="w-full md:w-52">
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="border-stone-200">
-                <SelectValue placeholder="Filter status" />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {filteredTickets.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-stone-300 bg-white/70 px-8 py-14 text-center">
-          <LifeBuoy className="mx-auto mb-3 h-8 w-8 text-stone-300" />
-          <p className="text-sm font-semibold text-stone-700">No support tickets found</p>
-          <p className="mt-1 text-xs text-stone-400">
-            Try clearing the filters or wait for a student to submit a ticket.
-          </p>
+      {/* EMPTY */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-14 text-stone-400 text-sm">
+          <LifeBuoy className="mx-auto mb-2 h-6 w-6" />
+          No tickets
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {filteredTickets.map((ticket) => (
-            <Card key={ticket.ticket_id} className="border-stone-200 shadow-none">
-              <CardContent className="space-y-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold text-stone-900">
-                      {ticket.issue_category || 'Uncategorized'}
-                    </p>
-                    <p className="mt-1 text-xs text-stone-500">
-                      {ticket.student_name || 'Unknown Student'}
-                      {ticket.student_number ? ` · ${ticket.student_number}` : ''}
-                    </p>
-                  </div>
-                  <StatusBadge status={ticket.status} />
+        <div className="space-y-2">
+          {filtered.map((t) => (
+            <div
+              key={t.ticket_id}
+              className="border border-stone-200 rounded-xl px-4 py-3 bg-white"
+            >
+              <div className="flex justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">
+                    {t.issue_category || 'Uncategorized'}
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    {t.student_name} · {t.student_number}
+                  </p>
                 </div>
 
-                <div className="rounded-xl border border-stone-100 bg-stone-50 px-4 py-3 text-sm leading-6 text-stone-700">
-                  {ticket.description}
-                </div>
+                <StatusBadge status={t.status} />
+              </div>
 
-                <div className="grid grid-cols-1 gap-3 text-xs text-stone-500 md:grid-cols-2">
-                  <div className="rounded-lg border border-stone-200 px-3 py-2">
-                    <p className="uppercase tracking-wide text-stone-400">Created</p>
-                    <p className="mt-1 font-medium text-stone-800">
-                      {formatDate(ticket.created_at)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-stone-200 px-3 py-2">
-                    <p className="uppercase tracking-wide text-stone-400">Handled By</p>
-                    <p className="mt-1 font-medium text-stone-800">
-                      {ticket.handler_name || 'Unassigned'}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-stone-200 px-3 py-2 md:col-span-2">
-                    <p className="uppercase tracking-wide text-stone-400">Resolved At</p>
-                    <p className="mt-1 font-medium text-stone-800">
-                      {ticket.resolved_at ? formatDate(ticket.resolved_at) : 'Not resolved'}
-                    </p>
-                  </div>
-                </div>
+              <p className="text-sm text-stone-600 mt-2">
+                {t.description}
+              </p>
 
-                <div className="flex flex-col gap-3 border-t border-stone-100 pt-4">
-                  <div className="flex flex-wrap gap-2">
-                    {!ticket.handled_by ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-stone-200 bg-white"
-                        disabled={savingTicketId === ticket.ticket_id}
-                        onClick={() =>
-                          patchTicket(ticket.ticket_id, { assignToSelf: true })
-                        }
-                      >
-                        <UserRoundCheck className="mr-2 h-4 w-4" />
-                        Take Ownership
-                      </Button>
-                    ) : null}
+              <div className="flex justify-between mt-3 text-xs text-stone-500">
+                <Meta label="Created" value={formatDate(t.created_at)} />
+                <Meta label="Handler" value={t.handler_name || '—'} />
+                <Meta
+                  label="Resolved"
+                  value={t.resolved_at ? formatDate(t.resolved_at) : '—'}
+                />
+              </div>
 
-                    {STATUS_OPTIONS.filter((item) => item !== 'All').map((item) => (
-                      <Button
-                        key={item}
-                        size="sm"
-                        variant={ticket.status === item ? 'default' : 'outline'}
-                        className={
-                          ticket.status === item
-                            ? 'bg-stone-900 hover:bg-stone-800'
-                            : 'border-stone-200 bg-white'
-                        }
-                        disabled={
-                          savingTicketId === ticket.ticket_id || ticket.status === item
-                        }
-                        onClick={() => patchTicket(ticket.ticket_id, { status: item })}
-                      >
-                        {item}
-                      </Button>
-                    ))}
-                  </div>
+              <div className="flex gap-1 mt-3 flex-wrap">
+                {!t.handled_by && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => patchTicket(t.ticket_id, { assignToSelf: true })}
+                  >
+                    <UserRoundCheck className="h-3.5 w-3.5 mr-1" />
+                    Take
+                  </Button>
+                )}
 
-                  {savingTicketId === ticket.ticket_id ? (
-                    <div className="flex items-center gap-2 text-xs text-stone-400">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Updating ticket...
-                    </div>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
+                {STATUS_OPTIONS.slice(1).map((s) => (
+                  <Button
+                    key={s}
+                    size="sm"
+                    variant={t.status === s ? 'default' : 'outline'}
+                    disabled={t.status === s || savingTicketId === t.ticket_id}
+                    onClick={() => patchTicket(t.ticket_id, { status: s })}
+                  >
+                    {s}
+                  </Button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}

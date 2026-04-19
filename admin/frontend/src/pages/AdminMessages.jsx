@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   LoaderCircle,
   MessageSquareMore,
-  SendHorizonal,
+  SendHorizontal,
   UserRound,
   Search,
   X,
@@ -150,9 +150,9 @@ function markMessagesRead(items, messageIds = []) {
   return items.map((item) =>
     ids.has(item.messageId)
       ? {
-          ...item,
-          isRead: true,
-        }
+        ...item,
+        isRead: true,
+      }
       : item
   )
 }
@@ -165,13 +165,13 @@ function formatConversationTime(value) {
 
   return sameDay
     ? new Intl.DateTimeFormat('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-      }).format(date)
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(date)
     : new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        day: 'numeric',
-      }).format(date)
+      month: 'short',
+      day: 'numeric',
+    }).format(date)
 }
 
 function formatMessageTime(value) {
@@ -193,6 +193,71 @@ async function parseApiResponse(response, fallbackMessage) {
   }
 
   return payload
+}
+
+function ThreadIcon({ type }) {
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
+      {type === 'group' ? <Users className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
+    </div>
+  )
+}
+
+function ThreadRow({ item, isActive, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 border-b border-stone-100 px-4 py-3 text-left transition ${isActive ? 'bg-amber-50/60' : 'hover:bg-stone-50'
+        }`}
+    >
+      <ThreadIcon type={item.type} />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-stone-900">{item.name}</p>
+            <p className="truncate text-[11px] text-stone-500">
+              {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'No student number')}
+            </p>
+          </div>
+
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <span className="text-[10px] text-stone-400">
+              {formatConversationTime(item.lastSentAt)}
+            </span>
+            {item.unreadCount > 0 && (
+              <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                {item.unreadCount}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <p className="mt-1 truncate text-xs text-stone-500">
+          {item.lastMessage || 'No messages yet'}
+        </p>
+      </div>
+    </button>
+  )
+}
+
+function MessageBubble({ message, isMine }) {
+  return (
+    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 shadow-sm sm:max-w-[70%] ${isMine
+            ? 'bg-[#7c4a2e] text-white'
+            : 'border border-stone-200 bg-white text-stone-800'
+          }`}
+      >
+        <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
+        <div className={`mt-1.5 text-[10px] ${isMine ? 'text-amber-100' : 'text-stone-400'}`}>
+          {formatMessageTime(message.sentAt)}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function CreateGroupModal({
@@ -270,13 +335,13 @@ function CreateGroupModal({
       onClick={onClose}
     >
       <div
-        className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
+        className="flex h-[84vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
           <div>
-            <h3 className="text-lg font-semibold text-stone-900">Create Group Chat</h3>
-            <p className="mt-1 text-sm text-stone-500">
+            <h3 className="text-base font-semibold text-stone-900">Create Group Chat</h3>
+            <p className="mt-1 text-xs text-stone-500">
               Select scholars by program and benefactor.
             </p>
           </div>
@@ -286,7 +351,7 @@ function CreateGroupModal({
             onClick={onClose}
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -297,13 +362,13 @@ function CreateGroupModal({
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
               placeholder="Group name"
-              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             />
 
             <select
               value={programFilter}
               onChange={(e) => setProgramFilter(e.target.value)}
-              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             >
               {programOptions.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -313,7 +378,7 @@ function CreateGroupModal({
             <select
               value={benefactorFilter}
               onChange={(e) => setBenefactorFilter(e.target.value)}
-              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             >
               {benefactorOptions.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -327,7 +392,7 @@ function CreateGroupModal({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search scholar, student number, program, or benefactor"
-              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             />
           </div>
         </div>
@@ -347,11 +412,10 @@ function CreateGroupModal({
                   return (
                     <label
                       key={item.userId}
-                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
-                        checked
+                      className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${checked
                           ? 'border-[#7c4a2e] bg-amber-50'
                           : 'border-stone-200 bg-white hover:bg-stone-50'
-                      }`}
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -362,7 +426,7 @@ function CreateGroupModal({
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="truncate text-sm font-semibold text-stone-900">
+                          <p className="truncate text-sm font-medium text-stone-900">
                             {item.studentName}
                           </p>
 
@@ -398,7 +462,7 @@ function CreateGroupModal({
             )}
           </div>
 
-          <div className="w-[260px] border-l border-stone-100 bg-stone-50/70 px-5 py-4">
+          <div className="w-[250px] border-l border-stone-100 bg-stone-50/70 px-5 py-4">
             <p className="text-sm font-semibold text-stone-900">Selected Members</p>
             <p className="mt-1 text-xs text-stone-500">
               {selectedMembers.length} selected
@@ -413,7 +477,7 @@ function CreateGroupModal({
                   return (
                     <div
                       key={userId}
-                      className="rounded-2xl border border-stone-200 bg-white px-3 py-2"
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2"
                     >
                       <p className="text-sm font-medium text-stone-900">
                         {scholar.studentName}
@@ -425,7 +489,7 @@ function CreateGroupModal({
                   )
                 })
               ) : (
-                <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-4 text-sm text-stone-500">
+                <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-4 text-sm text-stone-500">
                   No members selected yet.
                 </div>
               )}
@@ -437,7 +501,7 @@ function CreateGroupModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-11 items-center rounded-2xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+            className="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
           >
             Cancel
           </button>
@@ -451,7 +515,7 @@ function CreateGroupModal({
                 memberIds: selectedMembers,
               })
             }
-            className="inline-flex h-11 items-center rounded-2xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center rounded-xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {creating ? (
               <>
@@ -727,9 +791,9 @@ export default function AdminMessages() {
           current.map((item) =>
             item.id === counterpartyId
               ? {
-                  ...item,
-                  unreadCount: 0,
-                }
+                ...item,
+                unreadCount: 0,
+              }
               : item
           )
         )
@@ -801,10 +865,10 @@ export default function AdminMessages() {
             current.map((item) =>
               item.id === activeRoomId
                 ? {
-                    ...item,
-                    lastMessage: message.messageBody,
-                    lastSentAt: message.sentAt,
-                  }
+                  ...item,
+                  lastMessage: message.messageBody,
+                  lastSentAt: message.sentAt,
+                }
                 : item
             )
           )
@@ -815,10 +879,10 @@ export default function AdminMessages() {
             current.map((item) =>
               item.id === activeConversationId
                 ? {
-                    ...item,
-                    lastMessage: message.messageBody,
-                    lastSentAt: message.sentAt,
-                  }
+                  ...item,
+                  lastMessage: message.messageBody,
+                  lastSentAt: message.sentAt,
+                }
                 : item
             )
           )
@@ -967,22 +1031,17 @@ export default function AdminMessages() {
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6">
           <div className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4 sm:px-6">
-              <div>
-                <h1 className="text-xl font-semibold text-stone-900">Messages</h1>
-                <p className="mt-1 text-sm text-stone-500">
-                  Private messages and group chats in one workspace.
-                </p>
-              </div>
+            <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3 sm:px-5">
+              <div className="text-sm font-semibold text-stone-900">Messages</div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setCreateGroupOpen(true)}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
                 >
                   <Users className="h-4 w-4" />
-                  New Group
+                  Group
                 </button>
 
                 <button
@@ -991,39 +1050,38 @@ export default function AdminMessages() {
                     fetchConversations(activeConversationId)
                     fetchRooms(activeRoomId)
                   }}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Refresh
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
             {error && (
-              <div className="mx-5 mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6">
+              <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-5">
                 {error}
               </div>
             )}
 
-            <div className="grid min-h-0 flex-1 gap-0 xl:grid-cols-[340px_minmax(0,1fr)]">
+            <div className="grid min-h-0 flex-1 gap-0 xl:grid-cols-[320px_minmax(0,1fr)]">
               <section className="flex min-h-0 flex-col border-b border-stone-200 xl:border-b-0 xl:border-r">
-                <div className="space-y-3 border-b border-stone-100 px-4 py-4 sm:px-5">
+                <div className="space-y-2 border-b border-stone-100 px-4 py-3">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search messages or rooms..."
-                      className="h-11 w-full rounded-2xl border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+                      placeholder="Search..."
+                      className="h-10 w-full rounded-lg border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
                     />
                   </div>
 
@@ -1031,17 +1089,16 @@ export default function AdminMessages() {
                     <button
                       type="button"
                       onClick={() => setShowUnreadOnly((current) => !current)}
-                      className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition ${
-                        showUnreadOnly
+                      className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${showUnreadOnly
                           ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
                           : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
-                      }`}
+                        }`}
                     >
-                      <Filter className="h-4 w-4" />
+                      <Filter className="h-3.5 w-3.5" />
                       Unread only
                     </button>
 
-                    <p className="text-xs text-stone-500">
+                    <p className="text-[11px] text-stone-500">
                       {filteredItems.length} thread{filteredItems.length === 1 ? '' : 's'}
                     </p>
                   </div>
@@ -1061,9 +1118,10 @@ export default function AdminMessages() {
                           : activeType === 'private' && item.id === activeConversationId
 
                       return (
-                        <button
+                        <ThreadRow
                           key={`${item.type}-${item.id}`}
-                          type="button"
+                          item={item}
+                          isActive={isActive}
                           onClick={() => {
                             if (item.type === 'group') {
                               setActiveType('group')
@@ -1073,46 +1131,7 @@ export default function AdminMessages() {
                               setActiveConversationId(item.id)
                             }
                           }}
-                          className={`flex w-full items-start gap-3 border-b border-stone-100 px-4 py-4 text-left transition sm:px-5 ${
-                            isActive ? 'bg-amber-50/70' : 'hover:bg-stone-50'
-                          }`}
-                        >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-stone-100 text-stone-600">
-                            {item.type === 'group' ? (
-                              <Users className="h-5 w-5" />
-                            ) : (
-                              <UserRound className="h-5 w-5" />
-                            )}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-stone-900">
-                                  {item.name}
-                                </p>
-                                <p className="truncate text-xs text-stone-500">
-                                  {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'No student number')}
-                                </p>
-                              </div>
-
-                              <div className="flex flex-col items-end gap-1">
-                                <span className="text-[11px] text-stone-400">
-                                  {formatConversationTime(item.lastSentAt)}
-                                </span>
-                                {item.unreadCount > 0 && (
-                                  <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                                    {item.unreadCount}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <p className="mt-1 truncate text-sm text-stone-600">
-                              {item.lastMessage || 'No messages yet'}
-                            </p>
-                          </div>
-                        </button>
+                        />
                       )
                     })
                   ) : (
@@ -1128,26 +1147,26 @@ export default function AdminMessages() {
               <section className="flex min-h-0 flex-col bg-white">
                 {selectedItem ? (
                   <>
-                    <div className="border-b border-stone-100 px-5 py-4 sm:px-6 sm:py-5">
+                    <div className="border-b border-stone-100 px-5 py-4">
                       <div className="flex items-center gap-2">
                         {selectedItem.type === 'group' ? (
-                          <Users className="h-5 w-5 text-stone-500" />
+                          <Users className="h-4 w-4 text-stone-500" />
                         ) : (
-                          <UserRound className="h-5 w-5 text-stone-500" />
+                          <UserRound className="h-4 w-4 text-stone-500" />
                         )}
-                        <p className="text-lg font-semibold text-stone-900">
+                        <p className="text-base font-semibold text-stone-900">
                           {selectedItem.name}
                         </p>
                       </div>
 
-                      <p className="mt-1 text-sm text-stone-500">
+                      <p className="mt-1 text-xs text-stone-500">
                         {selectedItem.type === 'group'
                           ? 'Group chat'
                           : selectedItem.studentNumber || 'No student number'}
                       </p>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50/50 px-5 py-5 sm:px-6">
+                    <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50/50 px-5 py-4">
                       {loadingMessages ? (
                         <div className="flex items-center justify-center gap-2 py-12 text-sm text-stone-500">
                           <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -1159,29 +1178,11 @@ export default function AdminMessages() {
                             const isMine = message.senderId === currentUserId
 
                             return (
-                              <div
+                              <MessageBubble
                                 key={message.messageId}
-                                className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
-                              >
-                                <div
-                                  className={`max-w-[85%] rounded-3xl px-4 py-3 shadow-sm sm:max-w-[75%] ${
-                                    isMine
-                                      ? 'bg-[#7c4a2e] text-white'
-                                      : 'border border-stone-200 bg-white text-stone-800'
-                                  }`}
-                                >
-                                  <p className="whitespace-pre-wrap text-sm leading-6">
-                                    {message.messageBody}
-                                  </p>
-                                  <div
-                                    className={`mt-2 text-[11px] ${
-                                      isMine ? 'text-amber-100' : 'text-stone-400'
-                                    }`}
-                                  >
-                                    {formatMessageTime(message.sentAt)}
-                                  </div>
-                                </div>
-                              </div>
+                                message={message}
+                                isMine={isMine}
+                              />
                             )
                           })}
                           <div ref={messagesEndRef} />
@@ -1195,43 +1196,45 @@ export default function AdminMessages() {
 
                     <form
                       onSubmit={handleSendMessage}
-                      className="border-t border-stone-100 bg-white px-5 py-4 sm:px-6"
+                      className="border-t border-stone-100 bg-white px-5 py-3"
                     >
-                      <div className="flex items-end gap-3">
+                      <div className="flex items-end gap-2">
                         <textarea
                           value={draft}
                           onChange={(event) => setDraft(event.target.value)}
-                          rows={3}
+                          rows={2}
                           placeholder={
                             selectedItem.type === 'group'
                               ? 'Write a message to the group...'
-                              : 'Write a reply to the student...'
+                              : 'Write a reply...'
                           }
-                          className="min-h-[88px] flex-1 resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+                          className="min-h-[72px] flex-1 resize-none rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
                         />
 
                         <button
                           type="submit"
                           disabled={sending || !draft.trim()}
-                          className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#7c4a2e] px-5 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {sending ? (
                             <LoaderCircle className="h-4 w-4 animate-spin" />
                           ) : (
-                            <SendHorizonal className="h-4 w-4" />
+                            <>
+                              <SendHorizontal className="h-4 w-4" />
+                              Send
+                            </>
                           )}
-                          Send
                         </button>
                       </div>
                     </form>
                   </>
                 ) : (
                   <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 px-6 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-[#7c4a2e]">
-                      <MessageSquareMore className="h-7 w-7" />
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-[#7c4a2e]">
+                      <MessageSquareMore className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="text-lg font-semibold text-stone-900">
+                      <p className="text-base font-semibold text-stone-900">
                         Select a thread
                       </p>
                       <p className="mt-2 text-sm text-stone-500">

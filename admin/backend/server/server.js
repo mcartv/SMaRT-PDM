@@ -84,11 +84,37 @@ app.use(express.urlencoded({ extended: true }));
 // =========================
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+console.log('Frontend build path:', frontendBuildPath);
+console.log('Index.html exists:', require('fs').existsSync(path.join(frontendBuildPath, 'index.html')));
+console.log('Assets directory exists:', require('fs').existsSync(path.join(frontendBuildPath, 'assets')));
+
 app.use(express.static(frontendBuildPath));
 
 // =========================
 // ROUTES
 // =========================
+
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok' });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/scholars', scholarRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/ro', roRoutes);
+app.use('/api/scholarship-program', scholarshipProgramRoutes);
+app.use('/api/program-openings', programOpeningRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/benefactors', benefactorRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/renewals', renewalRoutes);
+app.use('/api/support-tickets', supportTicketRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/student-registry', studentRegistryRoutes);
+app.use('/api/academic-years', academicYearRoutes);
 
 // =========================
 // HEALTH CHECK
@@ -104,13 +130,23 @@ app.get('/', (req, res) => {
 // =========================
 
 app.use((req, res) => {
+    console.log('Catch-all request:', req.method, req.path, req.headers.accept);
+
     // If it's an API route that wasn't matched, return 404
     if (req.path.startsWith('/api/')) {
+        console.log('API route not found:', req.path);
         return res.status(404).json({ message: 'API endpoint not found' });
+    }
+
+    // Missing static assets should stay 404s instead of falling back to index.html.
+    if (path.extname(req.path)) {
+        console.log('Static asset not found:', req.path);
+        return res.status(404).send('Asset not found');
     }
 
     // For all other requests (SPA routes), serve index.html
     const indexPath = path.join(frontendBuildPath, 'index.html');
+    console.log('Serving index.html for:', req.path);
     res.sendFile(indexPath, (err) => {
         if (err) {
             console.error('Error serving index.html for path:', req.path, err);

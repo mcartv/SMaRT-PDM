@@ -96,16 +96,7 @@ exports.updateScholarStatus = async (req, res) => {
             message: err.message || 'Failed to update payout status',
         });
     }
-};// Emit realtime event
-        const io = req.app.get('io');
-        if (io) {
-            io.emit('payout:deleted', {
-                batch_id: req.params.batchId,
-                archived_at: new Date().toISOString()
-            });
-        }
-
-        
+};
 
 exports.archivePayoutBatch = async (req, res) => {
     try {
@@ -115,6 +106,15 @@ exports.archivePayoutBatch = async (req, res) => {
             payout_batch_id: req.params.batchId,
             archived_by,
         });
+
+        // Emit realtime event
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('payout:deleted', {
+                batch_id: req.params.batchId,
+                archived_at: new Date().toISOString()
+            });
+        }
 
         res.status(200).json(row);
     } catch (err) {

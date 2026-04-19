@@ -2,7 +2,7 @@ class AppConfig {
   AppConfig._();
 
 
-  static const String _defaultBaseUrl = 'http://192.168.22.2:3000'; 
+  static const String _defaultBaseUrl = 'https://smart-pdm-mipx.onrender.com'; 
 
   static String get apiBaseUrl {
     const configuredValue = String.fromEnvironment('API_BASE_URL');
@@ -22,3 +22,4 @@ class AppConfig {
   static String get recaptchaAndroidSiteKey =>
       _recaptchaAndroidSiteKey.trim();
 }
+

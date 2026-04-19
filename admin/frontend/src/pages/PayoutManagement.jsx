@@ -20,8 +20,9 @@ import {
   Table2,
   LayoutGrid,
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = buildApiUrl('/api');
 const PAGE_SIZE = 6;
 
 const C = {

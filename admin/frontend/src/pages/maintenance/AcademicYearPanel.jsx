@@ -13,6 +13,7 @@ import {
     X,
     Search,
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
 const C = {
     brownMid: '#7c4a2e',
@@ -211,7 +212,7 @@ export default function AcademicYearsPanel() {
         try {
             setLoading(true);
 
-            const res = await fetch('http://localhost:5000/api/academic-years', {
+            const res = await fetch(buildApiUrl('/api/academic-years'), {
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
@@ -330,8 +331,8 @@ export default function AcademicYearsPanel() {
             const isEdit = modalMode === 'edit' && editingId;
 
             const url = isEdit
-                ? `http://localhost:5000/api/academic-years/${editingId}`
-                : 'http://localhost:5000/api/academic-years';
+                ? buildApiUrl(`/api/academic-years/${editingId}`)
+                : buildApiUrl('/api/academic-years');
 
             const method = isEdit ? 'PATCH' : 'POST';
 
@@ -363,7 +364,7 @@ export default function AcademicYearsPanel() {
     const handleSetActive = async (row) => {
         try {
             const res = await fetch(
-                `http://localhost:5000/api/academic-years/${row.academic_year_id}/activate`,
+                buildApiUrl(`/api/academic-years/${row.academic_year_id}/activate`),
                 {
                     method: 'PATCH',
                     headers: {

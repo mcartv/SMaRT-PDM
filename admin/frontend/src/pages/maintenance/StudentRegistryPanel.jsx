@@ -20,7 +20,8 @@ import {
   Inbox,
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
+import { buildApiUrl } from '@/api';
+const API_BASE = buildApiUrl('/api');
 
 function getAuthHeaders() {
   const token = localStorage.getItem('adminToken');

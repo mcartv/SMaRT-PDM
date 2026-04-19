@@ -17,8 +17,9 @@ import {
   UserRoundCheck,
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
+import { buildApiUrl } from '@/api';
 
+const API_BASE = buildApiUrl('/api');
 const STATUS_OPTIONS = ['All', 'Open', 'In Progress', 'Resolved', 'Closed'];
 
 const STATUS_STYLES = {

@@ -8,6 +8,7 @@ import {
   Calendar, User, Settings, RotateCcw,
   AlertTriangle, CheckCircle2, Plus, Loader2, X
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
 const C = {
   brown: '#5c2d0e',
@@ -226,13 +227,13 @@ export default function ROAdmin() {
       setLoading(true);
 
       const [summaryRes, configRes, listRes] = await Promise.all([
-        fetch('http://localhost:5000/api/ro/summary', {
+        fetch(buildApiUrl('/api/ro/summary'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:5000/api/ro/config', {
+        fetch(buildApiUrl('/api/ro/config'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`http://localhost:5000/api/ro?status=${activeTab}`, {
+        fetch(buildApiUrl(`/api/ro?status=${activeTab}`), {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -278,8 +279,7 @@ export default function ROAdmin() {
   const handleApprove = async (id) => {
     try {
       setActionLoading(id);
-      const res = await fetch(`http://localhost:5000/api/ro/${id}/approve`, {
-        method: 'PATCH',
+fetch(buildApiUrl('/api/ro'), {        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -301,8 +301,7 @@ export default function ROAdmin() {
 
     try {
       setActionLoading(id);
-      const res = await fetch(`http://localhost:5000/api/ro/${id}/reject`, {
-        method: 'PATCH',
+fetch(buildApiUrl(`/api/ro/${id}/reject`), {        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -325,8 +324,7 @@ export default function ROAdmin() {
 
     try {
       setActionLoading(id);
-      const res = await fetch(`http://localhost:5000/api/ro/${id}/assign-department`, {
-        method: 'PATCH',
+fetch(buildApiUrl(`/api/ro/${id}/assign-department`), {        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -346,8 +344,7 @@ export default function ROAdmin() {
   const handleSaveConfig = async () => {
     try {
       setConfigSaving(true);
-      const res = await fetch('http://localhost:5000/api/ro/config', {
-        method: 'PATCH',
+fetch(buildApiUrl('/api/ro/config'), {        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -373,8 +370,7 @@ export default function ROAdmin() {
   const handleCreateRO = async (payload) => {
     try {
       setCreateLoading(true);
-      const res = await fetch('http://localhost:5000/api/ro', {
-        method: 'POST',
+fetch(buildApiUrl('/api/ro'), {        method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

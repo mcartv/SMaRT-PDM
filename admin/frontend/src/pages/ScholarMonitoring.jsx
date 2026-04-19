@@ -20,6 +20,7 @@ import {
   Files, ScanSearch, RefreshCw, ExternalLink, FileCheck2,
   ShieldCheck
 } from 'lucide-react';
+import { buildApiUrl } from '@/api';
 
 // ─── Theme ───────────────────────────────────────────────────────
 const C = {
@@ -558,7 +559,7 @@ function RenewalModal({
         setSavingAction('');
 
         const token = localStorage.getItem('adminToken');
-        const res = await fetch(`http://localhost:5000/api/scholars/${scholar.scholar_id}/renewal-documents`, {
+        const res = await fetch(buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-documents`), {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -636,7 +637,7 @@ function RenewalModal({
 
       // Optional backend hook. Safe fallback if endpoint does not exist yet.
       await fetch(
-        `http://localhost:5000/api/scholars/${scholar.scholar_id}/renewal-documents/${selectedDoc.id}/verify`,
+        buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-documents/${selectedDoc.id}/verify`),
         {
           method: 'PATCH',
           headers: {
@@ -697,7 +698,7 @@ function RenewalModal({
       };
 
       const res = await fetch(
-        `http://localhost:5000/api/scholars/${scholar.scholar_id}/renewal-review`,
+        buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-review`),
         {
           method: 'PATCH',
           headers: {
@@ -1311,13 +1312,13 @@ export default function ScholarMonitoring() {
         setLoading(true);
 
         const [scholarsRes, statsRes] = await Promise.all([
-          fetch('http://localhost:5000/api/scholars', {
+          fetch(buildApiUrl('/api/scholars'), {
             headers: {
               Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
             },
           }),
-          fetch('http://localhost:5000/api/scholars/stats', {
+          fetch(buildApiUrl('/api/scholars/stats'), {
             headers: {
               Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
@@ -1356,7 +1357,7 @@ export default function ScholarMonitoring() {
       setArchiveSaving(true);
 
       const res = await fetch(
-        `http://localhost:5000/api/scholars/${archiveModalScholar.scholar_id}/archive`,
+        buildApiUrl(`/api/scholars/${archiveModalScholar.scholar_id}/archive`),
         {
           method: 'PATCH',
           headers: {
@@ -1410,7 +1411,7 @@ export default function ScholarMonitoring() {
       setProfileLoading(true);
       setSelectedScholar(null);
 
-      const res = await fetch(`http://localhost:5000/api/scholars/${scholarId}`, {
+      const res = await fetch(buildApiUrl(`/api/scholars/${scholarId}`), {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
@@ -1437,7 +1438,7 @@ export default function ScholarMonitoring() {
 
   const handleOpenRenewal = async (scholar) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/scholars/${scholar.scholar_id}`, {
+      const res = await fetch(buildApiUrl(`/api/scholars/${scholar.scholar_id}`), {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',

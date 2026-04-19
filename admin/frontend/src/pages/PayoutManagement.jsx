@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { useSocketEvent } from '@/hooks/useSocket';
 import {
   Loader2,
   Plus,
@@ -162,6 +163,27 @@ export default function PayoutManagement() {
   });
 
   useEffect(() => {
+    loadAll();
+  }, []);
+
+  // Realtime updates for payouts
+  useSocketEvent('payout:created', (data) => {
+    console.log('[Realtime] Payout created:', data);
+    loadAll();
+  }, []);
+
+  useSocketEvent('payout:updated', (data) => {
+    console.log('[Realtime] Payout updated:', data);
+    loadAll();
+  }, []);
+
+  useSocketEvent('payout:deleted', (data) => {
+    console.log('[Realtime] Payout deleted:', data);
+    loadAll();
+  }, []);
+
+  useSocketEvent('scholar:released', (data) => {
+    console.log('[Realtime] Scholar released:', data);
     loadAll();
   }, []);
 

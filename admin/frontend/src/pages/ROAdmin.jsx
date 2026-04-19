@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -261,6 +262,12 @@ export default function ROAdmin() {
   useEffect(() => {
     loadROData(tab);
   }, [tab]);
+
+  // Realtime updates for scholar RO data
+  useSocketEvent('scholar:updated', (data) => {
+    console.log('[Realtime] Scholar RO data updated:', data);
+    loadROData(tab);
+  }, []);
 
   const stats = useMemo(() => {
     const pendingCount = tab === 'pending' ? items.length : 0;

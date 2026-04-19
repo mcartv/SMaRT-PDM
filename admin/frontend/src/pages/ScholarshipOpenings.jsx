@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -882,6 +883,22 @@ export default function ScholarshipOpenings() {
     };
 
     useEffect(() => {
+        fetchData();
+    }, []);
+
+    // Realtime updates for scholarship openings
+    useSocketEvent('opening:created', (data) => {
+        console.log('[Realtime] Opening created:', data);
+        fetchData();
+    }, []);
+
+    useSocketEvent('opening:updated', (data) => {
+        console.log('[Realtime] Opening updated:', data);
+        fetchData();
+    }, []);
+
+    useSocketEvent('opening:closed', (data) => {
+        console.log('[Realtime] Opening closed:', data);
         fetchData();
     }, []);
 

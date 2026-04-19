@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -123,6 +124,18 @@ const INSIGHTS = [
 
 // ─── Component ───────────────────────────────────────────────────
 export default function AdminDashboard() {
+  // Realtime listeners for dashboard data updates
+  useSocketEvent('scholar:created', () => {
+    console.log('[Realtime] New scholar - dashboard stats may need refresh');
+  }, []);
+
+  useSocketEvent('payout:created', () => {
+    console.log('[Realtime] New payout - dashboard may need refresh');
+  }, []);
+
+  useSocketEvent('opening:created', () => {
+    console.log('[Realtime] New opening - dashboard may need refresh');
+  }, []);
   return (
     <div className="space-y-6 py-2" style={{ background: C.bg }}>
 

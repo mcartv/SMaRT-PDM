@@ -13,6 +13,7 @@ import {
   Plus,
   Check,
 } from 'lucide-react'
+import { useSocketEvent } from '@/hooks/useSocket'
 import API_BASE_URL from '@/api';
 
 
@@ -1357,6 +1358,14 @@ export default function AdminMessages() {
     fetchConversations()
     fetchRooms()
   }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
+
+  // Realtime updates for messages
+  useSocketEvent('message:created', (data) => {
+    console.log('[Realtime] Message created:', data);
+    if (isOpen) {
+      fetchConversations()
+    }
+  }, [isOpen, fetchConversations]);
 
   useEffect(() => {
     if (isOpen) {

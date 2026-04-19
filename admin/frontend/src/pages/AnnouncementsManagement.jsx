@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -594,6 +595,22 @@ export default function AnnouncementsManagement() {
       }
     };
 
+    loadAnnouncements();
+  }, []);
+
+  // Realtime updates for announcements
+  useSocketEvent('announcement:created', (data) => {
+    console.log('[Realtime] Announcement created:', data);
+    loadAnnouncements();
+  }, []);
+
+  useSocketEvent('announcement:updated', (data) => {
+    console.log('[Realtime] Announcement updated:', data);
+    loadAnnouncements();
+  }, []);
+
+  useSocketEvent('announcement:deleted', (data) => {
+    console.log('[Realtime] Announcement deleted:', data);
     loadAnnouncements();
   }, []);
 

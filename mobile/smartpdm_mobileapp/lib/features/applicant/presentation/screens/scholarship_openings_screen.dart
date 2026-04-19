@@ -15,6 +15,7 @@ class ScholarshipOpeningsScreen extends StatefulWidget {
 }
 
 class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
+  static const int _defaultRequiredDocumentCount = 8;
   final ProgramOpeningService _programOpeningService = ProgramOpeningService();
 
   bool _isLoading = true;
@@ -151,6 +152,63 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     await _openApplicationForm(opening: opening);
   }
 
+  Widget _buildUploadProgress({
+    required ProgramOpening opening,
+    required Color accentColor,
+    required Color subtitleColor,
+    required Color titleColor,
+  }) {
+    final requiredCount = opening.requiredDocumentCount > 0
+        ? opening.requiredDocumentCount
+        : _defaultRequiredDocumentCount;
+    final uploadedCount = opening.uploadedDocumentCount;
+    final progress = requiredCount <= 0
+        ? 0.0
+        : (uploadedCount / requiredCount).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Uploaded',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: titleColor,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$uploadedCount/$requiredCount',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: subtitleColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 10,
+            backgroundColor: const Color(0xFFE8E0D6),
+            valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '$uploadedCount of $requiredCount required documents uploaded.',
+          style: TextStyle(fontSize: 12, color: subtitleColor),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -281,6 +339,8 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
               )
             else
               ..._openings.map((opening) {
+                final showUploadProgress = opening.hasApplied;
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
@@ -327,22 +387,30 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                               ),
                             ),
                             if (opening.isTes)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: accentColor.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  'TES',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: accentColor,
-                                  ),
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (opening.isTes)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: accentColor.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'TES',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: accentColor,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                           ],
                         ),
@@ -363,6 +431,15 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                               height: 1.4,
                               color: subtitleColor,
                             ),
+                          ),
+                        ],
+                        if (showUploadProgress) ...[
+                          const SizedBox(height: 14),
+                          _buildUploadProgress(
+                            opening: opening,
+                            accentColor: accentColor,
+                            subtitleColor: subtitleColor,
+                            titleColor: titleColor,
                           ),
                         ],
                         const SizedBox(height: 14),

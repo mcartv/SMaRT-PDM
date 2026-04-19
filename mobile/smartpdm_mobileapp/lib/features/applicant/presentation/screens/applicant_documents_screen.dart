@@ -201,6 +201,22 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return DateFormat('MMM d, yyyy - h:mm a').format(value.toLocal());
   }
 
+  List<ApplicantRequirementDocument> _sortedDocuments(
+    List<ApplicantRequirementDocument> documents,
+  ) {
+    final sorted = List<ApplicantRequirementDocument>.from(documents);
+    sorted.sort((a, b) {
+      final submissionComparison = a.isSubmitted == b.isSubmitted
+          ? 0
+          : (a.isSubmitted ? 1 : -1);
+      if (submissionComparison != 0) {
+        return submissionComparison;
+      }
+      return 0;
+    });
+    return sorted;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -208,6 +224,9 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
     final package = _package;
+    final documents = package == null
+        ? const <ApplicantRequirementDocument>[]
+        : _sortedDocuments(package.documents);
 
     return SmartPdmPageScaffold(
       appBar: AppBar(title: const Text('Scholarship Requirements')),
@@ -364,7 +383,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                 style: TextStyle(color: subtitleColor, height: 1.4),
               ),
               const SizedBox(height: 12),
-              ...package.documents.map((document) {
+              ...documents.map((document) {
                 final statusColor = _statusColor(document.status);
                 final isUploading = _uploadingDocuments[document.id] == true;
 

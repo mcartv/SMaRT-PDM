@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
-import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
@@ -109,8 +109,19 @@ class _DashboardContentState extends State<DashboardContent> {
     }
   }
 
-  void _openOfficeUpdatesHub(BuildContext context) {
-    Navigator.pushNamed(context, AppRoutes.notifications);
+  void _openOfficeUpdateArticle(
+    BuildContext context,
+    AppNotification notification,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OfficeUpdateArticleScreen(
+          notification: notification,
+          showBottomNav: false,
+        ),
+      ),
+    );
   }
 
   void _openScholarshipOpenings(BuildContext context) {
@@ -162,7 +173,7 @@ class _DashboardContentState extends State<DashboardContent> {
     return _InteractiveOfficeUpdatesCard(
       notification: notification,
       tags: _officeUpdateTags(notification),
-      onTap: () => _openOfficeUpdatesHub(context),
+      onTap: () => _openOfficeUpdateArticle(context, notification),
       onOpeningsTap: notification.isOpeningUpdate && !_effectiveScholarAccess
           ? () => _openScholarshipOpenings(context)
           : null,

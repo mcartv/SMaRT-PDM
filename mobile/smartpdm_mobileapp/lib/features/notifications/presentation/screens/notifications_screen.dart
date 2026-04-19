@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-
-enum _NotificationViewFilter { officeUpdates, notifications }
 
 class NotificationsScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -19,9 +16,6 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  _NotificationViewFilter _selectedFilter =
-      _NotificationViewFilter.officeUpdates;
-
   @override
   void initState() {
     super.initState();
@@ -79,14 +73,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Consumer<NotificationProvider>(
       builder: (context, notificationProvider, child) {
-        final officeUpdates = notificationProvider.officeUpdatesItems;
         final generalNotifications =
             notificationProvider.generalNotificationItems;
         final unreadCount = notificationProvider.unreadCount;
-        final activeItems =
-            _selectedFilter == _NotificationViewFilter.officeUpdates
-            ? officeUpdates
-            : generalNotifications;
 
         return SmartPdmPageScaffold(
           appBar: AppBar(
@@ -95,8 +84,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             foregroundColor: isDark ? Colors.white : textColor,
             elevation: 0,
             actions: [
-              if (_selectedFilter == _NotificationViewFilter.notifications &&
-                  unreadCount > 0)
+              if (unreadCount > 0)
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Center(
@@ -121,48 +109,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(top: 12, bottom: 12),
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _NotificationFilterChips(
-                    selectedFilter: _selectedFilter,
-                    onChanged: (value) {
-                      setState(() => _selectedFilter = value);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (notificationProvider.isLoading && activeItems.isEmpty)
+                if (notificationProvider.isLoading &&
+                    generalNotifications.isEmpty)
                   const Padding(
                     padding: EdgeInsets.only(top: 48),
                     child: Center(child: CircularProgressIndicator()),
                   )
                 else if (notificationProvider.errorMessage != null &&
-                    activeItems.isEmpty)
+                    generalNotifications.isEmpty)
                   _NotificationsErrorState(
                     message: notificationProvider.errorMessage!,
                     onRetry: notificationProvider.refresh,
                   )
-                else if (activeItems.isEmpty)
+                else if (generalNotifications.isEmpty)
                   _NotificationsEmptyState(
                     isDark: isDark,
-                    label:
-                        _selectedFilter == _NotificationViewFilter.officeUpdates
-                        ? 'No office updates'
-                        : 'No notifications',
-                  )
-                else if (_selectedFilter ==
-                    _NotificationViewFilter.officeUpdates)
-                  ...officeUpdates.map(
-                    (notification) => Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: _OfficeUpdatePreviewCard(
-                        notification: notification,
-                        onTap: () => _openNotification(notification),
-                      ),
-                    ),
+                    label: 'No notifications',
                   )
                 else
                   ...generalNotifications.map(
@@ -204,166 +166,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-class _NotificationFilterChips extends StatelessWidget {
-  const _NotificationFilterChips({
-    required this.selectedFilter,
-    required this.onChanged,
-  });
-
-  final _NotificationViewFilter selectedFilter;
-  final ValueChanged<_NotificationViewFilter> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        ChoiceChip(
-          label: const Text('Office Updates'),
-          selected: selectedFilter == _NotificationViewFilter.officeUpdates,
-          onSelected: (_) => onChanged(_NotificationViewFilter.officeUpdates),
-          selectedColor: isDark ? const Color(0xFF4C3318) : AppColors.gold,
-          labelStyle: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: selectedFilter == _NotificationViewFilter.officeUpdates
-                ? textColor
-                : (isDark ? Colors.white70 : Colors.black87),
-          ),
-        ),
-        ChoiceChip(
-          label: const Text('Notifications'),
-          selected: selectedFilter == _NotificationViewFilter.notifications,
-          onSelected: (_) => onChanged(_NotificationViewFilter.notifications),
-          selectedColor: isDark ? const Color(0xFF4C3318) : AppColors.gold,
-          labelStyle: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: selectedFilter == _NotificationViewFilter.notifications
-                ? textColor
-                : (isDark ? Colors.white70 : Colors.black87),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _OfficeUpdatePreviewCard extends StatelessWidget {
-  const _OfficeUpdatePreviewCard({
-    required this.notification,
-    required this.onTap,
-  });
-
-  final AppNotification notification;
-  final VoidCallback onTap;
-
-  void _openOpenings(BuildContext context) {
-    Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : textColor;
-    final bodyColor = isDark ? Colors.white70 : Colors.black87;
-    final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: notification.accentColor.withOpacity(0.28)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x12000000),
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: notification.accentColor.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      notification.officeUpdateLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'READ MORE',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: notification.accentColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                notification.title,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: titleColor,
-                  height: 1.12,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                notification.previewText,
-                style: TextStyle(fontSize: 14, color: bodyColor, height: 1.45),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                _formatTimestamp(notification.createdAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white54 : Colors.grey[700],
-                ),
-              ),
-              if (notification.isOpeningUpdate) ...[
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => _openOpenings(context),
-                    child: const Text('Apply Now'),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

@@ -47,6 +47,19 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
   bool get _allRequiredUploaded =>
       _requirements.every((doc) => doc.status != 'pending');
 
+  List<_RenewalDocument> get _sortedRequirements {
+    final sorted = List<_RenewalDocument>.from(_requirements);
+    sorted.sort((a, b) {
+      final aUploaded = a.status != 'pending';
+      final bUploaded = b.status != 'pending';
+      if (aUploaded == bUploaded) {
+        return 0;
+      }
+      return aUploaded ? 1 : -1;
+    });
+    return sorted;
+  }
+
   void _handleScholarChipTap(String label) {
     switch (label) {
       case 'Payout Schedule':
@@ -293,7 +306,7 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
               style: TextStyle(fontSize: 12, color: subtitleColor),
             ),
             const SizedBox(height: 14),
-            ..._requirements.map(_buildDocumentRow),
+            ..._sortedRequirements.map(_buildDocumentRow),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

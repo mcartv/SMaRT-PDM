@@ -24,6 +24,7 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
     final bodyColor = isDark ? Colors.white70 : Colors.black87;
     final surfaceColor = isDark ? const Color(0xFF2D1E12) : Colors.white;
+    final chipTextColor = isDark ? Colors.white : AppColors.darkBrown;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(title: const Text('Office Update')),
@@ -69,7 +70,7 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: chipTextColor,
                         letterSpacing: 0.5,
                       ),
                     ),

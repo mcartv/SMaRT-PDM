@@ -13,6 +13,8 @@ class ProgramOpening {
     required this.canReapply,
     required this.canApply,
     required this.applyLabel,
+    required this.uploadedDocumentCount,
+    required this.requiredDocumentCount,
     this.benefactorName,
     this.existingApplicationId,
   });
@@ -30,6 +32,8 @@ class ProgramOpening {
   final bool canReapply;
   final bool canApply;
   final String applyLabel;
+  final int uploadedDocumentCount;
+  final int requiredDocumentCount;
   final String? benefactorName;
   final String? existingApplicationId;
 
@@ -48,6 +52,10 @@ class ProgramOpening {
       canReapply: json['can_reapply'] == true,
       canApply: json['can_apply'] == true,
       applyLabel: json['apply_label']?.toString() ?? 'Apply Now',
+      uploadedDocumentCount:
+          (json['uploaded_document_count'] as num?)?.toInt() ?? 0,
+      requiredDocumentCount:
+          (json['required_document_count'] as num?)?.toInt() ?? 0,
       benefactorName: json['benefactor_name']?.toString(),
       existingApplicationId: json['existing_application_id']?.toString(),
     );

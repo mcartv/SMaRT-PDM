@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -102,6 +103,22 @@ export default function SupportTickets() {
   };
 
   useEffect(() => {
+    loadTickets();
+  }, []);
+
+  // Realtime updates for tickets
+  useSocketEvent('ticket:created', (data) => {
+    console.log('[Realtime] Ticket created:', data);
+    loadTickets();
+  }, []);
+
+  useSocketEvent('ticket:updated', (data) => {
+    console.log('[Realtime] Ticket updated:', data);
+    loadTickets();
+  }, []);
+
+  useSocketEvent('ticket:resolved', (data) => {
+    console.log('[Realtime] Ticket resolved:', data);
     loadTickets();
   }, []);
 

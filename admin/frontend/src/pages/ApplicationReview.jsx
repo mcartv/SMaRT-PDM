@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -310,6 +311,22 @@ export default function ApplicationReview() {
   };
 
   useEffect(() => {
+    loadData();
+  }, []);
+
+  // Realtime updates for applications
+  useSocketEvent('application:updated', (data) => {
+    console.log('[Realtime] Application updated:', data);
+    loadData();
+  }, []);
+
+  useSocketEvent('application:approved', (data) => {
+    console.log('[Realtime] Application approved:', data);
+    loadData();
+  }, []);
+
+  useSocketEvent('application:rejected', (data) => {
+    console.log('[Realtime] Application rejected:', data);
     loadData();
   }, []);
 

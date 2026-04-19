@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 // --- SHADCN UI COMPONENTS ---
 import { Input } from "@/components/ui/input";
@@ -1347,6 +1348,85 @@ export default function ScholarMonitoring() {
       }
     };
 
+    fetchScholars();
+  }, []);
+
+  // Realtime updates for scholars
+  useSocketEvent('scholar:updated', (data) => {
+    console.log('[Realtime] Scholar updated:', data);
+    const fetchScholars = async () => {
+      try {
+        const [scholarsRes, statsRes] = await Promise.all([
+          fetch(buildApiUrl('/api/scholars'), {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              'Content-Type': 'application/json',
+            },
+          }),
+          fetch(buildApiUrl('/api/scholars/stats'), {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              'Content-Type': 'application/json',
+            },
+          }),
+        ]);
+
+        if (!scholarsRes.ok) throw new Error('Failed to synchronize scholars');
+        if (!statsRes.ok) throw new Error('Failed to synchronize scholar stats');
+
+        const scholarsData = await scholarsRes.json();
+        const statsData = await statsRes.json();
+
+        setScholars(Array.isArray(scholarsData) ? scholarsData : []);
+        setStats({
+          total: Number(statsData.total) || 0,
+          active: Number(statsData.active) || 0,
+          at_risk: Number(statsData.at_risk) || 0,
+          avg_gwa: Number(statsData.avg_gwa) || 0,
+        });
+      } catch (err) {
+        console.error('Realtime update error:', err);
+      }
+    };
+    fetchScholars();
+  }, []);
+
+  useSocketEvent('scholar:created', (data) => {
+    console.log('[Realtime] Scholar created:', data);
+    const fetchScholars = async () => {
+      try {
+        const [scholarsRes, statsRes] = await Promise.all([
+          fetch(buildApiUrl('/api/scholars'), {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              'Content-Type': 'application/json',
+            },
+          }),
+          fetch(buildApiUrl('/api/scholars/stats'), {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              'Content-Type': 'application/json',
+            },
+          }),
+        ]);
+
+        if (!scholarsRes.ok) throw new Error('Failed to synchronize scholars');
+        if (!statsRes.ok) throw new Error('Failed to synchronize scholar stats');
+
+        const scholarsData = await scholarsRes.json();
+        const statsData = await statsRes.json();
+
+        setScholars(Array.isArray(scholarsData) ? scholarsData : []);
+        setStats({
+          total: Number(statsData.total) || 0,
+          active: Number(statsData.active) || 0,
+          at_risk: Number(statsData.at_risk) || 0,
+          avg_gwa: Number(statsData.avg_gwa) || 0,
+        });
+      } catch (err) {
+        console.error('Realtime update error:', err);
+      }
+    };
     fetchScholars();
   }, []);
 

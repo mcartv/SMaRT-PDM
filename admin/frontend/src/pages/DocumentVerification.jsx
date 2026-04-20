@@ -1133,7 +1133,8 @@ export default function DocumentVerification() {
 
   const progress = docs.length ? Math.round((reviewedCount / docs.length) * 100) : 0;
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
-  const hasUploadedDocument = isDocumentAvailable(activeDoc);
+  const hasUploadedDocument =
+    activeDoc?.id === 'application_form' || isDocumentAvailable(activeDoc);
 
   const extractedData = useMemo(
     () => buildExtractedData(activeDoc, application),
@@ -1740,9 +1741,11 @@ export default function DocumentVerification() {
                 </label>
                 <Textarea
                   placeholder={
-                    hasUploadedDocument
-                      ? 'The rejection note is filled automatically from the reject modal. You may edit remarks here if needed.'
-                      : 'No uploaded document selected yet.'
+                    activeDoc?.id === 'application_form'
+                      ? 'Admin remarks for application form review.'
+                      : hasUploadedDocument
+                        ? 'The rejection note is filled automatically from the reject modal. You may edit remarks here if needed.'
+                        : 'No uploaded document selected yet.'
                   }
                   value={comment}
                   onChange={(e) => handleCommentChange(e.target.value)}
@@ -1777,7 +1780,7 @@ export default function DocumentVerification() {
                 </Button>
               </div>
 
-              {!hasUploadedDocument && (
+              {!hasUploadedDocument && activeDoc?.id !== 'application_form' && (
                 <p className="text-xs text-stone-400">
                   Student must upload this document first before review actions can be applied.
                 </p>

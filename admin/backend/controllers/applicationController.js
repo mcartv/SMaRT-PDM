@@ -90,14 +90,19 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
             user: req.user,
         });
 
-        res.status(200).json({
-            message: 'IoT OCR completed successfully',
+        const statusCode = result?.status === 'started' ? 202 : 200;
+
+        res.status(statusCode).json({
+            message:
+                statusCode === 202
+                    ? 'IoT OCR scan started successfully'
+                    : 'IoT OCR completed successfully',
             data: result,
         });
     } catch (err) {
         console.error('RUN APPLICATION DOCUMENT IOT OCR CONTROLLER ERROR:', err.message);
 
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             error: err.message || 'Failed to run IoT OCR',
         });
     }

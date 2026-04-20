@@ -13,6 +13,7 @@ const IOT_OCR_API_KEY =
     (process.env.IOT_OCR_API_KEY || '').trim();
 const INTERNAL_NOTIFICATION_SECRET =
     (process.env.INTERNAL_NOTIFICATION_SECRET || '').trim();
+const IOT_OCR_TIMEOUT_MS = Number(process.env.IOT_OCR_TIMEOUT_MS || 15000);
 
 const APPROVED_SCHOLAR_NOTIFICATION = Object.freeze({
     type: 'Scholar Approved',
@@ -87,6 +88,54 @@ const DOCUMENT_TYPE_TO_NAME = {
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
 };
+
+function buildHttpError(statusCode, message) {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+}
+
+function isPrivateHostname(hostname = '') {
+    const normalized = String(hostname || '').trim().toLowerCase();
+
+    return (
+        normalized === 'localhost' ||
+        normalized === '127.0.0.1' ||
+        normalized === '::1' ||
+        normalized.startsWith('10.') ||
+        normalized.startsWith('192.168.') ||
+        /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
+    );
+}
+
+function validateIotOcrEndpoint(rawUrl) {
+    if (!rawUrl) {
+        throw buildHttpError(500, 'IOT_OCR_ENDPOINT_URL is not configured.');
+    }
+
+    let parsedUrl;
+
+    try {
+        parsedUrl = new URL(rawUrl);
+    } catch (_error) {
+        throw buildHttpError(500, 'IOT OCR endpoint URL is invalid.');
+    }
+
+    // Allow private IPs for local development
+    const isLocalDevelopment = process.env.NODE_ENV === 'development' ||
+        process.env.SUPABASE_URL?.includes('localhost') ||
+        process.env.SUPABASE_URL?.includes('127.0.0.1') ||
+        process.env.IOT_OCR_ALLOW_PRIVATE_IP === 'true';
+
+    if (!isLocalDevelopment && isPrivateHostname(parsedUrl.hostname)) {
+        throw buildHttpError(
+            502,
+            `IoT OCR endpoint is set to a private network address (${parsedUrl.hostname}) and is not reachable from deployed hosting.`
+        );
+    }
+
+    return parsedUrl.toString();
+}
 
 function extractAvatarStoragePath(value) {
     const rawValue = String(value || '').trim();
@@ -476,6 +525,10 @@ function normalizeOcrResponse(payload = {}) {
         extracted_fields: extractedFields,
         source_payload: payload,
     };
+}
+
+function isAsyncIotOcrStart(response, payload = {}) {
+    return response.status === 202 || payload?.status === 'started';
 }
 
 async function getSignedFileUrl(filePath) {
@@ -942,9 +995,7 @@ exports.runApplicationDocumentIotOcr = async ({
         throw new Error('IoT OCR is only available for uploaded files');
     }
 
-    if (!IOT_OCR_ENDPOINT_URL) {
-        throw new Error('IOT_OCR_ENDPOINT_URL is not configured');
-    }
+    const iotOcrEndpointUrl = validateIotOcrEndpoint(IOT_OCR_ENDPOINT_URL);
 
     const documentTypeName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
 
@@ -1006,11 +1057,32 @@ exports.runApplicationDocumentIotOcr = async ({
         headers['x-iot-ocr-key'] = IOT_OCR_API_KEY;
     }
 
-    const response = await fetch(IOT_OCR_ENDPOINT_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), IOT_OCR_TIMEOUT_MS);
+    let response;
+
+    try {
+        response = await fetch(iotOcrEndpointUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody),
+            signal: controller.signal,
+        });
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw buildHttpError(
+                504,
+                `IoT OCR service timed out after ${IOT_OCR_TIMEOUT_MS}ms.`
+            );
+        }
+
+        throw buildHttpError(
+            502,
+            `IoT OCR service is unreachable at ${iotOcrEndpointUrl}. ${error.message || 'Upstream fetch failed.'}`
+        );
+    } finally {
+        clearTimeout(timeout);
+    }
 
     const rawBody = await response.text();
     let payload = {};
@@ -1024,19 +1096,36 @@ exports.runApplicationDocumentIotOcr = async ({
     }
 
     if (!response.ok) {
-        throw new Error(
+        throw buildHttpError(
+            response.status >= 500 ? 502 : response.status,
             payload?.error ||
             payload?.message ||
             `IoT OCR request failed with status ${response.status}`
         );
     }
 
-    return {
+    const baseResult = {
         application_id: applicationId,
         student_id: applicationRow.student_id,
         student_name: studentName || 'Unknown Student',
         document_key: normalizedDocumentKey,
         document_name: documentTypeName,
+    };
+
+    if (isAsyncIotOcrStart(response, payload)) {
+        return {
+            ...baseResult,
+            status: 'started',
+            async: true,
+            job: payload?.job || null,
+            log_file: payload?.log_file || null,
+        };
+    }
+
+    return {
+        ...baseResult,
+        status: payload?.status || 'completed',
+        async: false,
         ...normalizeOcrResponse(payload),
     };
 };

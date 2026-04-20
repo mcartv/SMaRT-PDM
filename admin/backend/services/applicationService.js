@@ -135,6 +135,11 @@ function validateIotOcrEndpoint(rawUrl) {
         );
     }
 
+    // If the endpoint is configured as the device root URL, assume /scan.
+    if (!parsedUrl.pathname || parsedUrl.pathname === '/') {
+        parsedUrl.pathname = '/scan';
+    }
+
     return parsedUrl.toString();
 }
 

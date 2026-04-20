@@ -1,4 +1,5 @@
 const path = require('path');
+const https = require('https');
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
 const _ = require('lodash');
@@ -1061,13 +1062,24 @@ exports.runApplicationDocumentIotOcr = async ({
     const timeout = setTimeout(() => controller.abort(), IOT_OCR_TIMEOUT_MS);
     let response;
 
+    // For local IoT device on private network, disable SSL verification
+    const fetchOptions = {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+    };
+
+    // If HTTP (not HTTPS), ensure proper handling
+    if (iotOcrEndpointUrl.startsWith('http://')) {
+        // Plain HTTP - no agent needed
+    } else {
+        // HTTPS - allow self-signed certs for local device
+        fetchOptions.agent = new https.Agent({ rejectUnauthorized: false });
+    }
+
     try {
-        response = await fetch(iotOcrEndpointUrl, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(requestBody),
-            signal: controller.signal,
-        });
+        response = await fetch(iotOcrEndpointUrl, fetchOptions);
     } catch (error) {
         if (error.name === 'AbortError') {
             throw buildHttpError(

@@ -1331,6 +1331,16 @@ export default function DocumentVerification() {
     }
   }, [runningIotOcr, application, activeDoc]);
 
+  // Stop polling when user changes documents
+  useEffect(() => {
+    if (runningIotOcr && iotOcrPollingRef.current) {
+      clearInterval(iotOcrPollingRef.current);
+      iotOcrPollingRef.current = null;
+      setRunningIotOcr(false);
+      setIotOcrError('');
+    }
+  }, [doc, runningIotOcr]); // When doc changes, stop any running OCR polling
+
   useEffect(() => {
     return () => {
       if (iotOcrPollingRef.current) {

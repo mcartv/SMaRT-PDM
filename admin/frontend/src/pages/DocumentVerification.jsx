@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -342,6 +342,17 @@ function buildRawOcrSnapshot(activeDoc, application) {
   ].filter((value) => value !== null);
 
   return sections.join('\n');
+}
+
+function hasDocumentOcrResult(document) {
+  if (!document) return false;
+
+  return !!(
+    document?.ocr?.raw_text
+    || document?.ocr?.text
+    || document?.ocr_confidence !== null && document?.ocr_confidence !== undefined
+    || document?.ocr?.confidence !== null && document?.ocr?.confidence !== undefined
+  );
 }
 
 function formatYesNo(value) {
@@ -720,7 +731,6 @@ function DocumentPreviewPanel({ activeDoc, application }) {
 
 function OCRPanel({
   activeDoc,
-  application,
   extractedData,
   onRunIotOcr,
   runningIotOcr,
@@ -859,7 +869,6 @@ function OCRPanel({
 }
 
 function RejectDocumentModal({
-  open,
   onClose,
   onConfirm,
   saving,
@@ -868,16 +877,6 @@ function RejectDocumentModal({
   const [selectedReason, setSelectedReason] = useState('');
   const [otherReason, setOtherReason] = useState('');
   const [remarks, setRemarks] = useState('');
-
-  useEffect(() => {
-    if (!open) {
-      setSelectedReason('');
-      setOtherReason('');
-      setRemarks('');
-    }
-  }, [open]);
-
-  if (!open) return null;
 
   const isOther = selectedReason === 'Other';
   const finalReason = isOther ? otherReason.trim() : selectedReason.trim();
@@ -1029,7 +1028,7 @@ export default function DocumentVerification() {
   const [savingRawOcr, setSavingRawOcr] = useState(false);
   const iotOcrPollingRef = useRef(null);
 
-  const fetchApplicationDocuments = async ({ soft = false } = {}) => {
+  const fetchApplicationDocuments = useCallback(async ({ soft = false } = {}) => {
     try {
       if (soft) setRefreshing(true);
       else setLoading(true);
@@ -1085,11 +1084,11 @@ export default function DocumentVerification() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [doc, id]);
 
   useEffect(() => {
     fetchApplicationDocuments();
-  }, [id]);
+  }, [fetchApplicationDocuments]);
 
   const docs = useMemo(() => {
     const rawDocs = application?.documents || [];
@@ -1194,6 +1193,7 @@ export default function DocumentVerification() {
     if (!activeDoc || activeDoc.id === 'application_form') return;
 
     try {
+      const activeDocId = activeDoc.id;
       setRunningIotOcr(true);
       setIotOcrError('');
 
@@ -1214,22 +1214,28 @@ export default function DocumentVerification() {
       }
 
       const result = payload?.data || {};
+      const hasImmediateOcrResult = hasDocumentOcrResult({
+        ocr: result.ocr,
+        ocr_confidence: result.ocr_confidence,
+      });
 
-      setIotOcrResults((prev) => ({
-        ...prev,
-        [activeDoc.id]: {
-          ocr: result.ocr || {},
-          ocr_confidence:
-            result.ocr_confidence ?? result.ocr?.confidence ?? null,
-          raw_text:
-            result.raw_text ??
-            result.ocr?.raw_text ??
-            result.ocr?.text ??
-            '',
-          extracted_fields: result.extracted_fields || {},
-          source_payload: result.source_payload || null,
-        },
-      }));
+      if (hasImmediateOcrResult) {
+        setIotOcrResults((prev) => ({
+          ...prev,
+          [activeDocId]: {
+            ocr: result.ocr || {},
+            ocr_confidence:
+              result.ocr_confidence ?? result.ocr?.confidence ?? null,
+            raw_text:
+              result.raw_text ??
+              result.ocr?.raw_text ??
+              result.ocr?.text ??
+              '',
+            extracted_fields: result.extracted_fields || {},
+            source_payload: result.source_payload || null,
+          },
+        }));
+      }
 
       if (iotOcrPollingRef.current) {
         clearInterval(iotOcrPollingRef.current);
@@ -1242,7 +1248,7 @@ export default function DocumentVerification() {
 
         try {
           await fetchApplicationDocuments({ soft: true });
-        } catch (_error) {
+        } catch {
           // Keep polling through transient fetch failures.
         }
 
@@ -1314,12 +1320,7 @@ export default function DocumentVerification() {
     if (!runningIotOcr || !activeDoc || activeDoc.id === 'application_form') return;
 
     const latestDoc = (application?.documents || []).find((d) => d.id === activeDoc.id);
-    const hasOcrResult = !!(
-      latestDoc?.ocr?.raw_text
-      || latestDoc?.ocr?.text
-      || latestDoc?.ocr_confidence !== null
-      || latestDoc?.ocr?.confidence !== undefined
-    );
+    const hasOcrResult = hasDocumentOcrResult(latestDoc);
 
     if (hasOcrResult) {
       if (iotOcrPollingRef.current) {
@@ -1430,13 +1431,14 @@ export default function DocumentVerification() {
 
   return (
     <div className="space-y-5 py-2 animate-in fade-in duration-300" style={{ background: C.bg }}>
-      <RejectDocumentModal
-        open={rejectModalOpen}
-        onClose={() => setRejectModalOpen(false)}
-        onConfirm={handleRejectConfirm}
-        saving={false}
-        activeDocName={activeDoc?.name}
-      />
+      {rejectModalOpen && (
+        <RejectDocumentModal
+          onClose={() => setRejectModalOpen(false)}
+          onConfirm={handleRejectConfirm}
+          saving={false}
+          activeDocName={activeDoc?.name}
+        />
+      )}
 
       <div className="flex items-center gap-3">
         <Button

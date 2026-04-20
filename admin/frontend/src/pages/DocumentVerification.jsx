@@ -1049,17 +1049,6 @@ export default function DocumentVerification() {
 
       const data = await res.json();
       const normalizedDocs = normalizeRequiredDocuments(data?.documents || []);
-      const nextActiveDoc =
-        normalizedDocs.find((d) => d.id === doc)?.id
-        || normalizedDocs.find((d) => d.id !== 'application_form')?.id
-        || normalizedDocs.find((d) => d.url)?.id
-        || normalizedDocs[0]?.id
-        || 'certificate_of_registration';
-      const firstAvailable =
-        normalizedDocs.find((d) => d.id !== 'application_form')?.id ||
-        normalizedDocs.find((d) => d.url)?.id ||
-        normalizedDocs[0]?.id ||
-        'certificate_of_registration';
 
       const initialStatuses = {};
       const initialComments = {};
@@ -1073,10 +1062,20 @@ export default function DocumentVerification() {
         ...data,
         documents: normalizedDocs,
       });
+      
+      // Only set initial doc on first load (not soft refresh)
+      if (!soft) {
+        const firstAvailable =
+          normalizedDocs.find((d) => d.id !== 'application_form')?.id ||
+          normalizedDocs.find((d) => d.url)?.id ||
+          normalizedDocs[0]?.id ||
+          'certificate_of_registration';
+        setDoc(firstAvailable);
+      }
+      
       setIotOcrResults({});
       setDocStatuses(initialStatuses);
       setDocComments(initialComments);
-      setDoc(soft ? nextActiveDoc : firstAvailable);
     } catch (err) {
       console.error('Document fetch error:', err);
       setError(err.message || 'Failed to load document data');
@@ -1084,7 +1083,7 @@ export default function DocumentVerification() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [doc, id]);
+  }, [id]);
 
   useEffect(() => {
     fetchApplicationDocuments();

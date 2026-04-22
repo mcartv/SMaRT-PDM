@@ -295,7 +295,7 @@ class _DrawerAvatar extends StatelessWidget {
         radius: 32,
         backgroundColor: Colors.white,
         backgroundImage: NetworkImage(trimmedAvatarUrl),
-        onBackgroundImageError: (_, __) {},
+        onBackgroundImageError: (_, _) {},
       );
     }
 

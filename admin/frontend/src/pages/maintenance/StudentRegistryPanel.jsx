@@ -18,10 +18,14 @@ import {
   X,
   Search,
   Inbox,
+  SlidersHorizontal,
+  FileUp,
 } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
+
 const API_BASE = buildApiUrl('/api');
+const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
 
 function getAuthHeaders() {
   const token = localStorage.getItem('adminToken');
@@ -33,6 +37,114 @@ function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function normalizeText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getFullName(row) {
+  return [row.given_name, row.middle_name, row.last_name].filter(Boolean).join(' ');
+}
+
+function FilterModal({
+  open,
+  onClose,
+  draftCourseFilter,
+  setDraftCourseFilter,
+  draftYearFilter,
+  setDraftYearFilter,
+  courseOptions,
+  yearOptions,
+  onApply,
+  onClear,
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-800">Filter Registry</h3>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Refine registrar records by course and year level
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1.5 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Course
+            </label>
+            <Select value={draftCourseFilter} onValueChange={setDraftCourseFilter}>
+              <SelectTrigger className="h-10 rounded-lg border-stone-200">
+                <SelectValue placeholder="Course" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Courses</SelectItem>
+                {courseOptions.map((course) => (
+                  <SelectItem key={course} value={course}>
+                    {course}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Year Level
+            </label>
+            <Select value={draftYearFilter} onValueChange={setDraftYearFilter}>
+              <SelectTrigger className="h-10 rounded-lg border-stone-200">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Years</SelectItem>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    Year {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-4">
+          <Button
+            variant="outline"
+            onClick={onClear}
+            className="h-8 rounded-lg border-stone-200 text-xs"
+          >
+            Clear
+          </Button>
+          <Button
+            onClick={onApply}
+            className="h-8 rounded-lg border-none bg-stone-900 text-xs text-white hover:bg-stone-800"
+          >
+            Apply
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
 }
 
 export default function RegistrarSync() {
@@ -50,6 +162,10 @@ export default function RegistrarSync() {
   const [courseFilter, setCourseFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
 
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draftCourseFilter, setDraftCourseFilter] = useState('all');
+  const [draftYearFilter, setDraftYearFilter] = useState('all');
+
   const loadRegistry = async () => {
     setIsLoading(true);
     setError('');
@@ -59,7 +175,7 @@ export default function RegistrarSync() {
         headers: getAuthHeaders(),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || data.message || 'Failed to load registry');
 
       setRegistry(Array.isArray(data.items) ? data.items : []);
@@ -75,11 +191,11 @@ export default function RegistrarSync() {
     loadRegistry();
   }, []);
 
-  const handleFileSelect = (f) => {
-    if (!f) return;
+  const handleFileSelect = (selectedFile) => {
+    if (!selectedFile) return;
 
-    const valid = ['.xlsx', '.xls', '.csv'].some((ext) =>
-      f.name.toLowerCase().endsWith(ext)
+    const valid = ACCEPTED_EXTENSIONS.some((ext) =>
+      selectedFile.name.toLowerCase().endsWith(ext)
     );
 
     if (!valid) {
@@ -88,7 +204,7 @@ export default function RegistrarSync() {
     }
 
     setError('');
-    setFile(f);
+    setFile(selectedFile);
   };
 
   const handleImport = async () => {
@@ -107,7 +223,7 @@ export default function RegistrarSync() {
         body: fd,
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || data.message || 'Import failed');
 
       setFile(null);
@@ -150,6 +266,7 @@ export default function RegistrarSync() {
           .filter(Boolean)
       )
     );
+
     return unique.sort((a, b) => String(a).localeCompare(String(b)));
   }, [registry]);
 
@@ -162,19 +279,16 @@ export default function RegistrarSync() {
           .map((value) => String(value))
       )
     );
+
     return unique.sort((a, b) => Number(a) - Number(b));
   }, [registry]);
 
   const filteredRegistry = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeText(search);
 
     return registry.filter((row) => {
-      const fullName = [row.given_name, row.middle_name, row.last_name]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-
-      const studentNumber = String(row.student_number || '').toLowerCase();
+      const fullName = normalizeText(getFullName(row));
+      const studentNumber = normalizeText(row.student_number);
       const courseCode = String(row.academic_course?.course_code || '');
       const yearLevel = String(row.year_level || '');
 
@@ -195,24 +309,58 @@ export default function RegistrarSync() {
 
   const rows = useMemo(() => filteredRegistry.slice(0, 50), [filteredRegistry]);
 
+  const hasActiveFilters = courseFilter !== 'all' || yearFilter !== 'all';
+
+  const openFilterModal = () => {
+    setDraftCourseFilter(courseFilter);
+    setDraftYearFilter(yearFilter);
+    setFilterOpen(true);
+  };
+
+  const applyFilters = () => {
+    setCourseFilter(draftCourseFilter);
+    setYearFilter(draftYearFilter);
+    setFilterOpen(false);
+  };
+
+  const clearFilters = () => {
+    setDraftCourseFilter('all');
+    setDraftYearFilter('all');
+    setCourseFilter('all');
+    setYearFilter('all');
+    setFilterOpen(false);
+  };
+
   return (
     <div className="space-y-4">
+      <FilterModal
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        draftCourseFilter={draftCourseFilter}
+        setDraftCourseFilter={setDraftCourseFilter}
+        draftYearFilter={draftYearFilter}
+        setDraftYearFilter={setDraftYearFilter}
+        courseOptions={courseOptions}
+        yearOptions={yearOptions}
+        onApply={applyFilters}
+        onClear={clearFilters}
+      />
+
       {error && (
-        <div className="text-xs text-red-500 flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
       )}
 
       <div className="grid gap-4 xl:grid-cols-12">
-        {/* LEFT */}
-        <Card className="xl:col-span-4 p-4 space-y-4 border-stone-200 shadow-none">
+        <Card className="space-y-4 border-stone-200 p-4 shadow-none xl:col-span-4">
           <div
             onClick={() => inputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition ${isDragging
+            className={`cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${isDragging
                 ? 'border-stone-500 bg-stone-50'
                 : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
               }`}
@@ -232,21 +380,17 @@ export default function RegistrarSync() {
             <p className="text-sm font-medium text-stone-800">
               Drag and drop registrar file
             </p>
-            <p className="mt-1 text-xs text-stone-400">
-              or click to browse
-            </p>
+            <p className="mt-1 text-xs text-stone-400">or click to browse</p>
             <p className="mt-3 text-[11px] text-stone-400">
-              Accepted: .xlsx, .xls, .csv
+              Accepted: {ACCEPTED_EXTENSIONS.join(', ')}
             </p>
           </div>
 
           {file && (
-            <div className="flex justify-between items-center border border-stone-200 px-3 py-2 rounded-lg bg-white">
+            <div className="flex items-center justify-between rounded-lg border border-stone-200 bg-white px-3 py-2">
               <div className="min-w-0 text-xs">
-                <p className="truncate text-stone-700 font-medium">{file.name}</p>
-                <span className="block text-stone-400">
-                  {formatFileSize(file.size)}
-                </span>
+                <p className="truncate font-medium text-stone-700">{file.name}</p>
+                <span className="block text-stone-400">{formatFileSize(file.size)}</span>
               </div>
 
               <button
@@ -263,33 +407,49 @@ export default function RegistrarSync() {
           )}
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={handleImport} disabled={!file || isImporting}>
-              <Upload className="h-4 w-4 mr-1" />
+            <Button
+              onClick={handleImport}
+              disabled={!file || isImporting}
+              className="h-9"
+            >
+              {isImporting ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-1.5 h-4 w-4" />
+              )}
               {isImporting ? 'Importing' : 'Import'}
             </Button>
 
-            <Button variant="outline" onClick={loadRegistry}>
-              <RefreshCcw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+            <Button
+              variant="outline"
+              onClick={loadRegistry}
+              className="h-9 border-stone-200"
+            >
+              <RefreshCcw className={`mr-1.5 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
 
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="h-9 border-stone-200">
               <a href="/templates/student-registry-import-template.csv" download>
-                <Download className="h-4 w-4 mr-1" />
+                <Download className="mr-1.5 h-4 w-4" />
                 Template
               </a>
             </Button>
           </div>
 
-          <p className="text-xs text-stone-400 leading-6">
-            Only students in this registry can register and apply.
-          </p>
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <FileUp className="mt-0.5 h-4 w-4 text-stone-400" />
+              <p className="text-xs leading-6 text-stone-500">
+                Only students in this registry can register and apply for scholarships.
+              </p>
+            </div>
+          </div>
         </Card>
 
-        {/* RIGHT */}
-        <Card className="xl:col-span-8 border-stone-200 overflow-hidden shadow-none">
-          <div className="flex flex-col gap-3 px-4 py-3 border-b bg-white">
-            <div className="flex justify-between items-center text-xs text-stone-500">
+        <Card className="overflow-hidden border-stone-200 shadow-none xl:col-span-8">
+          <div className="flex flex-col gap-3 border-b bg-white px-4 py-3">
+            <div className="flex items-center justify-between text-xs text-stone-500">
               <span>{total} records</span>
               <span className="flex items-center gap-1">
                 <FileSpreadsheet className="h-4 w-4" />
@@ -297,8 +457,8 @@ export default function RegistrarSync() {
               </span>
             </div>
 
-            <div className="grid gap-2 md:grid-cols-[1fr_160px_120px]">
-              <div className="relative">
+            <div className="flex flex-col gap-2 md:flex-row">
+              <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                 <Input
                   value={search}
@@ -308,54 +468,54 @@ export default function RegistrarSync() {
                 />
               </div>
 
-              <Select value={courseFilter} onValueChange={setCourseFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Course" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Courses</SelectItem>
-                  {courseOptions.map((course) => (
-                    <SelectItem key={course} value={course}>
-                      {course}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={openFilterModal}
+                  className="border-stone-200"
+                >
+                  <SlidersHorizontal className="mr-1.5 h-4 w-4" />
+                  Filters
+                  {hasActiveFilters && (
+                    <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      Active
+                    </span>
+                  )}
+                </Button>
 
-              <Select value={yearFilter} onValueChange={setYearFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Year" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Years</SelectItem>
-                  {yearOptions.map((year) => (
-                    <SelectItem key={year} value={year}>
-                      Year {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {(search || hasActiveFilters) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearch('');
+                      clearFilters();
+                    }}
+                    className="border-stone-200"
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* KEEP TABLE STRUCTURE */}
           <div className="max-h-[520px] overflow-auto">
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-stone-50 text-stone-400 uppercase">
                 <tr>
-                  <th className="px-3 py-2">#</th>
-                  <th className="px-3 py-2">Student</th>
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Course</th>
-                  <th className="px-3 py-2">Year</th>
+                  <th className="px-3 py-2 text-left">#</th>
+                  <th className="px-3 py-2 text-left">Student</th>
+                  <th className="px-3 py-2 text-left">Name</th>
+                  <th className="px-3 py-2 text-left">Course</th>
+                  <th className="px-3 py-2 text-left">Year</th>
                 </tr>
               </thead>
 
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-10 text-stone-400">
-                      {isLoading ? 'Loading...' : 'No data'}
+                    <td colSpan={5} className="py-12 text-center text-stone-400">
+                      {isLoading ? 'Loading...' : 'No data found'}
                     </td>
                   </tr>
                 ) : (
@@ -363,13 +523,11 @@ export default function RegistrarSync() {
                     <tr key={r.registry_id} className="border-t">
                       <td className="px-3 py-2">{r.sequence_number}</td>
                       <td className="px-3 py-2 font-mono">{r.student_number}</td>
-                      <td className="px-3 py-2">
-                        {[r.given_name, r.last_name].filter(Boolean).join(' ')}
-                      </td>
+                      <td className="px-3 py-2">{getFullName(r) || '-'}</td>
                       <td className="px-3 py-2">
                         {r.academic_course?.course_code || '-'}
                       </td>
-                      <td className="px-3 py-2">{r.year_level}</td>
+                      <td className="px-3 py-2">{r.year_level || '-'}</td>
                     </tr>
                   ))
                 )}

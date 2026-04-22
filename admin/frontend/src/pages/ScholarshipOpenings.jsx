@@ -27,8 +27,7 @@ import {
     Users,
     Lock,
     Unlock,
-    LayoutGrid,
-    Table2,
+    SlidersHorizontal,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -154,29 +153,6 @@ function canOpeningBeOpened(openingLike = {}) {
     );
 }
 
-function MiniStat({ label, value, icon: Icon, soft, accent }) {
-    return (
-        <div
-            className="rounded-xl border bg-white px-4 py-3"
-            style={{ borderColor: C.line }}
-        >
-            <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                    <p className="text-[11px] font-medium text-stone-500">{label}</p>
-                    <p className="mt-0.5 text-xl font-semibold text-stone-900">{value}</p>
-                </div>
-
-                <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                    style={{ background: soft }}
-                >
-                    <Icon className="h-4 w-4" style={{ color: accent }} />
-                </div>
-            </div>
-        </div>
-    );
-}
-
 function EmptyState({ icon: Icon, title, subtitle }) {
     return (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
@@ -187,12 +163,111 @@ function EmptyState({ icon: Icon, title, subtitle }) {
     );
 }
 
+function FilterModal({
+    open,
+    onClose,
+    programOptions,
+    audienceOptions,
+    draftProgramFilter,
+    setDraftProgramFilter,
+    draftAudienceFilter,
+    setDraftAudienceFilter,
+    onApply,
+    onClear,
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
+                    <div>
+                        <h3 className="text-base font-semibold text-stone-800">Filter Openings</h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Refine the openings and template results
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={onClose}
+                        className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <CardContent className="space-y-4 p-5">
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            Target Audience
+                        </label>
+                        <Select value={draftAudienceFilter} onValueChange={setDraftAudienceFilter}>
+                            <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm">
+                                <SelectValue placeholder="Target Audience" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {audienceOptions.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                        {option === 'Both' ? 'Scholars & Applicants' : option}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            Program
+                        </label>
+                        <Select value={draftProgramFilter} onValueChange={setDraftProgramFilter}>
+                            <SelectTrigger className="h-10 rounded-lg border-stone-200 bg-white text-sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {programOptions.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                        {option}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={onClear}
+                            className="h-9 rounded-lg border-stone-200 text-xs"
+                        >
+                            Clear
+                        </Button>
+                        <Button
+                            onClick={onApply}
+                            className="h-9 rounded-lg border-none text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            Apply Filters
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 function OpeningModal({
     open,
     mode,
     form,
     setForm,
     template,
+    templates,
     academicYears,
     onClose,
     onSave,
@@ -202,6 +277,10 @@ function OpeningModal({
 
     const isEdit = mode === 'edit';
     const title = isEdit ? 'Edit Scholarship Opening' : 'Create Scholarship Opening';
+
+    const selectedTemplate =
+        templates.find((t) => t.program_id === form.program_id) || template || null;
+
     const previewStatus = getComputedDisplayStatus({
         ...form,
         posting_status: derivePersistedOpeningStatus(form, form.posting_status),
@@ -217,6 +296,12 @@ function OpeningModal({
     const audienceLabel = targetAudienceLabel(form.target_audience);
     const selectedAcademicYear =
         academicYears.find((y) => y.academic_year_id === form.academic_year_id) || null;
+
+    const canSubmit =
+        !!form.opening_title?.trim() &&
+        !!form.program_id &&
+        !!form.academic_year_id &&
+        Number(form.allocated_slots || 0) > 0;
 
     return (
         <div
@@ -244,7 +329,7 @@ function OpeningModal({
                 </div>
 
                 <div className="flex-1 space-y-5 overflow-y-auto p-5">
-                    {template && (
+                    {selectedTemplate && (
                         <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
                             <div className="flex items-start gap-3">
                                 <div
@@ -257,11 +342,11 @@ function OpeningModal({
                                 <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <p className="text-sm font-semibold text-stone-800">
-                                            {template.program_name || 'Untitled Program'}
+                                            {selectedTemplate.program_name || 'Untitled Program'}
                                         </p>
 
                                         <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
-                                            {template.benefactor_name || 'No Organization'}
+                                            {selectedTemplate.benefactor_name || 'No Organization'}
                                         </Badge>
 
                                         <Badge
@@ -275,12 +360,12 @@ function OpeningModal({
                                         <Badge
                                             variant="outline"
                                             className={`text-[10px] ${previewStatus === 'open'
-                                                ? 'border-green-200 bg-green-50 text-green-700'
-                                                : previewStatus === 'closed'
-                                                    ? 'border-red-200 bg-red-50 text-red-700'
-                                                    : previewStatus === 'draft'
-                                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                                        : 'border-stone-200 bg-white text-stone-600'
+                                                    ? 'border-green-200 bg-green-50 text-green-700'
+                                                    : previewStatus === 'closed'
+                                                        ? 'border-red-200 bg-red-50 text-red-700'
+                                                        : previewStatus === 'draft'
+                                                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                            : 'border-stone-200 bg-white text-stone-600'
                                                 }`}
                                         >
                                             {STATUS_META[previewStatus]?.label || 'Draft'}
@@ -288,7 +373,7 @@ function OpeningModal({
                                     </div>
 
                                     <p className="mt-1 text-xs text-stone-500">
-                                        {template.description || 'No default description set.'}
+                                        {selectedTemplate.description || 'No default description set.'}
                                     </p>
                                 </div>
                             </div>
@@ -297,6 +382,48 @@ function OpeningModal({
 
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                         <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Scholarship Program
+                                </label>
+                                <Select
+                                    value={form.program_id}
+                                    onValueChange={(value) => {
+                                        const selected = templates.find((t) => t.program_id === value);
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            program_id: value,
+                                            target_audience: deriveTargetAudience(selected),
+                                            announcement_text:
+                                                prev.announcement_text?.trim()
+                                                    ? prev.announcement_text
+                                                    : selected?.description || '',
+                                            opening_title:
+                                                prev.opening_title?.trim()
+                                                    ? prev.opening_title
+                                                    : `${selected?.program_name || 'Scholarship'} Opening`,
+                                        }));
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm">
+                                        <SelectValue placeholder="Select scholarship program" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {templates.length === 0 ? (
+                                            <SelectItem value="NO_PROGRAM" disabled>
+                                                No published programs available
+                                            </SelectItem>
+                                        ) : (
+                                            templates.map((item) => (
+                                                <SelectItem key={item.program_id} value={item.program_id}>
+                                                    {item.program_name}
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                     Opening Title
@@ -445,12 +572,7 @@ function OpeningModal({
 
                     <Button
                         onClick={onSave}
-                        disabled={
-                            saving ||
-                            !form.opening_title ||
-                            !form.academic_year_id ||
-                            !form.program_id
-                        }
+                        disabled={saving || !canSubmit}
                         className="h-9 rounded-lg border-none text-xs text-white disabled:opacity-50"
                         style={{ background: C.brownMid }}
                     >
@@ -620,10 +742,10 @@ function OpeningCard({
                                 <Badge
                                     variant="outline"
                                     className={`text-[10px] ${audience === 'Both'
-                                        ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                        : audience === 'Scholars'
-                                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                            : 'border-sky-200 bg-sky-50 text-sky-700'
+                                            ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                            : audience === 'Scholars'
+                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                                : 'border-sky-200 bg-sky-50 text-sky-700'
                                         }`}
                                 >
                                     <Users className="mr-1 h-3 w-3" />
@@ -802,8 +924,11 @@ export default function ScholarshipOpenings() {
     const [search, setSearch] = useState('');
     const [programFilter, setProgramFilter] = useState('All Programs');
     const [audienceFilter, setAudienceFilter] = useState('All Audiences');
-    const [viewMode, setViewMode] = useState('cards');
     const [pageTab, setPageTab] = useState('current');
+
+    const [filterOpen, setFilterOpen] = useState(false);
+    const [draftProgramFilter, setDraftProgramFilter] = useState('All Programs');
+    const [draftAudienceFilter, setDraftAudienceFilter] = useState('All Audiences');
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -886,19 +1011,15 @@ export default function ScholarshipOpenings() {
         fetchData();
     }, []);
 
-    // Realtime updates for scholarship openings
-    useSocketEvent('opening:created', (data) => {
-        console.log('[Realtime] Opening created:', data);
+    useSocketEvent('opening:created', () => {
         fetchData();
     }, []);
 
-    useSocketEvent('opening:updated', (data) => {
-        console.log('[Realtime] Opening updated:', data);
+    useSocketEvent('opening:updated', () => {
         fetchData();
     }, []);
 
-    useSocketEvent('opening:closed', (data) => {
-        console.log('[Realtime] Opening closed:', data);
+    useSocketEvent('opening:closed', () => {
         fetchData();
     }, []);
 
@@ -994,15 +1115,29 @@ export default function ScholarshipOpenings() {
             });
     }, [visibleOpenings, search, programFilter, audienceFilter, pageTab]);
 
-    const stats = useMemo(() => {
-        return {
-            templates: templates.length,
-            total: visibleOpenings.length,
-            open: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'open').length,
-            draft: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'draft').length,
-            archived: visibleOpenings.filter((o) => getComputedDisplayStatus(o) === 'archived').length,
-        };
-    }, [templates, visibleOpenings]);
+    const hasActiveFilters =
+        audienceFilter !== 'All Audiences' ||
+        programFilter !== 'All Programs';
+
+    const openFilterModal = () => {
+        setDraftAudienceFilter(audienceFilter);
+        setDraftProgramFilter(programFilter);
+        setFilterOpen(true);
+    };
+
+    const applyFilters = () => {
+        setAudienceFilter(draftAudienceFilter);
+        setProgramFilter(draftProgramFilter);
+        setFilterOpen(false);
+    };
+
+    const clearFilters = () => {
+        setAudienceFilter('All Audiences');
+        setProgramFilter('All Programs');
+        setDraftAudienceFilter('All Audiences');
+        setDraftProgramFilter('All Programs');
+        setFilterOpen(false);
+    };
 
     const openCreateFromTemplate = (template) => {
         const currentYear = new Date().getFullYear();
@@ -1093,6 +1228,11 @@ export default function ScholarshipOpenings() {
             }
 
             const allocatedSlots = Number(form.allocated_slots || 0);
+            if (allocatedSlots <= 0) {
+                alert('Allocated slots must be greater than 0.');
+                return;
+            }
+
             const financialAllocation = Number(form.financial_allocation || 0);
             const perScholarAmount =
                 allocatedSlots > 0 && financialAllocation > 0
@@ -1165,7 +1305,8 @@ export default function ScholarshipOpenings() {
         try {
             setActionLoadingId(openingId);
 
-const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {                method: 'PATCH',
+            const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {
+                method: 'PATCH',
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
@@ -1272,6 +1413,7 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                 form={form}
                 setForm={setForm}
                 template={activeTemplate}
+                templates={templates}
                 academicYears={academicYears}
                 onClose={() => {
                     setModalOpen(false);
@@ -1293,43 +1435,18 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                 onCreateAnnouncement={handleCreateAnnouncementRedirect}
             />
 
-            <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                <MiniStat
-                    label="Available Templates"
-                    value={stats.templates}
-                    icon={FolderOpen}
-                    accent={C.blueMid}
-                    soft={C.blueSoft}
-                />
-                <MiniStat
-                    label="Total Openings"
-                    value={stats.total}
-                    icon={CalendarDays}
-                    accent={C.brownMid}
-                    soft={C.amberSoft}
-                />
-                <MiniStat
-                    label="Open"
-                    value={stats.open}
-                    icon={CheckCircle2}
-                    accent={C.green}
-                    soft={C.greenSoft}
-                />
-                <MiniStat
-                    label="Draft"
-                    value={stats.draft}
-                    icon={Clock3}
-                    accent={C.amber}
-                    soft={C.amberSoft}
-                />
-                <MiniStat
-                    label="Archived"
-                    value={stats.archived}
-                    icon={Archive}
-                    accent={'#57534e'}
-                    soft={'#f5f5f4'}
-                />
-            </section>
+            <FilterModal
+                open={filterOpen}
+                onClose={() => setFilterOpen(false)}
+                programOptions={programOptions}
+                audienceOptions={audienceOptions}
+                draftProgramFilter={draftProgramFilter}
+                setDraftProgramFilter={setDraftProgramFilter}
+                draftAudienceFilter={draftAudienceFilter}
+                setDraftAudienceFilter={setDraftAudienceFilter}
+                onApply={applyFilters}
+                onClear={clearFilters}
+            />
 
             <section
                 className="rounded-2xl border bg-white p-3 sm:p-4"
@@ -1340,8 +1457,8 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                         <button
                             onClick={() => setPageTab('templates')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'templates'
-                                ? 'bg-white text-stone-900 shadow-sm'
-                                : 'text-stone-600'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-600'
                                 }`}
                         >
                             Templates
@@ -1350,8 +1467,8 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                         <button
                             onClick={() => setPageTab('current')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'current'
-                                ? 'bg-white text-stone-900 shadow-sm'
-                                : 'text-stone-600'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-600'
                                 }`}
                         >
                             Current
@@ -1360,8 +1477,8 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                         <button
                             onClick={() => setPageTab('archived')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'archived'
-                                ? 'bg-white text-stone-900 shadow-sm'
-                                : 'text-stone-600'
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-600'
                                 }`}
                         >
                             Archived
@@ -1384,57 +1501,20 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                         </div>
 
                         <div className="flex flex-wrap gap-2 lg:items-center">
-                            <Select value={audienceFilter} onValueChange={setAudienceFilter}>
-                                <SelectTrigger className="h-10 w-[170px] rounded-xl border-stone-200 bg-white text-sm">
-                                    <SelectValue placeholder="Target Audience" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {audienceOptions.map((option) => (
-                                        <SelectItem key={option} value={option}>
-                                            {option === 'Both' ? 'Scholars & Applicants' : option}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-
-                            <Select value={programFilter} onValueChange={setProgramFilter}>
-                                <SelectTrigger className="h-10 w-[170px] rounded-xl border-stone-200 bg-white text-sm">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {programOptions.map((option) => (
-                                        <SelectItem key={option} value={option}>
-                                            {option}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-
-                            {pageTab !== 'templates' && (
-                                <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
-                                    <button
-                                        onClick={() => setViewMode('cards')}
-                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'cards'
-                                            ? 'bg-white text-stone-900 shadow-sm'
-                                            : 'text-stone-600'
-                                            }`}
-                                    >
-                                        <LayoutGrid className="h-4 w-4" />
-                                        Cards
-                                    </button>
-
-                                    <button
-                                        onClick={() => setViewMode('table')}
-                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'table'
-                                            ? 'bg-white text-stone-900 shadow-sm'
-                                            : 'text-stone-600'
-                                            }`}
-                                    >
-                                        <Table2 className="h-4 w-4" />
-                                        Table
-                                    </button>
-                                </div>
-                            )}
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={openFilterModal}
+                                className="h-10 rounded-xl border-stone-200 text-xs text-stone-600"
+                            >
+                                <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                                Filters
+                                {hasActiveFilters && (
+                                    <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                        Active
+                                    </span>
+                                )}
+                            </Button>
 
                             <Button
                                 size="sm"
@@ -1464,30 +1544,24 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                         </div>
                     </div>
 
-                    {(search ||
-                        audienceFilter !== 'All Audiences' ||
-                        programFilter !== 'All Programs') && (
-                            <div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                        setSearch('');
-                                        setAudienceFilter('All Audiences');
-                                        setProgramFilter('All Programs');
-                                    }}
-                                    className="h-9 rounded-lg border-stone-200 text-xs"
-                                >
-                                    Reset Filters
-                                </Button>
-                            </div>
-                        )}
+                    {search && (
+                        <div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSearch('')}
+                                className="h-9 rounded-lg border-stone-200 text-xs"
+                            >
+                                Reset Search
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </section>
 
             {pageTab === 'templates' && (
                 <section
-                    className="rounded-2xl border bg-white overflow-hidden"
+                    className="overflow-hidden rounded-2xl border bg-white"
                     style={{ borderColor: C.line }}
                 >
                     <div className="border-b border-stone-100 px-5 py-4">
@@ -1521,7 +1595,7 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
 
             {pageTab !== 'templates' && (
                 <section
-                    className="rounded-2xl border bg-white overflow-hidden"
+                    className="overflow-hidden rounded-2xl border bg-white"
                     style={{ borderColor: C.line }}
                 >
                     <div className="border-b border-stone-100 px-5 py-4">
@@ -1546,7 +1620,7 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                                         : 'Archived scholarship openings will appear here.'
                                 }
                             />
-                        ) : viewMode === 'cards' ? (
+                        ) : (
                             <div className="space-y-3">
                                 {filteredOpenings.map((opening) => (
                                     <OpeningCard
@@ -1562,194 +1636,6 @@ const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {    
                                         handleArchiveOpening={handleArchiveOpening}
                                     />
                                 ))}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full min-w-[1100px]">
-                                    <thead className="bg-stone-50">
-                                        <tr className="border-b border-stone-200">
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Opening</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Program</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Audience</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Academic Year</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Slots</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Per Scholar</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Status</th>
-                                            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">Actions</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody>
-                                        {filteredOpenings.map((opening) => {
-                                            const computedStatus = getComputedDisplayStatus(opening);
-                                            const meta = STATUS_META[computedStatus] || STATUS_META.draft;
-                                            const audience = normalizeAudience(opening.target_audience) || 'Applicants';
-                                            const audienceLabelValue = targetAudienceLabel(audience);
-
-                                            const allocatedSlots = getAllocatedSlots(opening);
-                                            const filledSlots = getFilledSlots(opening);
-                                            const availableSlots = getAvailableSlots(opening);
-
-                                            const isArchived = computedStatus === 'archived';
-                                            const isClosed = computedStatus === 'closed';
-                                            const isDraft = computedStatus === 'draft';
-                                            const canBeOpened = canOpeningBeOpened(opening);
-                                            const canReopen = isClosed && availableSlots > 0;
-                                            const canMoveToDraft = !isArchived && !isDraft && filledSlots === 0;
-                                            const isBusy = actionLoadingId === opening.opening_id;
-
-                                            const perScholar =
-                                                opening.per_scholar_amount ??
-                                                (allocatedSlots > 0
-                                                    ? Math.floor(Number(opening.financial_allocation || 0) / allocatedSlots)
-                                                    : 0);
-
-                                            return (
-                                                <tr key={opening.opening_id} className="border-b border-stone-100 hover:bg-stone-50">
-                                                    <td className="px-4 py-4">
-                                                        <div>
-                                                            <p className="text-sm font-medium text-stone-900">
-                                                                {opening.opening_title || 'Untitled Opening'}
-                                                            </p>
-                                                            <p className="mt-1 text-xs text-stone-400">
-                                                                {opening.benefactor_name || 'No Benefactor'}
-                                                            </p>
-                                                        </div>
-                                                    </td>
-
-                                                    <td className="px-4 py-4 text-sm text-stone-700">
-                                                        {opening.program_name || 'No Program'}
-                                                    </td>
-
-                                                    <td className="px-4 py-4">
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={`text-[10px] ${audience === 'Both'
-                                                                ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                                                : audience === 'Scholars'
-                                                                    ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                                                    : 'border-sky-200 bg-sky-50 text-sky-700'
-                                                                }`}
-                                                        >
-                                                            {audienceLabelValue}
-                                                        </Badge>
-                                                    </td>
-
-                                                    <td className="px-4 py-4 text-sm text-stone-700">
-                                                        {opening.academic_year || 'N/A'}
-                                                    </td>
-
-                                                    <td className="px-4 py-4 text-sm text-stone-700">
-                                                        <div>Allocated: {allocatedSlots}</div>
-                                                        <div>Filled: {filledSlots}</div>
-                                                        <div>Avail: {availableSlots}</div>
-                                                    </td>
-
-                                                    <td className="px-4 py-4 text-sm font-medium text-stone-900">
-                                                        {fmtMoney(perScholar)}
-                                                    </td>
-
-                                                    <td className="px-4 py-4">
-                                                        <span
-                                                            className="rounded-full px-2.5 py-1 text-[10px] font-medium"
-                                                            style={{ color: meta.color, background: meta.bg }}
-                                                        >
-                                                            {meta.label}
-                                                        </span>
-                                                    </td>
-
-                                                    <td className="px-4 py-4 text-right">
-                                                        <div className="flex flex-wrap justify-end gap-1.5">
-                                                            {isArchived && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleUnarchiveOpening(opening)}
-                                                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
-                                                                    disabled={isBusy}
-                                                                >
-                                                                    {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Unarchive'}
-                                                                </Button>
-                                                            )}
-
-                                                            {!isArchived && (
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => openEditModal(opening)}
-                                                                    className="h-7 rounded-md border-stone-200 px-2 text-[11px]"
-                                                                    disabled={isBusy}
-                                                                >
-                                                                    Edit
-                                                                </Button>
-                                                            )}
-
-                                                            {!isArchived && isDraft && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleOpenDraftOpening(opening)}
-                                                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
-                                                                    disabled={isBusy || !canBeOpened}
-                                                                >
-                                                                    Open
-                                                                </Button>
-                                                            )}
-
-                                                            {canMoveToDraft && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleMoveToDraft(opening)}
-                                                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
-                                                                    disabled={isBusy}
-                                                                >
-                                                                    Draft
-                                                                </Button>
-                                                            )}
-
-                                                            {!isArchived && !isClosed && !isDraft && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleCloseOpening(opening.opening_id)}
-                                                                    className="h-7 rounded-md border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
-                                                                    disabled={isBusy}
-                                                                >
-                                                                    Close
-                                                                </Button>
-                                                            )}
-
-                                                            {!isArchived && isClosed && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleReopenOpening(opening)}
-                                                                    className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
-                                                                    disabled={isBusy || !canReopen}
-                                                                >
-                                                                    Reopen
-                                                                </Button>
-                                                            )}
-
-                                                            {!isArchived && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleArchiveOpening(opening.opening_id)}
-                                                                    className="h-7 rounded-md border-red-200 px-2 text-[11px] text-red-700 hover:bg-red-50"
-                                                                    disabled={isBusy}
-                                                                >
-                                                                    Archive
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
                             </div>
                         )}
                     </div>

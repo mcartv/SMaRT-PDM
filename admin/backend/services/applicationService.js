@@ -1002,6 +1002,7 @@ exports.runApplicationDocumentIotOcr = async ({
     }
 
     const iotOcrEndpointUrl = validateIotOcrEndpoint(IOT_OCR_ENDPOINT_URL);
+    const interactiveIotOcrEndpointUrl = iotOcrEndpointUrl.replace(/\/scan\/?$/, '/scan-interactive');
 
     const documentTypeName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
 
@@ -1076,7 +1077,7 @@ exports.runApplicationDocumentIotOcr = async ({
     };
 
     // If HTTP (not HTTPS), ensure proper handling
-    if (iotOcrEndpointUrl.startsWith('http://')) {
+    if (interactiveIotOcrEndpointUrl.startsWith('http://')) {
         // Plain HTTP - no agent needed
     } else {
         // HTTPS - allow self-signed certs for local device
@@ -1084,7 +1085,7 @@ exports.runApplicationDocumentIotOcr = async ({
     }
 
     try {
-        response = await fetch(iotOcrEndpointUrl, fetchOptions);
+        response = await fetch(interactiveIotOcrEndpointUrl, fetchOptions);
     } catch (error) {
         if (error.name === 'AbortError') {
             throw buildHttpError(
@@ -1095,7 +1096,7 @@ exports.runApplicationDocumentIotOcr = async ({
 
         throw buildHttpError(
             502,
-            `IoT OCR service is unreachable at ${iotOcrEndpointUrl}. ${error.message || 'Upstream fetch failed.'}`
+            `IoT OCR service is unreachable at ${interactiveIotOcrEndpointUrl}. ${error.message || 'Upstream fetch failed.'}`
         );
     } finally {
         clearTimeout(timeout);

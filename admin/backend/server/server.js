@@ -7,6 +7,7 @@ require('dotenv').config({
 });
 
 const express = require('express');
+const cors = require('cors');
 
 // Route imports
 const authRoutes = require('../routes/authRoutes');
@@ -63,16 +64,16 @@ const isAllowedOrigin = (origin) => {
 // MIDDLEWARE
 // =========================
 
-const cors = require("cors");
-
 app.use(cors({
-  origin: [
-    "http://localhost:5173", // your local frontend
-    "http://localhost:5000", // optional fallback
-    "https://smart-pdm.vercel.app/" // your deployed frontend
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true
+    origin: (origin, callback) => {
+        if (isAllowedOrigin(origin)) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true
 }));
 
 app.use(express.json());

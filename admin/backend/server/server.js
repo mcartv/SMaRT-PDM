@@ -64,16 +64,16 @@ const isAllowedOrigin = (origin) => {
 // MIDDLEWARE
 // =========================
 
-app.use(cors({
-    origin: (origin, callback) => {
-        if (isAllowedOrigin(origin)) {
-            callback(null, true);
-            return;
-        }
+const cors = require("cors");
 
-        callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true
+app.use(cors({
+  origin: [
+    "http://localhost:5173", // your local frontend
+    "http://localhost:3000", // optional fallback
+    "https://your-frontend.vercel.app" // your deployed frontend
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
 }));
 
 app.use(express.json());

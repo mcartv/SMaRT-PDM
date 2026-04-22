@@ -69,8 +69,8 @@ const cors = require("cors");
 app.use(cors({
   origin: [
     "http://localhost:5173", // your local frontend
-    "http://localhost:3000", // optional fallback
-    "https://your-frontend.vercel.app" // your deployed frontend
+    "http://localhost:5000", // optional fallback
+    "https://smart-pdm.vercel.app/" // your deployed frontend
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true

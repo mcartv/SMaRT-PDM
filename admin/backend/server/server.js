@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
 const socketIO = require('socket.io');
 
@@ -35,57 +36,94 @@ const { runAnnouncementScheduler } = require('../services/schedulerService');
 
 const app = express();
 
+// =========================
+// CORS SETUP
+// =========================
+
 const allowedOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_URL || '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const allowedOriginSuffixes = (process.env.FRONTEND_ORIGIN_SUFFIXES || '.vercel.app')
-    .split(',')
-    .map((suffix) => suffix.trim().toLowerCase())
-    .filter(Boolean);
+  .split(',')
+  .map((suffix) => suffix.trim().toLowerCase())
+  .filter(Boolean);
 
 if (!allowedOrigins.length) {
-    allowedOrigins.push('http://localhost:5173', 'http://127.0.0.1:5173');
+  allowedOrigins.push(
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
+  );
 }
 
-const isAllowedOrigin = (origin) => {
-    if (!origin) return true;
-    if (allowedOrigins.includes(origin)) return true;
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
 
-    try {
-        const { protocol, hostname } = new URL(origin);
-        const normalizedHostname = hostname.toLowerCase();
+  try {
+    const parsed = new URL(origin);
+    const protocol = parsed.protocol;
+    const hostname = parsed.hostname.toLowerCase();
 
-        // Flutter web uses a random localhost port during `flutter run -d chrome`.
-        if (
-            (protocol === 'http:' || protocol === 'https:')
-            && ['localhost', '127.0.0.1'].includes(normalizedHostname)
-        ) {
-            return true;
-        }
-
-        return allowedOriginSuffixes.some((suffix) => normalizedHostname.endsWith(suffix));
-    } catch (error) {
-        return false;
+    if (
+      (protocol === 'http:' || protocol === 'https:') &&
+      (hostname === 'localhost' || hostname === '127.0.0.1')
+    ) {
+      return true;
     }
+
+    if (allowedOriginSuffixes.some((suffix) => hostname.endsWith(suffix))) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+    console.error(`CORS blocked for origin: ${origin}`);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204,
 };
 
-// =========================
-// MIDDLEWARE
-// =========================
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
-app.use(cors({
-    origin: (origin, callback) => {
-        if (isAllowedOrigin(origin)) {
-            callback(null, true);
-            return;
-        }
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
 
-        callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true
-}));
+  if (isAllowedOrigin(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+
+  res.header('Vary', 'Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
+// =========================
+// BODY PARSERS
+// =========================
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -96,18 +134,26 @@ app.use(express.urlencoded({ extended: true }));
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 console.log('Frontend build path:', frontendBuildPath);
-console.log('Index.html exists:', require('fs').existsSync(path.join(frontendBuildPath, 'index.html')));
-console.log('Assets directory exists:', require('fs').existsSync(path.join(frontendBuildPath, 'assets')));
+console.log('Index.html exists:', fs.existsSync(path.join(frontendBuildPath, 'index.html')));
+console.log('Assets directory exists:', fs.existsSync(path.join(frontendBuildPath, 'assets')));
 
 app.use(express.static(frontendBuildPath));
 
 // =========================
-// ROUTES
+// HEALTH CHECK
 // =========================
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
 });
+
+app.get('/', (req, res) => {
+    res.send('API is running...');
+});
+
+// =========================
+// API ROUTES
+// =========================
 
 app.use('/api/auth', authRoutes);
 app.use('/api/scholars', scholarRoutes);
@@ -130,54 +176,49 @@ app.use('/api/ocr', ocrRoutes);
 app.use('/api/pi', piRoutes);
 
 // =========================
-// HEALTH CHECK
-// =========================
-
-app.get('/', (req, res) => {
-    res.send('API is running...');
-});
-
-// =========================
-// CATCH-ALL HANDLER FOR SPA ROUTING
-// This runs after all routes - serves index.html for any unmatched requests
+// SPA CATCH-ALL
 // =========================
 
 app.use((req, res) => {
     console.log('Catch-all request:', req.method, req.path, req.headers.accept);
 
-    // If it's an API route that wasn't matched, return 404
     if (req.path.startsWith('/api/')) {
         console.log('API route not found:', req.path);
         return res.status(404).json({ message: 'API endpoint not found' });
     }
 
-    // Missing static assets should stay 404s instead of falling back to index.html.
     if (path.extname(req.path)) {
         console.log('Static asset not found:', req.path);
         return res.status(404).send('Asset not found');
     }
 
-    // For all other requests (SPA routes), serve index.html
     const indexPath = path.join(frontendBuildPath, 'index.html');
     console.log('Serving index.html for:', req.path);
+
     res.sendFile(indexPath, (err) => {
         if (err) {
             console.error('Error serving index.html for path:', req.path, err);
-            res.status(500).json({ message: 'Internal server error' });
+            if (!res.headersSent) {
+                res.status(500).json({ message: 'Internal server error' });
+            }
         }
     });
 });
 
 // =========================
-// ERROR HANDLER
+// GLOBAL ERROR HANDLER
 // =========================
 
 app.use((err, req, res, next) => {
     console.error('GLOBAL ERROR:', err);
 
-    res.status(err.status || 500).json({
-        message: err.message || 'Internal Server Error',
-    });
+    if (!res.headersSent) {
+        res.status(err.status || 500).json({
+            message: err.message || 'Internal Server Error',
+        });
+    } else {
+        next(err);
+    }
 });
 
 // =========================
@@ -187,22 +228,27 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 const server = http.createServer(app);
+
 const io = socketIO(server, {
     cors: {
-        origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
-        credentials: true
+        origin(origin, callback) {
+            if (isAllowedOrigin(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
+        },
+        credentials: true,
+        methods: ['GET', 'POST'],
     },
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
 });
 
-// Make io instance available to routes
 app.set('io', io);
 
-// Socket.io connection handler
 io.on('connection', (socket) => {
     console.log(`[Socket] User connected: ${socket.id}`);
 
-    // Join user to a room for targeted broadcasts
     socket.on('user-join', (userId) => {
         socket.join(`user:${userId}`);
         console.log(`[Socket] User ${userId} joined their room`);
@@ -216,6 +262,8 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`WebSocket enabled at ws://localhost:${PORT}`);
+    console.log('Allowed origins:', allowedOrigins);
+    console.log('Allowed origin suffixes:', allowedOriginSuffixes);
 });
 
 // =========================

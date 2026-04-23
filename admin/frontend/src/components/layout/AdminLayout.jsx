@@ -121,42 +121,52 @@ export default function AdminLayout() {
     /^\/admin\/openings\/[^/]+\/applications$/.test(location.pathname) ||
     /^\/admin\/renewals\/[^/]+$/.test(location.pathname);
 
+  // Pages that usually need their own internal scroll areas
+  const isPanelScrollPage =
+    /^\/admin\/applications$/.test(location.pathname) ||
+    /^\/admin\/applications\/[^/]+\/documents$/.test(location.pathname) ||
+    /^\/admin\/openings\/[^/]+\/applications$/.test(location.pathname) ||
+    /^\/admin\/renewals\/[^/]+$/.test(location.pathname) ||
+    /^\/admin\/maintenance$/.test(location.pathname) ||
+    /^\/admin\/scholars$/.test(location.pathname) ||
+    /^\/admin\/payout$/.test(location.pathname);
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#faf7f2]">
+    <div className="flex h-dvh w-full overflow-hidden bg-[#faf7f2]">
       {/* Sidebar */}
       <aside
-        className="flex flex-col h-full shrink-0 transition-all duration-300 border-r border-black/10"
+        className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
         style={{ width: collapsed ? '76px' : '248px', background: SB_BASE }}
       >
-        <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-[#8f5235] flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#8f5235] shadow-sm">
             <img
               src={pdmLogo}
               alt="PDM"
-              className="w-10 h-10 object-contain scale-110 drop-shadow-sm"
+              className="h-10 w-10 scale-110 object-contain drop-shadow-sm"
             />
           </div>
 
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-white text-sm font-semibold truncate leading-tight">
+              <p className="truncate text-sm font-semibold leading-tight text-white">
                 PDM · OSFA
               </p>
-              <p className="text-[11px] truncate" style={{ color: SB_SUB }}>
+              <p className="truncate text-[11px]" style={{ color: SB_SUB }}>
                 Admin Portal
               </p>
             </div>
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1.5">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.path === '/admin/applications' || item.path === '/admin/openings'}
               className={({ isActive }) =>
-                `flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl text-sm transition-all group ${isActive
+                `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'
                   : 'text-[#f0d9c8] hover:bg-white/7'
                 }`
@@ -164,45 +174,47 @@ export default function AdminLayout() {
               title={collapsed ? item.label : ''}
             >
               <item.icon
-                className={`w-4 h-4 shrink-0 transition-colors ${collapsed ? '' : 'group-hover:text-amber-300'
+                className={`h-4 w-4 shrink-0 transition-colors ${collapsed ? '' : 'group-hover:text-amber-300'
                   }`}
               />
-              {!collapsed && <span className="font-medium truncate">{item.label}</span>}
+              {!collapsed && <span className="truncate font-medium">{item.label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-3 border-t border-white/10 space-y-1.5">
+        <div className="space-y-1.5 border-t border-white/10 p-3">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} w-full px-3 py-2.5 rounded-xl text-sm text-[#f0d9c8]/80 hover:bg-white/7 transition-colors`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm text-[#f0d9c8]/80 transition-colors hover:bg-white/7`}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? (
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="h-4 w-4" />
             ) : (
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="h-4 w-4" />
             )}
             {!collapsed && <span className="font-medium">Collapse</span>}
           </button>
 
           <button
             onClick={handleLogout}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} w-full px-3 py-2.5 rounded-xl text-sm text-amber-50 hover:bg-red-500/20 transition-colors`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm text-amber-50 transition-colors hover:bg-red-500/20`}
             title={collapsed ? 'Logout' : ''}
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="h-4 w-4" />
             {!collapsed && <span className="font-medium">Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 flex items-center justify-between px-5 md:px-6 bg-white border-b border-stone-200 shrink-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-stone-800 leading-tight">SMaRT PDM</h1>
-            <p className="text-[11px] text-stone-500 truncate">
+            <h1 className="text-sm font-semibold leading-tight text-stone-800">
+              SMaRT PDM
+            </h1>
+            <p className="truncate text-[11px] text-stone-500">
               Scholarship Monitoring &amp; Tracking
             </p>
           </div>
@@ -211,17 +223,17 @@ export default function AdminLayout() {
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
-                className="relative p-2 rounded-full hover:bg-stone-100 transition-colors border border-stone-200 bg-white"
+                className="relative rounded-full border border-stone-200 bg-white p-2 transition-colors hover:bg-stone-100"
               >
-                <Bell className="w-4 h-4 text-stone-600" />
+                <Bell className="h-4 w-4 text-stone-600" />
                 {notifs.length > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
                 )}
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-stone-200 rounded-2xl shadow-xl z-50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-stone-100 bg-stone-50/60">
+                <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
+                  <div className="border-b border-stone-100 bg-stone-50/60 px-4 py-3">
                     <p className="text-xs font-semibold text-stone-800">Recent Alerts</p>
                   </div>
 
@@ -230,12 +242,12 @@ export default function AdminLayout() {
                       notifs.map((n) => (
                         <div
                           key={n.id}
-                          className="px-4 py-3 hover:bg-amber-50/40 border-b border-stone-50 cursor-pointer"
+                          className="cursor-pointer border-b border-stone-50 px-4 py-3 hover:bg-amber-50/40"
                         >
                           <p className="text-xs font-semibold text-stone-800">
                             {n.title || 'Notification'}
                           </p>
-                          <p className="text-[11px] text-stone-500 line-clamp-2 mt-0.5">
+                          <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
                             {n.message}
                           </p>
                         </div>
@@ -252,26 +264,26 @@ export default function AdminLayout() {
 
             <button
               onClick={handleProfileClick}
-              className="flex items-center gap-3 pl-1.5 pr-3 py-1.5 rounded-full border border-stone-200 bg-stone-50/80 hover:bg-stone-100 transition-colors cursor-pointer"
+              className="flex cursor-pointer items-center gap-3 rounded-full border border-stone-200 bg-stone-50/80 py-1.5 pl-1.5 pr-3 transition-colors hover:bg-stone-100"
               title="Open Profile"
             >
               {profileImage ? (
                 <img
                   src={profileImage}
                   alt={adminData?.name || 'Admin'}
-                  className="w-8 h-8 rounded-full border-2 border-white shadow-sm shrink-0 object-cover"
+                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-stone-800 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-stone-800 text-[10px] font-bold text-white shadow-sm">
                   {getInitials()}
                 </div>
               )}
 
-              <div className="hidden sm:block leading-tight truncate max-w-[140px] text-left">
-                <p className="text-[12px] font-semibold text-stone-800 truncate">
+              <div className="hidden max-w-[140px] truncate text-left leading-tight sm:block">
+                <p className="truncate text-[12px] font-semibold text-stone-800">
                   {adminData?.name || 'Admin'}
                 </p>
-                <p className="text-[10px] text-stone-500 font-medium truncate">
+                <p className="truncate text-[10px] font-medium text-stone-500">
                   {adminData?.position || 'Staff'}
                 </p>
               </div>
@@ -279,8 +291,14 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-5 md:p-6 bg-[#faf7f2]">
-          <div className={isWidePage ? 'w-full' : 'max-w-7xl mx-auto'}>
+        <main
+          className={`min-h-0 flex-1 bg-[#faf7f2] p-5 md:p-6 ${isPanelScrollPage ? 'overflow-hidden' : 'overflow-y-auto'
+            }`}
+        >
+          <div
+            className={`${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} ${isPanelScrollPage ? 'h-full min-h-0 overflow-hidden' : ''
+              }`}
+          >
             <Outlet />
           </div>
         </main>

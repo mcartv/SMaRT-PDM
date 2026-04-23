@@ -361,7 +361,7 @@ export default function StudentRegistryPanel() {
   const [excelHeaders, setExcelHeaders] = useState(EXCEL_HEADERS_FALLBACK);
   const [excelRows, setExcelRows] = useState([]);
   const [excelSheetName, setExcelSheetName] = useState('Student Records');
-  const [tableMode, setTableMode] = useState('excel'); // excel | imported
+  const [tableMode, setTableMode] = useState('excel');
 
   const [search, setSearch] = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
@@ -654,7 +654,7 @@ export default function StudentRegistryPanel() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <FilterModal
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
@@ -669,22 +669,22 @@ export default function StudentRegistryPanel() {
       />
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-12">
-        <Card className="space-y-4 border-stone-200 p-4 shadow-none xl:col-span-4">
+      <div className="grid h-full min-h-0 gap-4 xl:grid-cols-12">
+        <Card className="flex h-full min-h-0 flex-col space-y-4 border-stone-200 p-4 shadow-none xl:col-span-4">
           <div
             onClick={() => inputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             className={`cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${isDragging
-                ? 'border-stone-500 bg-stone-50'
-                : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
+              ? 'border-stone-500 bg-stone-50'
+              : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
               }`}
           >
             <input
@@ -771,13 +771,13 @@ export default function StudentRegistryPanel() {
             <div className="flex items-start gap-2">
               <FileUp className="mt-0.5 h-4 w-4 text-stone-400" />
               <p className="text-xs leading-6 text-stone-500">
-                The table preview follows the actual Excel sheet columns. Large files are shown in pages so the table stays smooth.
+                The table preview follows the actual Excel sheet columns. Large files are shown in pages so the table stays smooth and fits the screen cleanly.
               </p>
             </div>
           </div>
         </Card>
 
-        <Card className="overflow-hidden border-stone-200 shadow-none xl:col-span-8">
+        <Card className="flex h-[calc(100vh-12rem)] min-h-[600px] max-h-[calc(100vh-12rem)] flex-col overflow-hidden border-stone-200 shadow-none xl:col-span-8">
           <div className="flex flex-col gap-3 border-b bg-white px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
               <span>
@@ -800,8 +800,8 @@ export default function StudentRegistryPanel() {
                       setPage(1);
                     }}
                     className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'excel'
-                        ? 'bg-stone-900 text-white'
-                        : 'text-stone-500 hover:text-stone-700'
+                      ? 'bg-stone-900 text-white'
+                      : 'text-stone-500 hover:text-stone-700'
                       }`}
                     disabled={excelRows.length === 0}
                   >
@@ -816,8 +816,8 @@ export default function StudentRegistryPanel() {
                       setPage(1);
                     }}
                     className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'imported'
-                        ? 'bg-stone-900 text-white'
-                        : 'text-stone-500 hover:text-stone-700'
+                      ? 'bg-stone-900 text-white'
+                      : 'text-stone-500 hover:text-stone-700'
                       }`}
                   >
                     <Eye className="h-3.5 w-3.5" />
@@ -869,7 +869,7 @@ export default function StudentRegistryPanel() {
             </div>
           </div>
 
-          <div className="max-h-[560px] overflow-auto">
+          <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full min-w-max text-xs">
               <thead className="sticky top-0 z-10 bg-stone-50 text-stone-500">
                 <tr>

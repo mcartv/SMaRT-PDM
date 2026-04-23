@@ -287,8 +287,8 @@ function Toolbar({
             <button
               onClick={() => setViewType('cards')}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewType === 'cards'
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-600'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
                 }`}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -298,8 +298,8 @@ function Toolbar({
             <button
               onClick={() => setViewType('table')}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewType === 'table'
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-600'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
                 }`}
             >
               <Table2 className="h-4 w-4" />
@@ -641,13 +641,11 @@ function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
 export default function ApplicationReview() {
   const navigate = useNavigate();
 
-  const [openings, setOpenings] = useState([]);
   const [registryRows, setRegistryRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [viewType, setViewType] = useState('cards');
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
@@ -663,42 +661,24 @@ export default function ApplicationReview() {
 
       const token = localStorage.getItem('adminToken');
 
-      const [openingsRes, applicationsRes] = await Promise.all([
-        fetch(buildApiUrl('/api/program-openings/admin/applications-summary'), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-        fetch(buildApiUrl('/api/applications'), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-      ]);
+      const res = await fetch(buildApiUrl('/api/applications'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (!openingsRes.ok) {
+      if (!res.ok) {
         throw new Error(
-          await parseErrorResponse(openingsRes, 'Failed to fetch scholarship openings')
+          await parseErrorResponse(res, 'Failed to fetch applications')
         );
       }
 
-      if (!applicationsRes.ok) {
-        throw new Error(
-          await parseErrorResponse(applicationsRes, 'Failed to fetch applications')
-        );
-      }
+      const data = await res.json();
 
-      const [openingsData, applicationsData] = await Promise.all([
-        openingsRes.json(),
-        applicationsRes.json(),
-      ]);
-
-      setOpenings(Array.isArray(openingsData) ? openingsData : []);
       setRegistryRows(
-        Array.isArray(applicationsData)
-          ? applicationsData.map(normalizeApplicantRow)
+        Array.isArray(data)
+          ? data.map(normalizeApplicantRow)
           : []
       );
     } catch (err) {
@@ -720,46 +700,7 @@ export default function ApplicationReview() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, viewType, filters]);
-
-  const openingCountsMap = useMemo(() => {
-    const map = new Map();
-
-    for (const row of registryRows) {
-      if (!row.opening_id) continue;
-
-      const current = map.get(row.opening_id) || { applicants: 0 };
-      if (getStatusGroup(row.application_status) === 'pending' || getStatusGroup(row.application_status) === 'review') {
-        current.applicants += 1;
-      }
-      map.set(row.opening_id, current);
-    }
-
-    return map;
-  }, [registryRows]);
-
-  const filteredOpenings = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return openings.filter((opening) => {
-      const openingGroup = getOpeningGroup(opening?.posting_status || opening?.status || '');
-
-      if (opening?.is_archived || openingGroup === 'closed' || openingGroup === 'archived') {
-        return false;
-      }
-
-      const matchesSearch =
-        !q ||
-        (opening.opening_title || opening.title || '').toLowerCase().includes(q) ||
-        (opening.program_name || '').toLowerCase().includes(q) ||
-        (opening.academic_year || '').toLowerCase().includes(q);
-
-      const matchesFilter =
-        filters.openingStatus === 'all' || filters.openingStatus === openingGroup;
-
-      return matchesSearch && matchesFilter;
-    });
-  }, [openings, search, filters]);
+  }, [search, filters]);
 
   const filteredRegistryRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -790,13 +731,12 @@ export default function ApplicationReview() {
     });
   }, [registryRows, search, filters]);
 
-  const activeRows = viewType === 'cards' ? filteredOpenings : filteredRegistryRows;
-  const totalPages = Math.max(1, Math.ceil(activeRows.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredRegistryRows.length / PAGE_SIZE));
 
   const pageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return activeRows.slice(start, start + PAGE_SIZE);
-  }, [activeRows, page]);
+    return filteredRegistryRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRegistryRows, page]);
 
   const applyFilters = () => setFilters(draftFilters);
   const clearFilters = () => {
@@ -836,8 +776,8 @@ export default function ApplicationReview() {
       <Toolbar
         search={search}
         setSearch={setSearch}
-        viewType={viewType}
-        setViewType={setViewType}
+        viewType="table"
+        setViewType={() => { }}
         refreshing={refreshing}
         onRefresh={() => loadData({ soft: true })}
         filters={filters}
@@ -847,30 +787,20 @@ export default function ApplicationReview() {
         onClearFilters={clearFilters}
       />
 
-      {activeRows.length === 0 ? (
+      {filteredRegistryRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">
           <CardContent className="py-16 text-center text-sm text-stone-400">
-            {viewType === 'cards'
-              ? 'No scholarship openings found.'
-              : 'No applicants found.'}
+            No applicants found.
           </CardContent>
         </Card>
       ) : (
         <>
-          {viewType === 'cards' ? (
-            <OpeningsGrid
-              rows={pageData}
-              countsMap={openingCountsMap}
-              navigate={navigate}
-            />
-          ) : (
-            <RegistryTable rows={pageData} navigate={navigate} />
-          )}
+          <RegistryTable rows={pageData} navigate={navigate} />
 
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={activeRows.length}
+            totalItems={filteredRegistryRows.length}
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
           />

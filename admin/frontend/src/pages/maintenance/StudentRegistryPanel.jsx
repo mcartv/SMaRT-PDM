@@ -22,6 +22,8 @@ import {
   FileUp,
   Table2,
   Eye,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -29,6 +31,7 @@ import { buildApiUrl } from '@/api';
 
 const API_BASE = buildApiUrl('/api');
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+const PAGE_SIZE = 50;
 
 const EXCEL_HEADERS_FALLBACK = [
   'Student Number',
@@ -227,13 +230,13 @@ function parseExcelDate(value) {
 function buildBackendRowForExcelShape(row) {
   return {
     'Student Number': row.student_number || '',
-    'Course': row.academic_course?.course_code || '',
+    'Course': row.academic_course?.course_code || row.course_code || '',
     'Year Level': row.year_level || '',
     'Surname': row.last_name || '',
     'First Name': row.given_name || '',
     'Middle Name': row.middle_name || '',
     'Suffix': row.suffix || '',
-    'Sex': row.sex || '',
+    'Sex': row.sex || row.sex_at_birth || '',
     'Height (m)': row.height_m || '',
     'Weight (kg)': row.weight_kg || '',
     'Nationality': row.nationality || '',
@@ -242,8 +245,8 @@ function buildBackendRowForExcelShape(row) {
     'Age': row.age || '',
     'Place of Birth': row.place_of_birth || '',
     'Civil Status': row.civil_status || '',
-    'Personal Number': row.personal_number || row.contact_number || '',
-    'Email Address': row.email || '',
+    'Personal Number': row.personal_number || row.contact_number || row.phone_number || '',
+    'Email Address': row.email || row.email_address || '',
     'Present Address': row.present_address || row.address || '',
     'Present ZIP Code': row.present_zip_code || '',
     'Permanent Address': row.permanent_address || '',
@@ -292,6 +295,58 @@ function buildBackendRowForExcelShape(row) {
   };
 }
 
+function PaginationBar({ page, totalPages, totalRows, onPrev, onNext, onGoToPage }) {
+  return (
+    <div className="flex flex-col gap-3 border-t bg-stone-50 px-4 py-3 text-[11px] text-stone-500 md:flex-row md:items-center md:justify-between">
+      <div>
+        Page {page} of {totalPages} • {totalRows} rows
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 border-stone-200 px-2"
+          onClick={onPrev}
+          disabled={page <= 1}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <span className="rounded-md border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-700">
+          {page}
+        </span>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 border-stone-200 px-2"
+          onClick={onNext}
+          disabled={page >= totalPages}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        <Select
+          value={String(page)}
+          onValueChange={(value) => onGoToPage(Number(value))}
+        >
+          <SelectTrigger className="h-8 w-[110px] border-stone-200 text-xs">
+            <SelectValue placeholder="Go to page" />
+          </SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((p) => (
+              <SelectItem key={p} value={String(p)}>
+                Page {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentRegistryPanel() {
   const inputRef = useRef(null);
 
@@ -316,12 +371,14 @@ export default function StudentRegistryPanel() {
   const [draftCourseFilter, setDraftCourseFilter] = useState('all');
   const [draftYearFilter, setDraftYearFilter] = useState('all');
 
+  const [page, setPage] = useState(1);
+
   const loadRegistry = async () => {
     setIsLoading(true);
     setError('');
 
     try {
-      const res = await fetch(`${API_BASE}/student-registry?limit=500`, {
+      const res = await fetch(`${API_BASE}/student-registry?limit=5000&offset=0`, {
         headers: getAuthHeaders(),
       });
 
@@ -382,6 +439,7 @@ export default function StudentRegistryPanel() {
     setExcelHeaders(headers.length ? headers : EXCEL_HEADERS_FALLBACK);
     setExcelRows(body);
     setTableMode('excel');
+    setPage(1);
   };
 
   const handleFileSelect = async (selectedFile) => {
@@ -431,6 +489,8 @@ export default function StudentRegistryPanel() {
       } else {
         setTableMode('imported');
       }
+
+      setPage(1);
     } catch (err) {
       setError(err.message || 'Import failed');
     } finally {
@@ -560,7 +620,16 @@ export default function StudentRegistryPanel() {
     });
   }, [currentRows, currentHeaders, search, courseFilter, yearFilter]);
 
-  const visibleRows = useMemo(() => filteredRows.slice(0, 200), [filteredRows]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, courseFilter, yearFilter, tableMode, excelRows.length, registry.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+
+  const visibleRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, page]);
 
   const hasActiveFilters = courseFilter !== 'all' || yearFilter !== 'all';
 
@@ -652,6 +721,7 @@ export default function StudentRegistryPanel() {
                   setFile(null);
                   setExcelRows([]);
                   setExcelHeaders(EXCEL_HEADERS_FALLBACK);
+                  setPage(1);
                   if (inputRef.current) inputRef.current.value = '';
                 }}
                 className="rounded-md p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
@@ -668,11 +738,16 @@ export default function StudentRegistryPanel() {
               className="h-9"
             >
               {isImporting ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                <span className="inline-flex items-center">
+                  <RefreshCcw className="mr-1.5 h-4 w-4 animate-spin" />
+                  Importing
+                </span>
               ) : (
-                <Upload className="mr-1.5 h-4 w-4" />
+                <span className="inline-flex items-center">
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  Import
+                </span>
               )}
-              {isImporting ? 'Importing' : 'Import'}
             </Button>
 
             <Button
@@ -696,7 +771,7 @@ export default function StudentRegistryPanel() {
             <div className="flex items-start gap-2">
               <FileUp className="mt-0.5 h-4 w-4 text-stone-400" />
               <p className="text-xs leading-6 text-stone-500">
-                The table preview follows the actual Excel sheet columns. After import, the same full table remains visible in this session.
+                The table preview follows the actual Excel sheet columns. Large files are shown in pages so the table stays smooth.
               </p>
             </div>
           </div>
@@ -720,7 +795,10 @@ export default function StudentRegistryPanel() {
                 <div className="inline-flex rounded-lg border border-stone-200 p-1">
                   <button
                     type="button"
-                    onClick={() => setTableMode('excel')}
+                    onClick={() => {
+                      setTableMode('excel');
+                      setPage(1);
+                    }}
                     className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'excel'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-500 hover:text-stone-700'
@@ -733,7 +811,10 @@ export default function StudentRegistryPanel() {
 
                   <button
                     type="button"
-                    onClick={() => setTableMode('imported')}
+                    onClick={() => {
+                      setTableMode('imported');
+                      setPage(1);
+                    }}
                     className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium ${tableMode === 'imported'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-500 hover:text-stone-700'
@@ -817,32 +898,38 @@ export default function StudentRegistryPanel() {
                     </td>
                   </tr>
                 ) : (
-                  visibleRows.map((row, idx) => (
-                    <tr key={`${tableMode}-${idx}`} className="border-t">
-                      <td className="whitespace-nowrap px-3 py-2 text-stone-500">
-                        {idx + 1}
-                      </td>
-                      {currentHeaders.map((header) => (
-                        <td
-                          key={`${idx}-${header}`}
-                          className="whitespace-nowrap px-3 py-2 text-stone-700"
-                        >
-                          {String(row[header] ?? '') || '-'}
+                  visibleRows.map((row, idx) => {
+                    const absoluteIndex = (page - 1) * PAGE_SIZE + idx + 1;
+
+                    return (
+                      <tr key={`${tableMode}-${absoluteIndex}`} className="border-t">
+                        <td className="whitespace-nowrap px-3 py-2 text-stone-500">
+                          {absoluteIndex}
                         </td>
-                      ))}
-                    </tr>
-                  ))
+                        {currentHeaders.map((header) => (
+                          <td
+                            key={`${absoluteIndex}-${header}`}
+                            className="whitespace-nowrap px-3 py-2 text-stone-700"
+                          >
+                            {String(row[header] ?? '') || '-'}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
 
-          <div className="border-t bg-stone-50 px-4 py-2 text-[11px] text-stone-500">
-            Showing {visibleRows.length} of {filteredRows.length} filtered rows
-            {filteredRows.length < currentRows.length
-              ? ` • ${currentRows.length} total rows in current source`
-              : ''}
-          </div>
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalRows={filteredRows.length}
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onGoToPage={(nextPage) => setPage(Math.min(Math.max(1, nextPage), totalPages))}
+          />
         </Card>
       </div>
     </div>

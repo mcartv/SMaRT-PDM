@@ -6,8 +6,9 @@ exports.getPayoutBatches = async (req, res) => {
         res.status(200).json(rows);
     } catch (err) {
         console.error('GET PAYOUT BATCHES ERROR:', err);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to fetch payout batches',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -18,8 +19,9 @@ exports.getPayoutOpenings = async (req, res) => {
         res.status(200).json(rows);
     } catch (err) {
         console.error('GET PAYOUT OPENINGS ERROR:', err);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to fetch payout openings',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -36,8 +38,9 @@ exports.getEligibleScholarsByOpening = async (req, res) => {
         res.status(200).json(payload);
     } catch (err) {
         console.error('GET ELIGIBLE SCHOLARS BY OPENING ERROR:', err);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to fetch eligible scholars',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -45,23 +48,23 @@ exports.getEligibleScholarsByOpening = async (req, res) => {
 exports.createPayoutBatch = async (req, res) => {
     try {
         const row = await payoutService.createPayoutBatchFromOpening(req.body);
-        
-        // Emit realtime event
+
         const io = req.app.get('io');
         if (io) {
             io.emit('payout:created', {
-                batch_id: row.batch_id,
+                payout_batch_id: row.payout_batch_id,
                 payout_title: row.payout_title,
                 total_amount: row.total_amount,
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
             });
         }
-        
+
         res.status(201).json(row);
     } catch (err) {
         console.error('CREATE PAYOUT BATCH ERROR:', err);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to create payout batch',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -78,22 +81,22 @@ exports.updateScholarStatus = async (req, res) => {
             check_number: req.body?.check_number,
         });
 
-        // Emit realtime event
         const io = req.app.get('io');
         if (io) {
             io.emit('scholar:released', {
-                payout_entry_id: row.payout_entry_id,
-                scholar_id: row.scholar_id,
-                status: row.release_status,
-                updated_at: new Date().toISOString()
+                payout_entry_id: req.params.payoutEntryId,
+                student_id: row.student_id || null,
+                status: req.body?.status,
+                updated_at: new Date().toISOString(),
             });
         }
 
         res.status(200).json(row);
     } catch (err) {
         console.error('UPDATE PAYOUT STATUS ERROR:', err);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to update payout status',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -107,12 +110,11 @@ exports.archivePayoutBatch = async (req, res) => {
             archived_by,
         });
 
-        // Emit realtime event
         const io = req.app.get('io');
         if (io) {
             io.emit('payout:deleted', {
-                batch_id: req.params.batchId,
-                archived_at: new Date().toISOString()
+                payout_batch_id: req.params.batchId,
+                archived_at: new Date().toISOString(),
             });
         }
 
@@ -121,6 +123,7 @@ exports.archivePayoutBatch = async (req, res) => {
         console.error('ARCHIVE PAYOUT BATCH ERROR:', err);
         res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to archive payout batch',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -131,8 +134,9 @@ exports.getAcademicYears = async (req, res) => {
         res.status(200).json(rows);
     } catch (err) {
         console.error('GET ACADEMIC YEARS ERROR:', err);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to fetch academic years',
+            error: err.message || 'Unknown backend error',
         });
     }
 };

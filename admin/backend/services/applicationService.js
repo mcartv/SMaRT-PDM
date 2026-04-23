@@ -602,14 +602,10 @@ async function buildApplicationDetails(applicationId) {
     }
 
     if (applicationRecord?.student_id) {
-        const { data: existingScholar, error: scholarCheckError } = await supabase
-            .from('scholars')
-            .select('scholar_id, application_id')
+        const { data: existingScholarStudent, error: scholarCheckError } = await supabase
+            .from('students')
+            .select('student_id, current_application_id, scholarship_status, scholar_is_archived')
             .eq('student_id', applicationRecord.student_id)
-            .eq('status', 'Active')
-            .eq('is_archived', false)
-            .order('date_awarded', { ascending: false, nullsFirst: false })
-            .limit(1)
             .maybeSingle();
 
         if (scholarCheckError) {
@@ -617,7 +613,13 @@ async function buildApplicationDetails(applicationId) {
             throw new Error(scholarCheckError.message);
         }
 
-        if (existingScholar && existingScholar.application_id !== applicationId) {
+        if (
+            existingScholarStudent &&
+            existingScholarStudent.scholarship_status === 'Active' &&
+            existingScholarStudent.scholar_is_archived === false &&
+            existingScholarStudent.current_application_id &&
+            existingScholarStudent.current_application_id !== applicationId
+        ) {
             throw new Error(
                 'This application has already been converted into an active scholar record.'
             );
@@ -861,124 +863,246 @@ async function buildApplicationDetails(applicationId) {
 }
 
 exports.fetchApplications = async () => {
-    const query = `
+    const primaryQuery = `
     SELECT
-        a.application_id,
-        a.student_id,
-        a.program_id,
-        a.opening_id,
-        a.application_status,
-        a.evaluator_id,
-        a.submission_date,
-        a.is_disqualified,
-        a.rejection_reason,
-        a.document_status,
-        a.remarks,
-        a.is_archived,
+      a.application_id,
+      a.student_id,
+      a.program_id,
+      a.opening_id,
+      a.application_status,
+      a.evaluator_id,
+      a.submission_date,
+      a.is_disqualified,
+      a.rejection_reason,
+      a.document_status,
+      a.remarks,
+      a.is_archived,
 
-        st.first_name,
-        st.last_name,
-        st.pdm_id,
-        st.gwa,
-        st.sdo_status,
+      st.first_name,
+      st.last_name,
+      st.pdm_id,
+      st.gwa,
+      st.sdo_status,
+      st.scholarship_status,
+      st.current_application_id,
 
-        po.opening_title,
-        po.allocated_slots,
-        po.filled_slots,
-        po.financial_allocation,
-        po.per_scholar_amount,
-        po.posting_status,
-        po.is_archived AS opening_is_archived,
+      po.opening_title,
+      po.allocated_slots,
+      po.filled_slots,
+      po.financial_allocation,
+      po.per_scholar_amount,
+      po.posting_status,
+      po.is_archived AS opening_is_archived,
 
-        ay.label AS academic_year,
-        ap.term AS semester,
+      ay.label AS academic_year,
+      ap.term AS semester,
 
-        sp.program_name
+      sp.program_name
 
     FROM applications a
     LEFT JOIN students st
-        ON a.student_id = st.student_id
+      ON a.student_id = st.student_id
     LEFT JOIN program_openings po
-        ON a.opening_id = po.opening_id
+      ON a.opening_id = po.opening_id
     LEFT JOIN academic_years ay
-        ON po.academic_year_id = ay.academic_year_id
+      ON po.academic_year_id = ay.academic_year_id
     LEFT JOIN academic_period ap
-        ON po.period_id = ap.period_id
+      ON po.period_id = ap.period_id
     LEFT JOIN scholarship_program sp
-        ON a.program_id = sp.program_id
-    LEFT JOIN scholars sc
-        ON a.student_id = sc.student_id
-        AND COALESCE(sc.is_archived, FALSE) = FALSE
-        AND LOWER(COALESCE(sc.status, '')) = 'active'
+      ON a.program_id = sp.program_id
 
     WHERE
-        COALESCE(a.is_archived, FALSE) = FALSE
-        AND COALESCE(po.is_archived, FALSE) = FALSE
-        AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
-        AND sc.student_id IS NULL
-        AND COALESCE(a.is_disqualified, FALSE) = FALSE
-        AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved')
+      COALESCE(a.is_archived, FALSE) = FALSE
+      AND COALESCE(po.is_archived, FALSE) = FALSE
+      AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
+      AND COALESCE(a.is_disqualified, FALSE) = FALSE
+      AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved')
+      AND NOT (
+        COALESCE(st.scholarship_status, 'None') = 'Active'
+        AND st.current_application_id IS NOT NULL
+        AND st.current_application_id <> a.application_id
+      )
 
     ORDER BY a.submission_date DESC
-`;
+  `;
 
-    const { rows } = await pool.query(query);
+    const fallbackQuery = `
+    SELECT
+      a.application_id,
+      a.student_id,
+      a.program_id,
+      a.opening_id,
+      a.application_status,
+      a.evaluator_id,
+      a.submission_date,
+      a.is_disqualified,
+      a.rejection_reason,
+      a.document_status,
+      a.remarks,
+      a.is_archived,
 
-    const processed = rows.map((row) => {
-        const firstName = row.first_name || '';
-        const lastName = row.last_name || '';
-        const fullName =
-            `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim() || 'Unnamed Applicant';
+      st.first_name,
+      st.last_name,
+      st.pdm_id,
+      st.gwa,
+      st.sdo_status,
 
-        return {
-            application_id: row.application_id,
-            student_id: row.student_id,
-            program_id: row.program_id,
-            opening_id: row.opening_id,
-            evaluator_id: row.evaluator_id,
+      po.opening_title,
+      po.allocated_slots,
+      po.filled_slots,
+      po.financial_allocation,
+      po.per_scholar_amount,
+      po.posting_status,
+      po.is_archived AS opening_is_archived,
 
-            first_name: firstName,
-            last_name: lastName,
-            student_name: fullName,
-            applicant_name: fullName,
-            pdm_id: row.pdm_id || 'N/A',
-            gwa: row.gwa ?? null,
-            sdo_status: row.sdo_status || 'clear',
+      ay.label AS academic_year,
+      ap.term AS semester,
 
-            program_name: row.program_name || 'No Program',
+      sp.program_name
 
-            opening_title: row.opening_title || 'Untitled Opening',
-            semester: row.semester || null,
-            academic_year: row.academic_year || null,
-            allocated_slots: Number(row.allocated_slots || 0),
-            filled_slots: Number(row.filled_slots || 0),
-            financial_allocation: row.financial_allocation ?? null,
-            per_scholar_amount: row.per_scholar_amount ?? null,
-            posting_status: row.posting_status || 'Open',
-            opening_status: row.posting_status || 'Open',
-            opening_is_archived: !!row.opening_is_archived,
+    FROM applications a
+    LEFT JOIN students st
+      ON a.student_id = st.student_id
+    LEFT JOIN program_openings po
+      ON a.opening_id = po.opening_id
+    LEFT JOIN academic_years ay
+      ON po.academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap
+      ON po.period_id = ap.period_id
+    LEFT JOIN scholarship_program sp
+      ON a.program_id = sp.program_id
 
-            application_status: row.application_status || 'Pending Review',
-            status: row.application_status || 'Pending Review',
+    WHERE
+      COALESCE(a.is_archived, FALSE) = FALSE
+      AND COALESCE(po.is_archived, FALSE) = FALSE
+      AND LOWER(COALESCE(po.posting_status, '')) <> 'closed'
+      AND COALESCE(a.is_disqualified, FALSE) = FALSE
+      AND LOWER(COALESCE(a.application_status, '')) NOT IN ('approved')
 
-            document_status: row.document_status || 'Missing Docs',
-            remarks: row.remarks || null,
+    ORDER BY a.submission_date DESC
+  `;
 
-            is_disqualified: !!row.is_disqualified,
-            rejection_reason: row.rejection_reason || null,
+    let rows;
 
-            submission_date: row.submission_date || null,
-            submitted_at: row.submission_date || null,
-            is_archived: !!row.is_archived,
-        };
-    });
+    try {
+        ({ rows } = await pool.query(primaryQuery));
+    } catch (err) {
+        const msg = String(err.message || '').toLowerCase();
+
+        const isMissingNewColumn =
+            msg.includes('scholarship_status') ||
+            msg.includes('current_application_id');
+
+        if (!isMissingNewColumn) {
+            throw err;
+        }
+
+        console.warn('FETCH APPLICATIONS FALLBACK MODE:', err.message);
+        ({ rows } = await pool.query(fallbackQuery));
+    }
 
     return _.orderBy(
-        processed,
+        rows.map((row) => {
+            const firstName = row.first_name || '';
+            const lastName = row.last_name || '';
+            const fullName =
+                `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim() || 'Unnamed Applicant';
+
+            return {
+                application_id: row.application_id,
+                student_id: row.student_id,
+                program_id: row.program_id,
+                opening_id: row.opening_id,
+                evaluator_id: row.evaluator_id,
+
+                first_name: firstName,
+                last_name: lastName,
+                student_name: fullName,
+                applicant_name: fullName,
+                pdm_id: row.pdm_id || 'N/A',
+                gwa: row.gwa ?? null,
+                sdo_status: row.sdo_status || 'Clear',
+
+                program_name: row.program_name || 'No Program',
+
+                opening_title: row.opening_title || 'Untitled Opening',
+                semester: row.semester || null,
+                academic_year: row.academic_year || null,
+                allocated_slots: Number(row.allocated_slots || 0),
+                filled_slots: Number(row.filled_slots || 0),
+                financial_allocation: row.financial_allocation ?? null,
+                per_scholar_amount: row.per_scholar_amount ?? null,
+                posting_status: row.posting_status || 'Open',
+                opening_status: row.posting_status || 'Open',
+                opening_is_archived: !!row.opening_is_archived,
+
+                application_status: row.application_status || 'Pending Review',
+                status: row.application_status || 'Pending Review',
+
+                document_status: row.document_status || 'Missing Docs',
+                remarks: row.remarks || null,
+
+                is_disqualified: !!row.is_disqualified,
+                rejection_reason: row.rejection_reason || null,
+
+                submission_date: row.submission_date || null,
+                submitted_at: row.submission_date || null,
+                is_archived: !!row.is_archived,
+            };
+        }),
         [(row) => new Date(row.submission_date || 0).getTime()],
         ['desc']
     );
 };
+
+async function activateStudentScholarship({
+    client,
+    applicationId,
+    studentId,
+    programId,
+    openingId,
+}) {
+    const openingResult = await client.query(
+        `
+    SELECT academic_year_id, period_id
+    FROM program_openings
+    WHERE opening_id = $1
+    LIMIT 1;
+    `,
+        [openingId]
+    );
+
+    if (!openingResult.rows.length) {
+        throw new Error('Program opening not found');
+    }
+
+    const opening = openingResult.rows[0];
+
+    await client.query(
+        `
+    UPDATE students
+    SET
+      is_active_scholar = TRUE,
+      scholarship_status = 'Active',
+      current_program_id = $2,
+      current_application_id = $3,
+      active_academic_year_id = $4,
+      active_period_id = $5,
+      date_awarded = CURRENT_DATE,
+      ro_progress = 0,
+      scholar_is_archived = FALSE,
+      updated_at = NOW()
+    WHERE student_id = $1;
+    `,
+        [
+            studentId,
+            programId,
+            applicationId,
+            opening.academic_year_id,
+            opening.period_id,
+        ]
+    );
+}
 
 exports.fetchApplicationDetailsById = async (id) => buildApplicationDetails(id);
 exports.fetchApplicationDocumentsById = async (id) => buildApplicationDetails(id);
@@ -1705,46 +1829,50 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
         await client.query('BEGIN');
 
         const applicationQuery = `
-            SELECT
-                a.application_id,
-                a.student_id,
-                a.program_id,
-                a.opening_id,
-                a.application_status,
-                a.submission_date,
-                st.user_id AS student_user_id,
-                po.allocated_slots,
-                po.filled_slots,
-                po.posting_status,
-                po.is_archived AS opening_is_archived,
-                po.academic_year_id,
-                po.period_id,
-                COUNT(a2.application_id) FILTER (
-                    WHERE LOWER(COALESCE(a2.application_status, '')) = 'approved'
-                )::int AS approved_count
-            FROM applications a
-            INNER JOIN students st
-                ON st.student_id = a.student_id
-            INNER JOIN program_openings po
-                ON po.opening_id = a.opening_id
-            LEFT JOIN applications a2
-                ON a2.opening_id = po.opening_id
-            WHERE a.application_id = $1
-            GROUP BY
-                a.application_id,
-                a.student_id,
-                a.program_id,
-                a.opening_id,
-                a.application_status,
-                a.submission_date,
-                st.user_id,
-                po.allocated_slots,
-                po.filled_slots,
-                po.posting_status,
-                po.is_archived,
-                po.academic_year_id,
-                po.period_id
-        `;
+      SELECT
+        a.application_id,
+        a.student_id,
+        a.program_id,
+        a.opening_id,
+        a.application_status,
+        a.submission_date,
+        st.user_id AS student_user_id,
+        st.scholarship_status,
+        st.current_application_id,
+        po.allocated_slots,
+        po.filled_slots,
+        po.posting_status,
+        po.is_archived AS opening_is_archived,
+        po.academic_year_id,
+        po.period_id,
+        COUNT(a2.application_id) FILTER (
+          WHERE LOWER(COALESCE(a2.application_status, '')) = 'approved'
+        )::int AS approved_count
+      FROM applications a
+      INNER JOIN students st
+        ON st.student_id = a.student_id
+      INNER JOIN program_openings po
+        ON po.opening_id = a.opening_id
+      LEFT JOIN applications a2
+        ON a2.opening_id = po.opening_id
+      WHERE a.application_id = $1
+      GROUP BY
+        a.application_id,
+        a.student_id,
+        a.program_id,
+        a.opening_id,
+        a.application_status,
+        a.submission_date,
+        st.user_id,
+        st.scholarship_status,
+        st.current_application_id,
+        po.allocated_slots,
+        po.filled_slots,
+        po.posting_status,
+        po.is_archived,
+        po.academic_year_id,
+        po.period_id
+    `;
 
         const applicationResult = await client.query(applicationQuery, [applicationId]);
 
@@ -1767,19 +1895,11 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             throw new Error('This opening is already archived.');
         }
 
-        const existingScholarResult = await client.query(
-            `
-            SELECT scholar_id, application_id
-            FROM scholars
-            WHERE COALESCE(is_archived, FALSE) = FALSE
-              AND LOWER(COALESCE(status, '')) = 'active'
-              AND (application_id = $1 OR student_id = $2)
-            LIMIT 1
-            `,
-            [applicationId, row.student_id]
-        );
-
-        if (existingScholarResult.rows.length > 0) {
+        if (
+            String(row.scholarship_status || '').toLowerCase() === 'active' &&
+            row.current_application_id &&
+            row.current_application_id !== applicationId
+        ) {
             const existingApplicationResult = await client.query(
                 `SELECT * FROM applications WHERE application_id = $1`,
                 [applicationId]
@@ -1789,7 +1909,12 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
             return {
                 application: existingApplicationResult.rows[0],
-                scholar: existingScholarResult.rows[0],
+                scholar: null,
+                student: {
+                    student_id: row.student_id,
+                    application_id: row.current_application_id,
+                    status: row.scholarship_status,
+                },
                 outcome: 'already_approved',
                 notificationShouldSend: false,
                 student_user_id: row.student_user_id || null,
@@ -1807,26 +1932,30 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
             return {
                 application: existingApplicationResult.rows[0],
                 scholar: null,
+                student: {
+                    student_id: row.student_id,
+                    application_id: applicationId,
+                    status: 'Active',
+                },
                 outcome: 'already_approved',
                 notificationShouldSend: false,
                 student_user_id: row.student_user_id || null,
             };
         }
 
-        // Manual close should block approvals.
         if (openingStatus === 'closed') {
             throw new Error('This opening is already closed.');
         }
-        // If slots are already exhausted, finalize the opening.
+
         if (slotCount > 0 && approvedCount >= slotCount) {
             await client.query(
                 `
-                UPDATE program_openings
-                SET posting_status = 'closed',
-                    filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
-                    updated_at = NOW()
-                WHERE opening_id = $1
-                `,
+        UPDATE program_openings
+        SET posting_status = 'closed',
+            filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
+            updated_at = NOW()
+        WHERE opening_id = $1
+        `,
                 [row.opening_id, approvedCount]
             );
 
@@ -1835,37 +1964,25 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
         const updateApplicationResult = await client.query(
             `
-            UPDATE applications
-            SET application_status = 'Approved',
-                is_disqualified = FALSE,
-                rejection_reason = NULL
-            WHERE application_id = $1
-            RETURNING *
-            `,
+      UPDATE applications
+      SET application_status = 'Approved',
+          is_disqualified = FALSE,
+          rejection_reason = NULL
+      WHERE application_id = $1
+      RETURNING *
+      `,
             [applicationId]
         );
 
         const approvedApplication = updateApplicationResult.rows[0];
 
-        const insertScholarResult = await client.query(
-            `
-            INSERT INTO scholars (
-                student_id,
-                program_id,
-                application_id,
-                academic_year_id,
-                period_id,
-                date_awarded,
-                status,
-                ro_progress,
-                remarks,
-                is_archived
-            )
-            VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, 'Active', 0, NULL, FALSE)
-            RETURNING *
-            `,
-            [row.student_id, row.program_id, applicationId, row.academic_year_id, row.period_id]
-        );
+        await activateStudentScholarship({
+            client,
+            applicationId,
+            studentId: row.student_id,
+            programId: row.program_id,
+            openingId: row.opening_id,
+        });
 
         const newApprovedCount = approvedCount + 1;
         const nextFilledSlots = newApprovedCount;
@@ -1873,23 +1990,44 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
         await client.query(
             `
-            UPDATE program_openings
-            SET filled_slots = $2,
-                posting_status = CASE
-                    WHEN $3 = TRUE THEN 'closed'
-                    ELSE posting_status
-                END,
-                updated_at = NOW()
-            WHERE opening_id = $1
-            `,
+      UPDATE program_openings
+      SET filled_slots = $2,
+          posting_status = CASE
+            WHEN $3 = TRUE THEN 'closed'
+            ELSE posting_status
+          END,
+          updated_at = NOW()
+      WHERE opening_id = $1
+      `,
             [row.opening_id, nextFilledSlots, shouldFinalizeOpening]
+        );
+
+        const studentResult = await client.query(
+            `
+      SELECT
+        student_id,
+        current_application_id AS application_id,
+        current_program_id AS program_id,
+        scholarship_status AS status,
+        active_academic_year_id AS academic_year_id,
+        active_period_id AS period_id,
+        date_awarded,
+        ro_progress,
+        scholar_remarks AS remarks,
+        scholar_is_archived AS is_archived
+      FROM students
+      WHERE student_id = $1
+      LIMIT 1
+      `,
+            [row.student_id]
         );
 
         await client.query('COMMIT');
 
         return {
             application: approvedApplication,
-            scholar: insertScholarResult.rows[0],
+            scholar: null,
+            student: studentResult.rows[0] || null,
             outcome: 'approved',
             notificationShouldSend: true,
             student_user_id: row.student_user_id || null,

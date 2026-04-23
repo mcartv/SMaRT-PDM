@@ -8,22 +8,26 @@ const { protect } = require('../middleware/authMiddleware');
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
+        fileSize: 10 * 1024 * 1024,
     },
 });
 
 // Export / registry
 router.get('/export/excel', protect, applicationController.exportApplicationsExcel);
+
+// Main list
 router.get('/', protect, applicationController.getApplications);
 
 // Applicant details / docs
 router.get('/:id', protect, applicationController.getApplicationDetails);
 router.get('/:id/documents', protect, applicationController.getApplicationDocuments);
+
 router.post(
     '/:id/documents/:documentKey/iot-ocr',
     protect,
     applicationController.runApplicationDocumentIotOcr
 );
+
 router.patch(
     '/:id/documents/:documentKey/ocr',
     protect,
@@ -46,7 +50,7 @@ router.patch('/:id/mark-reviewed', protect, applicationController.markApplicatio
 router.patch('/:id/remarks', protect, applicationController.saveApplicationRemarks);
 router.patch('/:id/approve', protect, applicationController.approveApplication);
 
-// Disqualify only for actual invalid cases
+// Disqualify
 router.patch('/:id/disqualify', protect, applicationController.disqualifyApplication);
 
 // Optional compatibility route

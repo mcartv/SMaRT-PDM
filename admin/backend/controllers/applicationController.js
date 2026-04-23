@@ -18,7 +18,7 @@ exports.getApplications = async (req, res) => {
         res.status(200).json(applications);
     } catch (err) {
         console.error('GET APPLICATIONS CONTROLLER ERROR:', err.message);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: 'Failed to fetch applications',
             error: err.message || 'Unknown backend error',
         });
@@ -38,7 +38,7 @@ exports.getApplicationDocuments = async (req, res) => {
             return res.status(409).json({ error: err.message });
         }
 
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };
 
@@ -55,7 +55,7 @@ exports.getApplicationDetails = async (req, res) => {
             return res.status(409).json({ error: err.message });
         }
 
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };
 
@@ -76,7 +76,7 @@ exports.uploadStudentDocument = async (req, res) => {
         });
     } catch (err) {
         console.error('UPLOAD STUDENT DOCUMENT CONTROLLER ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };
 
@@ -126,7 +126,7 @@ exports.saveApplicationDocumentOcrSnapshot = async (req, res) => {
     } catch (err) {
         console.error('SAVE APPLICATION DOCUMENT OCR SNAPSHOT CONTROLLER ERROR:', err.message);
 
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             error: err.message || 'Failed to save OCR snapshot',
         });
     }
@@ -149,7 +149,7 @@ exports.saveApplicationVerification = async (req, res) => {
     } catch (err) {
         console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
 
-        const statusCode = isApprovalStateError(err.message) ? 400 : 500;
+        const statusCode = isApprovalStateError(err.message) ? 400 : (err.statusCode || 500);
 
         res.status(statusCode).json({
             error: err.message || 'Failed to save verification',
@@ -169,7 +169,7 @@ exports.assignApplicationProgram = async (req, res) => {
         });
     } catch (err) {
         console.error('ASSIGN APPLICATION PROGRAM CONTROLLER ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };
 
@@ -184,7 +184,7 @@ exports.markApplicationReviewed = async (req, res) => {
         });
     } catch (err) {
         console.error('MARK APPLICATION REVIEWED CONTROLLER ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };
 
@@ -201,7 +201,7 @@ exports.saveApplicationRemarks = async (req, res) => {
         });
     } catch (err) {
         console.error('SAVE APPLICATION REMARKS CONTROLLER ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };
 
@@ -215,13 +215,14 @@ exports.approveApplication = async (req, res) => {
         socketEvents.applicationApproved(io, {
             application_id: id,
             status: 'approved',
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
         });
 
         res.status(200).json({
             message: 'Application approved successfully',
             application: updated.application || updated,
             scholar: updated.scholar || null,
+            student: updated.student || null,
             outcome: updated.outcome || null,
         });
     } catch (err) {
@@ -233,7 +234,7 @@ exports.approveApplication = async (req, res) => {
             });
         }
 
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: 'Failed to approve application',
             error: err.message,
         });
@@ -251,8 +252,8 @@ exports.disqualifyApplication = async (req, res) => {
         socketEvents.applicationRejected(io, {
             application_id: id,
             status: 'rejected',
-            reason: reason,
-            updated_at: new Date().toISOString()
+            reason,
+            updated_at: new Date().toISOString(),
         });
 
         res.status(200).json({
@@ -261,7 +262,7 @@ exports.disqualifyApplication = async (req, res) => {
         });
     } catch (err) {
         console.error('DISQUALIFY APPLICATION CONTROLLER ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };
 
@@ -313,6 +314,6 @@ exports.exportApplicationsExcel = async (req, res) => {
         res.end();
     } catch (err) {
         console.error('EXPORT APPLICATIONS EXCEL ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(err.statusCode || 500).json({ error: err.message });
     }
 };

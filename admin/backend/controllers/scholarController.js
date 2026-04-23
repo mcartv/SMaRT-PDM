@@ -7,9 +7,9 @@ exports.getStats = async (req, res) => {
         res.json(stats);
     } catch (err) {
         console.error('SCHOLAR STATS CONTROLLER ERROR:', err.message);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: 'Failed to fetch scholar stats',
-            error: err.message
+            error: err.message,
         });
     }
 };
@@ -20,16 +20,16 @@ exports.getAllScholars = async (req, res) => {
         res.json(scholars);
     } catch (err) {
         console.error('SCHOLAR LIST CONTROLLER ERROR:', err.message);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: 'Failed to fetch scholars',
-            error: err.message
+            error: err.message,
         });
     }
 };
 
 exports.getScholarById = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params; // now treated as student_id
         const scholar = await scholarService.fetchScholarById(id);
 
         if (!scholar) {
@@ -39,7 +39,7 @@ exports.getScholarById = async (req, res) => {
         res.json(scholar);
     } catch (err) {
         console.error('SCHOLAR PROFILE CONTROLLER ERROR:', err.message);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: 'Failed to fetch scholar profile',
             error: err.message,
         });
@@ -48,14 +48,14 @@ exports.getScholarById = async (req, res) => {
 
 exports.getScholarRenewalDocuments = async (req, res) => {
     try {
-        const { id } = req.params;
-        const documents = await scholarService.fetchScholarRenewalDocuments(id);
-        res.json(documents);
+        const scholarId = req.params.scholarId || req.params.id; // now student_id in practice
+        const data = await scholarService.fetchScholarRenewalDocuments(scholarId);
+        res.status(200).json(data);
     } catch (err) {
-        console.error('SCHOLAR RENEWAL DOCUMENTS CONTROLLER ERROR:', err.message);
-        res.status(500).json({
-            message: 'Failed to fetch scholar renewal documents',
-            error: err.message,
+        console.error('GET SCHOLAR RENEWAL DOCUMENTS ERROR:', err.message);
+        res.status(err.statusCode || 500).json({
+            message: err.message || 'Failed to fetch renewal documents',
+            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -66,7 +66,7 @@ exports.getSdoStats = async (req, res) => {
         res.json(stats);
     } catch (err) {
         console.error('SDO STATS CONTROLLER ERROR:', err.message);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: 'Failed to fetch SDO analytics',
             error: err.message,
         });
@@ -75,7 +75,7 @@ exports.getSdoStats = async (req, res) => {
 
 exports.updateSdoStatus = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params; // now student_id
         const updated = await scholarService.updateScholarSdoStatus(id, req.body, req.user);
 
         if (!updated) {
@@ -85,8 +85,9 @@ exports.updateSdoStatus = async (req, res) => {
         const io = req.app.get('io');
         socketEvents.scholarUpdated(io, {
             scholar_id: id,
+            student_id: id,
             sdo_status: updated.sdo_status,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
         });
 
         res.json({
@@ -100,23 +101,9 @@ exports.updateSdoStatus = async (req, res) => {
             return res.status(400).json({ message: err.message });
         }
 
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: 'Failed to update scholar probation status',
             error: err.message,
-        });
-    }
-};
-
-exports.getScholarRenewalDocuments = async (req, res) => {
-    try {
-        const { scholarId } = req.params;
-        const data = await scholarService.fetchScholarRenewalDocuments(scholarId);
-        res.status(200).json(data);
-    } catch (err) {
-        console.error('GET SCHOLAR RENEWAL DOCUMENTS ERROR:', err.message);
-        res.status(500).json({
-            message: err.message || 'Failed to fetch renewal documents',
-            error: err.message || 'Unknown backend error',
         });
     }
 };
@@ -137,7 +124,7 @@ exports.verifyScholarRenewalDocument = async (req, res) => {
         });
     } catch (err) {
         console.error('VERIFY SCHOLAR RENEWAL DOCUMENT ERROR:', err.message);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to verify renewal document',
             error: err.message || 'Unknown backend error',
         });
@@ -156,8 +143,9 @@ exports.saveScholarRenewalReview = async (req, res) => {
         const io = req.app.get('io');
         socketEvents.renewalApproved(io, {
             scholar_id: scholarId,
+            student_id: scholarId,
             renewal_status: data.renewal_status,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
         });
 
         res.status(200).json({
@@ -166,7 +154,7 @@ exports.saveScholarRenewalReview = async (req, res) => {
         });
     } catch (err) {
         console.error('SAVE SCHOLAR RENEWAL REVIEW ERROR:', err.message);
-        res.status(500).json({
+        res.status(err.statusCode || 500).json({
             message: err.message || 'Failed to save renewal review',
             error: err.message || 'Unknown backend error',
         });

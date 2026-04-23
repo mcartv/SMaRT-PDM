@@ -27,6 +27,8 @@ const supportTicketRoutes = require('../routes/supportTicketRoutes');
 const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
+const ocrRoutes = require('../routes/ocrRoutes');
+const piRoutes = require('../routes/piRoutes');
 
 // Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
@@ -52,8 +54,17 @@ const isAllowedOrigin = (origin) => {
     if (allowedOrigins.includes(origin)) return true;
 
     try {
-        const { hostname } = new URL(origin);
+        const { protocol, hostname } = new URL(origin);
         const normalizedHostname = hostname.toLowerCase();
+
+        // Flutter web uses a random localhost port during `flutter run -d chrome`.
+        if (
+            (protocol === 'http:' || protocol === 'https:')
+            && ['localhost', '127.0.0.1'].includes(normalizedHostname)
+        ) {
+            return true;
+        }
+
         return allowedOriginSuffixes.some((suffix) => normalizedHostname.endsWith(suffix));
     } catch (error) {
         return false;
@@ -115,6 +126,8 @@ app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
+app.use('/api/ocr', ocrRoutes);
+app.use('/api/pi', piRoutes);
 
 // =========================
 // HEALTH CHECK

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import {
   Building2,
@@ -8,6 +8,7 @@ import {
   Database,
   Settings,
   GraduationCap,
+  ChevronRight,
   CalendarRange,
 } from 'lucide-react';
 
@@ -35,35 +36,24 @@ const TABS = [
   { key: 'audit', label: 'Audit', icon: ClipboardList },
 ];
 
-function TopNav({ tabs, active, onChange }) {
+function NavItem({ item, active, onClick }) {
+  const Icon = item.icon;
+
   return (
-    <div className="sticky top-0 z-20 border-b border-stone-200 bg-white">
-      <div className="flex items-center gap-6 px-4 overflow-x-auto">
-        {tabs.map((item) => {
-          const Icon = item.icon;
-          const isActive = active === item.key;
-
-          return (
-            <button
-              key={item.key}
-              onClick={() => onChange(item.key)}
-              className={`relative flex items-center gap-2 py-3 text-sm font-medium whitespace-nowrap transition
-                ${isActive
-                  ? 'text-stone-900'
-                  : 'text-stone-400 hover:text-stone-700'
-                }`}
-            >
-              <Icon size={14} />
-              {item.label}
-
-              {isActive && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-stone-900" />
-              )}
-            </button>
-          );
-        })}
+    <button
+      type="button"
+      onClick={() => onClick(item.key)}
+      className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm transition ${active
+          ? 'bg-[#f6efe8] text-[#5c2d0e]'
+          : 'text-stone-600 hover:bg-stone-100'
+        }`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <Icon size={16} className="shrink-0" />
+        <span className="font-medium truncate">{item.label}</span>
       </div>
-    </div>
+      <ChevronRight size={14} className="opacity-50 shrink-0" />
+    </button>
   );
 }
 
@@ -93,34 +83,46 @@ export default function Maintenance() {
     }
   };
 
-  const isRegistry = tab === 'registry';
+  const activeTab = useMemo(
+    () => TABS.find((t) => t.key === tab) || TABS[0],
+    [tab]
+  );
 
   return (
     <div
-      className="flex flex-col"
+      className="flex gap-4"
       style={{
         background: C.bg,
-        minHeight: 'calc(100dvh - 120px)',
+        minHeight: 'calc(100dvh - 150px)',
       }}
     >
-      {/* TOP NAV ONLY */}
-      <TopNav tabs={TABS} active={tab} onChange={setTab} />
-
-      {/* CONTENT */}
-      <div className="flex-1 p-4">
-        <Card className="border-stone-200 shadow-none flex flex-col overflow-hidden rounded-2xl h-full">
-
-          <div
-            className={`flex-1 overflow-auto ${isRegistry
-                ? 'p-3 max-h-[calc(100vh-140px)]'
-                : 'p-5 max-h-[calc(100vh-140px)]'
-              }`}
-          >
-            {renderActiveTab()}
+      <aside className="w-[260px] shrink-0 self-start sticky top-0">
+        <Card className="border-stone-200 shadow-none flex flex-col overflow-hidden rounded-2xl">
+          <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 shrink-0">
+            <h1 className="text-sm font-semibold text-stone-900">Maintenance</h1>
+            <p className="text-xs text-stone-500 mt-1">System configuration</p>
           </div>
 
+          <div className="max-h-[calc(100dvh-230px)] overflow-y-auto p-3 space-y-1">
+            {TABS.map((item) => (
+              <NavItem
+                key={item.key}
+                item={item}
+                active={tab === item.key}
+                onClick={setTab}
+              />
+            ))}
+          </div>
         </Card>
-      </div>
+      </aside>
+
+      <main className="flex-1 min-w-0">
+        <Card className="border-stone-200 shadow-none flex flex-col overflow-hidden rounded-2xl min-h-[calc(100dvh-150px)]">
+          <div className="flex-1 overflow-y-auto p-5">
+            {renderActiveTab()}
+          </div>
+        </Card>
+      </main>
     </div>
   );
 }

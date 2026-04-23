@@ -361,8 +361,8 @@ export default function RegistrarSync() {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             className={`cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${isDragging
-                ? 'border-stone-500 bg-stone-50'
-                : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
+              ? 'border-stone-500 bg-stone-50'
+              : 'border-stone-300 bg-stone-50/70 hover:bg-stone-50'
               }`}
           >
             <input

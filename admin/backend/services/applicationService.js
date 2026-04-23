@@ -494,7 +494,7 @@ function resolveStorageContentType(fileExt, fallbackMime = '') {
     return fallbackMime || 'application/octet-stream';
 }
 
-function normalizeOcrResponse(payload = {}) {
+function normalizeOcrPayload(payload = {}) {
     const confidence =
         payload?.ocr_confidence ??
         payload?.confidence ??
@@ -1144,7 +1144,7 @@ exports.runApplicationDocumentIotOcr = async ({
         ...baseResult,
         status: payload?.status || 'completed',
         async: false,
-        ...normalizeOcrResponse(payload),
+        ...normalizeOcrPayload(payload),
     };
 };
 
@@ -1919,4 +1919,7 @@ module.exports = {
     assignApplicationProgram: exports.assignApplicationProgram,
     moveApplicationToWaiting: exports.moveApplicationToWaiting,
     approveApplicationWithSlotCheck: exports.approveApplicationWithSlotCheck,
+    normalizeDocumentType,
+    getDocumentTypeName: (documentKey) => DOCUMENT_TYPE_TO_NAME[documentKey] || null,
+    normalizeOcrPayload,
 };

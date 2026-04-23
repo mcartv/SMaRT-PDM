@@ -1,4 +1,5 @@
 const applicationService = require('../services/applicationService');
+const ocrJobService = require('../services/ocrJobService');
 const socketEvents = require('../utils/socketEvents');
 const ExcelJS = require('exceljs');
 
@@ -84,19 +85,19 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
     const { id, documentKey } = req.params;
 
     try {
-        const result = await applicationService.runApplicationDocumentIotOcr({
+        const result = await ocrJobService.createJob({
             applicationId: id,
             documentKey,
-            user: req.user,
+            requestedBy: req.user?.userId || req.user?.user_id || null,
         });
 
-        const statusCode = result?.status === 'started' ? 202 : 200;
+        const statusCode = result?.created ? 202 : 200;
 
         res.status(statusCode).json({
             message:
                 statusCode === 202
-                    ? 'IoT OCR scan started successfully'
-                    : 'IoT OCR completed successfully',
+                    ? 'IoT OCR job queued successfully'
+                    : 'IoT OCR job is already queued',
             data: result,
         });
     } catch (err) {

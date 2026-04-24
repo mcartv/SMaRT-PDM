@@ -1,6 +1,7 @@
 class AppRoutes {
   // Splash & Authentication
   static const splash = '/splash';
+  static const studentLookup = '/student-lookup';
   static const login = '/login';
   static const register = '/register';
   static const otp = '/otp';

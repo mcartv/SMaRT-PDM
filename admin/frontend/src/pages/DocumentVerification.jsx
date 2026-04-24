@@ -74,8 +74,16 @@ const REQUIRED_DOCUMENTS = [
   },
   {
     id: 'student_grade_forms',
-    name: 'Grade Form',
-    aliases: ['student grade forms', 'grade forms', 'grade card', 'grades', 'grade form'],
+    name: 'Grade Report',
+    aliases: [
+      'student grade forms',
+      'grade forms',
+      'grade card',
+      'grades',
+      'grade form',
+      'grade report',
+      'report card',
+    ],
   },
   {
     id: 'certificate_of_indigency',
@@ -313,7 +321,7 @@ function buildExtractedData(activeDoc, application) {
     case 'student_grade_forms':
       return [
         ...base,
-        { label: 'Document Type', value: 'Grade Form', verified: true },
+        { label: 'Document Type', value: 'Grade Report', verified: true },
         {
           label: 'Detected GWA',
           value: fallbackGwa,
@@ -1049,8 +1057,8 @@ function ChecklistCard({
               key={d.id}
               onClick={() => onSelectDoc(d.id)}
               className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${isActive
-                  ? 'border-blue-800 bg-blue-50 shadow-sm'
-                  : 'border-stone-100 bg-white hover:border-stone-200'
+                ? 'border-blue-800 bg-blue-50 shadow-sm'
+                : 'border-stone-100 bg-white hover:border-stone-200'
                 }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
@@ -1792,8 +1800,8 @@ export default function DocumentVerification() {
                   key={d.id}
                   onClick={() => setActiveDocId(d.id)}
                   className={`px-4 py-3 text-xs font-medium border-b-2 transition-all shrink-0 ${activeDocId === d.id
-                      ? 'border-blue-800 text-blue-900 bg-white'
-                      : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
+                    ? 'border-blue-800 text-blue-900 bg-white'
+                    : 'border-transparent text-stone-400 hover:text-stone-600 hover:bg-white/60'
                     }`}
                 >
                   {d.name}
@@ -1806,8 +1814,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('preview')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'preview'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   Document Preview
@@ -1816,8 +1824,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('ocr')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'ocr'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   OCR Validation Hub
@@ -1826,8 +1834,8 @@ export default function DocumentVerification() {
                 <button
                   onClick={() => setViewMode('split')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === 'split'
-                      ? 'bg-white text-blue-900 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700'
+                    ? 'bg-white text-blue-900 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                     }`}
                 >
                   <span className="inline-flex items-center gap-1">

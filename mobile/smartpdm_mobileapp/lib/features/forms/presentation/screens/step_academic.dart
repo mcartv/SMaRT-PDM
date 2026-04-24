@@ -44,7 +44,6 @@ class _StepAcademicState extends State<StepAcademic> {
   late final TextEditingController currentYearLevelController;
   late final TextEditingController currentSectionController;
   late final TextEditingController studentNumberController;
-  late final TextEditingController lrnController;
 
   final List<String> supportOptions = [
     'Parents',
@@ -266,7 +265,6 @@ class _StepAcademicState extends State<StepAcademic> {
           ? widget.data.studentNumber
           : widget.data.accountStudentId,
     );
-    lrnController = TextEditingController(text: widget.data.lrn);
 
     selectedCourse = courseOptions.contains(widget.data.currentCourse)
         ? widget.data.currentCourse
@@ -336,7 +334,6 @@ class _StepAcademicState extends State<StepAcademic> {
     _bind(currentYearLevelController, (v) => widget.data.currentYearLevel = v);
     _bind(currentSectionController, (v) => widget.data.currentSection = v);
     _bind(studentNumberController, (v) => widget.data.studentNumber = v);
-    _bind(lrnController, (v) => widget.data.lrn = v);
     _bind(
       scholarshipDetailsController,
       (v) => widget.data.scholarshipDetails = v,
@@ -376,7 +373,6 @@ class _StepAcademicState extends State<StepAcademic> {
     currentYearLevelController.dispose();
     currentSectionController.dispose();
     studentNumberController.dispose();
-    lrnController.dispose();
     scholarshipDetailsController.dispose();
     scholarshipOthersSpecifyController.dispose();
     disciplinaryExplanationController.dispose();
@@ -477,15 +473,11 @@ class _StepAcademicState extends State<StepAcademic> {
               'Student Number',
               TextFormField(
                 controller: studentNumberController,
-                readOnly: widget.data.accountStudentId.isNotEmpty,
+                readOnly: true,
                 decoration: _dec(
                   'Student Number',
                 ).copyWith(errorText: _studentNumberError()),
               ),
-            ),
-            _field(
-              'LRN',
-              TextFormField(controller: lrnController, decoration: _dec('LRN')),
             ),
           ]),
           const SizedBox(height: 24),

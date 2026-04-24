@@ -291,13 +291,9 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main
-          className={`min-h-0 flex-1 bg-[#faf7f2] p-5 md:p-6 ${isPanelScrollPage ? 'overflow-hidden' : 'overflow-y-auto'
-            }`}
-        >
+        <main className="min-h-0 flex-1 overflow-y-auto bg-[#faf7f2] p-5 md:p-6">
           <div
-            className={`${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} ${isPanelScrollPage ? 'h-full min-h-0 overflow-hidden' : ''
-              }`}
+            className={`${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
           >
             <Outlet />
           </div>

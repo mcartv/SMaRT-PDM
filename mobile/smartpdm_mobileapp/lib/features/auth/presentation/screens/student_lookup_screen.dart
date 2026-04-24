@@ -107,9 +107,9 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = _isExisting ? 'Existing Scholar' : 'New Applicant';
+    final title = _isExisting ? 'Existing Account' : 'New Applicant';
     final subtitle = _isExisting
-        ? 'Enter your Student ID to continue to your account.'
+        ? 'Enter your Student ID to continue to your account, whether you are an applicant or scholar.'
         : 'Enter your Student ID so we can check your registry record before registration.';
 
     return Scaffold(

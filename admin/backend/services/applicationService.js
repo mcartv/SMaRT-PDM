@@ -5,7 +5,7 @@ const pool = require('../config/db');
 const _ = require('lodash');
 
 const STORAGE_BUCKET =
-    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'application-documents';
+    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
 const STUDENT_BACKEND_BASE_URL =
     process.env.STUDENT_BACKEND_BASE_URL || 'http://127.0.0.1:3000';
 const IOT_OCR_ENDPOINT_URL =
@@ -40,8 +40,16 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
     },
     {
         id: 'student_grade_forms',
-        name: 'Grade Form',
-        aliases: ['student grade forms', 'grade forms', 'grades', 'grade card', 'report card', 'grade form'],
+        name: 'Grade Report',
+        aliases: [
+            'student grade forms',
+            'grade forms',
+            'grades',
+            'grade card',
+            'report card',
+            'grade form',
+            'grade report',
+        ],
     },
     {
         id: 'certificate_of_indigency',
@@ -70,6 +78,8 @@ const DOCUMENT_TYPE_ALIASES = {
     grades: 'student_grade_forms',
     student_grade_forms: 'student_grade_forms',
     grade_form: 'student_grade_forms',
+    grade_report: 'student_grade_forms',
+    report_card: 'student_grade_forms',
 
     certificate_of_indigency: 'certificate_of_indigency',
     indigency: 'certificate_of_indigency',
@@ -84,7 +94,7 @@ const DOCUMENT_TYPE_ALIASES = {
 
 const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_registration: 'Certificate of Registration',
-    student_grade_forms: 'Student Grade Forms',
+    student_grade_forms: 'Grade Report',
     certificate_of_indigency: 'Certificate of Indigency',
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
@@ -563,67 +573,51 @@ async function buildApplicationDetails(applicationId) {
     const { data: applicationRecord, error: applicationError } = await supabase
         .from('applications')
         .select(`
-            application_id,
-            student_id,
+        application_id,
+        student_id,
+        program_id,
+        application_status,
+        document_status,
+        submission_date,
+        is_disqualified,
+        rejection_reason,
+        evaluator_id,
+        students!applications_student_id_fkey (
+            user_id,
+            first_name,
+            middle_name,
+            last_name,
+            pdm_id,
+            profile_photo_url,
+            gwa,
+            year_level,
+            course_id
+        ),
+        scholarship_program (
             program_id,
-            application_status,
-            document_status,
-            submission_date,
-            is_disqualified,
-            rejection_reason,
-            evaluator_id,
-            students (
-                user_id,
-                first_name,
-                middle_name,
-                last_name,
-                pdm_id,
-                profile_photo_url,
-                gwa,
-                year_level,
-                course_id
-            ),
-            scholarship_program (
-                program_id,
+            benefactor_id,
+            program_name,
+            benefactors (
                 benefactor_id,
-                program_name,
-                benefactors (
-                    benefactor_id,
-                    benefactor_name
-                )
+                benefactor_name
             )
-        `)
+        )
+    `)
+
         .eq('application_id', applicationId)
-        .single();
+        .maybeSingle();
 
     if (applicationError) {
         console.error('Supabase Application Detail Error:', applicationError);
         throw new Error(applicationError.message);
     }
 
-    if (applicationRecord?.student_id) {
-        const { data: existingScholarStudent, error: scholarCheckError } = await supabase
-            .from('students')
-            .select('student_id, current_application_id, scholarship_status, scholar_is_archived')
-            .eq('student_id', applicationRecord.student_id)
-            .maybeSingle();
+    if (!applicationRecord) {
+        throw buildHttpError(404, 'Application not found');
+    }
 
-        if (scholarCheckError) {
-            console.error('Supabase Scholar Check Error:', scholarCheckError);
-            throw new Error(scholarCheckError.message);
-        }
-
-        if (
-            existingScholarStudent &&
-            existingScholarStudent.scholarship_status === 'Active' &&
-            existingScholarStudent.scholar_is_archived === false &&
-            existingScholarStudent.current_application_id &&
-            existingScholarStudent.current_application_id !== applicationId
-        ) {
-            throw new Error(
-                'This application has already been converted into an active scholar record.'
-            );
-        }
+    if (!applicationRecord.student_id) {
+        throw buildHttpError(400, 'Application is missing student_id');
     }
 
     const [
@@ -1138,7 +1132,7 @@ exports.runApplicationDocumentIotOcr = async ({
         .select(`
             application_id,
             student_id,
-            students (
+            students!applications_student_id_fkey (
                 first_name,
                 middle_name,
                 last_name
@@ -1301,7 +1295,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         .select(`
             application_id,
             student_id,
-            students (
+            students!applications_student_id_fkey (
                 first_name,
                 middle_name,
                 last_name
@@ -1619,7 +1613,24 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         throw new Error('document_reviews must be an array');
     }
 
-    const reviewedBy = user?.userId || user?.user_id || null;
+    let reviewedBy = user?.admin_id || user?.adminId || null;
+
+    if (!reviewedBy && (user?.userId || user?.user_id)) {
+        const userId = user.userId || user.user_id;
+
+        const { data: adminProfile, error: adminProfileError } = await supabase
+            .from('admin_profiles')
+            .select('admin_id')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (adminProfileError) {
+            throw new Error(adminProfileError.message);
+        }
+
+        reviewedBy = adminProfile?.admin_id || null;
+    }
+
     const reviewedAt = new Date().toISOString();
 
     const reviewRows = document_reviews.map((doc) => ({

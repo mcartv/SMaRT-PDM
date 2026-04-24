@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
     Navigator.pushReplacementNamed(context, AppRoutes.home);
   }
 
-  void _goToExistingScholar() {
+  void _goToExistingAccount() {
     Navigator.pushNamed(
       context,
       AppRoutes.studentLookup,
@@ -150,8 +150,8 @@ class _SplashScreenState extends State<SplashScreen> {
                             SizedBox(
                               width: double.infinity,
                               child: GhostButton(
-                                label: 'Existing Scholar',
-                                onTap: _goToExistingScholar,
+                                label: 'Existing Account',
+                                onTap: _goToExistingAccount,
                               ),
                             ),
 

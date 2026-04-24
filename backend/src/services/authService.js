@@ -24,6 +24,10 @@ function normalizeStudentNumber(value = '') {
     return String(value || '').trim().toUpperCase();
 }
 
+function safeText(value) {
+    return value === null || value === undefined ? '' : String(value).trim();
+}
+
 function generateOTP() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -37,9 +41,7 @@ function ensurePasswordPolicy(password) {
 
     const hasLongLength = value.length >= 15;
     const hasStrongMixedRule =
-        value.length >= 8 &&
-        /[a-z]/.test(value) &&
-        /\d/.test(value);
+        value.length >= 8 && /[a-z]/.test(value) && /\d/.test(value);
 
     if (!hasLongLength && !hasStrongMixedRule) {
         throw createHttpError(
@@ -48,22 +50,6 @@ function ensurePasswordPolicy(password) {
         );
     }
 }
-
-// async function sendOTPEmail(email, otp) {
-//     await transporter.sendMail({
-//         from: process.env.GMAIL_USER || 'pelimavenice.pdm@gmail.com',
-//         to: email,
-//         subject: 'SMaRT-PDM Account Verification OTP',
-//         html: `
-//       <div style="font-family: Arial, sans-serif;">
-//         <h2>SMaRT-PDM Verification</h2>
-//         <p>Your OTP code is:</p>
-//         <h1 style="letter-spacing: 4px;">${otp}</h1>
-//         <p>This code will expire in 10 minutes.</p>
-//       </div>
-//     `,
-//     });
-// }
 
 async function sendOTPEmail(email, otp) {
     console.log('DEV OTP:', { email, otp });
@@ -91,9 +77,27 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
     const normalizedStudentNumber = normalizeStudentNumber(studentNumber);
 
     const { data, error } = await supabase
-        .from('student_registry')
-        .select('*')
-        .eq('student_number', normalizedStudentNumber)
+        .from('student_master_records')
+        .select(`
+      master_student_id,
+      student_number,
+      pdm_id,
+      learners_reference_number,
+      first_name,
+      middle_name,
+      last_name,
+      sex_at_birth,
+      email_address,
+      phone_number,
+      course_id,
+      year_level,
+      sequence_number,
+      source_registry,
+      is_active,
+      is_archived
+    `)
+        .or(`student_number.eq.${normalizedStudentNumber},pdm_id.eq.${normalizedStudentNumber}`)
+        .eq('is_archived', false)
         .maybeSingle();
 
     if (error) throw error;
@@ -113,7 +117,10 @@ async function resolveStudentByUserId(userId) {
       last_name,
       year_level,
       course_id,
-      profile_photo_url
+      profile_photo_url,
+      is_profile_complete,
+      is_active_scholar,
+      scholarship_status
     `)
         .eq('user_id', userId)
         .maybeSingle();
@@ -123,7 +130,108 @@ async function resolveStudentByUserId(userId) {
     return data || null;
 }
 
+async function ensureStudentFromMasterRecord({
+    userId,
+    studentNumber,
+    masterStudent,
+    email,
+}) {
+    if (!userId) {
+        throw createHttpError(401, 'User ID is required.');
+    }
+
+    if (!masterStudent) {
+        throw createHttpError(404, 'Registry student record not found.');
+    }
+
+    const firstName = safeText(masterStudent.first_name);
+    const lastName = safeText(masterStudent.last_name);
+
+    if (!firstName || !lastName) {
+        throw createHttpError(
+            500,
+            'Registry record is missing first name or last name.'
+        );
+    }
+
+    const normalizedStudentNumber = normalizeStudentNumber(studentNumber);
+
+    const studentPayload = {
+        master_student_id: masterStudent.master_student_id || null,
+        user_id: userId,
+        pdm_id:
+            safeText(masterStudent.pdm_id) ||
+            safeText(masterStudent.student_number) ||
+            normalizedStudentNumber,
+        registrar_student_number:
+            safeText(masterStudent.student_number) || normalizedStudentNumber,
+        learners_reference_number:
+            safeText(masterStudent.learners_reference_number) || null,
+        course_id: masterStudent.course_id || null,
+        first_name: firstName,
+        middle_name: safeText(masterStudent.middle_name) || null,
+        last_name: lastName,
+        year_level: masterStudent.year_level || null,
+        sex_at_birth: safeText(masterStudent.sex_at_birth) || null,
+        email_address: safeText(masterStudent.email_address) || email || null,
+        phone_number: safeText(masterStudent.phone_number) || null,
+        sequence_number: masterStudent.sequence_number || null,
+        account_status: 'Verified',
+        is_profile_complete: false,
+        is_archived: false,
+    };
+
+    const existingFilters = [
+        `user_id.eq.${userId}`,
+        `pdm_id.eq.${studentPayload.pdm_id}`,
+    ];
+
+    if (studentPayload.registrar_student_number) {
+        existingFilters.push(
+            `registrar_student_number.eq.${studentPayload.registrar_student_number}`
+        );
+    }
+
+    if (studentPayload.master_student_id) {
+        existingFilters.push(`master_student_id.eq.${studentPayload.master_student_id}`);
+    }
+
+    const { data: existingStudent, error: existingError } = await supabase
+        .from('students')
+        .select('student_id')
+        .or(existingFilters.join(','))
+        .maybeSingle();
+
+    if (existingError) throw existingError;
+
+    if (existingStudent?.student_id) {
+        const { data, error } = await supabase
+            .from('students')
+            .update(studentPayload)
+            .eq('student_id', existingStudent.student_id)
+            .select('student_id')
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    const { data, error } = await supabase
+        .from('students')
+        .insert([studentPayload])
+        .select('student_id')
+        .single();
+
+    if (error) throw error;
+
+    return data;
+}
+
 async function buildAuthUser(user, studentProfile = null) {
+    const hasScholarAccess =
+        studentProfile?.is_active_scholar === true ||
+        String(studentProfile?.scholarship_status || '').toLowerCase() === 'active';
+
     return {
         id: user.user_id,
         user_id: user.user_id,
@@ -131,10 +239,12 @@ async function buildAuthUser(user, studentProfile = null) {
         email: user.email,
         student_id: user.username,
         pdm_id: studentProfile?.pdm_id ?? user.username ?? null,
-        first_name: studentProfile?.first_name ?? null,
-        last_name: studentProfile?.last_name ?? null,
+        first_name: studentProfile?.first_name ?? '',
+        last_name: studentProfile?.last_name ?? '',
         role: user.role ?? null,
         is_verified: !!user.is_otp_verified,
+        is_profile_complete: studentProfile?.is_profile_complete === true,
+        has_scholar_access: hasScholarAccess,
     };
 }
 
@@ -147,6 +257,9 @@ async function buildAuthResponse(user) {
         message: 'Login successful',
         token: buildAuthToken(user),
         user: await buildAuthUser(user, studentProfile),
+        needs_profile_completion: studentProfile
+            ? studentProfile.is_profile_complete !== true
+            : true,
     };
 }
 
@@ -185,7 +298,7 @@ async function checkStudentId(body = {}) {
 async function register(body = {}) {
     let { email, password, student_id } = body;
 
-    email = (email || '').toString().trim().toLowerCase();
+    email = safeText(email).toLowerCase();
     student_id = normalizeStudentNumber(student_id);
 
     if (!email || !password || !student_id) {
@@ -205,14 +318,18 @@ async function register(body = {}) {
     const registrarStudent = await resolveRegistrarStudentByStudentNumber(student_id);
 
     if (!registrarStudent) {
-        throw createHttpError(403, 'Student ID is not registered in the registrar records.');
+        throw createHttpError(
+            403,
+            'Student ID is not registered in the registrar records.'
+        );
     }
 
-    const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
-        .from('users')
-        .select('username')
-        .eq('username', student_id)
-        .maybeSingle();
+    const { data: existingUserByStudentId, error: studentIdCheckError } =
+        await supabase
+            .from('users')
+            .select('username')
+            .eq('username', student_id)
+            .maybeSingle();
 
     if (studentIdCheckError) {
         throw createHttpError(500, 'Database error during student ID check');
@@ -281,8 +398,8 @@ async function register(body = {}) {
 async function verifyOtp(body = {}) {
     let { email, otp } = body;
 
-    email = (email || '').toString().trim().toLowerCase();
-    otp = (otp || '').toString().trim();
+    email = safeText(email).toLowerCase();
+    otp = safeText(otp);
 
     const record = otpStore.get(email);
     const pendingRegistration = pendingRegistrationStore.get(email);
@@ -301,21 +418,25 @@ async function verifyOtp(body = {}) {
         throw createHttpError(400, 'Invalid OTP');
     }
 
-    const registrarStudent = await resolveRegistrarStudentByStudentNumber(
+    const masterStudent = await resolveRegistrarStudentByStudentNumber(
         pendingRegistration.student_id
     );
 
-    if (!registrarStudent) {
+    if (!masterStudent) {
         otpStore.delete(email);
         pendingRegistrationStore.delete(email);
-        throw createHttpError(403, 'Student ID is not registered in the registrar records.');
+        throw createHttpError(
+            403,
+            'Student ID is not registered in the registrar records.'
+        );
     }
 
-    const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
-        .from('users')
-        .select('username')
-        .eq('username', pendingRegistration.student_id)
-        .maybeSingle();
+    const { data: existingUserByStudentId, error: studentIdCheckError } =
+        await supabase
+            .from('users')
+            .select('username')
+            .eq('username', pendingRegistration.student_id)
+            .maybeSingle();
 
     if (studentIdCheckError) {
         throw createHttpError(500, 'Database error during final student ID validation');
@@ -358,71 +479,26 @@ async function verifyOtp(body = {}) {
         .single();
 
     if (insertError) {
-        throw createHttpError(500, 'Failed to complete registration');
+        console.error('USER INSERT ERROR:', insertError);
+        throw createHttpError(500, insertError.message || 'Failed to complete registration');
     }
 
-    const registrarStudentData = pendingRegistration.registrar_student;
+    try {
+        await ensureStudentFromMasterRecord({
+            userId: insertedUser.user_id,
+            studentNumber: pendingRegistration.student_id,
+            masterStudent,
+            email: pendingRegistration.email,
+        });
+    } catch (studentError) {
+        console.error('STUDENT MIGRATION ERROR:', studentError);
 
-    if (registrarStudentData && insertedUser.user_id) {
-        const firstName =
-            registrarStudentData.first_name ||
-            registrarStudentData.given_name ||
-            registrarStudentData.firstname ||
-            '';
+        await supabase.from('users').delete().eq('user_id', insertedUser.user_id);
 
-        const lastName =
-            registrarStudentData.last_name ||
-            registrarStudentData.lastname ||
-            '';
-
-        if (!firstName || !lastName) {
-            throw createHttpError(
-                500,
-                'Registrar record is missing first name or last name.'
-            );
-        }
-
-        const studentPayload = {
-            user_id: insertedUser.user_id,
-            master_student_id: registrarStudentData.master_student_id || null,
-            pdm_id:
-                registrarStudentData.pdm_id ||
-                registrarStudentData.student_number ||
-                pendingRegistration.student_id,
-            registrar_student_number:
-                registrarStudentData.student_number ||
-                pendingRegistration.student_id,
-            learners_reference_number:
-                registrarStudentData.learners_reference_number || null,
-            first_name: firstName,
-            middle_name: registrarStudentData.middle_name || null,
-            last_name: lastName,
-            course_id: registrarStudentData.course_id || null,
-            year_level: registrarStudentData.year_level || null,
-            sex_at_birth: registrarStudentData.sex_at_birth || null,
-            email_address: registrarStudentData.email_address || pendingRegistration.email,
-            phone_number: registrarStudentData.phone_number || null,
-            sequence_number: registrarStudentData.sequence_number || null,
-            account_status: 'Verified',
-            is_profile_complete: false,
-        };
-
-        const { error: studentInsertError } = await supabase
-            .from('students')
-            .insert([studentPayload]);
-
-        if (studentInsertError) {
-            console.error('Failed to create student record during registration:', studentInsertError);
-        } else {
-            const { error: registryUpdateError } = await supabase
-                .from('student_registry')
-                .update({ user_id: insertedUser.user_id })
-                .eq('registry_id', registrarStudentData.registry_id);
-
-            if (registryUpdateError) {
-                console.warn('Failed to link user to student registry:', registryUpdateError);
-            }
-        }
+        throw createHttpError(
+            studentError.statusCode || 500,
+            studentError.message || 'Failed to migrate registry data to student record.'
+        );
     }
 
     otpStore.delete(email);
@@ -431,11 +507,15 @@ async function verifyOtp(body = {}) {
     return {
         ...(await buildAuthResponse(insertedUser)),
         message: 'Email verified successfully',
+        needs_profile_completion: true,
     };
 }
 
 async function login(body = {}) {
-    const studentId = normalizeStudentNumber(body.student_id);
+    const rawStudentId =
+        body.student_id || body.studentId || body.username || body.pdm_id || '';
+
+    const studentId = normalizeStudentNumber(rawStudentId);
     const password = String(body.password || '');
 
     if (!studentId || !password) {
@@ -448,13 +528,25 @@ async function login(body = {}) {
         .eq('username', studentId)
         .maybeSingle();
 
-    if (error || !user) {
+    if (error) {
+        console.error('LOGIN USER LOOKUP ERROR:', error);
+        throw createHttpError(500, 'Database error during login');
+    }
+
+    if (!user) {
+        console.error('LOGIN FAILED: USERNAME NOT FOUND:', studentId);
+        throw createHttpError(401, 'Invalid Student ID or password');
+    }
+
+    if (!user.password_hash) {
+        console.error('LOGIN FAILED: USER HAS NO PASSWORD HASH:', studentId);
         throw createHttpError(401, 'Invalid Student ID or password');
     }
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
+        console.error('LOGIN FAILED: PASSWORD MISMATCH FOR:', studentId);
         throw createHttpError(401, 'Invalid Student ID or password');
     }
 

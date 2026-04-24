@@ -186,6 +186,9 @@ function normalizeApplicantRow(app) {
     submitted_at: app.submission_date || null,
     opening_title: app.opening_title || 'Untitled Opening',
     academic_year: app.academic_year || '—',
+    posting_status: app.posting_status || app.opening_status || 'open',
+    allocated_slots: app.allocated_slots || 0,
+    filled_slots: app.filled_slots || 0,
   };
 }
 
@@ -285,6 +288,7 @@ function Toolbar({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
             <button
+              type="button"
               onClick={() => setViewType('cards')}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewType === 'cards'
                 ? 'bg-white text-stone-900 shadow-sm'
@@ -296,6 +300,7 @@ function Toolbar({
             </button>
 
             <button
+              type="button"
               onClick={() => setViewType('table')}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewType === 'table'
                 ? 'bg-white text-stone-900 shadow-sm'
@@ -642,6 +647,7 @@ export default function ApplicationReview() {
   const navigate = useNavigate();
 
   const [registryRows, setRegistryRows] = useState([]);
+  const [viewType, setViewType] = useState('table');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -649,6 +655,7 @@ export default function ApplicationReview() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
+  const [openings, setOpenings] = useState([]);
 
   const loadData = async ({ soft = false } = {}) => {
     try {
@@ -661,26 +668,53 @@ export default function ApplicationReview() {
 
       const token = localStorage.getItem('adminToken');
 
-      const res = await fetch(buildApiUrl('/api/applications'), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const [applicationsRes, openingsRes] = await Promise.all([
+        fetch(buildApiUrl('/api/applications'), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(buildApiUrl('/api/program-openings'), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      ]);
 
-      if (!res.ok) {
+      if (!applicationsRes.ok) {
         throw new Error(
-          await parseErrorResponse(res, 'Failed to fetch applications')
+          await parseErrorResponse(applicationsRes, 'Failed to fetch applications')
         );
       }
 
-      const data = await res.json();
+      if (!openingsRes.ok) {
+        throw new Error(
+          await parseErrorResponse(openingsRes, 'Failed to fetch openings')
+        );
+      }
+
+      const applicationsData = await applicationsRes.json();
+      const openingsPayload = await openingsRes.json();
+
+      const normalizedOpenings = Array.isArray(openingsPayload)
+        ? openingsPayload
+        : Array.isArray(openingsPayload?.items)
+          ? openingsPayload.items
+          : Array.isArray(openingsPayload?.data)
+            ? openingsPayload.data
+            : Array.isArray(openingsPayload?.rows)
+              ? openingsPayload.rows
+              : [];
 
       setRegistryRows(
-        Array.isArray(data)
-          ? data.map(normalizeApplicantRow)
+        Array.isArray(applicationsData)
+          ? applicationsData.map(normalizeApplicantRow)
           : []
       );
+
+      setOpenings(normalizedOpenings);
     } catch (err) {
       console.error('APPLICATION REVIEW LOAD ERROR:', err);
       setError(err.message || 'Failed to load application review data');
@@ -700,7 +734,54 @@ export default function ApplicationReview() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, filters]);
+  }, [search, filters, viewType]);
+
+  const openingCards = useMemo(() => {
+    return openings.map((opening) => ({
+      opening_id: opening.opening_id,
+      opening_title: opening.opening_title || opening.title || 'Untitled Opening',
+      program_name: opening.program_name || 'No Program',
+      academic_year: opening.academic_year || opening.academic_year_label || opening.label || '—',
+      posting_status: opening.posting_status || opening.status || 'open',
+      allocated_slots: Number(opening.allocated_slots || opening.slot_count || 0),
+      filled_slots: Number(opening.filled_slots || 0),
+      qualified_count: Number(opening.qualified_count || opening.filled_slots || 0),
+    }));
+  }, [openings]);
+
+  const openingCountsMap = useMemo(() => {
+    const map = new Map();
+
+    registryRows.forEach((row) => {
+      if (!row.opening_id) return;
+
+      const current = map.get(row.opening_id) || { applicants: 0 };
+      current.applicants += 1;
+      map.set(row.opening_id, current);
+    });
+
+    return map;
+  }, [registryRows]);
+
+  const filteredOpeningCards = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return openingCards.filter((opening) => {
+      const openingGroup = getOpeningGroup(opening.posting_status);
+
+      const matchesSearch =
+        !q ||
+        (opening.opening_title || '').toLowerCase().includes(q) ||
+        (opening.program_name || '').toLowerCase().includes(q) ||
+        (opening.academic_year || '').toLowerCase().includes(q);
+
+      const matchesOpening =
+        filters.openingStatus === 'all' ||
+        filters.openingStatus === openingGroup;
+
+      return matchesSearch && matchesOpening;
+    });
+  }, [openingCards, search, filters]);
 
   const filteredRegistryRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -731,14 +812,21 @@ export default function ApplicationReview() {
     });
   }, [registryRows, search, filters]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRegistryRows.length / PAGE_SIZE));
+  const tableTotalPages = Math.max(1, Math.ceil(filteredRegistryRows.length / PAGE_SIZE));
+  const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
 
-  const pageData = useMemo(() => {
+  const tablePageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     return filteredRegistryRows.slice(start, start + PAGE_SIZE);
   }, [filteredRegistryRows, page]);
 
+  const cardsPageData = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredOpeningCards.slice(start, start + PAGE_SIZE);
+  }, [filteredOpeningCards, page]);
+
   const applyFilters = () => setFilters(draftFilters);
+
   const clearFilters = () => {
     setFilters(DEFAULT_FILTERS);
     setDraftFilters(DEFAULT_FILTERS);
@@ -776,8 +864,8 @@ export default function ApplicationReview() {
       <Toolbar
         search={search}
         setSearch={setSearch}
-        viewType="table"
-        setViewType={() => { }}
+        viewType={viewType}
+        setViewType={setViewType}
         refreshing={refreshing}
         onRefresh={() => loadData({ soft: true })}
         filters={filters}
@@ -787,7 +875,31 @@ export default function ApplicationReview() {
         onClearFilters={clearFilters}
       />
 
-      {filteredRegistryRows.length === 0 ? (
+      {viewType === 'cards' ? (
+        filteredOpeningCards.length === 0 ? (
+          <Card className="rounded-2xl border-stone-200 shadow-none">
+            <CardContent className="py-16 text-center text-sm text-stone-400">
+              No openings found.
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <OpeningsGrid
+              rows={cardsPageData}
+              countsMap={openingCountsMap}
+              navigate={navigate}
+            />
+
+            <Pagination
+              page={page}
+              totalPages={cardsTotalPages}
+              totalItems={filteredOpeningCards.length}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => Math.min(cardsTotalPages, p + 1))}
+            />
+          </>
+        )
+      ) : filteredRegistryRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">
           <CardContent className="py-16 text-center text-sm text-stone-400">
             No applicants found.
@@ -795,14 +907,14 @@ export default function ApplicationReview() {
         </Card>
       ) : (
         <>
-          <RegistryTable rows={pageData} navigate={navigate} />
+          <RegistryTable rows={tablePageData} navigate={navigate} />
 
           <Pagination
             page={page}
-            totalPages={totalPages}
+            totalPages={tableTotalPages}
             totalItems={filteredRegistryRows.length}
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onNext={() => setPage((p) => Math.min(tableTotalPages, p + 1))}
           />
         </>
       )}

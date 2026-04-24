@@ -609,18 +609,6 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
 async function resolveStudentEligibilityByStudentNumber(studentNumber) {
   const registryStudent = await resolveRegistrarStudentByStudentNumber(studentNumber);
 
-  if (!registryStudent) {
-    return {
-      isRegistrarMatch: false,
-      hasApplication: false,
-      hasScholarAccess: false,
-      status: 'non-PDM / not registered',
-      registryStudent: null,
-      studentRecord: null,
-      scholarRecord: null,
-    };
-  }
-
   const studentNumberValue = normalizeStudentNumber(registryStudent.student_number);
   const { data: studentRecord, error: studentError } = await supabase
     .from('students')
@@ -632,45 +620,13 @@ async function resolveStudentEligibilityByStudentNumber(studentNumber) {
     throw studentError;
   }
 
-  if (!studentRecord?.student_id) {
-    return {
-      isRegistrarMatch: true,
-      hasApplication: false,
-      hasScholarAccess: false,
-      status: 'eligible student',
-      registryStudent,
-      studentRecord: null,
-      scholarRecord: null,
-    };
-  }
-
-  const scholarRecord = await resolveScholarRecordForStudent(studentRecord.student_id);
-  const { data: applicationRecords, error: applicationError } = await supabase
-    .from('applications')
-    .select('application_id, application_status, is_disqualified')
-    .eq('student_id', studentRecord.student_id);
-
-  if (applicationError) {
-    throw applicationError;
-  }
 
   const hasApplication = (applicationRecords || []).length > 0;
-  const hasScholarAccess = !!scholarRecord;
   const status = hasScholarAccess
     ? 'existing scholar'
     : hasApplication
       ? 'applicant'
       : 'eligible student';
-
-  return {
-    isRegistrarMatch: true,
-    hasApplication,
-    hasScholarAccess,
-    status,
-    registryStudent,
-    studentRecord,
-    scholarRecord,
-  };
 }
 
 async function persistApplicantProfileSubmission(payload = {}) {
@@ -1140,20 +1096,6 @@ async function submitApplicantOpeningApplication({
     throw createHttpError(
       403,
       'This account is not registered in the registrar records.'
-    );
-  }
-
-  const scholarRecord = studentRecord?.student_id
-    ? await resolveScholarRecordForStudent(studentRecord.student_id)
-    : null;
-
-  if (
-    scholarRecord &&
-    !isTesProgramName(opening.scholarship_program?.program_name || '')
-  ) {
-    throw createHttpError(
-      403,
-      'Approved scholars can only apply to TES scholarship openings.'
     );
   }
 

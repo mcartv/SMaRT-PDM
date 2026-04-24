@@ -1,33 +1,43 @@
 const express = require('express');
 const cors = require('cors');
 
-const legacy = require('../server.legacy');
 const routes = require('./routes');
 
 function createApp() {
     const app = express();
 
-    app.use(cors());
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
+    app.use(
+        cors({
+            origin: true,
+            credentials: true,
+        })
+    );
 
-    // ✅ TEMP BRIDGE (must be INSIDE createApp)
-    app.use((req, res, next) => {
-        req.isSupportAdmin = legacy.isSupportAdmin;
-        req.listSupportTicketsForAdmin = legacy.listSupportTicketsForAdmin;
-        req.resolveStudentByUserId = legacy.resolveStudentByUserId;
-        req.mapSupportTicketRow = legacy.mapSupportTicketRow;
-        req.getRequestUserId = legacy.getRequestUserId;
-        next();
+    app.use(express.json({ limit: '25mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+    app.get('/', (_req, res) => {
+        res.status(200).send('SMaRT-PDM backend is running.');
     });
 
-    // new modular routes
-    app.use('/api', routes);
+    app.use(routes);
 
-    // fallback to legacy
-    app.use(legacy);
+    app.use((req, res) => {
+        res.status(404).json({
+            error: `Route not found: ${req.method} ${req.originalUrl}`,
+        });
+    });
+
+    app.use((error, _req, res, _next) => {
+        console.error('APP ERROR:', error);
+        res.status(error.statusCode || 500).json({
+            error: error.message || 'Internal server error',
+        });
+    });
 
     return app;
 }
 
-module.exports = { createApp };
+module.exports = {
+    createApp,
+};

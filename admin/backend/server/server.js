@@ -167,6 +167,13 @@ app.use((err, req, res, next) => {
     });
 });
 
+// 404 handler must be LAST
+app.use((req, res) => {
+    res.status(404).json({
+        message: `Route not found: ${req.method} ${req.originalUrl}`,
+    });
+});
+
 // =========================
 // SERVER START WITH SOCKET.IO
 // =========================

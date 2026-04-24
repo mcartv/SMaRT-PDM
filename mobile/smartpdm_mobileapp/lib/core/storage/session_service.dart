@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionUser {
@@ -31,6 +32,26 @@ class SessionUser {
 class SessionService {
   const SessionService();
 
+  static const String _jwtTokenKey = 'jwt_token';
+  static const String _legacyAuthTokenKey = 'auth_token';
+
+  static const String _userIdKey = 'user_id';
+  static const String _userEmailKey = 'user_email';
+  static const String _userStudentIdKey = 'user_student_id';
+  static const String _userFirstNameKey = 'user_first_name';
+  static const String _userLastNameKey = 'user_last_name';
+  static const String _userProfileImageKey = 'user_profile_image';
+  static const String _userIsVerifiedKey = 'user_is_verified';
+  static const String _userHasScholarAccessKey = 'user_has_scholar_access';
+  static const String _userRoleKey = 'user_role';
+
+  static const String _userCourseKey = 'user_course';
+  static const String _userPhoneKey = 'user_phone';
+  static const String _userAddressKey = 'user_address';
+
+  static const String _pushDeviceTokenKey = 'push_device_token';
+  static const String _pushDevicePlatformKey = 'push_device_platform';
+
   Future<void> saveAuthSession({
     required String token,
     required String userId,
@@ -44,47 +65,67 @@ class SessionService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setString('jwt_token', token);
-    await prefs.setString('user_id', userId);
-    await prefs.setString('user_email', email);
-    await prefs.setString('user_student_id', studentId);
+    final cleanToken = token.trim();
 
-    if (firstName.trim().isNotEmpty) {
-      await prefs.setString('user_first_name', firstName.trim());
-    }
+    await prefs.setString(_jwtTokenKey, cleanToken);
 
-    if (lastName.trim().isNotEmpty) {
-      await prefs.setString('user_last_name', lastName.trim());
-    }
+    // Compatibility key, useful if any older file still reads "auth_token".
+    await prefs.setString(_legacyAuthTokenKey, cleanToken);
 
-    await prefs.setBool('user_is_verified', isVerified);
-    await prefs.setBool('user_has_scholar_access', hasScholarAccess);
+    await prefs.setString(_userIdKey, userId.trim());
+    await prefs.setString(_userEmailKey, email.trim());
+    await prefs.setString(_userStudentIdKey, studentId.trim());
+
+    await prefs.setString(_userFirstNameKey, firstName.trim());
+    await prefs.setString(_userLastNameKey, lastName.trim());
+
+    await prefs.setBool(_userIsVerifiedKey, isVerified);
+    await prefs.setBool(_userHasScholarAccessKey, hasScholarAccess);
 
     if (role != null && role.trim().isNotEmpty) {
-      await prefs.setString('user_role', role.trim());
+      await prefs.setString(_userRoleKey, role.trim());
+    } else {
+      await prefs.remove(_userRoleKey);
     }
+
+    debugPrint('SESSION SAVED TOKEN EMPTY: ${cleanToken.isEmpty}');
+    debugPrint('SESSION SAVED USER ID: $userId');
+    debugPrint('SESSION SAVED STUDENT ID: $studentId');
   }
 
   Future<SessionUser> getCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
 
+    final token =
+        (prefs.getString(_jwtTokenKey) ??
+                prefs.getString(_legacyAuthTokenKey) ??
+                '')
+            .trim();
+
+    debugPrint('SESSION READ TOKEN EMPTY: ${token.isEmpty}');
+
     return SessionUser(
-      token: prefs.getString('jwt_token') ?? '',
-      userId: prefs.getString('user_id') ?? '',
-      email: prefs.getString('user_email') ?? '',
-      studentId: prefs.getString('user_student_id') ?? '',
-      firstName: prefs.getString('user_first_name') ?? '',
-      lastName: prefs.getString('user_last_name') ?? '',
-      avatarUrl: prefs.getString('user_profile_image'),
-      isVerified: prefs.getBool('user_is_verified') ?? false,
-      hasScholarAccess: prefs.getBool('user_has_scholar_access') ?? false,
-      role: prefs.getString('user_role'),
+      token: token,
+      userId: prefs.getString(_userIdKey) ?? '',
+      email: prefs.getString(_userEmailKey) ?? '',
+      studentId: prefs.getString(_userStudentIdKey) ?? '',
+      firstName: prefs.getString(_userFirstNameKey) ?? '',
+      lastName: prefs.getString(_userLastNameKey) ?? '',
+      avatarUrl: prefs.getString(_userProfileImageKey),
+      isVerified: prefs.getBool(_userIsVerifiedKey) ?? false,
+      hasScholarAccess: prefs.getBool(_userHasScholarAccessKey) ?? false,
+      role: prefs.getString(_userRoleKey),
     );
+  }
+
+  Future<String> getToken() async {
+    final session = await getCurrentUser();
+    return session.token;
   }
 
   Future<void> saveProfileImage(String avatarUrl) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_profile_image', avatarUrl);
+    await prefs.setString(_userProfileImageKey, avatarUrl.trim());
   }
 
   Future<void> saveProfileCache({
@@ -101,37 +142,45 @@ class SessionService {
     final prefs = await SharedPreferences.getInstance();
 
     if (firstName != null) {
-      await prefs.setString('user_first_name', firstName);
+      await prefs.setString(_userFirstNameKey, firstName.trim());
     }
+
     if (lastName != null) {
-      await prefs.setString('user_last_name', lastName);
+      await prefs.setString(_userLastNameKey, lastName.trim());
     }
+
     if (email != null) {
-      await prefs.setString('user_email', email);
+      await prefs.setString(_userEmailKey, email.trim());
     }
+
     if (studentId != null) {
-      await prefs.setString('user_student_id', studentId);
+      await prefs.setString(_userStudentIdKey, studentId.trim());
     }
+
     if (course != null) {
-      await prefs.setString('user_course', course);
+      await prefs.setString(_userCourseKey, course.trim());
     }
+
     if (phone != null) {
-      await prefs.setString('user_phone', phone);
+      await prefs.setString(_userPhoneKey, phone.trim());
     }
+
     if (address != null) {
-      await prefs.setString('user_address', address);
+      await prefs.setString(_userAddressKey, address.trim());
     }
+
     if (avatarUrl != null) {
-      await prefs.setString('user_profile_image', avatarUrl);
+      await prefs.setString(_userProfileImageKey, avatarUrl.trim());
     }
+
     if (hasScholarAccess != null) {
-      await prefs.setBool('user_has_scholar_access', hasScholarAccess);
+      await prefs.setBool(_userHasScholarAccessKey, hasScholarAccess);
     }
   }
 
   Future<void> saveScholarAccess({required bool hasScholarAccess}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('user_has_scholar_access', hasScholarAccess);
+    await prefs.setBool(_userHasScholarAccessKey, hasScholarAccess);
   }
 
   Future<void> savePushDeviceToken({
@@ -139,30 +188,33 @@ class SessionService {
     required String platform,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('push_device_token', token);
-    await prefs.setString('push_device_platform', platform);
+
+    await prefs.setString(_pushDeviceTokenKey, token.trim());
+    await prefs.setString(_pushDevicePlatformKey, platform.trim());
   }
 
   Future<Map<String, String?>> getPushDeviceToken() async {
     final prefs = await SharedPreferences.getInstance();
+
     return {
-      'token': prefs.getString('push_device_token'),
-      'platform': prefs.getString('push_device_platform'),
+      'token': prefs.getString(_pushDeviceTokenKey),
+      'platform': prefs.getString(_pushDevicePlatformKey),
     };
   }
 
   Future<bool> isSessionValid() async {
     final session = await getCurrentUser();
+    final token = session.token.trim();
 
-    if (session.token.isEmpty) return false;
+    if (token.isEmpty) return false;
 
     try {
-      final parts = session.token.split('.');
+      final parts = token.split('.');
       if (parts.length != 3) return false;
 
-      final normalized = base64Url.normalize(parts[1]);
-      final payload = utf8.decode(base64Url.decode(normalized));
-      final decoded = jsonDecode(payload);
+      final normalizedPayload = base64Url.normalize(parts[1]);
+      final payloadText = utf8.decode(base64Url.decode(normalizedPayload));
+      final decoded = jsonDecode(payloadText);
 
       if (decoded is! Map<String, dynamic>) return false;
 
@@ -174,7 +226,8 @@ class SessionService {
 
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       return expiry > now;
-    } catch (_) {
+    } catch (error) {
+      debugPrint('SESSION VALIDATION ERROR: $error');
       return false;
     }
   }
@@ -182,22 +235,26 @@ class SessionService {
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.remove('user_has_scholar_access');
-    await prefs.remove('jwt_token');
-    await prefs.remove('user_id');
-    await prefs.remove('user_email');
-    await prefs.remove('user_student_id');
-    await prefs.remove('user_first_name');
-    await prefs.remove('user_last_name');
-    await prefs.remove('user_profile_image');
-    await prefs.remove('user_role');
-    await prefs.remove('user_is_verified');
+    await prefs.remove(_jwtTokenKey);
+    await prefs.remove(_legacyAuthTokenKey);
 
-    await prefs.remove('user_course');
-    await prefs.remove('user_phone');
-    await prefs.remove('user_address');
+    await prefs.remove(_userIdKey);
+    await prefs.remove(_userEmailKey);
+    await prefs.remove(_userStudentIdKey);
+    await prefs.remove(_userFirstNameKey);
+    await prefs.remove(_userLastNameKey);
+    await prefs.remove(_userProfileImageKey);
+    await prefs.remove(_userRoleKey);
+    await prefs.remove(_userIsVerifiedKey);
+    await prefs.remove(_userHasScholarAccessKey);
 
-    await prefs.remove('push_device_token');
-    await prefs.remove('push_device_platform');
+    await prefs.remove(_userCourseKey);
+    await prefs.remove(_userPhoneKey);
+    await prefs.remove(_userAddressKey);
+
+    await prefs.remove(_pushDeviceTokenKey);
+    await prefs.remove(_pushDevicePlatformKey);
+
+    debugPrint('SESSION CLEARED');
   }
 }

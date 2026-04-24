@@ -1,74 +1,99 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'smart-pdm-dev-secret';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
 
-function normalizeDecodedUser(decoded = {}) {
-  const normalizedUserId = decoded.user_id || decoded.userId || decoded.sub || null;
+  if (!secret || !String(secret).trim()) {
+    throw new Error('JWT_SECRET is missing in .env');
+  }
 
-  return {
-    ...decoded,
-    sub: decoded.sub || normalizedUserId || undefined,
-    user_id: normalizedUserId,
-    userId: normalizedUserId,
-  };
-}
-
-function extractToken(value = '') {
-  if (!value || typeof value !== 'string') return null;
-  return value.startsWith('Bearer ') ? value.slice(7).trim() : value.trim();
+  return String(secret).trim();
 }
 
 function buildAuthToken(user) {
-  return jwt.sign(
-    normalizeDecodedUser({
-      sub: user.user_id,
-      user_id: user.user_id,
-      userId: user.user_id,
-      email: user.email,
-      student_id: user.username,
-      role: user.role,
-    }),
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
-  );
+  const payload = {
+    user_id: user.user_id,
+    userId: user.user_id,
+    id: user.user_id,
+    role: user.role,
+    email: user.email,
+    username: user.username,
+  };
+
+  return jwt.sign(payload, getJwtSecret(), {
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  });
 }
 
-function verifyToken(token) {
-  return normalizeDecodedUser(jwt.verify(token, JWT_SECRET));
+function extractBearerToken(req) {
+  const header = req.headers.authorization || req.headers.Authorization || '';
+
+  if (!header) return null;
+
+  if (header.startsWith('Bearer ')) {
+    return header.slice(7).trim();
+  }
+
+  return header.trim();
 }
 
 function protect(req, res, next) {
   try {
-    const token = extractToken(req.headers.authorization);
+    const token = extractBearerToken(req);
 
     if (!token) {
-      return res.status(401).json({ error: 'Authentication required.' });
+      return res.status(401).json({
+        error: 'Authentication required.',
+      });
     }
 
-    req.user = verifyToken(token);
-    next();
+    const decoded = jwt.verify(token, getJwtSecret());
+
+    req.user = {
+      user_id: decoded.user_id || decoded.userId || decoded.id,
+      userId: decoded.user_id || decoded.userId || decoded.id,
+      id: decoded.user_id || decoded.userId || decoded.id,
+      role: decoded.role,
+      email: decoded.email,
+      username: decoded.username,
+    };
+
+    return next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+    console.error('AUTH TOKEN ERROR:', error.message);
+
+    return res.status(401).json({
+      error: 'Invalid or expired authentication token.',
+    });
   }
 }
 
 function authenticateSocket(socket, next) {
   try {
-    const rawToken =
-      socket.handshake?.auth?.token ||
-      socket.handshake?.headers?.authorization ||
-      socket.handshake?.query?.token;
-
-    const token = extractToken(rawToken);
+    const token =
+      socket.handshake.auth?.token ||
+      socket.handshake.query?.token ||
+      '';
 
     if (!token) {
       return next(new Error('Authentication required.'));
     }
 
-    socket.user = verifyToken(token);
+    const cleanToken = String(token).replace(/^Bearer\s+/i, '').trim();
+    const decoded = jwt.verify(cleanToken, getJwtSecret());
+
+    socket.user = {
+      user_id: decoded.user_id || decoded.userId || decoded.id,
+      userId: decoded.user_id || decoded.userId || decoded.id,
+      id: decoded.user_id || decoded.userId || decoded.id,
+      role: decoded.role,
+      email: decoded.email,
+      username: decoded.username,
+    };
+
     return next();
   } catch (error) {
+    console.error('SOCKET AUTH ERROR:', error.message);
     return next(new Error('Invalid or expired authentication token.'));
   }
 }

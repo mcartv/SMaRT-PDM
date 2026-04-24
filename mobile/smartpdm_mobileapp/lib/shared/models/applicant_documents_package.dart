@@ -1,36 +1,55 @@
 class ApplicantRequirementDocument {
+  final String id;
+  final String documentType;
+  final String routeParam;
+  final bool isSubmitted;
+  final String status;
+  final String? fileUrl;
+  final String? adminComment;
+  final DateTime? uploadedAt;
+
   const ApplicantRequirementDocument({
     required this.id,
     required this.documentType,
-    required this.status,
+    required this.routeParam,
     required this.isSubmitted,
+    required this.status,
     this.fileUrl,
     this.adminComment,
     this.uploadedAt,
   });
 
-  final String id;
-  final String documentType;
-  final String status;
-  final bool isSubmitted;
-  final String? fileUrl;
-  final String? adminComment;
-  final DateTime? uploadedAt;
-
-  String get routeParam => id.replaceAll('_', '-');
-
   factory ApplicantRequirementDocument.fromJson(Map<String, dynamic> json) {
+    final documentId = (json['document_id'] ?? json['id'] ?? '')
+        .toString()
+        .trim();
+
+    final documentType = (json['document_type'] ?? json['documentType'] ?? '')
+        .toString()
+        .trim();
+
+    final reviewStatus = (json['review_status'] ?? json['status'] ?? '')
+        .toString()
+        .trim();
+
+    final submittedAtRaw =
+        json['submitted_at'] ?? json['uploaded_at'] ?? json['uploadedAt'];
+
     return ApplicantRequirementDocument(
-      id: json['id']?.toString() ?? '',
-      documentType:
-          json['document_type']?.toString() ??
-          json['name']?.toString() ??
-          'Document',
-      status: json['status']?.toString() ?? 'pending',
-      isSubmitted: json['is_submitted'] == true || json['file_url'] != null,
-      fileUrl: json['file_url']?.toString(),
-      adminComment: json['admin_comment']?.toString(),
-      uploadedAt: DateTime.tryParse(json['uploaded_at']?.toString() ?? ''),
+      id: documentId,
+      documentType: documentType,
+      routeParam: documentId,
+      isSubmitted: json['is_submitted'] == true,
+      status: json['is_submitted'] == true
+          ? (reviewStatus.isEmpty ? 'uploaded' : reviewStatus)
+          : 'pending',
+      fileUrl: (json['file_url'] ?? '').toString().trim().isEmpty
+          ? null
+          : json['file_url'].toString(),
+      adminComment: (json['remarks'] ?? json['notes'] ?? '').toString(),
+      uploadedAt: submittedAtRaw == null
+          ? null
+          : DateTime.tryParse(submittedAtRaw.toString()),
     );
   }
 }

@@ -3,6 +3,8 @@ const https = require('https');
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
 const _ = require('lodash');
+const ocrJobService = require('./ocrJobService');
+const documentTypes = require('../utils/documentTypes');
 
 const STORAGE_BUCKET =
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'application-documents';
@@ -631,6 +633,7 @@ async function buildApplicationDetails(applicationId) {
         documentsResult,
         reviewsResult,
         ocrResult,
+        ocrJobsResult,
     ] = await Promise.all([
         supabase
             .from('student_profiles')
@@ -678,6 +681,24 @@ async function buildApplicationDetails(applicationId) {
             .eq('linked_record_id', applicationId)
             .eq('student_id', applicationRecord.student_id)
             .eq('linked_record_type', 'application'),
+        supabase
+            .from('ocr_jobs')
+            .select(`
+                id,
+                application_id,
+                document_key,
+                document_type,
+                status,
+                requested_by,
+                claimed_by,
+                error_message,
+                created_at,
+                claimed_at,
+                completed_at,
+                updated_at
+            `)
+            .eq('application_id', String(applicationId))
+            .order('created_at', { ascending: false }),
     ]);
 
     const resultErrors = [
@@ -687,6 +708,7 @@ async function buildApplicationDetails(applicationId) {
         documentsResult.error,
         reviewsResult.error,
         ocrResult.error,
+        ocrJobsResult.error,
     ].filter(Boolean);
 
     if (resultErrors.length > 0) {
@@ -760,6 +782,31 @@ async function buildApplicationDetails(applicationId) {
             ];
         })
     );
+    const latestOcrJobByKey = new Map();
+
+    (ocrJobsResult.data || []).forEach((jobRow) => {
+        const resolvedKey = normalizeDocumentType(
+            jobRow.document_key || jobRow.document_type || ''
+        );
+
+        if (!resolvedKey || latestOcrJobByKey.has(resolvedKey)) {
+            return;
+        }
+
+        latestOcrJobByKey.set(resolvedKey, {
+            id: jobRow.id,
+            document_key: resolvedKey,
+            document_type: jobRow.document_type || null,
+            status: jobRow.status || 'queued',
+            requested_by: jobRow.requested_by || null,
+            claimed_by: jobRow.claimed_by || null,
+            error_message: jobRow.error_message || null,
+            created_at: jobRow.created_at || null,
+            claimed_at: jobRow.claimed_at || null,
+            completed_at: jobRow.completed_at || null,
+            updated_at: jobRow.updated_at || null,
+        });
+    });
 
     const rawDocuments = documentsResult.data || [];
 
@@ -768,6 +815,7 @@ async function buildApplicationDetails(applicationId) {
             const documentKey = inferDocumentKey(document);
             const review = reviewByKey.get(documentKey) || null;
             const ocr = ocrByKey.get(documentKey) || null;
+            const latestOcrJob = latestOcrJobByKey.get(documentKey) || null;
             const filePath = document.file_path || null;
             const signedUrl = filePath ? await getSignedFileUrl(filePath) : null;
 
@@ -786,6 +834,7 @@ async function buildApplicationDetails(applicationId) {
                 notes: document.notes || null,
                 ocr: ocr || {},
                 ocr_confidence: ocr?.confidence ?? null,
+                ocr_job: latestOcrJob,
                 uploaded_at: document.submitted_at || null,
                 submitted_at: document.submitted_at || null,
                 reviewed_at: review?.reviewed_at || null,
@@ -808,6 +857,7 @@ async function buildApplicationDetails(applicationId) {
         notes: null,
         ocr: {},
         ocr_confidence: null,
+        ocr_job: latestOcrJobByKey.get('application_form') || null,
         uploaded_at: applicationRecord.submission_date || null,
         submitted_at: applicationRecord.submission_date || null,
         reviewed_at: reviewByKey.get('application_form')?.reviewed_at || null,
@@ -986,25 +1036,24 @@ exports.fetchApplicationDocumentsById = async (id) => buildApplicationDetails(id
 exports.runApplicationDocumentIotOcr = async ({
     applicationId,
     documentKey,
+    requestedBy = null,
 }) => {
     if (!applicationId) {
         throw new Error('applicationId is required');
     }
 
-    const normalizedDocumentKey = normalizeDocumentType(documentKey);
+    const normalizedDocumentKey = documentTypes.normalizeDocumentType(documentKey);
 
     if (!normalizedDocumentKey) {
         throw new Error('documentKey is required');
     }
 
     if (normalizedDocumentKey === 'application_form') {
-        throw new Error('IoT OCR is only available for uploaded files');
+        throw new Error('IoT OCR is only available for camera-scannable documents');
     }
 
-    const iotOcrEndpointUrl = validateIotOcrEndpoint(IOT_OCR_ENDPOINT_URL);
-    const interactiveIotOcrEndpointUrl = iotOcrEndpointUrl.replace(/\/scan\/?$/, '/scan-interactive');
-
-    const documentTypeName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
+    const documentTypeName =
+        documentTypes.DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
 
     if (!documentTypeName) {
         throw new Error('Invalid documentKey');
@@ -1047,104 +1096,31 @@ exports.runApplicationDocumentIotOcr = async ({
         .join(' ')
         .replace(/\s+/g, ' ')
         .trim();
-
-    const requestBody = {
-        application_id: applicationId,
-        student_id: applicationRow.student_id,
-        student_name: studentName || 'Unknown Student',
+    const result = await ocrJobService.createJob({
+        application_id: String(applicationId),
         document_key: normalizedDocumentKey,
         document_type: documentTypeName,
-    };
+        student_id: applicationRow.student_id,
+        student_name: studentName || 'Unknown Student',
+        requested_by: requestedBy,
+        source_payload: {
+            source: 'web_iot_ocr_button',
+            mode: 'iot_camera',
+        },
+    });
 
-    const headers = {
-        'Content-Type': 'application/json',
-    };
+    const job = result.job || result.data || result;
 
-    if (IOT_OCR_API_KEY) {
-        headers['x-iot-ocr-key'] = IOT_OCR_API_KEY;
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), IOT_OCR_TIMEOUT_MS);
-    let response;
-
-    // For local IoT device on private network, disable SSL verification
-    const fetchOptions = {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-    };
-
-    // If HTTP (not HTTPS), ensure proper handling
-    if (interactiveIotOcrEndpointUrl.startsWith('http://')) {
-        // Plain HTTP - no agent needed
-    } else {
-        // HTTPS - allow self-signed certs for local device
-        fetchOptions.agent = new https.Agent({ rejectUnauthorized: false });
-    }
-
-    try {
-        response = await fetch(interactiveIotOcrEndpointUrl, fetchOptions);
-    } catch (error) {
-        if (error.name === 'AbortError') {
-            throw buildHttpError(
-                504,
-                `IoT OCR service timed out after ${IOT_OCR_TIMEOUT_MS}ms.`
-            );
-        }
-
-        throw buildHttpError(
-            502,
-            `IoT OCR service is unreachable at ${interactiveIotOcrEndpointUrl}. ${error.message || 'Upstream fetch failed.'}`
-        );
-    } finally {
-        clearTimeout(timeout);
-    }
-
-    const rawBody = await response.text();
-    let payload = {};
-
-    if (rawBody) {
-        try {
-            payload = JSON.parse(rawBody);
-        } catch (_error) {
-            payload = { raw_text: rawBody };
-        }
-    }
-
-    if (!response.ok) {
-        throw buildHttpError(
-            response.status >= 500 ? 502 : response.status,
-            payload?.error ||
-            payload?.message ||
-            `IoT OCR request failed with status ${response.status}`
-        );
-    }
-
-    const baseResult = {
+    return {
         application_id: applicationId,
         student_id: applicationRow.student_id,
         student_name: studentName || 'Unknown Student',
         document_key: normalizedDocumentKey,
         document_name: documentTypeName,
-    };
-
-    if (isAsyncIotOcrStart(response, payload)) {
-        return {
-            ...baseResult,
-            status: 'started',
-            async: true,
-            job: payload?.job || null,
-            log_file: payload?.log_file || null,
-        };
-    }
-
-    return {
-        ...baseResult,
-        status: payload?.status || 'completed',
-        async: false,
-        ...normalizeOcrPayload(payload),
+        status: job.status || 'queued',
+        async: true,
+        job,
+        ...job,
     };
 };
 

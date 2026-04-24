@@ -1,5 +1,8 @@
 const pool = require('../config/db');
-const applicationService = require('./applicationService');
+const {
+    DOCUMENT_TYPE_TO_NAME,
+    normalizeDocumentType,
+} = require('../utils/documentTypes');
 
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
@@ -34,22 +37,45 @@ function mapJobRow(row) {
     };
 }
 
-async function validateQueueableDocument(client, applicationId, documentKey) {
+function normalizeCreateJobInput(input = {}) {
+    return {
+        applicationId: input.applicationId || input.application_id || null,
+        documentKey: input.documentKey || input.document_key || null,
+        documentType: input.documentType || input.document_type || null,
+        studentId: input.studentId || input.student_id || null,
+        studentName: input.studentName || input.student_name || null,
+        requestedBy: input.requestedBy || input.requested_by || null,
+        sourcePayload: input.sourcePayload || input.source_payload || {},
+    };
+}
+
+async function validateQueueableDocument(
+    client,
+    applicationId,
+    documentKey,
+    sourcePayload = {}
+) {
     if (!applicationId) {
         throw buildHttpError(400, 'application_id is required');
     }
 
-    const normalizedDocumentKey = applicationService.normalizeDocumentType(documentKey);
+    const normalizedDocumentKey = normalizeDocumentType(documentKey);
+    const isIotCameraMode =
+        sourcePayload?.mode === 'iot_camera' ||
+        sourcePayload?.source === 'web_iot_ocr_button';
 
     if (!normalizedDocumentKey) {
         throw buildHttpError(400, 'document_key is required');
     }
 
     if (normalizedDocumentKey === 'application_form') {
-        throw buildHttpError(400, 'OCR jobs are only available for uploaded documents');
+        throw buildHttpError(
+            400,
+            'IoT OCR is only available for camera-scannable documents'
+        );
     }
 
-    const documentTypeName = applicationService.getDocumentTypeName(normalizedDocumentKey);
+    const documentTypeName = DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey];
 
     if (!documentTypeName) {
         throw buildHttpError(400, 'Invalid document_key');
@@ -82,31 +108,37 @@ async function validateQueueableDocument(client, applicationId, documentKey) {
     }
 
     const applicationRow = applicationResult.rows[0];
-    const documentResult = await client.query(
-        `
-        SELECT
-            document_type,
-            file_path,
-            file_url,
-            is_submitted
-        FROM application_documents
-        WHERE application_id::text = $1
-          AND document_type = $2
-        LIMIT 1
-        `,
-        [String(applicationId), documentTypeName]
-    );
+    if (!applicationRow.student_id) {
+        throw buildHttpError(409, 'Application is missing student_id');
+    }
 
-    const documentRow = documentResult.rows[0] || null;
-
-    if (
-        !documentRow ||
-        (!documentRow.is_submitted && !documentRow.file_path && !documentRow.file_url)
-    ) {
-        throw buildHttpError(
-            409,
-            'The requested application document is not uploaded yet'
+    if (!isIotCameraMode) {
+        const documentResult = await client.query(
+            `
+            SELECT
+                document_type,
+                file_path,
+                file_url,
+                is_submitted
+            FROM application_documents
+            WHERE application_id::text = $1
+              AND document_type = $2
+            LIMIT 1
+            `,
+            [String(applicationId), documentTypeName]
         );
+
+        const documentRow = documentResult.rows[0] || null;
+
+        if (
+            !documentRow ||
+            (!documentRow.is_submitted && !documentRow.file_path && !documentRow.file_url)
+        ) {
+            throw buildHttpError(
+                409,
+                'The requested application document is not uploaded yet'
+            );
+        }
     }
 
     return {
@@ -118,21 +150,34 @@ async function validateQueueableDocument(client, applicationId, documentKey) {
     };
 }
 
-exports.createJob = async ({
-    applicationId,
-    documentKey,
-    requestedBy = null,
-}) => {
+exports.createJob = async (input = {}) => {
+    const {
+        applicationId,
+        documentKey,
+        documentType,
+        studentId,
+        studentName,
+        requestedBy = null,
+        sourcePayload = {},
+    } = normalizeCreateJobInput(input);
     const client = await pool.connect();
 
     try {
         await client.query('BEGIN');
 
-        const documentContext = await validateQueueableDocument(
+        const validatedContext = await validateQueueableDocument(
             client,
             applicationId,
-            documentKey
+            documentKey,
+            sourcePayload
         );
+        const documentContext = {
+            applicationId: validatedContext.applicationId,
+            studentId: studentId || validatedContext.studentId,
+            studentName: studentName || validatedContext.studentName,
+            documentKey: validatedContext.documentKey,
+            documentType: documentType || validatedContext.documentType,
+        };
 
         const existingJobResult = await client.query(
             `
@@ -149,9 +194,11 @@ exports.createJob = async ({
 
         if (existingJobResult.rows.length) {
             await client.query('COMMIT');
+            const job = mapJobRow(existingJobResult.rows[0]);
             return {
                 created: false,
-                ...mapJobRow(existingJobResult.rows[0]),
+                job,
+                ...job,
             };
         }
 
@@ -169,7 +216,7 @@ exports.createJob = async ({
                 extracted_fields,
                 source_payload
             )
-            VALUES ($1, $2, $3, $4, $5, 'queued', 0, $6, '{}'::jsonb, '{}'::jsonb)
+            VALUES ($1, $2, $3, $4, $5, 'queued', 0, $6, '{}'::jsonb, $7::jsonb)
             RETURNING *
             `,
             [
@@ -179,14 +226,17 @@ exports.createJob = async ({
                 documentContext.studentId,
                 documentContext.studentName,
                 requestedBy ? String(requestedBy) : null,
+                JSON.stringify(sourcePayload || {}),
             ]
         );
 
         await client.query('COMMIT');
+        const job = mapJobRow(insertResult.rows[0]);
 
         return {
             created: true,
-            ...mapJobRow(insertResult.rows[0]),
+            job,
+            ...job,
         };
     } catch (error) {
         await client.query('ROLLBACK');
@@ -201,6 +251,20 @@ exports.claimNextJob = async ({ claimedBy = null } = {}) => {
 
     try {
         await client.query('BEGIN');
+
+        await client.query(
+            `
+            UPDATE ocr_jobs
+            SET
+                status = 'queued',
+                claimed_by = NULL,
+                claimed_at = NULL,
+                error_message = 'Recovered from stale in_progress state',
+                updated_at = NOW()
+            WHERE status = 'in_progress'
+              AND claimed_at < NOW() - INTERVAL '5 minutes'
+            `
+        );
 
         const claimResult = await client.query(
             `
@@ -259,6 +323,7 @@ exports.completeJob = async ({
     const client = await pool.connect();
 
     try {
+        const applicationService = require('./applicationService');
         await client.query('BEGIN');
 
         const jobResult = await client.query(

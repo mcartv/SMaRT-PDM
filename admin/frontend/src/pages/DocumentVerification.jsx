@@ -141,6 +141,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       admin_comment: rawDoc.admin_comment || rawDoc.comment || '',
       ocr: rawDoc.ocr || {},
       ocr_confidence: rawDoc.ocr_confidence ?? rawDoc.ocr?.confidence ?? null,
+      ocr_job: rawDoc.ocr_job || null,
       file_name: rawDoc.file_name || '',
       file_path: rawDoc.file_path || '',
       submitted_at: rawDoc.submitted_at || rawDoc.uploaded_at || null,
@@ -161,6 +162,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       admin_comment: '',
       ocr: {},
       ocr_confidence: null,
+      ocr_job: null,
       file_name: '',
       file_path: '',
       submitted_at: null,
@@ -342,6 +344,61 @@ function buildRawOcrSnapshot(activeDoc, application) {
   ].filter((value) => value !== null);
 
   return sections.join('\n');
+}
+
+function formatJobTimestamp(value) {
+  if (!value) return '';
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return parsed.toLocaleString();
+}
+
+function buildIotOcrJobNotice(job) {
+  if (!job?.status) return null;
+
+  if (job.status === 'failed') {
+    return {
+      tone: 'error',
+      message: job.error_message || 'IoT OCR job failed on the Pi worker.',
+    };
+  }
+
+  if (job.status === 'completed') {
+    const completedAt = formatJobTimestamp(job.completed_at);
+    return {
+      tone: 'success',
+      message: completedAt
+        ? `IoT OCR completed at ${completedAt}. Run again if you need a fresh capture.`
+        : 'OCR completed. Run again?',
+    };
+  }
+
+  if (job.status === 'in_progress') {
+    const claimedAt = formatJobTimestamp(job.claimed_at);
+    return {
+      tone: 'info',
+      message: claimedAt
+        ? `Pi worker claimed this OCR job at ${claimedAt}.`
+        : 'Pi worker has claimed this OCR job.',
+    };
+  }
+
+  if (job.status === 'queued') {
+    const createdAt = formatJobTimestamp(job.created_at);
+    return {
+      tone: 'warning',
+      message: createdAt
+        ? `OCR job queued at ${createdAt}. Waiting for the Pi worker to claim it.`
+        : 'OCR job queued. Waiting for the Pi worker to claim it.',
+    };
+  }
+
+  return {
+    tone: 'info',
+    message: `OCR job status: ${job.status}.`,
+  };
 }
 
 function hasDocumentOcrResult(document) {
@@ -735,13 +792,30 @@ function OCRPanel({
   onRunIotOcr,
   runningIotOcr,
   iotOcrError,
+  iotOcrNotice,
   rawOcrSnapshot,
   onRawOcrChange,
   onSaveRawOcr,
   savingRawOcr,
 }) {
   const confidence = activeDoc?.ocr?.confidence ?? activeDoc?.ocr_confidence ?? null;
-  const canRunIotOcr = activeDoc?.id !== 'application_form';
+  const latestJobStatus = activeDoc?.ocr_job?.status ?? null;
+  const hasPendingIotOcrJob =
+    latestJobStatus === 'queued' || latestJobStatus === 'in_progress';
+  const canRunIotOcr =
+    activeDoc?.id !== 'application_form' && !hasPendingIotOcrJob;
+
+  const runIotOcrLabel = runningIotOcr
+    ? 'Running IoT OCR'
+    : latestJobStatus === 'completed'
+      ? 'Run IoT OCR Again'
+      : latestJobStatus === 'failed'
+        ? 'Retry IoT OCR'
+        : latestJobStatus === 'queued'
+          ? 'OCR Queued'
+          : latestJobStatus === 'in_progress'
+            ? 'OCR In Progress'
+            : 'Use IoT OCR';
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -765,12 +839,12 @@ function OCRPanel({
             {runningIotOcr ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                Running IoT OCR
+                {runIotOcrLabel}
               </>
             ) : (
               <>
                 <ScanText className="w-3.5 h-3.5 mr-1.5" />
-                Use IoT OCR
+                {runIotOcrLabel}
               </>
             )}
           </Button>
@@ -786,6 +860,22 @@ function OCRPanel({
       </div>
 
       <div className="p-4 min-h-[520px] space-y-4">
+        {iotOcrNotice && (
+          <div
+            className={`rounded-lg px-3 py-2 text-xs ${
+              iotOcrNotice.tone === 'error'
+                ? 'border border-red-200 bg-red-50 text-red-700'
+                : iotOcrNotice.tone === 'success'
+                  ? 'border border-green-200 bg-green-50 text-green-700'
+                  : iotOcrNotice.tone === 'warning'
+                    ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border border-blue-200 bg-blue-50 text-blue-700'
+            }`}
+          >
+            {iotOcrNotice.message}
+          </div>
+        )}
+
         {iotOcrError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {iotOcrError}
@@ -1023,6 +1113,7 @@ export default function DocumentVerification() {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [runningIotOcr, setRunningIotOcr] = useState(false);
   const [iotOcrError, setIotOcrError] = useState('');
+  const [iotOcrJobStateByDoc, setIotOcrJobStateByDoc] = useState({});
   const [iotOcrResults, setIotOcrResults] = useState({});
   const [rawOcrSnapshot, setRawOcrSnapshot] = useState('');
   const [savingRawOcr, setSavingRawOcr] = useState(false);
@@ -1072,6 +1163,18 @@ export default function DocumentVerification() {
           'certificate_of_registration';
         setDoc(firstAvailable);
       }
+
+      setIotOcrJobStateByDoc((prev) => {
+        const next = { ...prev };
+
+        normalizedDocs.forEach((document) => {
+          if (document.ocr_job) {
+            next[document.id] = document.ocr_job;
+          }
+        });
+
+        return next;
+      });
       
       setIotOcrResults({});
       setDocStatuses(initialStatuses);
@@ -1096,13 +1199,14 @@ export default function DocumentVerification() {
       status: docStatuses[d.id] || d.status || 'pending',
       admin_comment: docComments[d.id] || '',
       ocr: iotOcrResults[d.id]?.ocr || d.ocr || {},
+      ocr_job: iotOcrJobStateByDoc[d.id] || d.ocr_job || null,
       ocr_confidence:
         iotOcrResults[d.id]?.ocr_confidence ??
         iotOcrResults[d.id]?.ocr?.confidence ??
         d.ocr_confidence ??
         null,
     }));
-  }, [application, docStatuses, docComments, iotOcrResults]);
+  }, [application, docStatuses, docComments, iotOcrResults, iotOcrJobStateByDoc]);
 
   const isDocumentAvailable = (document) =>
     document?.id === 'application_form' ? true : !!document?.url;
@@ -1139,6 +1243,16 @@ export default function DocumentVerification() {
     () => buildExtractedData(activeDoc, application),
     [activeDoc, application]
   );
+  const iotOcrNotice = useMemo(() => {
+    if (runningIotOcr) {
+      return {
+        tone: 'info',
+        message: 'Submitting OCR job and waiting for the Pi worker to process it.',
+      };
+    }
+
+    return buildIotOcrJobNotice(activeDoc?.ocr_job);
+  }, [activeDoc, runningIotOcr]);
 
   useEffect(() => {
     if (activeDoc) {
@@ -1214,6 +1328,21 @@ export default function DocumentVerification() {
       }
 
       const result = payload?.data || {};
+      setIotOcrJobStateByDoc((prev) => ({
+        ...prev,
+        [activeDocId]: result?.id
+          ? {
+            id: result.id,
+            status: result.status || 'queued',
+            claimed_by: result.claimed_by || null,
+            error_message: result.error_message || null,
+            created_at: result.created_at || null,
+            claimed_at: result.claimed_at || null,
+            completed_at: result.completed_at || null,
+            updated_at: result.updated_at || null,
+          }
+          : prev[activeDocId] || null,
+      }));
       const hasImmediateOcrResult = hasDocumentOcrResult({
         ocr: result.ocr,
         ocr_confidence: result.ocr_confidence,
@@ -1255,6 +1384,9 @@ export default function DocumentVerification() {
         if (attempts >= maxAttempts) {
           clearInterval(iotOcrPollingRef.current);
           iotOcrPollingRef.current = null;
+          setIotOcrError(
+            'OCR job was queued, but no result was received within 90 seconds. Check whether the Pi worker is online and claiming jobs.'
+          );
           setRunningIotOcr(false);
         }
       }, 3000);
@@ -1689,6 +1821,7 @@ export default function DocumentVerification() {
                   onRunIotOcr={handleRunIotOcr}
                   runningIotOcr={runningIotOcr}
                   iotOcrError={iotOcrError}
+                  iotOcrNotice={iotOcrNotice}
                   rawOcrSnapshot={rawOcrSnapshot}
                   onRawOcrChange={setRawOcrSnapshot}
                   onSaveRawOcr={handleSaveRawOcr}
@@ -1704,6 +1837,7 @@ export default function DocumentVerification() {
                     onRunIotOcr={handleRunIotOcr}
                     runningIotOcr={runningIotOcr}
                     iotOcrError={iotOcrError}
+                    iotOcrNotice={iotOcrNotice}
                     rawOcrSnapshot={rawOcrSnapshot}
                     onRawOcrChange={setRawOcrSnapshot}
                     onSaveRawOcr={handleSaveRawOcr}

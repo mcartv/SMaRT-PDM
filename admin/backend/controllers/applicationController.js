@@ -1,5 +1,4 @@
 const applicationService = require('../services/applicationService');
-const ocrJobService = require('../services/ocrJobService');
 const socketEvents = require('../utils/socketEvents');
 const ExcelJS = require('exceljs');
 
@@ -82,29 +81,26 @@ exports.uploadStudentDocument = async (req, res) => {
 };
 
 exports.runApplicationDocumentIotOcr = async (req, res) => {
-    const { id, documentKey } = req.params;
-
     try {
-        const result = await ocrJobService.createJob({
-            applicationId: id,
-            documentKey,
-            requestedBy: req.user?.userId || req.user?.user_id || null,
+        const result = await applicationService.runApplicationDocumentIotOcr({
+            applicationId: req.params.id,
+            documentKey: req.params.documentKey,
+            requestedBy:
+                req.user?.user_id ||
+                req.user?.admin_id ||
+                req.user?.id ||
+                null,
         });
 
-        const statusCode = result?.created ? 202 : 200;
-
-        res.status(statusCode).json({
-            message:
-                statusCode === 202
-                    ? 'IoT OCR job queued successfully'
-                    : 'IoT OCR job is already queued',
-            data: result,
+        return res.status(result?.job?.id ? 202 : 200).json({
+            message: 'OCR job queued successfully',
+            data: result.job || result,
         });
-    } catch (err) {
-        console.error('RUN APPLICATION DOCUMENT IOT OCR CONTROLLER ERROR:', err.message);
+    } catch (error) {
+        console.error('RUN APPLICATION DOCUMENT IOT OCR ERROR:', error);
 
-        res.status(err.statusCode || 500).json({
-            error: err.message || 'Failed to run IoT OCR',
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to run IoT OCR',
         });
     }
 };

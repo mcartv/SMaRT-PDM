@@ -765,9 +765,6 @@ function OCRPanel({
   onRawOcrChange,
   onSaveRawOcr,
   savingRawOcr,
-  pendingIotPreviewText,
-  onConfirmIotPreview,
-  onCancelIotPreview,
 }) {
   const confidence = activeDoc?.ocr?.confidence ?? activeDoc?.ocr_confidence ?? null;
   const canRunIotOcr =
@@ -837,44 +834,6 @@ function OCRPanel({
         {iotOcrError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {iotOcrError}
-          </div>
-        )}
-
-        {pendingIotPreviewText && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">
-                IoT OCR Preview
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onCancelIotPreview}
-                  className="h-8 rounded-lg border-stone-200 text-[11px]"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={onConfirmIotPreview}
-                  className="h-8 rounded-lg text-[11px]"
-                >
-                  Confirm
-                  <ChevronRight className="w-3.5 h-3.5 ml-1.5" />
-                </Button>
-              </div>
-            </div>
-
-            <Textarea
-              value={pendingIotPreviewText}
-              readOnly
-              className="min-h-[120px] text-xs text-stone-700 leading-relaxed whitespace-pre-wrap font-mono bg-white rounded-lg p-3 border border-blue-100 resize-y"
-            />
-            <p className="text-[11px] text-blue-700">
-              Confirm sends this OCR text to Raw OCR Snapshot. Cancel discards this preview.
-            </p>
           </div>
         )}
 
@@ -1111,7 +1070,6 @@ export default function DocumentVerification() {
   const [iotOcrError, setIotOcrError] = useState('');
   const [iotOcrRequestStateByDoc, setIotOcrRequestStateByDoc] = useState({});
   const [iotOcrResults, setIotOcrResults] = useState({});
-  const [iotOcrPreviewByDoc, setIotOcrPreviewByDoc] = useState({});
   const [rawOcrSnapshot, setRawOcrSnapshot] = useState('');
   const [savingRawOcr, setSavingRawOcr] = useState(false);
   const iotOcrPollingRef = useRef(null);
@@ -1246,13 +1204,6 @@ export default function DocumentVerification() {
       },
     }));
 
-    if (result?.raw_text) {
-      setIotOcrPreviewByDoc((prev) => ({
-        ...prev,
-        [documentKey]: String(result.raw_text || ''),
-      }));
-    }
-
     return result;
   }, [id]);
 
@@ -1304,11 +1255,16 @@ export default function DocumentVerification() {
 
   const progress = docs.length ? Math.round((reviewedCount / docs.length) * 100) : 0;
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
-  const activePendingIotPreviewText = activeDoc
-    ? iotOcrPreviewByDoc[activeDoc.id] || ''
-    : '';
   const hasUploadedDocument =
     activeDoc?.id === 'application_form' || isDocumentAvailable(activeDoc);
+  const hasSavedOcrSnapshotForActiveDoc =
+    activeDoc?.id === 'application_form' ||
+    !!String(
+      activeDoc?.ocr?.raw_text ||
+      activeDoc?.ocr?.text ||
+      ''
+    ).trim();
+  const canReviewActiveDoc = hasUploadedDocument && hasSavedOcrSnapshotForActiveDoc;
 
   const extractedData = useMemo(
     () => buildExtractedData(activeDoc, application),
@@ -1407,31 +1363,6 @@ export default function DocumentVerification() {
     setRejectModalOpen(false);
   };
 
-  const clearIotPreviewForDoc = (docId) => {
-    setIotOcrPreviewByDoc((prev) => {
-      if (!docId || !prev[docId]) return prev;
-
-      const next = { ...prev };
-      delete next[docId];
-      return next;
-    });
-  };
-
-  const handleConfirmIotPreview = () => {
-    if (!activeDoc) return;
-
-    const previewText = iotOcrPreviewByDoc[activeDoc.id];
-    if (previewText === undefined || previewText === null) return;
-
-    setRawOcrSnapshot(String(previewText));
-    clearIotPreviewForDoc(activeDoc.id);
-  };
-
-  const handleCancelIotPreview = () => {
-    if (!activeDoc) return;
-    clearIotPreviewForDoc(activeDoc.id);
-  };
-
   const handleRunIotOcr = async () => {
     if (!activeDoc || activeDoc.id === 'application_form') return;
 
@@ -1494,10 +1425,6 @@ export default function DocumentVerification() {
             extracted_fields: result.extracted_fields || {},
             source_payload: result.source_payload || null,
           },
-        }));
-        setIotOcrPreviewByDoc((prev) => ({
-          ...prev,
-          [activeDocId]: String(immediateRawText || ''),
         }));
         setRawOcrSnapshot(String(immediateRawText || ''));
       }
@@ -1598,8 +1525,6 @@ export default function DocumentVerification() {
           source_payload: result.source_payload || null,
         },
       }));
-      clearIotPreviewForDoc(activeDoc.id);
-
       await fetchApplicationDocuments({ soft: true });
     } catch (err) {
       console.error('SAVE RAW OCR ERROR:', err);
@@ -1624,10 +1549,6 @@ export default function DocumentVerification() {
       );
 
       if (previewRawText) {
-        setIotOcrPreviewByDoc((prev) => ({
-          ...prev,
-          [activeDoc.id]: previewRawText,
-        }));
         setRawOcrSnapshot(previewRawText);
       }
 
@@ -2002,9 +1923,6 @@ export default function DocumentVerification() {
                   onRawOcrChange={setRawOcrSnapshot}
                   onSaveRawOcr={handleSaveRawOcr}
                   savingRawOcr={savingRawOcr}
-                  pendingIotPreviewText={activePendingIotPreviewText}
-                  onConfirmIotPreview={handleConfirmIotPreview}
-                  onCancelIotPreview={handleCancelIotPreview}
                 />
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -2021,9 +1939,6 @@ export default function DocumentVerification() {
                     onRawOcrChange={setRawOcrSnapshot}
                     onSaveRawOcr={handleSaveRawOcr}
                     savingRawOcr={savingRawOcr}
-                    pendingIotPreviewText={activePendingIotPreviewText}
-                    onConfirmIotPreview={handleConfirmIotPreview}
-                    onCancelIotPreview={handleCancelIotPreview}
                   />
                 </div>
               )}
@@ -2078,7 +1993,7 @@ export default function DocumentVerification() {
                   variant="outline"
                   size="sm"
                   onClick={handleVerify}
-                  disabled={!hasUploadedDocument}
+                  disabled={!canReviewActiveDoc}
                   className="h-9 rounded-lg text-xs border-stone-200 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle size={13} className="mr-1.5" /> Verify
@@ -2088,7 +2003,7 @@ export default function DocumentVerification() {
                   variant="outline"
                   size="sm"
                   onClick={openRejectModal}
-                  disabled={!hasUploadedDocument}
+                  disabled={!canReviewActiveDoc}
                   className="h-9 rounded-lg text-xs border-stone-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <XCircle size={13} className="mr-1.5" /> Reject
@@ -2098,6 +2013,11 @@ export default function DocumentVerification() {
               {!hasUploadedDocument && activeDoc?.id !== 'application_form' && (
                 <p className="text-xs text-stone-400">
                   Student must upload this document first before review actions can be applied.
+                </p>
+              )}
+              {hasUploadedDocument && !hasSavedOcrSnapshotForActiveDoc && activeDoc?.id !== 'application_form' && (
+                <p className="text-xs text-stone-400">
+                  Run IoT OCR and save the Raw OCR Snapshot first before Verify/Reject is enabled.
                 </p>
               )}
 

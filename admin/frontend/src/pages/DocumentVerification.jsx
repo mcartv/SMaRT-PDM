@@ -1154,6 +1154,7 @@ export default function DocumentVerification() {
   const [iotOcrRequestStateByDoc, setIotOcrRequestStateByDoc] = useState({});
   const [iotOcrResults, setIotOcrResults] = useState({});
   const [rawOcrSnapshot, setRawOcrSnapshot] = useState('');
+  const [ocrSnapshotDirtyByDoc, setOcrSnapshotDirtyByDoc] = useState({});
   const [savingRawOcr, setSavingRawOcr] = useState(false);
   const iotOcrPollingRef = useRef(null);
 
@@ -1236,6 +1237,17 @@ export default function DocumentVerification() {
               ocr_confidence: docConfidence,
               raw_text: docRawText,
             };
+          }
+        });
+
+        return next;
+      });
+      setOcrSnapshotDirtyByDoc((prev) => {
+        const next = { ...prev };
+
+        normalizedDocs.forEach((document) => {
+          if (!Object.prototype.hasOwnProperty.call(next, document.id)) {
+            next[document.id] = false;
           }
         });
 
@@ -1346,13 +1358,18 @@ export default function DocumentVerification() {
   const activeDoc = docs.find((d) => d.id === doc) || docs[0] || null;
   const hasUploadedDocument =
     activeDoc?.id === 'application_form' || isDocumentAvailable(activeDoc);
-  const hasSavedOcrSnapshotForActiveDoc =
+  const hasRawSnapshotForActiveDoc =
     activeDoc?.id === 'application_form' ||
     !!String(
+      activeDoc?.ocr?.ocr_raw_text ||
       activeDoc?.ocr?.raw_text ||
       activeDoc?.ocr?.text ||
       ''
     ).trim();
+  const requiresRawSnapshotSaveForActiveDoc =
+    activeDoc?.id !== 'application_form' && !!ocrSnapshotDirtyByDoc[activeDoc?.id];
+  const hasSavedOcrSnapshotForActiveDoc =
+    hasRawSnapshotForActiveDoc && !requiresRawSnapshotSaveForActiveDoc;
   const canReviewActiveDoc = hasUploadedDocument && hasSavedOcrSnapshotForActiveDoc;
 
   const extractedData = useMemo(
@@ -1446,10 +1463,13 @@ export default function DocumentVerification() {
     setComment(resolvedComment);
   };
 
-  const handleVerify = () => updateActiveDocStatus('verified');
+  const handleVerify = () => {
+    if (!canReviewActiveDoc) return;
+    updateActiveDocStatus('verified');
+  };
 
   const openRejectModal = () => {
-    if (!activeDoc || !hasUploadedDocument) return;
+    if (!activeDoc || !canReviewActiveDoc) return;
     setRejectModalOpen(true);
   };
 
@@ -1483,6 +1503,10 @@ export default function DocumentVerification() {
       }
 
       const result = payload?.data || {};
+      setOcrSnapshotDirtyByDoc((prev) => ({
+        ...prev,
+        [activeDocId]: true,
+      }));
       setIotOcrRequestStateByDoc((prev) => ({
         ...prev,
         [activeDocId]: result?.request_id
@@ -1626,6 +1650,10 @@ export default function DocumentVerification() {
           source_payload: result.source_payload || null,
         },
       }));
+      setOcrSnapshotDirtyByDoc((prev) => ({
+        ...prev,
+        [activeDoc.id]: false,
+      }));
       await fetchApplicationDocuments({ soft: true });
     } catch (err) {
       console.error('SAVE RAW OCR ERROR:', err);
@@ -1679,6 +1707,16 @@ export default function DocumentVerification() {
       }
     };
   }, []);
+
+  const handleRawOcrChange = (value) => {
+    setRawOcrSnapshot(value);
+    if (!activeDoc || activeDoc.id === 'application_form') return;
+
+    setOcrSnapshotDirtyByDoc((prev) => ({
+      ...prev,
+      [activeDoc.id]: true,
+    }));
+  };
 
   const handleCompleteVerification = async () => {
     try {
@@ -2022,7 +2060,7 @@ export default function DocumentVerification() {
                   iotOcrNotice={iotOcrNotice}
                   piScannerIndicator={piScannerIndicator}
                   rawOcrSnapshot={rawOcrSnapshot}
-                  onRawOcrChange={setRawOcrSnapshot}
+                  onRawOcrChange={handleRawOcrChange}
                   onSaveRawOcr={handleSaveRawOcr}
                   savingRawOcr={savingRawOcr}
                 />
@@ -2039,7 +2077,7 @@ export default function DocumentVerification() {
                     iotOcrNotice={iotOcrNotice}
                     piScannerIndicator={piScannerIndicator}
                     rawOcrSnapshot={rawOcrSnapshot}
-                    onRawOcrChange={setRawOcrSnapshot}
+                    onRawOcrChange={handleRawOcrChange}
                     onSaveRawOcr={handleSaveRawOcr}
                     savingRawOcr={savingRawOcr}
                   />
@@ -2120,7 +2158,9 @@ export default function DocumentVerification() {
               )}
               {hasUploadedDocument && !hasSavedOcrSnapshotForActiveDoc && activeDoc?.id !== 'application_form' && (
                 <p className="text-xs text-stone-400">
-                  Run IoT OCR and save the Raw OCR Snapshot first before Verify/Reject is enabled.
+                  {requiresRawSnapshotSaveForActiveDoc
+                    ? 'Save the Raw OCR Snapshot first before Verify/Reject is enabled.'
+                    : 'Run IoT OCR and save the Raw OCR Snapshot first before Verify/Reject is enabled.'}
                 </p>
               )}
 

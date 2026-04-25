@@ -1449,9 +1449,13 @@ export default function DocumentVerification() {
   useEffect(() => {
     if (!activeDoc) return;
 
+    if (activeDoc.id !== 'application_form' && ocrSnapshotDirtyByDoc[activeDoc.id]) {
+      return;
+    }
+
     const nextRawSnapshot = buildRawOcrSnapshot(activeDoc);
     setRawOcrSnapshot(nextRawSnapshot);
-  }, [activeDoc, application]);
+  }, [activeDoc, application, ocrSnapshotDirtyByDoc]);
 
   useEffect(() => {
     if (!activeDoc || activeDoc.id === 'application_form') return;
@@ -1472,6 +1476,10 @@ export default function DocumentVerification() {
           ''
         );
 
+        if (activeDoc.id !== 'application_form' && ocrSnapshotDirtyByDoc[activeDoc.id]) {
+          return;
+        }
+
         setRawOcrSnapshot(snapshotText);
       } catch {
         // Keep existing snapshot text if request fails.
@@ -1481,7 +1489,7 @@ export default function DocumentVerification() {
     return () => {
       isCancelled = true;
     };
-  }, [activeDoc, fetchDocumentOcrSnapshot]);
+  }, [activeDoc, fetchDocumentOcrSnapshot, ocrSnapshotDirtyByDoc]);
 
   const handleCommentChange = (value) => {
     setComment(value);
@@ -1624,7 +1632,7 @@ export default function DocumentVerification() {
             snapshotRawText
           );
 
-          if (hasSnapshotText) {
+          if (hasSnapshotText && !ocrSnapshotDirtyByDoc[activeDocId]) {
             setRawOcrSnapshot(snapshotRawText);
           }
 
@@ -1739,7 +1747,7 @@ export default function DocumentVerification() {
       }
       setRunningIotOcr(false);
     }
-  }, [runningIotOcr, activeDoc, docs]);
+  }, [runningIotOcr, activeDoc, docs, ocrSnapshotDirtyByDoc]);
 
   // Stop polling when user changes documents
   useEffect(() => {

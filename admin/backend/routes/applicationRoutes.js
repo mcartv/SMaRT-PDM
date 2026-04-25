@@ -24,6 +24,11 @@ router.post(
     protect,
     applicationController.runApplicationDocumentIotOcr
 );
+router.get(
+    '/:id/documents/:documentKey/ocr',
+    protect,
+    applicationController.getApplicationDocumentOcrSnapshot
+);
 router.patch(
     '/:id/documents/:documentKey/ocr',
     protect,

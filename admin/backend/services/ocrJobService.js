@@ -409,6 +409,11 @@ exports.completeJob = async ({
             applicationId: job.application_id,
             documentKey: job.document_key,
             rawText: normalizedPayload.raw_text,
+            ocrConfidence: normalizedPayload.ocr_confidence,
+            extractedFields: normalizedPayload.extracted_fields,
+            scannedViaIot: true,
+            iotDeviceId: claimedBy || null,
+            scannedAt: new Date().toISOString(),
         });
 
         return {

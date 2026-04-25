@@ -30,6 +30,7 @@ const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
 const ocrRoutes = require('../routes/ocrRoutes');
 const piRoutes = require('../routes/piRoutes');
+const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
 
 // Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
@@ -173,6 +174,8 @@ app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/ocr', ocrRoutes);
+app.use('/api/pi/iot-ocr', piIotOcrRoutes);
+// Deprecated compatibility routes for old Pi workers.
 app.use('/api/pi', piRoutes);
 
 // =========================

@@ -108,6 +108,8 @@ async function resolveRequestContext(client, { applicationId, documentKey }) {
     };
 }
 
+const CLAIM_STALE_TIMEOUT_SQL = `NOW() - INTERVAL '5 minutes'`;
+
 exports.createRequest = async (input = {}) => {
     const { applicationId, documentKey, requestedBy = null } = normalizeCreateInput(input);
     const client = await pool.connect();
@@ -119,6 +121,23 @@ exports.createRequest = async (input = {}) => {
             applicationId,
             documentKey,
         });
+
+        await client.query(
+            `
+            UPDATE iot_ocr_requests
+            SET
+                status = 'failed',
+                error_message = 'IoT OCR request timed out before completion',
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE application_id = $1::uuid
+              AND document_key = $2
+              AND status = 'claimed'
+              AND claimed_at IS NOT NULL
+              AND claimed_at < ${CLAIM_STALE_TIMEOUT_SQL}
+            `,
+            [context.application_id, context.document_key]
+        );
 
         const existingResult = await client.query(
             `
@@ -190,6 +209,20 @@ exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
 
     try {
         await client.query('BEGIN');
+
+        await client.query(
+            `
+            UPDATE iot_ocr_requests
+            SET
+                status = 'pending',
+                claimed_by = NULL,
+                claimed_at = NULL,
+                updated_at = NOW()
+            WHERE status = 'claimed'
+              AND claimed_at IS NOT NULL
+              AND claimed_at < ${CLAIM_STALE_TIMEOUT_SQL}
+            `
+        );
 
         const claimResult = await client.query(
             `

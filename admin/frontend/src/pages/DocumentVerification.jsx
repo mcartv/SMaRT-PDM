@@ -1293,7 +1293,7 @@ export default function DocumentVerification() {
     if (runningIotOcr) {
       return {
         tone: 'info',
-        message: 'IoT OCR started.',
+        message: 'IoT OCR started. Preview is on the Pi scanner screen; use LEFT/RIGHT there, then save Raw OCR Snapshot here.',
       };
     }
 

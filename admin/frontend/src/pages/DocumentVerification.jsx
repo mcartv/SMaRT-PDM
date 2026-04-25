@@ -1900,12 +1900,6 @@ export default function DocumentVerification() {
           />
         </div>
       </div>
-
-      <footer className="pt-6 pb-2 border-t border-stone-100">
-        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · Document Verification Layer
-        </p>
-      </footer>
     </div>
   );
 }

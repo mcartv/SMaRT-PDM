@@ -1201,6 +1201,11 @@ export default function DocumentVerification() {
   const [savingRawOcr, setSavingRawOcr] = useState(false);
   const [showSaveOcrSuccessModal, setShowSaveOcrSuccessModal] = useState(false);
   const iotOcrPollingRef = useRef(null);
+  const ocrSnapshotDirtyByDocRef = useRef({});
+
+  useEffect(() => {
+    ocrSnapshotDirtyByDocRef.current = ocrSnapshotDirtyByDoc;
+  }, [ocrSnapshotDirtyByDoc]);
 
   const fetchApplicationDocuments = useCallback(async ({ soft = false } = {}) => {
     try {
@@ -1632,7 +1637,7 @@ export default function DocumentVerification() {
             snapshotRawText
           );
 
-          if (hasSnapshotText && !ocrSnapshotDirtyByDoc[activeDocId]) {
+          if (hasSnapshotText && !ocrSnapshotDirtyByDocRef.current[activeDocId]) {
             setRawOcrSnapshot(snapshotRawText);
           }
 

@@ -140,6 +140,31 @@ exports.createRequest = async (input = {}) => {
             [context.application_id, context.document_key]
         );
 
+        const activeResult = await client.query(
+            `
+            SELECT *
+            FROM iot_ocr_requests
+            WHERE application_id = $1::uuid
+              AND document_key = $2
+              AND status IN ('pending', 'claimed')
+            ORDER BY created_at DESC
+            LIMIT 1
+            FOR UPDATE
+            `,
+            [context.application_id, context.document_key]
+        );
+
+        const activeRow = activeResult.rows[0] || null;
+        if (activeRow?.status === 'claimed') {
+            await client.query('COMMIT');
+            const request = mapRequestRow(activeRow);
+            return {
+                created: false,
+                request,
+                ...request,
+            };
+        }
+
         await client.query(
             `
             UPDATE iot_ocr_requests
@@ -157,29 +182,59 @@ exports.createRequest = async (input = {}) => {
 
         const requestedByUuid = isUuid(requestedBy) ? String(requestedBy).trim() : null;
 
-        const insertResult = await client.query(
-            `
-            INSERT INTO iot_ocr_requests (
-                application_id,
-                student_id,
-                student_name,
-                document_key,
-                document_type,
-                status,
-                requested_by
-            )
-            VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'pending', $6::uuid)
-            RETURNING *
-            `,
-            [
-                context.application_id,
-                context.student_id,
-                context.student_name,
-                context.document_key,
-                context.document_type,
-                requestedByUuid,
-            ]
-        );
+        let insertResult;
+        try {
+            insertResult = await client.query(
+                `
+                INSERT INTO iot_ocr_requests (
+                    application_id,
+                    student_id,
+                    student_name,
+                    document_key,
+                    document_type,
+                    status,
+                    requested_by
+                )
+                VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'pending', $6::uuid)
+                RETURNING *
+                `,
+                [
+                    context.application_id,
+                    context.student_id,
+                    context.student_name,
+                    context.document_key,
+                    context.document_type,
+                    requestedByUuid,
+                ]
+            );
+        } catch (insertError) {
+            if (insertError && insertError.code === '23505') {
+                const latestActiveResult = await client.query(
+                    `
+                    SELECT *
+                    FROM iot_ocr_requests
+                    WHERE application_id = $1::uuid
+                      AND document_key = $2
+                      AND status IN ('pending', 'claimed')
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    `,
+                    [context.application_id, context.document_key]
+                );
+
+                if (latestActiveResult.rows.length) {
+                    await client.query('COMMIT');
+                    const request = mapRequestRow(latestActiveResult.rows[0]);
+                    return {
+                        created: false,
+                        request,
+                        ...request,
+                    };
+                }
+            }
+
+            throw insertError;
+        }
 
         await client.query('COMMIT');
         const request = mapRequestRow(insertResult.rows[0]);

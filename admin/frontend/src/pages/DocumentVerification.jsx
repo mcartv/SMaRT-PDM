@@ -1474,6 +1474,7 @@ export default function DocumentVerification() {
           ...prev,
           [activeDocId]: String(immediateRawText || ''),
         }));
+        setRawOcrSnapshot(String(immediateRawText || ''));
       }
 
       if (iotOcrPollingRef.current) {
@@ -1488,11 +1489,19 @@ export default function DocumentVerification() {
         try {
           const snapshot = await fetchDocumentOcrSnapshot(activeDocId, { quiet: true });
           const requestStatus = snapshot?.iot_ocr_request?.status || null;
-          const hasSnapshotText = !!(
-            snapshot?.raw_text
-            || snapshot?.ocr?.raw_text
-            || snapshot?.ocr?.text
+          const snapshotRawText = String(
+            snapshot?.raw_text ??
+            snapshot?.ocr?.raw_text ??
+            snapshot?.ocr?.text ??
+            ''
           );
+          const hasSnapshotText = !!(
+            snapshotRawText
+          );
+
+          if (hasSnapshotText) {
+            setRawOcrSnapshot(snapshotRawText);
+          }
 
           if (['completed', 'failed', 'cancelled'].includes(requestStatus) || hasSnapshotText) {
             if (iotOcrPollingRef.current) {
@@ -1594,6 +1603,7 @@ export default function DocumentVerification() {
           ...prev,
           [activeDoc.id]: previewRawText,
         }));
+        setRawOcrSnapshot(previewRawText);
       }
 
       if (iotOcrPollingRef.current) {

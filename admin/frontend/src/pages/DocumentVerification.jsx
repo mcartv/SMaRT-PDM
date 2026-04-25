@@ -1153,6 +1153,12 @@ function SaveOcrSuccessModal({ onClose, activeDocName }) {
           </button>
         </div>
         <CardContent className="p-5 space-y-4">
+          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle className="h-5 w-5 text-green-700" />
+            </span>
+            <p className="text-sm font-medium text-green-800">Saved successfully</p>
+          </div>
           <p className="text-sm text-stone-700">
             Raw OCR Snapshot for <span className="font-semibold">{activeDocName || 'selected document'}</span> was saved successfully.
           </p>

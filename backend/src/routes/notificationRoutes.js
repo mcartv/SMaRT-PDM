@@ -4,8 +4,13 @@ const notificationController = require('../controllers/notificationController');
 
 const router = express.Router();
 
+// Mobile existing call
+router.get('/', protect, notificationController.getMyNotifications);
+
+// New explicit call
 router.get('/me', protect, notificationController.getMyNotifications);
-router.patch('/:notificationId/read', protect, notificationController.markAsRead);
+
 router.patch('/me/read-all', protect, notificationController.markAllAsRead);
+router.patch('/:notificationId/read', protect, notificationController.markAsRead);
 
 module.exports = router;

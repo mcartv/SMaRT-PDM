@@ -346,10 +346,7 @@ export default function PayoutManagement() {
 
   const filteredSelectedBatchScholars = useMemo(() => {
     if (!selectedBatch) return [];
-    return filterScholarsByOpening(
-      selectedBatch.scholars,
-      selectedBatch.opening_id
-    );
+    return selectedBatch.scholars || [];
   }, [selectedBatch]);
 
   const toggleScholar = (scholarId) => {
@@ -544,7 +541,7 @@ export default function PayoutManagement() {
   };
 
   const renderBatchCard = (b) => {
-    const scholars = filterScholarsByOpening(b.scholars, b.opening_id);
+    const scholars = b.scholars || [];
     const released = scholars.filter(s => s.release_status === 'Released').length;
     const absent = scholars.filter(s => s.release_status === 'Absent').length;
     const onHold = scholars.filter(s => s.release_status === 'On Hold').length;
@@ -707,8 +704,8 @@ export default function PayoutManagement() {
             <button
               onClick={() => setActiveSection('overview')}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${activeSection === 'overview'
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-600'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
                 }`}
             >
               Overview
@@ -717,8 +714,8 @@ export default function PayoutManagement() {
             <button
               onClick={() => setActiveSection('batches')}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${activeSection === 'batches'
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-600'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
                 }`}
             >
               Batch Records
@@ -727,8 +724,8 @@ export default function PayoutManagement() {
             <button
               onClick={() => setActiveSection('archived')}
               className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${activeSection === 'archived'
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-600'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
                 }`}
             >
               Archived
@@ -755,8 +752,8 @@ export default function PayoutManagement() {
                   <button
                     onClick={() => setViewMode('cards')}
                     className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'cards'
-                        ? 'bg-white text-stone-900 shadow-sm'
-                        : 'text-stone-600'
+                      ? 'bg-white text-stone-900 shadow-sm'
+                      : 'text-stone-600'
                       }`}
                   >
                     <LayoutGrid className="h-4 w-4" />
@@ -766,8 +763,8 @@ export default function PayoutManagement() {
                   <button
                     onClick={() => setViewMode('table')}
                     className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'table'
-                        ? 'bg-white text-stone-900 shadow-sm'
-                        : 'text-stone-600'
+                      ? 'bg-white text-stone-900 shadow-sm'
+                      : 'text-stone-600'
                       }`}
                   >
                     <Table2 className="h-4 w-4" />

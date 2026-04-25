@@ -219,7 +219,124 @@ async function schedulePayoutBatch({ adminUserId, payoutBatchId, body }) {
     };
 }
 
+async function getMyPayouts(userId) {
+  if (!userId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  const { data: student, error: studentError } = await supabase
+    .from('students')
+    .select('student_id, user_id, is_active_scholar, scholarship_status')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (studentError) throw studentError;
+
+  if (!student) {
+    throw createHttpError(404, 'Student profile not found.');
+  }
+
+  if (!student.is_active_scholar && student.scholarship_status !== 'Active') {
+    return {
+      items: [],
+      message: 'Payouts are available after your application is approved.',
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('payout_batch_students')
+    .select(`
+      payout_entry_id,
+      payout_batch_id,
+      student_id,
+      application_id,
+      amount_received,
+      release_status,
+      released_at,
+      check_number,
+      remarks,
+      created_at,
+      payout_batches (
+        payout_batch_id,
+        payout_title,
+        payout_date,
+        payment_mode,
+        amount_per_scholar,
+        total_amount,
+        batch_status,
+        acknowledgement_status,
+        remarks,
+        scholarship_program (
+          program_id,
+          program_name
+        ),
+        program_openings (
+          opening_id,
+          opening_title
+        ),
+        academic_years (
+          academic_year_id,
+          label,
+          start_year,
+          end_year
+        ),
+        academic_period (
+          period_id,
+          term
+        )
+      )
+    `)
+    .eq('student_id', student.student_id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  const items = (data || []).map((row) => {
+    const batch = row.payout_batches || {};
+    const program = batch.scholarship_program || {};
+    const opening = batch.program_openings || {};
+    const academicYear = batch.academic_years || {};
+    const period = batch.academic_period || {};
+
+    return {
+      payout_entry_id: row.payout_entry_id,
+      payout_batch_id: row.payout_batch_id,
+      application_id: row.application_id,
+
+      title: batch.payout_title || 'Scholarship Payout',
+      program_name: program.program_name || 'Scholarship Program',
+      opening_title: opening.opening_title || '',
+
+      amount: Number(row.amount_received || batch.amount_per_scholar || 0),
+      amount_received: Number(row.amount_received || 0),
+      amount_per_scholar: Number(batch.amount_per_scholar || 0),
+
+      payout_date: batch.payout_date || null,
+      payment_mode: batch.payment_mode || '-',
+      batch_status: batch.batch_status || 'Pending',
+      release_status: row.release_status || 'Pending',
+      acknowledgement_status: batch.acknowledgement_status || 'Pending',
+
+      academic_year:
+        academicYear.label ||
+        (academicYear.start_year && academicYear.end_year
+          ? `${academicYear.start_year}-${academicYear.end_year}`
+          : '-'),
+
+      semester: period.term || '-',
+
+      reference: row.check_number || row.payout_entry_id,
+      remarks: row.remarks || batch.remarks || '',
+      released_at: row.released_at || null,
+      created_at: row.created_at,
+    };
+  });
+
+  return { items };
+}
+
 module.exports = {
     createPayoutBatch,
     schedulePayoutBatch,
+    getMyPayouts,
 };

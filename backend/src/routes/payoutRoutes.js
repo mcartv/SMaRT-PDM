@@ -6,5 +6,6 @@ const router = express.Router();
 
 router.post('/batches', protect, payoutController.createPayoutBatch);
 router.patch('/batches/:payoutBatchId/schedule', protect, payoutController.schedulePayoutBatch);
+router.get('/me', protect, payoutController.getMyPayouts);
 
 module.exports = router;

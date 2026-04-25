@@ -48,7 +48,27 @@ async function schedulePayoutBatch(req, res) {
     }
 }
 
+async function getMyPayouts(req, res) {
+  try {
+    const userId = getRequestUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const result = await payoutService.getMyPayouts(userId);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('GET MY PAYOUTS ERROR:', error);
+
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to load payout schedule.',
+    });
+  }
+}
+
 module.exports = {
     createPayoutBatch,
     schedulePayoutBatch,
+    getMyPayouts,
 };

@@ -17,18 +17,18 @@ const INTERNAL_NOTIFICATION_SECRET =
 const IOT_OCR_TIMEOUT_MS = Number(process.env.IOT_OCR_TIMEOUT_MS || 15000);
 
 const APPROVED_SCHOLAR_NOTIFICATION = Object.freeze({
-    type: 'Scholar Approved',
-    title: 'Scholarship Approved',
+    type: 'Application',
+    title: 'Scholarship Application Approved',
     message:
-        'Your verification is complete and your scholarship has been approved.',
-    referenceType: 'scholar',
+        'Congratulations! Your scholarship application has been approved. Scholar features are now available in your account.',
+    referenceType: 'application',
 });
 
 const REJECTED_APPLICATION_NOTIFICATION = Object.freeze({
-    type: 'Application Rejected',
-    title: 'Application Rejected',
+    type: 'Application',
+    title: 'Scholarship Application Rejected',
     message:
-        'Your application verification is complete and your application has been rejected.',
+        'Your scholarship application was not approved. Please check the application details or contact OSFA for more information.',
     referenceType: 'application',
 });
 

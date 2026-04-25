@@ -5,7 +5,7 @@ const notificationService = require('./notificationService');
 // FETCH PAYOUT BATCHES
 // =========================
 async function fetchPayoutBatches() {
-    const query = `
+  const query = `
     SELECT
       pb.payout_batch_id,
       pb.opening_id,
@@ -97,15 +97,15 @@ async function fetchPayoutBatches() {
     ORDER BY pb.created_at DESC;
   `;
 
-    const { rows } = await pool.query(query);
-    return rows;
+  const { rows } = await pool.query(query);
+  return rows;
 }
 
 // =========================
 // FETCH OPENINGS
 // =========================
 async function fetchPayoutOpenings() {
-    const query = `
+  const query = `
     SELECT
       po.opening_id,
       po.program_id,
@@ -135,15 +135,15 @@ async function fetchPayoutOpenings() {
     ORDER BY po.created_at DESC;
   `;
 
-    const { rows } = await pool.query(query);
-    return rows;
+  const { rows } = await pool.query(query);
+  return rows;
 }
 
 // =========================
 // FETCH ELIGIBLE STUDENTS BY OPENING
 // =========================
 async function fetchEligibleScholarsByOpening(openingId) {
-    const openingQuery = `
+  const openingQuery = `
     SELECT
       po.opening_id,
       po.program_id,
@@ -171,15 +171,15 @@ async function fetchEligibleScholarsByOpening(openingId) {
     LIMIT 1;
   `;
 
-    const openingResult = await pool.query(openingQuery, [openingId]);
+  const openingResult = await pool.query(openingQuery, [openingId]);
 
-    if (!openingResult.rows.length) {
-        throw new Error('Opening not found');
-    }
+  if (!openingResult.rows.length) {
+    throw new Error('Opening not found');
+  }
 
-    const opening = openingResult.rows[0];
+  const opening = openingResult.rows[0];
 
-    const scholarQuery = `
+  const scholarQuery = `
     SELECT
       st.student_id,
       st.current_program_id AS program_id,
@@ -206,41 +206,37 @@ async function fetchEligibleScholarsByOpening(openingId) {
     ORDER BY st.last_name, st.first_name;
   `;
 
-    const scholarResult = await pool.query(scholarQuery, [openingId]);
+  const scholarResult = await pool.query(scholarQuery, [openingId]);
 
-    return {
-        opening,
-        scholars: scholarResult.rows.map((row) => ({
-            ...row,
-            scholar_id: row.student_id,
-        })),
-    };
+  return {
+    opening,
+    scholars: scholarResult.rows.map((row) => ({
+      ...row,
+      scholar_id: row.student_id,
+    })),
+  };
 }
 
 // =========================
 // CREATE PAYOUT BATCH
 // =========================
 async function createPayoutBatchFromOpening({
-    opening_id,
-    payout_title,
-    payout_date,
-    payment_mode,
-    remarks,
-    scholar_ids,
+  opening_id,
+  payout_title,
+  payout_date,
+  payment_mode,
+  remarks,
+  scholar_ids,
 }) {
-    if (!opening_id) {
-        throw new Error('opening_id is required');
-    }
+  if (!opening_id) {
+    throw new Error('opening_id is required');
+  }
 
-    const uniqueStudentIds = Array.isArray(scholar_ids)
-        ? [...new Set(scholar_ids.filter(Boolean))]
-        : [];
+  let uniqueStudentIds = Array.isArray(scholar_ids)
+    ? [...new Set(scholar_ids.filter(Boolean))]
+    : [];
 
-    if (!uniqueStudentIds.length) {
-        throw new Error('No scholars selected');
-    }
-
-    const openingQuery = `
+  const openingQuery = `
     SELECT
       po.opening_id,
       po.program_id,
@@ -264,15 +260,15 @@ async function createPayoutBatchFromOpening({
     LIMIT 1;
   `;
 
-    const openingResult = await pool.query(openingQuery, [opening_id]);
+  const openingResult = await pool.query(openingQuery, [opening_id]);
 
-    if (!openingResult.rows.length) {
-        throw new Error('Opening not found');
-    }
+  if (!openingResult.rows.length) {
+    throw new Error('Opening not found');
+  }
 
-    const opening = openingResult.rows[0];
+  const opening = openingResult.rows[0];
 
-    const eligibleStudentQuery = `
+  const eligibleStudentQuery = `
     SELECT st.student_id
     FROM students st
     INNER JOIN applications a
@@ -283,29 +279,41 @@ async function createPayoutBatchFromOpening({
       AND st.scholarship_status = 'Active';
   `;
 
-    const eligibleStudentResult = await pool.query(eligibleStudentQuery, [opening_id]);
-    const eligibleStudentIds = new Set(
-        eligibleStudentResult.rows.map((row) => row.student_id)
-    );
+  const eligibleStudentResult = await pool.query(eligibleStudentQuery, [opening_id]);
+  const eligibleStudentIdsArray = eligibleStudentResult.rows.map(
+    (row) => row.student_id
+  );
 
-    const invalidStudentIds = uniqueStudentIds.filter(
-        (id) => !eligibleStudentIds.has(id)
-    );
+  if (!uniqueStudentIds.length) {
+    uniqueStudentIds = eligibleStudentIdsArray;
+  }
 
-    if (invalidStudentIds.length > 0) {
-        throw new Error('One or more selected scholars do not belong to the selected opening');
-    }
+  if (!uniqueStudentIds.length) {
+    throw new Error('No eligible scholars found for this opening');
+  }
+  
+  const eligibleStudentIds = new Set(
+    eligibleStudentResult.rows.map((row) => row.student_id)
+  );
 
-    const amount = Number(opening.amount_per_scholar || 0);
-    const totalAmount = amount * uniqueStudentIds.length;
+  const invalidStudentIds = uniqueStudentIds.filter(
+    (id) => !eligibleStudentIds.has(id)
+  );
 
-    const client = await pool.connect();
+  if (invalidStudentIds.length > 0) {
+    throw new Error('One or more selected scholars do not belong to the selected opening');
+  }
 
-    try {
-        await client.query('BEGIN');
+  const amount = Number(opening.amount_per_scholar || 0);
+  const totalAmount = amount * uniqueStudentIds.length;
 
-        const batchResult = await client.query(
-            `
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const batchResult = await client.query(
+      `
       INSERT INTO payout_batches (
         opening_id,
         program_id,
@@ -322,25 +330,25 @@ async function createPayoutBatchFromOpening({
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Draft', $10)
       RETURNING *;
       `,
-            [
-                opening.opening_id,
-                opening.program_id,
-                opening.academic_year_id,
-                opening.period_id,
-                payout_title || opening.opening_title || `${opening.program_name || 'Program'} Payout Batch`,
-                payout_date || new Date().toISOString().slice(0, 10),
-                payment_mode || 'Cash',
-                amount,
-                totalAmount,
-                remarks || null,
-            ]
-        );
+      [
+        opening.opening_id,
+        opening.program_id,
+        opening.academic_year_id,
+        opening.period_id,
+        payout_title || opening.opening_title || `${opening.program_name || 'Program'} Payout Batch`,
+        payout_date || new Date().toISOString().slice(0, 10),
+        payment_mode || 'Cash',
+        amount,
+        totalAmount,
+        remarks || null,
+      ]
+    );
 
-        const batch = batchResult.rows[0];
+    const batch = batchResult.rows[0];
 
-        for (const studentId of uniqueStudentIds) {
-            const studentMetaResult = await client.query(
-                `
+    for (const studentId of uniqueStudentIds) {
+      const studentMetaResult = await client.query(
+        `
         SELECT
           current_program_id AS program_id,
           current_application_id AS application_id
@@ -348,13 +356,13 @@ async function createPayoutBatchFromOpening({
         WHERE student_id = $1
         LIMIT 1;
         `,
-                [studentId]
-            );
+        [studentId]
+      );
 
-            const studentMeta = studentMetaResult.rows[0] || {};
+      const studentMeta = studentMetaResult.rows[0] || {};
 
-            await client.query(
-                `
+      await client.query(
+        `
         INSERT INTO payout_batch_students (
           payout_batch_id,
           student_id,
@@ -365,45 +373,45 @@ async function createPayoutBatchFromOpening({
         )
         VALUES ($1, $2, $3, $4, $5, 'Pending')
         `,
-                [
-                    batch.payout_batch_id,
-                    studentId,
-                    studentMeta.program_id || opening.program_id,
-                    studentMeta.application_id || null,
-                    amount,
-                ]
-            );
-        }
-
-        await client.query('COMMIT');
-        return batch;
-    } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-    } finally {
-        client.release();
+        [
+          batch.payout_batch_id,
+          studentId,
+          studentMeta.program_id || opening.program_id,
+          studentMeta.application_id || null,
+          amount,
+        ]
+      );
     }
+
+    await client.query('COMMIT');
+    return batch;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // =========================
 // UPDATE STATUS
 // =========================
 async function updateScholarPayoutStatus({
-    payout_entry_id,
-    next_status,
-    processed_by,
-    remarks,
-    check_number,
+  payout_entry_id,
+  next_status,
+  processed_by,
+  remarks,
+  check_number,
 }) {
-    if (!payout_entry_id) {
-        throw new Error('payout_entry_id is required');
-    }
+  if (!payout_entry_id) {
+    throw new Error('payout_entry_id is required');
+  }
 
-    if (!next_status) {
-        throw new Error('next_status is required');
-    }
+  if (!next_status) {
+    throw new Error('next_status is required');
+  }
 
-    const fetchQuery = `
+  const fetchQuery = `
     SELECT
       pbs.payout_entry_id,
       pbs.student_id,
@@ -422,21 +430,21 @@ async function updateScholarPayoutStatus({
     WHERE pbs.payout_entry_id = $1
   `;
 
-    const { rows: existingRows } = await pool.query(fetchQuery, [payout_entry_id]);
-    const existingRecord = existingRows[0];
+  const { rows: existingRows } = await pool.query(fetchQuery, [payout_entry_id]);
+  const existingRecord = existingRows[0];
 
-    if (!existingRecord) {
-        throw new Error('Payout entry not found');
-    }
+  if (!existingRecord) {
+    throw new Error('Payout entry not found');
+  }
 
-    if (existingRecord.is_archived) {
-        const err = new Error('Archived payout batches can no longer be modified');
-        err.statusCode = 400;
-        throw err;
-    }
+  if (existingRecord.is_archived) {
+    const err = new Error('Archived payout batches can no longer be modified');
+    err.statusCode = 400;
+    throw err;
+  }
 
-    await pool.query(
-        `
+  await pool.query(
+    `
     UPDATE payout_batch_students
     SET
       release_status = $2,
@@ -446,43 +454,43 @@ async function updateScholarPayoutStatus({
       updated_at = NOW()
     WHERE payout_entry_id = $1
     `,
-        [payout_entry_id, next_status, remarks || null, check_number || null]
-    );
+    [payout_entry_id, next_status, remarks || null, check_number || null]
+  );
 
-    if (next_status === 'Released' && existingRecord.user_id) {
-        try {
-            const amount = Number(existingRecord.amount_received || 0).toLocaleString('en-PH', {
-                style: 'currency',
-                currency: 'PHP',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-            });
+  if (next_status === 'Released' && existingRecord.user_id) {
+    try {
+      const amount = Number(existingRecord.amount_received || 0).toLocaleString('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
 
-            await notificationService.createUserNotification({
-                userId: existingRecord.user_id,
-                type: 'payout_released',
-                title: 'Payout Released',
-                message: `Your scholarship payout of ${amount} has been released.`,
-                referenceId: String(existingRecord.payout_batch_id),
-                referenceType: 'payout_batch',
-            });
-        } catch (notifyError) {
-            console.error('PAYOUT RELEASE NOTIFICATION ERROR:', notifyError);
-        }
+      await notificationService.createUserNotification({
+        userId: existingRecord.user_id,
+        type: 'payout_released',
+        title: 'Payout Released',
+        message: `Your scholarship payout of ${amount} has been released.`,
+        referenceId: String(existingRecord.payout_batch_id),
+        referenceType: 'payout_batch',
+      });
+    } catch (notifyError) {
+      console.error('PAYOUT RELEASE NOTIFICATION ERROR:', notifyError);
     }
+  }
 
-    return { success: true, previous_status: existingRecord.release_status };
+  return { success: true, previous_status: existingRecord.release_status };
 }
 
 // =========================
 // ARCHIVE PAYOUT BATCH
 // =========================
 async function archivePayoutBatch({ payout_batch_id, archived_by }) {
-    if (!payout_batch_id) {
-        throw new Error('payout_batch_id is required');
-    }
+  if (!payout_batch_id) {
+    throw new Error('payout_batch_id is required');
+  }
 
-    const batchQuery = `
+  const batchQuery = `
     SELECT
       pb.payout_batch_id,
       pb.payout_title,
@@ -493,23 +501,23 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     LIMIT 1;
   `;
 
-    const batchResult = await pool.query(batchQuery, [payout_batch_id]);
+  const batchResult = await pool.query(batchQuery, [payout_batch_id]);
 
-    if (!batchResult.rows.length) {
-        const err = new Error('Payout batch not found');
-        err.statusCode = 404;
-        throw err;
-    }
+  if (!batchResult.rows.length) {
+    const err = new Error('Payout batch not found');
+    err.statusCode = 404;
+    throw err;
+  }
 
-    const batch = batchResult.rows[0];
+  const batch = batchResult.rows[0];
 
-    if (batch.is_archived) {
-        const err = new Error('Payout batch is already archived');
-        err.statusCode = 400;
-        throw err;
-    }
+  if (batch.is_archived) {
+    const err = new Error('Payout batch is already archived');
+    err.statusCode = 400;
+    throw err;
+  }
 
-    const entriesQuery = `
+  const entriesQuery = `
     SELECT
       payout_entry_id,
       release_status
@@ -517,26 +525,26 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     WHERE payout_batch_id = $1;
   `;
 
-    const entriesResult = await pool.query(entriesQuery, [payout_batch_id]);
-    const entries = entriesResult.rows || [];
+  const entriesResult = await pool.query(entriesQuery, [payout_batch_id]);
+  const entries = entriesResult.rows || [];
 
-    if (!entries.length) {
-        const err = new Error('Cannot archive a payout batch with no payout entries');
-        err.statusCode = 400;
-        throw err;
-    }
+  if (!entries.length) {
+    const err = new Error('Cannot archive a payout batch with no payout entries');
+    err.statusCode = 400;
+    throw err;
+  }
 
-    const hasPending = entries.some(
-        (entry) => !entry.release_status || entry.release_status === 'Pending'
-    );
+  const hasPending = entries.some(
+    (entry) => !entry.release_status || entry.release_status === 'Pending'
+  );
 
-    if (hasPending) {
-        const err = new Error('Cannot archive payout batch while some scholars are still pending');
-        err.statusCode = 400;
-        throw err;
-    }
+  if (hasPending) {
+    const err = new Error('Cannot archive payout batch while some scholars are still pending');
+    err.statusCode = 400;
+    throw err;
+  }
 
-    const updateQuery = `
+  const updateQuery = `
     UPDATE payout_batches
     SET
       is_archived = TRUE,
@@ -546,17 +554,17 @@ async function archivePayoutBatch({ payout_batch_id, archived_by }) {
     RETURNING *;
   `;
 
-    const updateResult = await pool.query(updateQuery, [payout_batch_id]);
+  const updateResult = await pool.query(updateQuery, [payout_batch_id]);
 
-    return {
-        success: true,
-        message: 'Payout batch archived successfully',
-        batch: updateResult.rows[0],
-    };
+  return {
+    success: true,
+    message: 'Payout batch archived successfully',
+    batch: updateResult.rows[0],
+  };
 }
 
 async function fetchAcademicYears() {
-    const query = `
+  const query = `
     SELECT
       academic_year_id,
       start_year,
@@ -567,16 +575,16 @@ async function fetchAcademicYears() {
     ORDER BY start_year DESC;
   `;
 
-    const { rows } = await pool.query(query);
-    return rows;
+  const { rows } = await pool.query(query);
+  return rows;
 }
 
 module.exports = {
-    fetchPayoutBatches,
-    fetchPayoutOpenings,
-    fetchEligibleScholarsByOpening,
-    fetchAcademicYears,
-    createPayoutBatchFromOpening,
-    updateScholarPayoutStatus,
-    archivePayoutBatch,
+  fetchPayoutBatches,
+  fetchPayoutOpenings,
+  fetchEligibleScholarsByOpening,
+  fetchAcademicYears,
+  createPayoutBatchFromOpening,
+  updateScholarPayoutStatus,
+  archivePayoutBatch,
 };

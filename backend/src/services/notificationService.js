@@ -1,5 +1,13 @@
 const supabase = require('../config/supabase');
 
+let ioInstance = null;
+let supabaseClient = null;
+
+function configureNotificationService(config = {}) {
+  ioInstance = config.io || null;
+  supabaseClient = config.supabase || null;
+}
+
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -75,6 +83,7 @@ async function markAllAsRead(userId) {
 }
 
 module.exports = {
+  configureNotificationService,
   getMyNotifications,
   markAsRead,
   markAllAsRead,

@@ -319,7 +319,12 @@ function buildRawOcrSnapshot(activeDoc) {
   if (!activeDoc) return '';
 
   const ocr = activeDoc?.ocr || {};
-  return String(ocr.raw_text || ocr.text || '');
+  return String(
+    ocr.ocr_raw_text ||
+    ocr.raw_text ||
+    ocr.text ||
+    ''
+  );
 }
 
 function formatJobTimestamp(value) {
@@ -342,13 +347,7 @@ function buildIotOcrRequestNotice(request) {
   }
 
   if (request.status === 'cancelled') {
-    const completedAt = formatJobTimestamp(request.completed_at);
-    return {
-      tone: 'warning',
-      message: completedAt
-        ? `IoT OCR was cancelled at ${completedAt}.`
-        : 'IoT OCR was cancelled.',
-    };
+    return null;
   }
 
   if (request.status === 'completed') {
@@ -367,6 +366,70 @@ function buildIotOcrRequestNotice(request) {
     tone: 'info',
     message: `IoT OCR status: ${request.status}.`,
   };
+}
+
+function buildPiScannerIndicator(request, runningIotOcr) {
+  if (!request?.status) {
+    return runningIotOcr
+      ? { tone: 'info', message: 'Sending OCR request to Pi scanner...' }
+      : null;
+  }
+
+  const now = Date.now();
+  const createdAtMs = request?.created_at ? new Date(request.created_at).getTime() : null;
+  const claimedAtMs = request?.claimed_at ? new Date(request.claimed_at).getTime() : null;
+  const pendingAgeSec =
+    createdAtMs && Number.isFinite(createdAtMs)
+      ? Math.max(0, Math.floor((now - createdAtMs) / 1000))
+      : null;
+  const claimedAgeSec =
+    claimedAtMs && Number.isFinite(claimedAtMs)
+      ? Math.max(0, Math.floor((now - claimedAtMs) / 1000))
+      : null;
+
+  if (request.status === 'pending') {
+    if (pendingAgeSec !== null && pendingAgeSec >= 20) {
+      return {
+        tone: 'warning',
+        message: 'Pi scanner seems offline. Start the Pi worker and try again.',
+      };
+    }
+
+    return {
+      tone: 'info',
+      message: 'Waiting for Pi scanner to claim OCR request...',
+    };
+  }
+
+  if (request.status === 'claimed') {
+    if (claimedAgeSec !== null && claimedAgeSec >= 120) {
+      return {
+        tone: 'warning',
+        message: 'Pi scanner is taking too long. Check camera/worker on the Pi.',
+      };
+    }
+
+    return {
+      tone: 'success',
+      message: 'Pi scanner is processing OCR now.',
+    };
+  }
+
+  if (request.status === 'completed') {
+    return {
+      tone: 'success',
+      message: 'Pi scanner finished OCR. Review and save the Raw OCR Snapshot.',
+    };
+  }
+
+  if (request.status === 'failed') {
+    return {
+      tone: 'error',
+      message: request.error_message || 'Pi OCR failed.',
+    };
+  }
+
+  return null;
 }
 
 function hasDocumentOcrResult(document) {
@@ -761,6 +824,7 @@ function OCRPanel({
   runningIotOcr,
   iotOcrError,
   iotOcrNotice,
+  piScannerIndicator,
   rawOcrSnapshot,
   onRawOcrChange,
   onSaveRawOcr,
@@ -809,7 +873,7 @@ function OCRPanel({
             </Badge>
           )}
           <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-medium">
-            Extracted Preview
+            OCR Snapshot
           </Badge>
         </div>
       </div>
@@ -834,6 +898,22 @@ function OCRPanel({
         {iotOcrError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {iotOcrError}
+          </div>
+        )}
+
+        {piScannerIndicator && (
+          <div
+            className={`rounded-lg px-3 py-2 text-xs ${
+              piScannerIndicator.tone === 'error'
+                ? 'border border-red-200 bg-red-50 text-red-700'
+                : piScannerIndicator.tone === 'success'
+                  ? 'border border-green-200 bg-green-50 text-green-700'
+                  : piScannerIndicator.tone === 'warning'
+                    ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border border-blue-200 bg-blue-50 text-blue-700'
+            }`}
+          >
+            {piScannerIndicator.message}
           </div>
         )}
 
@@ -1136,6 +1216,7 @@ export default function DocumentVerification() {
 
         normalizedDocs.forEach((document) => {
           const docRawText = String(
+            document?.ocr?.ocr_raw_text ??
             document?.ocr?.raw_text ??
             document?.ocr?.text ??
             ''
@@ -1200,7 +1281,12 @@ export default function DocumentVerification() {
       [documentKey]: {
         ocr: result.ocr || {},
         ocr_confidence: result.ocr_confidence ?? result.ocr?.confidence ?? null,
-        raw_text: result.raw_text ?? result.ocr?.raw_text ?? '',
+        raw_text:
+          result.raw_text ??
+          result.ocr_raw_text ??
+          result.ocr?.ocr_raw_text ??
+          result.ocr?.raw_text ??
+          '',
       },
     }));
 
@@ -1280,6 +1366,10 @@ export default function DocumentVerification() {
 
     return buildIotOcrRequestNotice(activeDoc?.iot_ocr_request);
   }, [activeDoc, runningIotOcr]);
+  const piScannerIndicator = useMemo(
+    () => buildPiScannerIndicator(activeDoc?.iot_ocr_request, runningIotOcr),
+    [activeDoc, runningIotOcr, refreshing]
+  );
 
   useEffect(() => {
     if (activeDoc) {
@@ -1307,6 +1397,8 @@ export default function DocumentVerification() {
 
         const snapshotText = String(
           snapshot.raw_text ??
+          snapshot.ocr_raw_text ??
+          snapshot.ocr?.ocr_raw_text ??
           snapshot.ocr?.raw_text ??
           snapshot.ocr?.text ??
           ''
@@ -1411,6 +1503,8 @@ export default function DocumentVerification() {
       if (hasImmediateOcrResult) {
         const immediateRawText =
           result.raw_text ??
+          result.ocr_raw_text ??
+          result.ocr?.ocr_raw_text ??
           result.ocr?.raw_text ??
           result.ocr?.text ??
           '';
@@ -1443,6 +1537,8 @@ export default function DocumentVerification() {
           const requestStatus = snapshot?.iot_ocr_request?.status || null;
           const snapshotRawText = String(
             snapshot?.raw_text ??
+            snapshot?.ocr_raw_text ??
+            snapshot?.ocr?.ocr_raw_text ??
             snapshot?.ocr?.raw_text ??
             snapshot?.ocr?.text ??
             ''
@@ -1919,6 +2015,7 @@ export default function DocumentVerification() {
                   runningIotOcr={runningIotOcr}
                   iotOcrError={iotOcrError}
                   iotOcrNotice={iotOcrNotice}
+                  piScannerIndicator={piScannerIndicator}
                   rawOcrSnapshot={rawOcrSnapshot}
                   onRawOcrChange={setRawOcrSnapshot}
                   onSaveRawOcr={handleSaveRawOcr}
@@ -1935,6 +2032,7 @@ export default function DocumentVerification() {
                     runningIotOcr={runningIotOcr}
                     iotOcrError={iotOcrError}
                     iotOcrNotice={iotOcrNotice}
+                    piScannerIndicator={piScannerIndicator}
                     rawOcrSnapshot={rawOcrSnapshot}
                     onRawOcrChange={setRawOcrSnapshot}
                     onSaveRawOcr={handleSaveRawOcr}

@@ -139,28 +139,20 @@ exports.createRequest = async (input = {}) => {
             [context.application_id, context.document_key]
         );
 
-        const existingResult = await client.query(
+        await client.query(
             `
-            SELECT *
-            FROM iot_ocr_requests
+            UPDATE iot_ocr_requests
+            SET
+                status = 'cancelled',
+                error_message = 'Superseded by a newer IoT OCR request',
+                completed_at = NOW(),
+                updated_at = NOW()
             WHERE application_id = $1::uuid
               AND document_key = $2
               AND status IN ('pending', 'claimed')
-            ORDER BY created_at DESC
-            LIMIT 1
             `,
             [context.application_id, context.document_key]
         );
-
-        if (existingResult.rows.length) {
-            await client.query('COMMIT');
-            const request = mapRequestRow(existingResult.rows[0]);
-            return {
-                created: false,
-                request,
-                ...request,
-            };
-        }
 
         const requestedByUuid = isUuid(requestedBy) ? String(requestedBy).trim() : null;
 
@@ -230,7 +222,7 @@ exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
                 SELECT request_id
                 FROM iot_ocr_requests
                 WHERE status = 'pending'
-                ORDER BY created_at ASC
+                ORDER BY created_at DESC
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
             )

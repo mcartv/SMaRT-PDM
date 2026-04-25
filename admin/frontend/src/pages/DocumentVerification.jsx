@@ -1173,7 +1173,32 @@ export default function DocumentVerification() {
         return next;
       });
       
-      setIotOcrResults({});
+      setIotOcrResults((prev) => {
+        const next = { ...prev };
+
+        normalizedDocs.forEach((document) => {
+          const docRawText = String(
+            document?.ocr?.raw_text ??
+            document?.ocr?.text ??
+            ''
+          );
+          const docConfidence =
+            document?.ocr_confidence ??
+            document?.ocr?.confidence ??
+            null;
+
+          if (docRawText || docConfidence !== null) {
+            next[document.id] = {
+              ...(next[document.id] || {}),
+              ocr: document.ocr || {},
+              ocr_confidence: docConfidence,
+              raw_text: docRawText,
+            };
+          }
+        });
+
+        return next;
+      });
       setDocStatuses(initialStatuses);
       setDocComments(initialComments);
     } catch (err) {

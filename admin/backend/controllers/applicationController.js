@@ -92,15 +92,37 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
                 null,
         });
 
-        return res.status(result?.job?.id ? 202 : 200).json({
-            message: 'OCR job queued successfully',
-            data: result.job || result,
+        return res.status(result?.created ? 202 : 200).json({
+            message: 'IoT OCR scanner trigger started successfully',
+            data: result.request || result,
         });
     } catch (error) {
         console.error('RUN APPLICATION DOCUMENT IOT OCR ERROR:', error);
 
         return res.status(error.statusCode || 500).json({
             error: error.message || 'Failed to run IoT OCR',
+        });
+    }
+};
+
+exports.getApplicationDocumentOcrSnapshot = async (req, res) => {
+    const { id, documentKey } = req.params;
+
+    try {
+        const result = await applicationService.fetchApplicationDocumentOcrSnapshot({
+            applicationId: id,
+            documentKey,
+        });
+
+        res.status(200).json({
+            message: 'OCR snapshot loaded successfully',
+            data: result,
+        });
+    } catch (err) {
+        console.error('GET APPLICATION DOCUMENT OCR SNAPSHOT CONTROLLER ERROR:', err.message);
+
+        res.status(500).json({
+            error: err.message || 'Failed to fetch OCR snapshot',
         });
     }
 };

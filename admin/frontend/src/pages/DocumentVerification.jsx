@@ -361,22 +361,7 @@ function buildIotOcrRequestNotice(request) {
     };
   }
 
-  if (request.status === 'claimed') {
-    const claimedAt = formatJobTimestamp(request.claimed_at);
-    return {
-      tone: 'info',
-      message: claimedAt
-        ? `Pi scanner is active since ${claimedAt}.`
-        : 'Pi scanner is active.',
-    };
-  }
-
-  if (request.status === 'pending') {
-    return {
-      tone: 'warning',
-      message: 'Waiting for Pi scanner...',
-    };
-  }
+  if (request.status === 'claimed' || request.status === 'pending') return null;
 
   return {
     tone: 'info',
@@ -785,23 +770,10 @@ function OCRPanel({
   onCancelIotPreview,
 }) {
   const confidence = activeDoc?.ocr?.confidence ?? activeDoc?.ocr_confidence ?? null;
-  const latestRequestStatus = activeDoc?.iot_ocr_request?.status ?? null;
-  const hasPendingIotOcrRequest =
-    latestRequestStatus === 'pending' || latestRequestStatus === 'claimed';
   const canRunIotOcr =
     activeDoc?.id !== 'application_form' && !runningIotOcr;
 
-  const runIotOcrLabel = runningIotOcr
-    ? 'Starting IoT OCR'
-    : hasPendingIotOcrRequest
-      ? 'Use IoT OCR'
-      : latestRequestStatus === 'completed'
-      ? 'Run IoT OCR Again'
-      : latestRequestStatus === 'failed'
-        ? 'Retry IoT OCR'
-        : latestRequestStatus === 'cancelled'
-          ? 'Run IoT OCR Again'
-          : 'Use IoT OCR';
+  const runIotOcrLabel = 'Use IoT OCR';
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
@@ -1321,7 +1293,7 @@ export default function DocumentVerification() {
     if (runningIotOcr) {
       return {
         tone: 'info',
-        message: 'IoT OCR started. Waiting for Pi scanner...',
+        message: 'IoT OCR started.',
       };
     }
 
@@ -1539,7 +1511,7 @@ export default function DocumentVerification() {
           clearInterval(iotOcrPollingRef.current);
           iotOcrPollingRef.current = null;
           setIotOcrError(
-            'Still waiting for Pi scanner. Make sure the scanner app is online and polling.'
+            'IoT OCR did not return a result yet. Check your Pi scanner app.'
           );
           setRunningIotOcr(false);
         }

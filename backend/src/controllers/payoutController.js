@@ -49,26 +49,47 @@ async function schedulePayoutBatch(req, res) {
 }
 
 async function getMyPayouts(req, res) {
-  try {
-    const userId = getRequestUserId(req);
+    try {
+        const userId = getRequestUserId(req);
 
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required.' });
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
+
+        const result = await payoutService.getMyPayouts(userId);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('GET MY PAYOUTS ERROR:', error);
+
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to load payout schedule.',
+        });
     }
+}
 
-    const result = await payoutService.getMyPayouts(userId);
-    return res.status(200).json(result);
-  } catch (error) {
-    console.error('GET MY PAYOUTS ERROR:', error);
+async function updatePayoutEntryStatus(req, res) {
+    try {
+        const adminUserId = getRequestUserId(req);
 
-    return res.status(getSafeStatusCode(error)).json({
-      error: error.message || 'Failed to load payout schedule.',
-    });
-  }
+        const result = await payoutService.updatePayoutEntryStatus({
+            adminUserId,
+            payoutEntryId: req.params.payoutEntryId,
+            body: req.body || {},
+        });
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('UPDATE PAYOUT ENTRY STATUS ERROR:', error);
+
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to update payout status.',
+        });
+    }
 }
 
 module.exports = {
     createPayoutBatch,
     schedulePayoutBatch,
     getMyPayouts,
+    updatePayoutEntryStatus
 };

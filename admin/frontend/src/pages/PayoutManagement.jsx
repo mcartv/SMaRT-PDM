@@ -18,8 +18,6 @@ import {
   Users,
   Building2,
   Archive,
-  Table2,
-  LayoutGrid,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -90,29 +88,6 @@ function isBatchFinished(batch) {
   return scholars.every((s) => s.release_status && s.release_status !== 'Pending');
 }
 
-function MiniStatCard({ label, value, icon: Icon, soft, accent }) {
-  return (
-    <div
-      className="rounded-xl border bg-white px-4 py-3"
-      style={{ borderColor: C.line }}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium text-stone-500">{label}</p>
-          <p className="mt-0.5 text-xl font-semibold text-stone-900">{value}</p>
-        </div>
-
-        <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-          style={{ background: soft }}
-        >
-          <Icon className="h-4 w-4" style={{ color: accent }} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SmallMetric({ label, value }) {
   return (
     <div className="rounded-lg bg-stone-50 px-3 py-2">
@@ -143,11 +118,10 @@ export default function PayoutManagement() {
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState('batches');
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [academicYears, setAcademicYears] = useState([]);
-  const [viewMode, setViewMode] = useState('cards');
 
   const [form, setForm] = useState({
     opening_id: '',
@@ -189,7 +163,7 @@ export default function PayoutManagement() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeSection, search, viewMode]);
+  }, [activeSection, search]);
 
   useEffect(() => {
     if (!form.opening_id) {
@@ -447,8 +421,52 @@ export default function PayoutManagement() {
         throw new Error(data?.message || `Failed to mark as ${status}`);
       }
 
+      setBatches((prev) =>
+        prev.map((batch) => ({
+          ...batch,
+          scholars: Array.isArray(batch.scholars)
+            ? batch.scholars.map((scholar) =>
+              scholar.payout_entry_id === entry.payout_entry_id
+                ? {
+                  ...scholar,
+                  release_status: status,
+                  released_at:
+                    status === 'Released'
+                      ? new Date().toISOString()
+                      : scholar.released_at,
+                }
+                : scholar
+            )
+            : [],
+        }))
+      );
+
+      setSelectedBatch((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          scholars: Array.isArray(prev.scholars)
+            ? prev.scholars.map((scholar) =>
+              scholar.payout_entry_id === entry.payout_entry_id
+                ? {
+                  ...scholar,
+                  release_status: status,
+                  released_at:
+                    status === 'Released'
+                      ? new Date().toISOString()
+                      : scholar.released_at,
+                }
+                : scholar
+            )
+            : [],
+        };
+      });
+
       await loadAll();
-      setSelectedBatch(null);
+
+      // DO NOT close modal
+      // setSelectedBatch(null);
     } catch (err) {
       console.error('UPDATE PAYOUT STATUS ERROR:', err);
       alert(err.message || 'Failed to update payout status');
@@ -623,68 +641,6 @@ export default function PayoutManagement() {
     );
   };
 
-  const overviewStats = [
-    {
-      label: 'Total Disbursed',
-      value: `₱${Number(totalDisbursed).toLocaleString()}`,
-      icon: Wallet,
-      accent: C.green,
-      soft: C.greenSoft,
-    },
-    {
-      label: 'Batch Count',
-      value: batches.length,
-      icon: CalendarDays,
-      accent: C.blue,
-      soft: C.blueSoft,
-    },
-    {
-      label: 'Pending',
-      value: totalPending,
-      icon: Clock3,
-      accent: C.orange,
-      soft: C.orangeSoft,
-    },
-    {
-      label: 'Archived',
-      value: totalArchived,
-      icon: Archive,
-      accent: C.slate,
-      soft: C.slateSoft,
-    },
-  ];
-
-  const registryStats = [
-    {
-      label: 'Total Disbursed',
-      value: `₱${Number(totalDisbursed).toLocaleString()}`,
-      icon: Wallet,
-      accent: C.green,
-      soft: C.greenSoft,
-    },
-    {
-      label: activeSection === 'archived' ? 'Archived Batches' : 'Active Batches',
-      value: displayedBatches.length,
-      icon: CalendarDays,
-      accent: C.blue,
-      soft: C.blueSoft,
-    },
-    {
-      label: 'Pending',
-      value: totalPending,
-      icon: Clock3,
-      accent: C.orange,
-      soft: C.orangeSoft,
-    },
-    {
-      label: 'Released',
-      value: totalReleased,
-      icon: CheckCircle2,
-      accent: C.green,
-      soft: C.greenSoft,
-    },
-  ];
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[300px]">
@@ -702,28 +658,18 @@ export default function PayoutManagement() {
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
             <button
-              onClick={() => setActiveSection('overview')}
-              className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${activeSection === 'overview'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
-                }`}
-            >
-              Overview
-            </button>
-
-            <button
               onClick={() => setActiveSection('batches')}
-              className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${activeSection === 'batches'
+              className={`px-4 py-2 rounded-lg text-sm ${activeSection === 'batches'
                 ? 'bg-white text-stone-900 shadow-sm'
                 : 'text-stone-600'
                 }`}
             >
-              Batch Records
+              Batches
             </button>
 
             <button
               onClick={() => setActiveSection('archived')}
-              className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${activeSection === 'archived'
+              className={`px-4 py-2 rounded-lg text-sm ${activeSection === 'archived'
                 ? 'bg-white text-stone-900 shadow-sm'
                 : 'text-stone-600'
                 }`}
@@ -747,30 +693,6 @@ export default function PayoutManagement() {
                     }}
                   />
                 </div>
-
-                <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
-                  <button
-                    onClick={() => setViewMode('cards')}
-                    className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'cards'
-                      ? 'bg-white text-stone-900 shadow-sm'
-                      : 'text-stone-600'
-                      }`}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                    Cards
-                  </button>
-
-                  <button
-                    onClick={() => setViewMode('table')}
-                    className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'table'
-                      ? 'bg-white text-stone-900 shadow-sm'
-                      : 'text-stone-600'
-                      }`}
-                  >
-                    <Table2 className="h-4 w-4" />
-                    Table
-                  </button>
-                </div>
               </>
             )}
 
@@ -786,37 +708,8 @@ export default function PayoutManagement() {
         </div>
       </section>
 
-      {activeSection === 'overview' && (
-        <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {overviewStats.map((s) => (
-              <MiniStatCard key={s.label} {...s} />
-            ))}
-          </section>
-
-          <section
-            className="rounded-2xl border bg-white"
-            style={{ borderColor: C.line }}
-          >
-            <CardContent className="px-6 py-12 text-center">
-              <p className="text-base font-medium text-stone-800">Overview dashboard</p>
-              <p className="mt-2 text-sm text-stone-500">
-                Open <span className="font-semibold">Batch Records</span> to manage active payout batches,
-                or <span className="font-semibold">Archived</span> to review completed ones.
-              </p>
-            </CardContent>
-          </section>
-        </>
-      )}
-
       {(activeSection === 'batches' || activeSection === 'archived') && (
         <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {registryStats.map((s) => (
-              <MiniStatCard key={s.label} {...s} />
-            ))}
-          </section>
-
           {pageData.length === 0 ? (
             <Card className="border-stone-200 shadow-none">
               <CardContent className="px-6 py-12 text-center text-sm text-stone-400">
@@ -825,77 +718,9 @@ export default function PayoutManagement() {
                   : 'No payout batches found.'}
               </CardContent>
             </Card>
-          ) : viewMode === 'cards' ? (
+          ) : (
             <section className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
               {pageData.map(renderBatchCard)}
-            </section>
-          ) : (
-            <section
-              className="overflow-hidden rounded-2xl border bg-white"
-              style={{ borderColor: C.line }}
-            >
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1050px]">
-                  <thead className="bg-stone-50">
-                    <tr className="border-b border-stone-200">
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Title</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Program</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Benefactor</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Semester</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Total Amount</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageData.map((b) => {
-                      const finished = isBatchFinished(b);
-
-                      return (
-                        <tr key={b.payout_batch_id} className="border-b border-stone-100 hover:bg-stone-50">
-                          <td className="px-4 py-4 text-sm font-medium text-stone-900">
-                            {b.payout_title || 'Untitled Payout Batch'}
-                          </td>
-                          <td className="px-4 py-4 text-sm text-stone-700">{b.program_name || 'No Program'}</td>
-                          <td className="px-4 py-4 text-sm text-stone-700">{b.benefactor_name || 'No Benefactor'}</td>
-                          <td className="px-4 py-4 text-sm text-stone-700">{b.semester || '—'}</td>
-                          <td className="px-4 py-4 text-sm text-stone-700">{b.payout_date || '—'}</td>
-                          <td className="px-4 py-4 text-sm font-medium text-stone-900">
-                            ₱{Number(b.total_amount || 0).toLocaleString()}
-                          </td>
-                          <td className="px-4 py-4">
-                            {b.is_archived ? (
-                              <Badge className="text-[10px]" style={{ background: C.slateSoft, color: C.slate }}>
-                                Archived
-                              </Badge>
-                            ) : finished ? (
-                              <Badge className="text-[10px]" style={{ background: C.orangeSoft, color: C.orange }}>
-                                Ready to Archive
-                              </Badge>
-                            ) : (
-                              <Badge className="text-[10px]" style={{ background: C.blueSoft, color: C.blue }}>
-                                Active
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <Button
-                              size="sm"
-                              className="h-8 rounded-lg px-3 text-xs"
-                              style={{ background: C.brownMid, color: '#fff' }}
-                              onClick={() => setSelectedBatch(b)}
-                            >
-                              <Eye className="mr-1.5 h-3.5 w-3.5" />
-                              View Batch
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
             </section>
           )}
 
@@ -1214,39 +1039,47 @@ export default function PayoutManagement() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          style={{ background: C.green }}
-                          className="text-white rounded-lg"
-                          disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
-                          onClick={() => handleStatusUpdate(entry, 'Released')}
-                        >
-                          {workingEntryId === entry.payout_entry_id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            'Released'
-                          )}
-                        </Button>
+                        {entry.release_status === 'Pending' ? (
+                          <>
+                            <Button
+                              size="sm"
+                              style={{ background: C.green }}
+                              className="text-white rounded-lg"
+                              disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
+                              onClick={() => handleStatusUpdate(entry, 'Released')}
+                            >
+                              {workingEntryId === entry.payout_entry_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                'Released'
+                              )}
+                            </Button>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-200 text-red-700 hover:bg-red-50 rounded-lg"
-                          disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
-                          onClick={() => handleStatusUpdate(entry, 'Absent')}
-                        >
-                          Absent
-                        </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-200 text-red-700 hover:bg-red-50 rounded-lg"
+                              disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
+                              onClick={() => handleStatusUpdate(entry, 'Absent')}
+                            >
+                              Absent
+                            </Button>
 
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-blue-200 text-blue-700 hover:bg-blue-50 rounded-lg"
-                          disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
-                          onClick={() => handleStatusUpdate(entry, 'On Hold')}
-                        >
-                          On Hold
-                        </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-blue-200 text-blue-700 hover:bg-blue-50 rounded-lg"
+                              disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
+                              onClick={() => handleStatusUpdate(entry, 'On Hold')}
+                            >
+                              On Hold
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs font-medium text-stone-500">
+                            Status already marked as {entry.release_status}
+                          </span>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

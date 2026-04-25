@@ -291,7 +291,7 @@ async function createPayoutBatchFromOpening({
   if (!uniqueStudentIds.length) {
     throw new Error('No eligible scholars found for this opening');
   }
-  
+
   const eligibleStudentIds = new Set(
     eligibleStudentResult.rows.map((row) => row.student_id)
   );
@@ -384,6 +384,48 @@ async function createPayoutBatchFromOpening({
     }
 
     await client.query('COMMIT');
+    try {
+      const notifyResult = await pool.query(
+        `
+    SELECT
+      st.user_id,
+      st.first_name,
+      st.last_name,
+      pbs.amount_received,
+      pb.payout_batch_id,
+      pb.payout_title,
+      pb.payout_date
+    FROM payout_batch_students pbs
+    INNER JOIN payout_batches pb
+      ON pbs.payout_batch_id = pb.payout_batch_id
+    INNER JOIN students st
+      ON pbs.student_id = st.student_id
+    WHERE pbs.payout_batch_id = $1
+      AND st.user_id IS NOT NULL;
+    `,
+        [batch.payout_batch_id]
+      );
+
+      for (const row of notifyResult.rows) {
+        const amount = Number(row.amount_received || 0).toLocaleString('en-PH', {
+          style: 'currency',
+          currency: 'PHP',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
+
+        await notificationService.createUserNotification({
+          userId: row.user_id,
+          type: 'payout_scheduled',
+          title: 'Payout Scheduled',
+          message: `Your scholarship payout of ${amount} has been scheduled. Please check the payout page for details.`,
+          referenceId: String(row.payout_batch_id),
+          referenceType: 'payout_batch',
+        });
+      }
+    } catch (notifyError) {
+      console.error('PAYOUT SCHEDULE NOTIFICATION ERROR:', notifyError);
+    }
     return batch;
   } catch (err) {
     await client.query('ROLLBACK');
@@ -399,87 +441,89 @@ async function createPayoutBatchFromOpening({
 async function updateScholarPayoutStatus({
   payout_entry_id,
   next_status,
-  processed_by,
-  remarks,
-  check_number,
+  processed_by = null,
+  remarks = null,
+  check_number = null,
 }) {
   if (!payout_entry_id) {
-    throw new Error('payout_entry_id is required');
-  }
-
-  if (!next_status) {
-    throw new Error('next_status is required');
-  }
-
-  const fetchQuery = `
-    SELECT
-      pbs.payout_entry_id,
-      pbs.student_id,
-      pbs.amount_received,
-      pbs.release_status,
-      pb.payout_batch_id,
-      pb.payout_title,
-      pb.program_id,
-      pb.is_archived,
-      st.user_id,
-      st.pdm_id,
-      CONCAT(st.last_name, ', ', st.first_name) AS student_name
-    FROM payout_batch_students pbs
-    INNER JOIN payout_batches pb ON pbs.payout_batch_id = pb.payout_batch_id
-    INNER JOIN students st ON pbs.student_id = st.student_id
-    WHERE pbs.payout_entry_id = $1
-  `;
-
-  const { rows: existingRows } = await pool.query(fetchQuery, [payout_entry_id]);
-  const existingRecord = existingRows[0];
-
-  if (!existingRecord) {
-    throw new Error('Payout entry not found');
-  }
-
-  if (existingRecord.is_archived) {
-    const err = new Error('Archived payout batches can no longer be modified');
+    const err = new Error('payout_entry_id is required');
     err.statusCode = 400;
     throw err;
   }
 
-  await pool.query(
-    `
+  const allowedStatuses = ['Pending', 'Released', 'Absent', 'On Hold', 'Cancelled'];
+
+  if (!allowedStatuses.includes(next_status)) {
+    const err = new Error(`Invalid status. Allowed: ${allowedStatuses.join(', ')}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const releasedAt = next_status === 'Released' ? new Date() : null;
+
+  const updateQuery = `
     UPDATE payout_batch_students
     SET
-      release_status = $2,
-      released_at = CASE WHEN $2 = 'Released' THEN NOW() ELSE released_at END,
-      remarks = COALESCE($3, remarks),
-      check_number = COALESCE($4, check_number),
+      release_status = $1,
+      released_at = $2,
+      remarks = $3,
+      check_number = $4,
       updated_at = NOW()
-    WHERE payout_entry_id = $1
-    `,
-    [payout_entry_id, next_status, remarks || null, check_number || null]
-  );
+    WHERE payout_entry_id = $5
+    RETURNING *;
+  `;
 
-  if (next_status === 'Released' && existingRecord.user_id) {
+  const { rows } = await pool.query(updateQuery, [
+    next_status,
+    releasedAt,
+    remarks,
+    check_number,
+    payout_entry_id,
+  ]);
+
+  if (!rows.length) {
+    const err = new Error('Payout entry not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const updated = rows[0];
+
+  // 🔔 SEND NOTIFICATION (uses SAME DB flow)
+  if (next_status === 'Released') {
     try {
-      const amount = Number(existingRecord.amount_received || 0).toLocaleString('en-PH', {
-        style: 'currency',
-        currency: 'PHP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      });
+      const userQuery = `
+        SELECT user_id, first_name
+        FROM students
+        WHERE student_id = $1
+        LIMIT 1;
+      `;
 
-      await notificationService.createUserNotification({
-        userId: existingRecord.user_id,
-        type: 'payout_released',
-        title: 'Payout Released',
-        message: `Your scholarship payout of ${amount} has been released.`,
-        referenceId: String(existingRecord.payout_batch_id),
-        referenceType: 'payout_batch',
-      });
+      const userResult = await pool.query(userQuery, [updated.student_id]);
+
+      if (userResult.rows.length) {
+        const user = userResult.rows[0];
+
+        const amount = Number(updated.amount_received || 0).toLocaleString('en-PH', {
+          style: 'currency',
+          currency: 'PHP',
+        });
+
+        await notificationService.createUserNotification({
+          userId: user.user_id,
+          type: 'payout_released',
+          title: 'Payout Released',
+          message: `Your scholarship payout of ${amount} has been released.`,
+          referenceId: String(updated.payout_batch_id),
+          referenceType: 'payout_batch',
+        });
+      }
     } catch (notifyError) {
       console.error('PAYOUT RELEASE NOTIFICATION ERROR:', notifyError);
     }
   }
 
-  return { success: true, previous_status: existingRecord.release_status };
+  return updated;
 }
 
 // =========================
@@ -583,8 +627,8 @@ module.exports = {
   fetchPayoutBatches,
   fetchPayoutOpenings,
   fetchEligibleScholarsByOpening,
-  fetchAcademicYears,
   createPayoutBatchFromOpening,
   updateScholarPayoutStatus,
   archivePayoutBatch,
+  fetchAcademicYears,
 };

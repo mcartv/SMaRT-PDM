@@ -70,33 +70,49 @@ exports.createPayoutBatch = async (req, res) => {
 };
 
 exports.updateScholarStatus = async (req, res) => {
+    console.log('PAYOUT STATUS ROUTE HIT:', {
+        payoutEntryId: req.params.payoutEntryId,
+        body: req.body,
+    });
+    console.log('PAYOUT STATUS UPDATED ROW:', row);
     try {
-        const processed_by = req.user?.user_id || req.user?.id || null;
+        const { payoutEntryId } = req.params;
+        const { status } = req.body;
 
-        const row = await payoutService.updateScholarPayoutStatus({
-            payout_entry_id: req.params.payoutEntryId,
-            next_status: req.body?.status,
-            processed_by,
-            remarks: req.body?.remarks,
-            check_number: req.body?.check_number,
-        });
-
-        const io = req.app.get('io');
-        if (io) {
-            io.emit('scholar:released', {
-                payout_entry_id: req.params.payoutEntryId,
-                student_id: row.student_id || null,
-                status: req.body?.status,
-                updated_at: new Date().toISOString(),
-            });
+        if (!payoutEntryId) {
+            return res.status(400).json({ message: 'payoutEntryId is required' });
         }
 
-        res.status(200).json(row);
+        const allowed = ['Pending', 'Released', 'Absent', 'On Hold', 'Cancelled'];
+
+        if (!allowed.includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+
+        const updatePayload = {
+            release_status: status,
+            updated_at: new Date().toISOString(),
+        };
+
+        if (status === 'Released') {
+            updatePayload.released_at = new Date().toISOString();
+        }
+
+        const { data, error } = await require('../config/supabase')
+            .from('payout_batch_students')
+            .update(updatePayload)
+            .eq('payout_entry_id', payoutEntryId)
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        res.status(200).json(data);
+
     } catch (err) {
         console.error('UPDATE PAYOUT STATUS ERROR:', err);
-        res.status(err.statusCode || 500).json({
+        res.status(500).json({
             message: err.message || 'Failed to update payout status',
-            error: err.message || 'Unknown backend error',
         });
     }
 };

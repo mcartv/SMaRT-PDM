@@ -1133,6 +1133,43 @@ function RejectDocumentModal({
   );
 }
 
+function SaveOcrSuccessModal({ onClose, activeDocName }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-stone-800">OCR Snapshot Saved</h3>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <CardContent className="p-5 space-y-4">
+          <p className="text-sm text-stone-700">
+            Raw OCR Snapshot for <span className="font-semibold">{activeDocName || 'selected document'}</span> was saved successfully.
+          </p>
+          <p className="text-xs text-stone-500">
+            You can now proceed with Verify or Reject.
+          </p>
+          <div className="flex justify-end">
+            <Button onClick={onClose} className="h-9 rounded-lg text-xs">
+              OK
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function DocumentVerification() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -1156,6 +1193,7 @@ export default function DocumentVerification() {
   const [rawOcrSnapshot, setRawOcrSnapshot] = useState('');
   const [ocrSnapshotDirtyByDoc, setOcrSnapshotDirtyByDoc] = useState({});
   const [savingRawOcr, setSavingRawOcr] = useState(false);
+  const [showSaveOcrSuccessModal, setShowSaveOcrSuccessModal] = useState(false);
   const iotOcrPollingRef = useRef(null);
 
   const fetchApplicationDocuments = useCallback(async ({ soft = false } = {}) => {
@@ -1361,6 +1399,7 @@ export default function DocumentVerification() {
   const hasRawSnapshotForActiveDoc =
     activeDoc?.id === 'application_form' ||
     !!String(
+      rawOcrSnapshot ||
       activeDoc?.ocr?.ocr_raw_text ||
       activeDoc?.ocr?.raw_text ||
       activeDoc?.ocr?.text ||
@@ -1370,7 +1409,10 @@ export default function DocumentVerification() {
     activeDoc?.id !== 'application_form' && !!ocrSnapshotDirtyByDoc[activeDoc?.id];
   const hasSavedOcrSnapshotForActiveDoc =
     hasRawSnapshotForActiveDoc && !requiresRawSnapshotSaveForActiveDoc;
-  const canReviewActiveDoc = hasUploadedDocument && hasSavedOcrSnapshotForActiveDoc;
+  const canReviewActiveDoc =
+    activeDoc?.id === 'application_form'
+      ? hasUploadedDocument
+      : (hasUploadedDocument || hasSavedOcrSnapshotForActiveDoc);
 
   const extractedData = useMemo(
     () => buildExtractedData(activeDoc, application),
@@ -1654,6 +1696,10 @@ export default function DocumentVerification() {
         ...prev,
         [activeDoc.id]: false,
       }));
+      setRawOcrSnapshot(
+        String(result.raw_text ?? result.ocr?.raw_text ?? rawOcrSnapshot)
+      );
+      setShowSaveOcrSuccessModal(true);
       await fetchApplicationDocuments({ soft: true });
     } catch (err) {
       console.error('SAVE RAW OCR ERROR:', err);
@@ -1814,6 +1860,12 @@ export default function DocumentVerification() {
           onClose={() => setRejectModalOpen(false)}
           onConfirm={handleRejectConfirm}
           saving={false}
+          activeDocName={activeDoc?.name}
+        />
+      )}
+      {showSaveOcrSuccessModal && (
+        <SaveOcrSuccessModal
+          onClose={() => setShowSaveOcrSuccessModal(false)}
           activeDocName={activeDoc?.name}
         />
       )}
@@ -2156,7 +2208,7 @@ export default function DocumentVerification() {
                   Student must upload this document first before review actions can be applied.
                 </p>
               )}
-              {hasUploadedDocument && !hasSavedOcrSnapshotForActiveDoc && activeDoc?.id !== 'application_form' && (
+              {!hasUploadedDocument && !hasSavedOcrSnapshotForActiveDoc && activeDoc?.id !== 'application_form' && (
                 <p className="text-xs text-stone-400">
                   {requiresRawSnapshotSaveForActiveDoc
                     ? 'Save the Raw OCR Snapshot first before Verify/Reject is enabled.'

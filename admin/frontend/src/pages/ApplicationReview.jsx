@@ -192,20 +192,20 @@ function normalizeApplicantRow(app) {
   };
 }
 
-async function parseErrorResponse(res, fallbackMessage) {
-  try {
-    const contentType = res.headers.get('content-type') || '';
+function isApplicantAtRisk(app) {
+  const gwa = Number(app?.gwa);
+  const rawStatus = (app?.application_status || '').toLowerCase();
+  const docStatus = (app?.document_status || '').toLowerCase();
+  const verificationStatus = (app?.verification_status || '').toLowerCase();
+  const sdo = normalizeSdo(app?.sdu_level || app?.sdo_status || '');
 
-    if (contentType.includes('application/json')) {
-      const payload = await res.json();
-      return payload?.message || payload?.error || fallbackMessage;
-    }
+  const gwaRisk = Number.isFinite(gwa) && gwa > 2.0;
+  const docRisk = docStatus === 'missing docs' || docStatus === 'under review';
+  const verificationRisk = verificationStatus === 'rejected';
+  const sdoRisk = sdo === 'major' || sdo === 'minor';
+  const appRisk = rawStatus === 'requires_reupload';
 
-    const text = await res.text();
-    return text || fallbackMessage;
-  } catch {
-    return fallbackMessage;
-  }
+  return gwaRisk || docRisk || verificationRisk || sdoRisk || appRisk;
 }
 
 function StatusPill({ meta }) {
@@ -765,6 +765,7 @@ export default function ApplicationReview() {
 
   const filteredOpeningCards = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
     return openingCards.filter((opening) => {
       const openingGroup = getOpeningGroup(opening.posting_status);

@@ -34,6 +34,21 @@ const REJECTED_APPLICATION_NOTIFICATION = Object.freeze({
 
 const APPLICATION_DOCUMENT_DEFINITIONS = [
     {
+        id: 'survey_form',
+        name: 'Survey Form',
+        aliases: ['survey form'],
+    },
+    {
+        id: 'letter_of_request',
+        name: 'Letter of Request',
+        aliases: ['letter of request', 'request letter'],
+    },
+    {
+        id: 'certificate_of_indigency',
+        name: 'Certificate of Indigency',
+        aliases: ['certificate of indigency', 'indigency'],
+    },
+    {
         id: 'certificate_of_registration',
         name: 'Certificate of Registration',
         aliases: ['certificate of registration', 'cor', 'registration form', 'registration'],
@@ -69,9 +84,20 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
 ];
 
 const DOCUMENT_TYPE_ALIASES = {
+    survey_form: 'survey_form',
+
+    letter_of_request: 'letter_of_request',
+    request_letter: 'letter_of_request',
+
+    certificate_of_indigency: 'certificate_of_indigency',
+    indigency: 'certificate_of_indigency',
+
     cor: 'certificate_of_registration',
     certificate_of_registration: 'certificate_of_registration',
     registration: 'certificate_of_registration',
+
+    senior_high_school_card: 'senior_high_school_card',
+    shs_card: 'senior_high_school_card',
 
     grade_card: 'student_grade_forms',
     grade_forms: 'student_grade_forms',
@@ -88,11 +114,15 @@ const DOCUMENT_TYPE_ALIASES = {
     letter_of_request: 'letter_of_request',
     request_letter: 'letter_of_request',
 
-    application_form: 'application_form',
-    application: 'application_form',
+    id_picture: 'id_picture',
+    picture: 'id_picture',
+    photo: 'id_picture',
 };
 
 const DOCUMENT_TYPE_TO_NAME = {
+    survey_form: 'Survey Form',
+    letter_of_request: 'Letter of Request',
+    certificate_of_indigency: 'Certificate of Indigency',
     certificate_of_registration: 'Certificate of Registration',
     student_grade_forms: 'Grade Report',
     certificate_of_indigency: 'Certificate of Indigency',
@@ -1421,6 +1451,71 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     };
 };
 
+exports.assignApplicationProgram = async (applicationId, programId) => {
+    if (!programId) {
+        throw new Error('program_id is required');
+    }
+
+    const { data: program, error: programError } = await supabase
+        .from('scholarship_program')
+        .select('program_id')
+        .eq('program_id', programId)
+        .maybeSingle();
+
+    if (programError) {
+        console.error('Supabase Program Fetch Error:', programError);
+        throw new Error(programError.message);
+    }
+
+    if (!program) {
+        throw new Error('Selected scholarship program is invalid.');
+    }
+
+    const { data: applicationRecord, error: applicationError } = await supabase
+        .from('applications')
+        .select('application_id, student_id, application_status')
+        .eq('application_id', applicationId)
+        .single();
+
+    if (applicationError) {
+        console.error('Supabase Application Fetch Error:', applicationError);
+        throw new Error(applicationError.message);
+    }
+
+    const { data: conflictingApplication, error: conflictError } = await supabase
+        .from('applications')
+        .select('application_id')
+        .eq('student_id', applicationRecord.student_id)
+        .eq('program_id', programId)
+        .in('application_status', ['Pending Review', 'Interview'])
+        .neq('application_id', applicationId)
+        .eq('is_disqualified', false)
+        .maybeSingle();
+
+    if (conflictError) {
+        console.error('Supabase Program Conflict Fetch Error:', conflictError);
+        throw new Error(conflictError.message);
+    }
+
+    if (conflictingApplication) {
+        throw new Error('This student already has an active application for the selected program.');
+    }
+
+    const { data, error } = await supabase
+        .from('applications')
+        .update({ program_id: programId })
+        .eq('application_id', applicationId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Supabase Application Program Update Error:', error);
+        throw new Error(error.message);
+    }
+
+    return data;
+};
+
 exports.uploadStudentApplicationDocument = async ({
     applicationId,
     documentType,
@@ -1696,6 +1791,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
 
     const applicationUpdatePayload = {
         document_status: nextDocumentStatus,
+        verification_status: verification_status || 'pending',
     };
 
     if (verification_status === 'rejected') {

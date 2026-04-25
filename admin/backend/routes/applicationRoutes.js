@@ -21,28 +21,13 @@ router.get('/', protect, applicationController.getApplications);
 // Applicant details / docs
 router.get('/:id', protect, applicationController.getApplicationDetails);
 router.get('/:id/documents', protect, applicationController.getApplicationDocuments);
-
-router.post(
-    '/:id/documents/:documentKey/iot-ocr',
-    protect,
-    applicationController.runApplicationDocumentIotOcr
-);
-
-router.patch(
-    '/:id/documents/:documentKey/ocr',
-    protect,
-    applicationController.saveApplicationDocumentOcrSnapshot
-);
-
-// Student/mobile uploads
+router.patch('/:id/assign-program', protect, applicationController.assignApplicationProgram);
 router.post(
     '/:id/documents/upload',
     protect,
     upload.single('file'),
     applicationController.uploadStudentDocument
 );
-
-// Admin review / verification
 router.post('/:id/verify', protect, applicationController.saveApplicationVerification);
 router.patch('/:id/mark-reviewed', protect, applicationController.markApplicationReviewed);
 
@@ -52,8 +37,5 @@ router.patch('/:id/approve', protect, applicationController.approveApplication);
 
 // Disqualify
 router.patch('/:id/disqualify', protect, applicationController.disqualifyApplication);
-
-// Optional compatibility route
-router.post('/:id/disqualify', protect, applicationController.disqualifyApplication);
 
 module.exports = router;

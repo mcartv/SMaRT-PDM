@@ -1494,7 +1494,7 @@ export default function DocumentVerification() {
   };
 
   const updateActiveDocStatus = (nextStatus, nextComment = null) => {
-    if (!activeDoc || !hasUploadedDocument) return;
+    if (!activeDoc || !canReviewActiveDoc) return;
 
     setDocStatuses((prev) => ({
       ...prev,

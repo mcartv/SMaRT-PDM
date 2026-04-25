@@ -7,35 +7,48 @@ const { protect } = require('../middleware/authMiddleware');
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: {
-        fileSize: 10 * 1024 * 1024,
-    },
+    limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// Export / registry
-router.get('/export/excel', protect, applicationController.exportApplicationsExcel);
+// =========================
+// MAIN ROUTES
+// =========================
 
-// Main list
 router.get('/', protect, applicationController.getApplications);
-
-// Applicant details / docs
 router.get('/:id', protect, applicationController.getApplicationDetails);
 router.get('/:id/documents', protect, applicationController.getApplicationDocuments);
-router.patch('/:id/assign-program', protect, applicationController.assignApplicationProgram);
+
+// =========================
+// DOCUMENT ACTIONS
+// =========================
+
 router.post(
     '/:id/documents/upload',
     protect,
     upload.single('file'),
     applicationController.uploadStudentDocument
 );
+
+// =========================
+// IoT OCR ROUTES (IMPORTANT)
+// =========================
+
+router.post(
+    '/:id/documents/:documentKey/iot-ocr',
+    protect,
+    applicationController.runApplicationDocumentIotOcr
+);
+
+router.post(
+    '/:id/documents/:documentKey/ocr-snapshot',
+    protect,
+    applicationController.saveApplicationDocumentOcrSnapshot
+);
+
+// =========================
+// VERIFICATION
+// =========================
+
 router.post('/:id/verify', protect, applicationController.saveApplicationVerification);
-router.patch('/:id/mark-reviewed', protect, applicationController.markApplicationReviewed);
-
-// Admin remarks / decision
-router.patch('/:id/remarks', protect, applicationController.saveApplicationRemarks);
-router.patch('/:id/approve', protect, applicationController.approveApplication);
-
-// Disqualify
-router.patch('/:id/disqualify', protect, applicationController.disqualifyApplication);
 
 module.exports = router;

@@ -30,6 +30,10 @@ const academicYearRoutes = require('../routes/academicYearRoutes');
 const reportRoutes = require('../routes/reportRoutes');
 const roSettingRoutes = require('../routes/roSettingRoutes');
 
+const ocrRoutes = require('../routes/ocrRoutes');
+const piRoutes = require('../routes/piRoutes');
+const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
+
 // Services
 const { runAnnouncementScheduler } = require('../services/schedulerService');
 
@@ -119,6 +123,10 @@ app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/ro-settings', roSettingRoutes);
+
+app.use('/api/ocr', ocrRoutes);
+app.use('/api/pi/iot-ocr', piIotOcrRoutes);
+app.use('/api/pi', piRoutes);
 
 // =========================
 // HEALTH CHECK

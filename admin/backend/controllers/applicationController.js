@@ -90,20 +90,35 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
             user: req.user,
         });
 
-        const statusCode = result?.status === 'started' ? 202 : 200;
-
-        res.status(statusCode).json({
-            message:
-                statusCode === 202
-                    ? 'IoT OCR scan started successfully'
-                    : 'IoT OCR completed successfully',
+        res.status(202).json({
+            message: 'IoT OCR started',
             data: result,
         });
     } catch (err) {
-        console.error('RUN APPLICATION DOCUMENT IOT OCR CONTROLLER ERROR:', err.message);
+        res.status(500).json({
+            error: err.message || 'OCR failed',
+        });
+    }
+};
 
-        res.status(err.statusCode || 500).json({
-            error: err.message || 'Failed to run IoT OCR',
+exports.saveApplicationDocumentOcrSnapshot = async (req, res) => {
+    const { id, documentKey } = req.params;
+
+    try {
+        const result = await applicationService.saveApplicationDocumentOcrSnapshot({
+            applicationId: id,
+            documentKey,
+            rawText: req.body.raw_text || '',
+            user: req.user,
+        });
+
+        res.status(200).json({
+            message: 'OCR saved',
+            data: result,
+        });
+    } catch (err) {
+        res.status(500).json({
+            error: err.message,
         });
     }
 };

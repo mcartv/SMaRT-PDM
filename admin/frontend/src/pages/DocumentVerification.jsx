@@ -1535,42 +1535,23 @@ export default function DocumentVerification() {
       );
 
       const payload = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         throw new Error(payload.error || 'Failed to run IoT OCR');
       }
 
-      const result = payload?.data || {};
-      const hasImmediateOcrResult = hasDocumentOcrResult({
-        ocr: result.ocr,
-        ocr_confidence: result.ocr_confidence,
-      });
-
-      if (hasImmediateOcrResult) {
-        setIotOcrResults((prev) => ({
-          ...prev,
-          [activeDoc.id]: {
-            ocr: result.ocr || {},
-            ocr_confidence: result.ocr_confidence ?? result.ocr?.confidence ?? null,
-            raw_text: result.raw_text ?? result.ocr?.raw_text ?? result.ocr?.text ?? '',
-            extracted_fields: result.extracted_fields || {},
-            source_payload: result.source_payload || null,
-          },
-        }));
-      }
-
+      // Start polling to wait for OCR result
       stopPolling();
 
       let attempts = 0;
       const maxAttempts = 30;
 
       pollingRef.current = setInterval(async () => {
-        attempts += 1;
+        attempts++;
 
         try {
           await fetchApplicationDocuments({ soft: true });
-        } catch {
-          // ignore transient polling errors
-        }
+        } catch { }
 
         if (attempts >= maxAttempts) {
           stopPolling();
@@ -1579,7 +1560,7 @@ export default function DocumentVerification() {
       }, 3000);
     } catch (err) {
       console.error('RUN IOT OCR ERROR:', err);
-      setIotOcrError(err.message || 'Failed to run IoT OCR');
+      setIotOcrError(err.message);
       setRunningIotOcr(false);
     }
   };
@@ -1592,9 +1573,9 @@ export default function DocumentVerification() {
       setIotOcrError('');
 
       const res = await fetch(
-        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/ocr`,
+        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/ocr-snapshot`,
         {
-          method: 'PATCH',
+          method: 'POST', // FIXED
           headers: {
             Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
@@ -1606,27 +1587,16 @@ export default function DocumentVerification() {
       );
 
       const payload = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         throw new Error(payload.error || 'Failed to save OCR snapshot');
       }
 
-      const result = payload?.data || {};
-
-      setIotOcrResults((prev) => ({
-        ...prev,
-        [activeDoc.id]: {
-          ocr: result.ocr || { raw_text: rawOcrSnapshot },
-          ocr_confidence: result.ocr_confidence ?? result.ocr?.confidence ?? null,
-          raw_text: result.raw_text ?? rawOcrSnapshot,
-          extracted_fields: result.extracted_fields || {},
-          source_payload: result.source_payload || null,
-        },
-      }));
-
       await fetchApplicationDocuments({ soft: true });
+
     } catch (err) {
-      console.error('SAVE RAW OCR ERROR:', err);
-      setIotOcrError(err.message || 'Failed to save OCR snapshot');
+      console.error('SAVE OCR ERROR:', err);
+      setIotOcrError(err.message);
     } finally {
       setSavingRawOcr(false);
     }

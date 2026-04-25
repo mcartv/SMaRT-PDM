@@ -150,7 +150,7 @@ exports.createRequest = async (input = {}) => {
                 updated_at = NOW()
             WHERE application_id = $1::uuid
               AND document_key = $2
-              AND status IN ('pending', 'claimed')
+              AND status = 'pending'
             `,
             [context.application_id, context.document_key]
         );

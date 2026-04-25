@@ -5,13 +5,15 @@ class AppConfig {
 
   static String get apiBaseUrl {
     const configuredValue = String.fromEnvironment('API_BASE_URL');
-    if (configuredValue.isEmpty) {
+    final normalizedValue = configuredValue.trim();
+
+    if (normalizedValue.isEmpty) {
       return _defaultBaseUrl;
     }
 
-    return configuredValue.endsWith('/')
-        ? configuredValue.substring(0, configuredValue.length - 1)
-        : configuredValue;
+    return normalizedValue.endsWith('/')
+        ? normalizedValue.substring(0, normalizedValue.length - 1)
+        : normalizedValue;
   }
 
   // ✅ Define the missing variable

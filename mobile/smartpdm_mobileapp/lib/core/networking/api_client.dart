@@ -16,7 +16,11 @@ class ApiClient {
   final http.Client _httpClient;
   final SessionService _sessionService = const SessionService();
 
-  Uri buildUri(String path) => Uri.parse('${AppConfig.apiBaseUrl}$path');
+  Uri buildUri(String path) {
+    final normalizedBaseUrl = AppConfig.apiBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$normalizedBaseUrl$normalizedPath');
+  }
 
   Future<Map<String, String>> _buildHeaders({
     String? contentType,

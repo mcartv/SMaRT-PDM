@@ -535,6 +535,13 @@ function normalizeOcrPayload(payload = {}) {
     };
 }
 
+function isUuid(value) {
+    if (!value) return false;
+
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        .test(String(value).trim());
+}
+
 function isAsyncIotOcrStart(response, payload = {}) {
     return response.status === 202 || payload?.status === 'started';
 }
@@ -1296,6 +1303,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
 
     const now = new Date().toISOString();
     const normalizedRawText = String(rawText || '');
+    const normalizedIotDeviceId = isUuid(iotDeviceId) ? String(iotDeviceId).trim() : null;
     const normalizedExtractedFields =
         extractedFields && typeof extractedFields === 'object'
             ? extractedFields
@@ -1372,7 +1380,9 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
             typeof scannedViaIot === 'boolean'
                 ? scannedViaIot
                 : existingRow?.scanned_via_iot ?? false,
-        iot_device_id: iotDeviceId || existingRow?.iot_device_id || null,
+        iot_device_id:
+            normalizedIotDeviceId ||
+            (isUuid(existingRow?.iot_device_id) ? existingRow.iot_device_id : null),
         ocr_extracted_name:
             extractedNameCandidate ||
             existingRow?.ocr_extracted_name ||

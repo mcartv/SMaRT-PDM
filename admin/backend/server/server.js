@@ -46,10 +46,17 @@ const allowedOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_URL
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-const allowedOriginSuffixes = (process.env.FRONTEND_ORIGIN_SUFFIXES || '.vercel.app')
+const configuredOriginSuffixes = (process.env.FRONTEND_ORIGIN_SUFFIXES || '')
   .split(',')
   .map((suffix) => suffix.trim().toLowerCase())
   .filter(Boolean);
+
+const allowedOriginSuffixes = Array.from(
+  new Set([
+    '.vercel.app',
+    ...configuredOriginSuffixes,
+  ])
+);
 
 if (!allowedOrigins.length) {
   allowedOrigins.push(

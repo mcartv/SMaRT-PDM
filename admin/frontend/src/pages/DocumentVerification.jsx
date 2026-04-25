@@ -96,6 +96,9 @@ const REJECTION_OPTIONS = [
   'Other',
 ];
 
+const OCR_POLL_INTERVAL_MS = 1000;
+const OCR_POLL_TIMEOUT_SECONDS = 120;
+
 function normalizeKey(value = '') {
   return String(value)
     .toLowerCase()
@@ -1528,7 +1531,9 @@ export default function DocumentVerification() {
       }
 
       let attempts = 0;
-      const maxAttempts = 30;
+      const maxAttempts = Math.floor(
+        (OCR_POLL_TIMEOUT_SECONDS * 1000) / OCR_POLL_INTERVAL_MS
+      );
       iotOcrPollingRef.current = setInterval(async () => {
         attempts += 1;
 
@@ -1572,7 +1577,7 @@ export default function DocumentVerification() {
           );
           setRunningIotOcr(false);
         }
-      }, 3000);
+      }, OCR_POLL_INTERVAL_MS);
     } catch (err) {
       console.error('RUN IOT OCR ERROR:', err);
       setIotOcrError(err.message || 'Failed to run IoT OCR');

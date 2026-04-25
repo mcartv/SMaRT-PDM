@@ -978,7 +978,7 @@ export default function ScholarshipOpenings() {
                 }),
             ]);
 
-            if (!templatesRes.ok) throw new Error('Failed to load scholarship program templates');
+            if (!templatesRes.ok) throw new Error('Failed to load scholarship program templates..');
             if (!openingsRes.ok) throw new Error('Failed to load scholarship openings');
             if (!academicYearsRes.ok) throw new Error('Failed to load academic years');
 

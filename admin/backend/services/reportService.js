@@ -18,18 +18,24 @@ function normalizeReportType(value) {
 }
 
 async function getReportMetadata() {
-    const [programsResult, yearsResult] = await Promise.all([
+    const [programsResult, yearsResult, benefactorsResult] = await Promise.all([
         pool.query(`
-      SELECT program_id, program_name
-      FROM scholarship_program
-      WHERE COALESCE(is_archived, FALSE) = FALSE
-      ORDER BY program_name ASC;
-    `),
+            SELECT program_id, program_name
+            FROM scholarship_program
+            WHERE COALESCE(is_archived, FALSE) = FALSE
+            ORDER BY program_name ASC;
+        `),
         pool.query(`
-      SELECT academic_year_id, label, start_year, end_year, is_active
-      FROM academic_years
-      ORDER BY start_year DESC;
-    `),
+            SELECT academic_year_id, label, start_year, end_year, is_active
+            FROM academic_years
+            ORDER BY start_year DESC;
+        `),
+        pool.query(`
+            SELECT benefactor_id, benefactor_name
+            FROM benefactors
+            WHERE COALESCE(is_archived, FALSE) = FALSE
+            ORDER BY benefactor_name ASC;
+        `),
     ]);
 
     return {
@@ -69,6 +75,10 @@ async function getReportMetadata() {
             { value: 'Second Semester', label: 'Second Semester' },
             { value: 'Summer', label: 'Summer' },
         ],
+        benefactors: [
+            { benefactor_id: 'all', benefactor_name: 'All Benefactors' },
+            ...(benefactorsResult.rows || []),
+        ],
     };
 }
 
@@ -85,7 +95,7 @@ function styleSheet(sheet) {
     });
 }
 
-async function getApplicationsRows({ academicYearId, semester, programId }) {
+async function getApplicationsRows({ academicYearId, semester, programId, benefactorId }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
 
@@ -104,6 +114,11 @@ async function getApplicationsRows({ academicYearId, semester, programId }) {
         where.push(`a.program_id = $${params.length}`);
     }
 
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
     const query = `
     SELECT
       st.pdm_id,
@@ -111,6 +126,7 @@ async function getApplicationsRows({ academicYearId, semester, programId }) {
       ac.course_code,
       st.year_level,
       sp.program_name,
+      b.benefactor_name,
       po.opening_title,
       ay.label AS academic_year,
       ap.term AS semester,
@@ -123,6 +139,7 @@ async function getApplicationsRows({ academicYearId, semester, programId }) {
     LEFT JOIN students st ON a.student_id = st.student_id
     LEFT JOIN academic_course ac ON st.course_id = ac.course_id
     LEFT JOIN scholarship_program sp ON a.program_id = sp.program_id
+    LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
     LEFT JOIN program_openings po ON a.opening_id = po.opening_id
     LEFT JOIN academic_years ay ON po.academic_year_id = ay.academic_year_id
     LEFT JOIN academic_period ap ON po.period_id = ap.period_id
@@ -134,7 +151,7 @@ async function getApplicationsRows({ academicYearId, semester, programId }) {
     return rows;
 }
 
-async function getScholarsRows({ academicYearId, semester, programId }) {
+async function getScholarsRows({ academicYearId, semester, programId, benefactorId }) {
     const params = [];
     const where = [
         `st.is_active_scholar = TRUE`,
@@ -156,6 +173,11 @@ async function getScholarsRows({ academicYearId, semester, programId }) {
         where.push(`st.current_program_id = $${params.length}`);
     }
 
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
     const query = `
     SELECT
       st.pdm_id,
@@ -167,12 +189,14 @@ async function getScholarsRows({ academicYearId, semester, programId }) {
       ap.term AS semester,
       st.scholarship_status,
       st.date_awarded,
-      st.ro_progress
+      st.ro_progress,
+      b.benefactor_name
     FROM students st
     LEFT JOIN academic_course ac ON st.course_id = ac.course_id
     LEFT JOIN scholarship_program sp ON st.current_program_id = sp.program_id
     LEFT JOIN academic_years ay ON st.active_academic_year_id = ay.academic_year_id
     LEFT JOIN academic_period ap ON st.active_period_id = ap.period_id
+    LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
     WHERE ${where.join(' AND ')}
     ORDER BY st.last_name ASC, st.first_name ASC;
   `;
@@ -256,11 +280,49 @@ function addRows(sheet, rows) {
     rows.forEach((row) => sheet.addRow(row));
 }
 
+async function previewReport(query = {}) {
+    const reportType = normalizeReportType(query.reportType || query.type);
+    const academicYearId = safeText(query.academicYearId || query.academic_year_id || 'all');
+    const semester = safeText(query.semester || 'all');
+    const programId = safeText(query.programId || query.program_id || 'all');
+    const benefactorId = safeText(query.benefactorId || query.benefactor_id || 'all');
+
+    let rows = [];
+
+    if (reportType === 'applications') {
+        rows = await getApplicationsRows({ academicYearId, semester, programId });
+    }
+
+    if (reportType === 'scholars') {
+        rows = await getScholarsRows({
+            academicYearId,
+            semester,
+            programId,
+            benefactorId,
+        });
+    }
+
+    if (reportType === 'payouts') {
+        rows = await getPayoutRows({ academicYearId, semester, programId });
+    }
+
+    if (reportType === 'support') {
+        rows = await getSupportRows();
+    }
+
+    return {
+        reportType,
+        total: rows.length,
+        rows: rows.slice(0, 50),
+    };
+}
+
 async function generateExcelReport(query = {}) {
     const reportType = normalizeReportType(query.reportType || query.type);
     const academicYearId = safeText(query.academicYearId || query.academic_year_id || 'all');
     const semester = safeText(query.semester || 'all');
     const programId = safeText(query.programId || query.program_id || 'all');
+    const benefactorId = safeText(query.benefactorId || query.benefactor_id || 'all');
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'SMaRT-PDM';
@@ -301,11 +363,12 @@ async function generateExcelReport(query = {}) {
             { header: 'Program', key: 'program_name' },
             { header: 'Academic Year', key: 'academic_year' },
             { header: 'Semester', key: 'semester' },
+            { header: 'Benefactor', key: 'benefactor_name' },
             { header: 'Scholarship Status', key: 'scholarship_status' },
             { header: 'Date Awarded', key: 'date_awarded' },
             { header: 'RO Progress', key: 'ro_progress' },
         ];
-        rows = await getScholarsRows({ academicYearId, semester, programId });
+        rows = await getScholarsRows({ academicYearId, semester, programId, benefactorId });
         filename = 'active_scholars_report.xlsx';
     }
 
@@ -363,5 +426,6 @@ async function generateExcelReport(query = {}) {
 
 module.exports = {
     getReportMetadata,
+    previewReport,
     generateExcelReport,
 };

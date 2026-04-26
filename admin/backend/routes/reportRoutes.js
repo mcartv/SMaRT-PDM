@@ -5,6 +5,7 @@ const reportController = require('../controllers/reportController');
 const router = express.Router();
 
 router.get('/metadata', protect, reportController.getReportMetadata);
+router.get('/preview', protect, reportController.previewReport);
 router.get('/export', protect, reportController.exportReport);
 
 module.exports = router;

@@ -48,7 +48,24 @@ async function exportReport(req, res) {
     }
 }
 
+async function previewReport(req, res) {
+    try {
+        if (!isAdmin(req)) {
+            return res.status(403).json({ error: 'Admin access required.' });
+        }
+
+        const result = await reportService.previewReport(req.query || {});
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('REPORT PREVIEW ERROR:', error);
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to preview report.',
+        });
+    }
+}
+
 module.exports = {
     getReportMetadata,
     exportReport,
+    previewReport,
 };

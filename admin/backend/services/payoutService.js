@@ -623,9 +623,6 @@ async function fetchAcademicYears() {
   return rows;
 }
 
-<<<<<<< HEAD
-
-=======
 async function fetchMyPayouts(userId) {
   if (!userId) {
     const err = new Error('Authentication required.');
@@ -709,7 +706,6 @@ async function fetchMyPayouts(userId) {
     })),
   };
 }
->>>>>>> 31e8ce0198b2291fe703c801a7eac78aae71f617
 
 module.exports = {
   fetchPayoutBatches,

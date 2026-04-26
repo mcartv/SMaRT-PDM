@@ -8,7 +8,7 @@ class AppNavigator {
     switch (route) {
       case AppRoutes.home:
         return 0;
-      case AppRoutes.payouts:
+      case AppRoutes.notifications:
         return 1;
       case AppRoutes.profile:
         return 2;
@@ -21,40 +21,12 @@ class AppNavigator {
     BuildContext context,
     String route, {
     Object? arguments,
-  }) {
-    if (ScholarAccessService.isScholarOnlyRoute(route)) {
-      return _guardScholarRoute(context, route, arguments: arguments);
-    }
-
-    final shellState = TopLevelShellScreen.maybeOf(context);
-    final targetIndex = _topLevelIndexForRoute(route);
-
-    if (shellState != null && targetIndex != null) {
-      shellState.switchToIndex(targetIndex);
-      return Future.value();
-    }
-
-    return Navigator.of(context).pushNamedAndRemoveUntil(
-      route,
-      (previousRoute) => false,
-      arguments: arguments,
-    );
-  }
-
-  static Future<void> pushDetail(BuildContext context, String route) {
-    if (ScholarAccessService.isScholarOnlyRoute(route)) {
-      return _guardScholarRoute(context, route);
-    }
-
-    return Navigator.of(context).pushNamed(route);
-  }
-
-  static Future<void> _guardScholarRoute(
-    BuildContext context,
-    String route, {
-    Object? arguments,
   }) async {
-    final hasAccess = await ScholarAccessService.ensureScholarAccess(context);
+    final hasAccess = await ScholarAccessService.ensureRouteAccess(
+      context,
+      route,
+    );
+
     if (!hasAccess || !context.mounted) return;
 
     final shellState = TopLevelShellScreen.maybeOf(context);
@@ -72,8 +44,24 @@ class AppNavigator {
     );
   }
 
+  static Future<void> pushDetail(
+    BuildContext context,
+    String route, {
+    Object? arguments,
+  }) async {
+    final hasAccess = await ScholarAccessService.ensureRouteAccess(
+      context,
+      route,
+    );
+
+    if (!hasAccess || !context.mounted) return;
+
+    await Navigator.of(context).pushNamed(route, arguments: arguments);
+  }
+
   static Future<void> goBackOrHome(BuildContext context) {
     final navigator = Navigator.of(context);
+
     if (navigator.canPop()) {
       navigator.pop();
       return Future.value();

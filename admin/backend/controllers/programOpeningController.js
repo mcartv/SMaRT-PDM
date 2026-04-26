@@ -51,11 +51,7 @@ const getOpeningsApplicationSummary = async (req, res) => {
         res.status(200).json(rows);
     } catch (err) {
         console.error('GET OPENINGS APPLICATION SUMMARY CONTROLLER ERROR:', err);
-        return res.status(500).json({
-            message: err.message || 'Failed to fetch scholarship openings summary',
-            error: err.message || 'Unknown backend error',
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-        });
+        return sendError(res, err, 'Failed to fetch scholarship openings summary');
     }
 };
 

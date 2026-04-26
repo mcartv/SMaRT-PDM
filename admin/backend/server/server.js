@@ -4,7 +4,7 @@ const http = require('http');
 const socketIO = require('socket.io');
 
 require('dotenv').config({
-    path: path.resolve(__dirname, '../.env'),
+  path: path.resolve(__dirname, '../.env'),
 });
 
 const express = require('express');
@@ -22,13 +22,16 @@ const scholarshipProgramRoutes = require('../routes/scholarshipProgramRoutes');
 const programOpeningRoutes = require('../routes/programOpeningRoutes');
 const courseRoutes = require('../routes/courseRoutes');
 const benefactorRoutes = require('../routes/benefactorRoutes');
-const departmentRoutes = require('../routes/departmentRoutes');
 const renewalRoutes = require('../routes/renewalRoutes');
 const supportTicketRoutes = require('../routes/supportTicketRoutes');
 const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
+
 const ocrRoutes = require('../routes/ocrRoutes');
+const reportRoutes = require('../routes/reportRoutes');
+const roSettingRoutes = require('../routes/roSettingRoutes');
+
 const piRoutes = require('../routes/piRoutes');
 const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
 
@@ -152,11 +155,11 @@ app.use(express.static(frontendBuildPath));
 // =========================
 
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
+  res.json({ status: 'ok' });
 });
 
 app.get('/', (req, res) => {
-    res.send('API is running...');
+  res.send('API is running...');
 });
 
 // =========================
@@ -174,15 +177,19 @@ app.use('/api/scholarship-program', scholarshipProgramRoutes);
 app.use('/api/program-openings', programOpeningRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/benefactors', benefactorRoutes);
-app.use('/api/departments', departmentRoutes);
 app.use('/api/renewals', renewalRoutes);
 app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
+
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/pi/iot-ocr', piIotOcrRoutes);
-// Deprecated compatibility routes for old Pi workers.
+
+app.use('/api/reports', reportRoutes);
+app.use('/api/ro-settings', roSettingRoutes);
+
+app.use('/api/pi/iot-ocr', piIotOcrRoutes);
 app.use('/api/pi', piRoutes);
 
 // =========================
@@ -190,29 +197,29 @@ app.use('/api/pi', piRoutes);
 // =========================
 
 app.use((req, res) => {
-    console.log('Catch-all request:', req.method, req.path, req.headers.accept);
+  console.log('Catch-all request:', req.method, req.path, req.headers.accept);
 
-    if (req.path.startsWith('/api/')) {
-        console.log('API route not found:', req.path);
-        return res.status(404).json({ message: 'API endpoint not found' });
+  if (req.path.startsWith('/api/')) {
+    console.log('API route not found:', req.path);
+    return res.status(404).json({ message: 'API endpoint not found' });
+  }
+
+  if (path.extname(req.path)) {
+    console.log('Static asset not found:', req.path);
+    return res.status(404).send('Asset not found');
+  }
+
+  const indexPath = path.join(frontendBuildPath, 'index.html');
+  console.log('Serving index.html for:', req.path);
+
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('Error serving index.html for path:', req.path, err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Internal server error' });
+      }
     }
-
-    if (path.extname(req.path)) {
-        console.log('Static asset not found:', req.path);
-        return res.status(404).send('Asset not found');
-    }
-
-    const indexPath = path.join(frontendBuildPath, 'index.html');
-    console.log('Serving index.html for:', req.path);
-
-    res.sendFile(indexPath, (err) => {
-        if (err) {
-            console.error('Error serving index.html for path:', req.path, err);
-            if (!res.headersSent) {
-                res.status(500).json({ message: 'Internal server error' });
-            }
-        }
-    });
+  });
 });
 
 // =========================
@@ -220,15 +227,22 @@ app.use((req, res) => {
 // =========================
 
 app.use((err, req, res, next) => {
-    console.error('GLOBAL ERROR:', err);
+  console.error('GLOBAL ERROR:', err);
 
-    if (!res.headersSent) {
-        res.status(err.status || 500).json({
-            message: err.message || 'Internal Server Error',
-        });
-    } else {
-        next(err);
-    }
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({
+      message: err.message || 'Internal Server Error',
+    });
+  } else {
+    next(err);
+  }
+});
+
+// 404 handler must be LAST
+app.use((req, res) => {
+  res.status(404).json({
+    message: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
 });
 
 // =========================
@@ -240,40 +254,40 @@ const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 
 const io = socketIO(server, {
-    cors: {
-        origin(origin, callback) {
-            if (isAllowedOrigin(origin)) {
-                return callback(null, true);
-            }
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
 
-            return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
-        },
-        credentials: true,
-        methods: ['GET', 'POST'],
+      return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
     },
-    transports: ['websocket', 'polling'],
+    credentials: true,
+    methods: ['GET', 'POST'],
+  },
+  transports: ['websocket', 'polling'],
 });
 
 app.set('io', io);
 
 io.on('connection', (socket) => {
-    console.log(`[Socket] User connected: ${socket.id}`);
+  console.log(`[Socket] User connected: ${socket.id}`);
 
-    socket.on('user-join', (userId) => {
-        socket.join(`user:${userId}`);
-        console.log(`[Socket] User ${userId} joined their room`);
-    });
+  socket.on('user-join', (userId) => {
+    socket.join(`user:${userId}`);
+    console.log(`[Socket] User ${userId} joined their room`);
+  });
 
-    socket.on('disconnect', () => {
-        console.log(`[Socket] User disconnected: ${socket.id}`);
-    });
+  socket.on('disconnect', () => {
+    console.log(`[Socket] User disconnected: ${socket.id}`);
+  });
 });
 
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`WebSocket enabled at ws://localhost:${PORT}`);
-    console.log('Allowed origins:', allowedOrigins);
-    console.log('Allowed origin suffixes:', allowedOriginSuffixes);
+  console.log(`Server running on port ${PORT}`);
+  console.log(`WebSocket enabled at ws://localhost:${PORT}`);
+  console.log('Allowed origins:', allowedOrigins);
+  console.log('Allowed origin suffixes:', allowedOriginSuffixes);
 });
 
 // =========================
@@ -281,13 +295,13 @@ server.listen(PORT, () => {
 // =========================
 
 if (!global._announcementSchedulerRunning) {
-    global._announcementSchedulerRunning = true;
+  global._announcementSchedulerRunning = true;
 
-    setInterval(async () => {
-        try {
-            await runAnnouncementScheduler();
-        } catch (err) {
-            console.error('Scheduler Error:', err.message);
-        }
-    }, 30000);
+  setInterval(async () => {
+    try {
+      await runAnnouncementScheduler();
+    } catch (err) {
+      console.error('Scheduler Error:', err.message);
+    }
+  }, 30000);
 }

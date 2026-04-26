@@ -9,6 +9,7 @@ const {
     updateScholarStatus,
     archivePayoutBatch,
     getAcademicYears,
+    getMyPayouts,
 } = require('../controllers/payoutController');
 
 const { protect } = require('../middleware/authMiddleware');
@@ -17,6 +18,7 @@ router.get('/', protect, getPayoutBatches);
 router.get('/openings', protect, getPayoutOpenings);
 router.get('/eligible-scholars', protect, getEligibleScholarsByOpening);
 router.get('/academic-years', protect, getAcademicYears);
+router.get('/me', protect, getMyPayouts);
 
 router.post('/', protect, createPayoutBatch);
 

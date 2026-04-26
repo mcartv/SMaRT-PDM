@@ -44,4 +44,10 @@ class ProgramOpeningService {
   }) {
     return _apiClient.postJson('/api/openings/$openingId/apply', body: body);
   }
+
+  Future<Map<String, dynamic>> submitApplicationForm({
+    required Map<String, dynamic> body,
+  }) {
+    return _apiClient.postJson('/api/applications/me/submit', body: body);
+  }
 }

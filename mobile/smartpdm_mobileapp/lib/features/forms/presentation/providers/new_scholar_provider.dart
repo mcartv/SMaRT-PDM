@@ -1,22 +1,32 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
+
+import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
 class NewScholarProvider extends ChangeNotifier {
   final ApplicationService _applicationService = ApplicationService();
-  // Add your state variables here
+
   String? _scholarName;
   String? _email;
   String? _phone;
 
-  // Getters
   String? get scholarName => _scholarName;
   String? get email => _email;
   String? get phone => _phone;
 
-  // Setters to update state and notify listeners
+  int _currentStep = 0;
+  bool _isLoading = false;
+  String? _submissionError;
+  String? _successMessage;
+  Map<String, dynamic>? _lastSubmissionResponse;
+
+  int get currentStep => _currentStep;
+  bool get isLoading => _isLoading;
+  String? get submissionError => _submissionError;
+  String? get successMessage => _successMessage;
+  Map<String, dynamic>? get lastSubmissionResponse => _lastSubmissionResponse;
+
   void setScholarName(String name) {
     _scholarName = name;
     notifyListeners();
@@ -39,20 +49,6 @@ class NewScholarProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  int _currentStep = 0;
-  bool _isLoading = false;
-  String? _submissionError;
-  String? _successMessage;
-  Map<String, dynamic>? _lastSubmissionResponse;
-
-  // Getters
-  int get currentStep => _currentStep;
-  bool get isLoading => _isLoading;
-  String? get submissionError => _submissionError;
-  String? get successMessage => _successMessage;
-  Map<String, dynamic>? get lastSubmissionResponse => _lastSubmissionResponse;
-
-  // Navigation Methods
   void goToNextStep() {
     if (_currentStep < 4) {
       _currentStep++;
@@ -73,11 +69,9 @@ class NewScholarProvider extends ChangeNotifier {
     _submissionError = null;
     _successMessage = null;
     _lastSubmissionResponse = null;
-    // TODO: Clear any saved form data here
     notifyListeners();
   }
 
-  // Submission Method
   Future<bool> submitApplication(
     ApplicationData applicationData, {
     required String openingId,
@@ -89,12 +83,17 @@ class NewScholarProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _applicationService.submitApplicationForOpening(
-        openingId,
+      if (applicationData.openingId.trim().isEmpty) {
+        applicationData.openingId = openingId.trim();
+      }
+
+      final response = await _applicationService.submitApplication(
         applicationData,
       );
+
       _lastSubmissionResponse = response;
-      _successMessage = response['message']?.toString();
+      _successMessage =
+          response['message']?.toString() ?? 'Application submitted.';
 
       _isLoading = false;
       notifyListeners();
@@ -105,9 +104,12 @@ class NewScholarProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       return false;
-    } catch (e) {
+    } catch (error) {
+      _submissionError = error
+          .toString()
+          .replaceFirst('Exception: ', '')
+          .trim();
       _isLoading = false;
-      _submissionError = e.toString();
       notifyListeners();
       return false;
     }

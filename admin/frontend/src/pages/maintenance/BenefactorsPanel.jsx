@@ -14,6 +14,7 @@ import {
     Loader2,
     X,
     Save,
+    SlidersHorizontal,
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
@@ -153,14 +154,103 @@ function BenefactorOnlyModal({
     );
 }
 
+function BenefactorFilterModal({
+    open,
+    onClose,
+    typeFilter,
+    setTypeFilter,
+    archiveFilter,
+    setArchiveFilter,
+    onApply,
+    onClear,
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-stone-800">Filter Benefactors</h3>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1.5 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                <CardContent className="p-4 space-y-3">
+                    <div className="space-y-1.5">
+                        <FieldLabel>Benefactor Type</FieldLabel>
+                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                            <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="All">All</SelectItem>
+                                <SelectItem value="public">Public</SelectItem>
+                                <SelectItem value="private">Private</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <FieldLabel>Archive Status</FieldLabel>
+                        <Select value={archiveFilter} onValueChange={setArchiveFilter}>
+                            <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Active">Active</SelectItem>
+                                <SelectItem value="Archived">Archived</SelectItem>
+                                <SelectItem value="All">All</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
+
+                <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={onClear}
+                        className="h-8 rounded-lg border-stone-200 text-xs"
+                    >
+                        Clear
+                    </Button>
+
+                    <Button
+                        onClick={onApply}
+                        className="h-8 rounded-lg text-white text-xs border-none"
+                        style={{ background: C.brownMid }}
+                    >
+                        Apply
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
 export default function BenefactorsPanel() {
     const [benefactors, setBenefactors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
     const [search, setSearch] = useState('');
-    const [archiveFilter, setArchiveFilter] = useState('Active');
     const [typeFilter, setTypeFilter] = useState('All');
+    const [archiveFilter, setArchiveFilter] = useState('Active');
+
+    const [draftTypeFilter, setDraftTypeFilter] = useState('All');
+    const [draftArchiveFilter, setDraftArchiveFilter] = useState('Active');
+    const [filterOpen, setFilterOpen] = useState(false);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -227,6 +317,8 @@ export default function BenefactorsPanel() {
         });
     }, [benefactors, search, typeFilter, archiveFilter]);
 
+    const hasActiveFilters = typeFilter !== 'All' || archiveFilter !== 'Active';
+
     const openCreateModal = () => {
         setModalMode('create');
         setEditingBenefactorId(null);
@@ -246,6 +338,26 @@ export default function BenefactorsPanel() {
         setModalOpen(true);
     };
 
+    const openFilterModal = () => {
+        setDraftTypeFilter(typeFilter);
+        setDraftArchiveFilter(archiveFilter);
+        setFilterOpen(true);
+    };
+
+    const applyFilters = () => {
+        setTypeFilter(draftTypeFilter);
+        setArchiveFilter(draftArchiveFilter);
+        setFilterOpen(false);
+    };
+
+    const clearFilters = () => {
+        setDraftTypeFilter('All');
+        setDraftArchiveFilter('Active');
+        setTypeFilter('All');
+        setArchiveFilter('Active');
+        setFilterOpen(false);
+    };
+
     const handleSave = async () => {
         try {
             setSaving(true);
@@ -263,8 +375,8 @@ export default function BenefactorsPanel() {
 
             const isEdit = modalMode === 'edit' && editingBenefactorId;
             const url = isEdit
-    ? buildApiUrl(`/api/benefactors/${editingBenefactorId}`)
-    : buildApiUrl('/api/benefactors');
+                ? buildApiUrl(`/api/benefactors/${editingBenefactorId}`)
+                : buildApiUrl('/api/benefactors');
 
             const method = isEdit ? 'PATCH' : 'POST';
 
@@ -298,7 +410,7 @@ export default function BenefactorsPanel() {
     const handleArchiveToggle = async (benefactor) => {
         try {
             const res = await fetch(
-    buildApiUrl(`/api/benefactors/${benefactor.benefactor_id}`),
+                buildApiUrl(`/api/benefactors/${benefactor.benefactor_id}`),
                 {
                     method: 'PATCH',
                     headers: {
@@ -339,6 +451,17 @@ export default function BenefactorsPanel() {
                 saving={saving}
             />
 
+            <BenefactorFilterModal
+                open={filterOpen}
+                onClose={() => setFilterOpen(false)}
+                typeFilter={draftTypeFilter}
+                setTypeFilter={setDraftTypeFilter}
+                archiveFilter={draftArchiveFilter}
+                setArchiveFilter={setDraftArchiveFilter}
+                onApply={applyFilters}
+                onClear={clearFilters}
+            />
+
             <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-stone-900">Benefactors</h2>
 
@@ -369,36 +492,29 @@ export default function BenefactorsPanel() {
                 <div className="relative flex-1 min-w-[220px]">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
                     <Input
-                        placeholder="Search..."
+                        placeholder="Search benefactor..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-8 h-8 text-xs rounded-lg border-stone-200"
                     />
                 </div>
 
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-[130px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All</SelectItem>
-                        <SelectItem value="public">Public</SelectItem>
-                        <SelectItem value="private">Private</SelectItem>
-                    </SelectContent>
-                </Select>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openFilterModal}
+                    className="h-8 rounded-lg text-xs border-stone-200"
+                >
+                    <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
+                    Filters
+                    {hasActiveFilters && (
+                        <span className="ml-1 rounded-full bg-stone-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            Active
+                        </span>
+                    )}
+                </Button>
 
-                <Select value={archiveFilter} onValueChange={setArchiveFilter}>
-                    <SelectTrigger className="w-[130px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Archived">Archived</SelectItem>
-                        <SelectItem value="All">All</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {(search || typeFilter !== 'All' || archiveFilter !== 'Active') && (
+                {(search || hasActiveFilters) && (
                     <Button
                         variant="outline"
                         size="sm"
@@ -406,6 +522,8 @@ export default function BenefactorsPanel() {
                             setSearch('');
                             setTypeFilter('All');
                             setArchiveFilter('Active');
+                            setDraftTypeFilter('All');
+                            setDraftArchiveFilter('Active');
                         }}
                         className="h-8 rounded-lg text-xs border-stone-200"
                     >
@@ -446,8 +564,8 @@ export default function BenefactorsPanel() {
 
                                             <span
                                                 className={`text-[10px] px-2 py-0.5 rounded ${isPublic
-                                                    ? 'bg-blue-50 text-blue-700'
-                                                    : 'bg-amber-50 text-amber-700'
+                                                        ? 'bg-blue-50 text-blue-700'
+                                                        : 'bg-amber-50 text-amber-700'
                                                     }`}
                                             >
                                                 {isPublic ? 'Public' : 'Private'}

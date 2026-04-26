@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 
 class SmartPdmBottomNav extends StatelessWidget {
   final int selectedIndex;
@@ -20,69 +19,57 @@ class SmartPdmBottomNav extends StatelessWidget {
 
   static const List<String> _routes = [
     AppRoutes.home,
-    AppRoutes.payouts,
+    AppRoutes.notifications,
     AppRoutes.profile,
   ];
 
   static const List<IconData> _icons = [
-    Icons.home,
-    Icons.workspace_premium,
-    Icons.person_outline,
+    Icons.home_rounded,
+    Icons.notifications_none_rounded,
+    Icons.person_outline_rounded,
   ];
 
-  static const List<String> _labels = ['Home', 'Scholar', 'Profile'];
+  static const List<String> _labels = ['Home', 'Updates', 'Profile'];
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = selectedIndex.clamp(0, _labels.length - 1);
-    final theme = Theme.of(context);
-    final bottomNavTheme = theme.bottomNavigationBarTheme;
+    final safeIndex = selectedIndex.clamp(0, _routes.length - 1);
 
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
-      currentIndex: currentIndex,
-      selectedItemColor: bottomNavTheme.selectedItemColor ?? primaryColor,
-      unselectedItemColor:
-          bottomNavTheme.unselectedItemColor ?? Colors.grey[600],
-      backgroundColor:
-          bottomNavTheme.backgroundColor ?? theme.colorScheme.surface,
-      elevation: 8,
-      items: List.generate(_labels.length, (index) {
-        final hasUnreadPayouts = index == 1 && unreadPayoutNotifications > 0;
+      currentIndex: safeIndex,
+      selectedItemColor: primaryColor,
+      unselectedItemColor: Colors.grey,
+      onTap: (index) {
+        if (index == safeIndex) return;
+        AppNavigator.goToTopLevel(context, _routes[index]);
+      },
+      items: List.generate(_routes.length, (index) {
+        final showBadge = index == 1 && unreadNotifications > 0;
 
         return BottomNavigationBarItem(
+          label: _labels[index],
           icon: Stack(
+            clipBehavior: Clip.none,
             children: [
               Icon(_icons[index]),
-              if (hasUnreadPayouts)
+              if (showBadge)
                 Positioned(
-                  right: 0,
-                  top: 0,
+                  right: -4,
+                  top: -4,
                   child: Container(
-                    padding: const EdgeInsets.all(2),
+                    width: 9,
+                    height: 9,
                     decoration: const BoxDecoration(
                       color: Colors.red,
                       shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 8,
-                      minHeight: 8,
                     ),
                   ),
                 ),
             ],
           ),
-          label: _labels[index],
         );
       }),
-      onTap: (index) async {
-        if (index == currentIndex) return;
-        if (index == 1 && !isVerifiedScholar) {
-          ScholarAccessService.showLockedMessage(context);
-          return;
-        }
-        AppNavigator.goToTopLevel(context, _routes[index]);
-      },
     );
   }
 }

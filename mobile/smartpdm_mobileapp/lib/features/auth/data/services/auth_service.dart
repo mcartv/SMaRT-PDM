@@ -25,10 +25,14 @@ class AuthResult {
 class RegistrationResult {
   final String userId;
   final String studentId;
+  final String email;
+  final String message;
 
   const RegistrationResult({
     required this.userId,
     required this.studentId,
+    required this.email,
+    required this.message,
   });
 }
 
@@ -61,14 +65,19 @@ class CourseOption {
 }
 
 class AuthService {
-  AuthService({
-    ApiClient? apiClient,
-    SessionService? sessionService,
-  })  : _apiClient = apiClient ?? ApiClient(),
-        _sessionService = sessionService ?? const SessionService();
+  AuthService({ApiClient? apiClient, SessionService? sessionService})
+    : _apiClient = apiClient ?? ApiClient(),
+      _sessionService = sessionService ?? const SessionService();
 
   final ApiClient _apiClient;
   final SessionService _sessionService;
+
+  Future<Map<String, dynamic>> checkStudentId(String studentId) async {
+    return _apiClient.postJson(
+      '/api/auth/check-student-id',
+      body: {'student_id': studentId.trim().toUpperCase()},
+    );
+  }
 
   Future<RegistrationResult> register({
     required String email,
@@ -78,9 +87,9 @@ class AuthService {
     final response = await _apiClient.postJson(
       '/api/auth/register',
       body: {
-        'email': email.trim(),
+        'email': email.trim().toLowerCase(),
         'password': password,
-        'student_id': studentId.trim(),
+        'student_id': studentId.trim().toUpperCase(),
       },
     );
 
@@ -89,6 +98,8 @@ class AuthService {
     return RegistrationResult(
       userId: user['user_id']?.toString() ?? '',
       studentId: user['student_id']?.toString() ?? studentId.trim(),
+      email: user['email']?.toString() ?? email.trim().toLowerCase(),
+      message: response['message']?.toString() ?? 'OTP sent.',
     );
   }
 
@@ -98,65 +109,10 @@ class AuthService {
   }) async {
     final response = await _apiClient.postJson(
       '/api/auth/verify-otp',
-      body: {
-        'email': email.trim(),
-        'otp': otp.trim(),
-      },
+      body: {'email': email.trim().toLowerCase(), 'otp': otp.trim()},
     );
 
-    return await _saveAndBuildAuthResult(response);
-  }
-
-  Future<void> resendOtp(String email) async {
-    await _apiClient.postJson(
-      '/api/auth/resend-otp',
-      body: {
-        'email': email.trim(),
-      },
-    );
-  }
-
-  Future<void> cancelRegistration(String email) async {
-    await _apiClient.postJson(
-      '/api/auth/cancel-registration',
-      body: {
-        'email': email.trim(),
-      },
-    );
-  }
-
-  Future<List<CourseOption>> fetchCourses() async {
-    final response = await _apiClient.getObject('/api/courses');
-    final items = (response['items'] as List<dynamic>? ?? []);
-
-    return items
-        .map((item) => CourseOption.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
-  Future<Map<String, dynamic>> setupProfile({
-    required String firstName,
-    String? middleName,
-    required String lastName,
-    required String courseCode,
-    required int yearLevel,
-    required String barangay,
-    required String phoneNumber,
-  }) async {
-    final response = await _apiClient.postJson(
-      '/api/profile/setup',
-      body: {
-        'first_name': firstName.trim(),
-        'middle_name': (middleName ?? '').trim(),
-        'last_name': lastName.trim(),
-        'course_code': courseCode.trim(),
-        'year_level': yearLevel,
-        'barangay': barangay.trim(),
-        'phone_number': phoneNumber.trim(),
-      },
-    );
-
-    return response;
+    return _saveAndBuildAuthResult(response);
   }
 
   Future<AuthResult> login({
@@ -166,21 +122,35 @@ class AuthService {
     final response = await _apiClient.postJson(
       '/api/auth/login',
       body: {
-        'student_id': studentId.trim(),
+        'student_id': studentId.trim().toUpperCase(),
         'password': password,
       },
     );
 
-    return await _saveAndBuildAuthResult(response);
+    return _saveAndBuildAuthResult(response);
   }
 
-  Future<void> requestPasswordReset(String email) async {
+  Future<void> resendOtp(String email) async {
     await _apiClient.postJson(
-      '/api/auth/forgot-password',
-      body: {
-        'email': email.trim(),
-      },
+      '/api/auth/resend-otp',
+      body: {'email': email.trim().toLowerCase()},
     );
+  }
+
+  Future<void> cancelRegistration(String email) async {
+    await _apiClient.postJson(
+      '/api/auth/cancel-registration',
+      body: {'email': email.trim().toLowerCase()},
+    );
+  }
+
+  Future<List<CourseOption>> fetchCourses() async {
+    final response = await _apiClient.getObject('/api/courses');
+    final items = response['items'] as List<dynamic>? ?? [];
+
+    return items
+        .map((item) => CourseOption.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<AuthResult> _saveAndBuildAuthResult(
@@ -197,6 +167,10 @@ class AuthService {
       lastName: user['last_name']?.toString() ?? '',
       hasScholarAccess: user['has_scholar_access'] == true,
     );
+
+    if (result.token.isEmpty) {
+      throw Exception('No token returned from server.');
+    }
 
     await _sessionService.saveAuthSession(
       token: result.token,

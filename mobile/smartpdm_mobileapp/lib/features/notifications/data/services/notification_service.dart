@@ -19,8 +19,8 @@ class NotificationListResult {
 
 class NotificationService {
   NotificationService({ApiClient? apiClient, SessionService? sessionService})
-    : _apiClient = apiClient ?? ApiClient(),
-      _sessionService = sessionService ?? const SessionService();
+      : _apiClient = apiClient ?? ApiClient(),
+        _sessionService = sessionService ?? const SessionService();
 
   final ApiClient _apiClient;
   final SessionService _sessionService;
@@ -35,13 +35,9 @@ class NotificationService {
 
     final items = ((response['items'] as List<dynamic>?) ?? const [])
         .map((item) {
-          if (item is Map<String, dynamic>) {
-            return item;
-          }
+          if (item is Map<String, dynamic>) return item;
           if (item is Map) {
-            return item.map(
-              (key, value) => MapEntry(key.toString(), value),
-            );
+            return item.map((key, value) => MapEntry(key.toString(), value));
           }
           return <String, dynamic>{};
         })
@@ -58,20 +54,26 @@ class NotificationService {
   }
 
   Future<int> fetchUnreadCount() async {
-    final response = await _apiClient.getObject('/api/notifications/unread-count');
-    return (response['unreadCount'] as num?)?.toInt() ?? 0;
+    final result = await fetchNotifications();
+    return result.items.where((item) => !item.isRead).length;
   }
 
   Future<AppNotification> markAsRead(String notificationId) async {
     final response = await _apiClient.patchJson(
       '/api/notifications/$notificationId/read',
     );
+
+    final notification = response['notification'];
+    if (notification is Map<String, dynamic>) {
+      return AppNotification.fromJson(notification);
+    }
+
     return AppNotification.fromJson(response);
   }
 
   Future<int> markAllAsRead() async {
-    final response = await _apiClient.patchJson('/api/notifications/read-all');
-    return (response['updatedCount'] as num?)?.toInt() ?? 0;
+    await _apiClient.patchJson('/api/notifications/me/read-all');
+    return 0;
   }
 
   Future<void> deleteNotification(String notificationId) async {
@@ -84,9 +86,7 @@ class NotificationService {
     final platform =
         stored['platform'] ?? (kIsWeb ? 'web' : defaultTargetPlatform.name);
 
-    if (token == null || token.trim().isEmpty) {
-      return;
-    }
+    if (token == null || token.trim().isEmpty) return;
 
     await _apiClient.postJson(
       '/api/notifications/device-token',

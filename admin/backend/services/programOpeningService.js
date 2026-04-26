@@ -30,6 +30,8 @@ function derivePostingStatus(opening) {
 }
 
 async function resolvePeriodIdFromAcademicYear(academicYearId) {
+    if (!academicYearId) return null;
+
     const { data, error } = await supabase
         .from('academic_period')
         .select('period_id, is_active')
@@ -42,11 +44,7 @@ async function resolvePeriodIdFromAcademicYear(academicYearId) {
         throw new Error(error.message);
     }
 
-    if (!data || data.length === 0 || !data[0]?.period_id) {
-        throw new Error('No academic period found for the selected academic year');
-    }
-
-    return data[0].period_id;
+    return data?.[0]?.period_id || null;
 }
 
 function mapOpening(opening, counts = {}) {
@@ -74,13 +72,7 @@ function mapOpening(opening, counts = {}) {
         benefactor_id: program?.benefactor_id || null,
 
         program_name: program?.program_name || opening.program_name || 'Program',
-
-        benefactor_name:
-            benefactor?.benefactor_name ||
-            benefactor?.benefactor_name ||
-            opening.benefactor_name ||
-            null,
-
+        benefactor_name: benefactor?.benefactor_name || opening.benefactor_name || null,
         benefactor_type: benefactor?.benefactor_type || null,
 
         description: program?.description || '',
@@ -144,17 +136,13 @@ function buildCounts(opening, applications = []) {
             )
         ).length,
         qualified_count: related.filter((app) =>
-            ['qualified', 'approved', 'accepted'].includes(
-                normalizeStatus(app.application_status)
-            )
+            ['qualified', 'approved', 'accepted'].includes(normalizeStatus(app.application_status))
         ).length,
         waiting_count: related.filter((app) =>
             ['waiting', 'waitlisted'].includes(normalizeStatus(app.application_status))
         ).length,
         disqualified_count: related.filter((app) =>
-            ['disqualified', 'rejected', 'declined'].includes(
-                normalizeStatus(app.application_status)
-            )
+            ['disqualified', 'rejected', 'declined'].includes(normalizeStatus(app.application_status))
         ).length,
     };
 }
@@ -163,11 +151,11 @@ async function fetchApplicationsForCounts(openingId = null) {
     let query = supabase
         .from('applications')
         .select(`
-            application_id,
-            opening_id,
-            application_status,
-            is_archived
-        `);
+      application_id,
+      opening_id,
+      application_status,
+      is_archived
+    `);
 
     if (openingId) {
         query = query.eq('opening_id', openingId);
@@ -201,48 +189,50 @@ function baseOpeningSelectQuery() {
     return supabase
         .from('program_openings')
         .select(`
-            opening_id,
-            program_id,
-            opening_title,
-            announcement_text,
-            academic_year_id,
-            period_id,
-            allocated_slots,
-            filled_slots,
-            financial_allocation,
-            per_scholar_amount,
-            posting_status,
-            created_at,
-            updated_at,
-            is_archived,
-            academic_years (
-                academic_year_id,
-                label
-            ),
-            scholarship_program (
-                program_id,
-                benefactor_id,
-                program_name,
-                description,
-                gwa_threshold,
-                renewal_cycle,
-                visibility_status,
-                target_audience,
-                is_archived,
-                created_at,
-                updated_at,
-                benefactors (
-                    benefactor_id,
-                    benefactor_name,
-                    benefactor_name,
-                    benefactor_type,
-                    description,
-                    is_archived,
-                    created_at,
-                    updated_at
-                )
-            )
-        `);
+      opening_id,
+      program_id,
+      opening_title,
+      announcement_text,
+      academic_year_id,
+      period_id,
+      allocated_slots,
+      filled_slots,
+      financial_allocation,
+      per_scholar_amount,
+      posting_status,
+      created_at,
+      updated_at,
+      is_archived,
+
+      academic_years (
+        academic_year_id,
+        label
+      ),
+
+      scholarship_program (
+        program_id,
+        benefactor_id,
+        program_name,
+        description,
+        gwa_threshold,
+        renewal_cycle,
+        visibility_status,
+        target_audience,
+        is_archived,
+        created_at,
+        updated_at,
+
+        benefactors (
+          benefactor_id,
+          benefactor_name,
+          benefactor_type,
+          description,
+          is_archived,
+          created_at,
+          updated_at
+        )
+      )
+    `);
 }
 
 exports.fetchAllProgramOpenings = async () => {
@@ -337,25 +327,53 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
     const { data, error } = await supabase
         .from('applications')
         .select(`
-            application_id,
-            student_id,
-            opening_id,
-            application_status,
-            document_status,
-            submission_date,
-            is_disqualified,
-            rejection_reason,
-            is_archived,
-            students (
-                first_name,
-                middle_name,
-                last_name,
-                pdm_id,
-                gwa,
-                sdo_status,
-                is_archived
-            )
-        `)
+      application_id,
+      student_id,
+      opening_id,
+      program_id,
+      application_status,
+      document_status,
+      verification_status,
+      submission_date,
+      is_disqualified,
+      rejection_reason,
+      remarks,
+      is_archived,
+
+      students!applications_student_id_fkey (
+        student_id,
+        pdm_id,
+        first_name,
+        middle_name,
+        last_name,
+        gwa,
+        sdo_status,
+        email_address,
+        phone_number,
+        course_id,
+        year_level,
+        profile_photo_url,
+        is_archived,
+
+        academic_course (
+          course_id,
+          course_code,
+          course_name
+        )
+      ),
+
+      scholarship_program (
+        program_id,
+        program_name
+      ),
+
+      program_openings (
+        opening_id,
+        opening_title,
+        academic_year_id,
+        period_id
+      )
+    `)
         .eq('opening_id', openingId)
         .order('submission_date', { ascending: true });
 
@@ -369,21 +387,41 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
         .filter((app) => app.students && app.students.is_archived !== true)
         .map((app) => ({
             id: app.application_id,
+            application_id: app.application_id,
             student_id: app.student_id,
             opening_id: app.opening_id,
-            name: `${app.students?.last_name || 'Unknown'}, ${app.students?.first_name || 'Student'}${app.students?.middle_name ? ` ${app.students.middle_name}` : ''}`,
+            program_id: app.program_id,
+
+            name: `${app.students?.last_name || 'Unknown'}, ${app.students?.first_name || 'Student'}${app.students?.middle_name ? ` ${app.students.middle_name}` : ''
+                }`,
+            student_name: [app.students?.first_name, app.students?.middle_name, app.students?.last_name]
+                .filter(Boolean)
+                .join(' '),
             student_number: app.students?.pdm_id || 'N/A',
+            pdm_id: app.students?.pdm_id || 'N/A',
+
             gwa: app.students?.gwa ?? null,
-            sdo_status: app.students?.sdo_status || 'clear',
+            sdo_status: app.students?.sdo_status || 'Clear',
+            course:
+                app.students?.academic_course?.course_code ||
+                app.students?.academic_course?.course_name ||
+                null,
+            year_level: app.students?.year_level ?? null,
+
+            program_name: app.scholarship_program?.program_name || 'No Program',
+            opening_title: app.program_openings?.opening_title || 'Untitled Opening',
+
             application_status: normalizeStatus(app.application_status || 'pending'),
             document_status: normalizeStatus(app.document_status || 'missing docs'),
-            verification_status: 'pending',
+            verification_status: normalizeStatus(app.verification_status || 'pending'),
             ocr_status: '',
-            remarks: '',
+            remarks: app.remarks || '',
             submitted: app.submission_date || null,
             submission_date: app.submission_date || null,
             disqualified: !!app.is_disqualified,
+            is_disqualified: !!app.is_disqualified,
             disqReason: app.rejection_reason || null,
+            rejection_reason: app.rejection_reason || null,
             is_scholar: ['qualified', 'approved', 'accepted'].includes(
                 normalizeStatus(app.application_status)
             ),
@@ -432,7 +470,7 @@ exports.createProgramOpening = async (payload = {}) => {
             per_scholar_amount !== undefined && per_scholar_amount !== null && per_scholar_amount !== ''
                 ? Number(per_scholar_amount)
                 : 0,
-        posting_status: isArchived ? 'archived' : (normalizedStatus || 'draft'),
+        posting_status: isArchived ? 'archived' : normalizedStatus || 'draft',
         is_archived: isArchived,
     };
 
@@ -448,48 +486,50 @@ exports.createProgramOpening = async (payload = {}) => {
         .from('program_openings')
         .insert(insertData)
         .select(`
-            opening_id,
-            program_id,
-            opening_title,
-            announcement_text,
-            academic_year_id,
-            period_id,
-            allocated_slots,
-            filled_slots,
-            financial_allocation,
-            per_scholar_amount,
-            posting_status,
-            created_at,
-            updated_at,
-            is_archived,
-            academic_years (
-                academic_year_id,
-                label
-            ),
-            scholarship_program (
-                program_id,
-                benefactor_id,
-                program_name,
-                description,
-                gwa_threshold,
-                renewal_cycle,
-                visibility_status,
-                target_audience,
-                is_archived,
-                created_at,
-                updated_at,
-                benefactors (
-                    benefactor_id,
-                    benefactor_name,
-                    benefactor_name,
-                    benefactor_type,
-                    description,
-                    is_archived,
-                    created_at,
-                    updated_at
-                )
-            )
-        `)
+      opening_id,
+      program_id,
+      opening_title,
+      announcement_text,
+      academic_year_id,
+      period_id,
+      allocated_slots,
+      filled_slots,
+      financial_allocation,
+      per_scholar_amount,
+      posting_status,
+      created_at,
+      updated_at,
+      is_archived,
+
+      academic_years (
+        academic_year_id,
+        label
+      ),
+
+      scholarship_program (
+        program_id,
+        benefactor_id,
+        program_name,
+        description,
+        gwa_threshold,
+        renewal_cycle,
+        visibility_status,
+        target_audience,
+        is_archived,
+        created_at,
+        updated_at,
+
+        benefactors (
+          benefactor_id,
+          benefactor_name,
+          benefactor_type,
+          description,
+          is_archived,
+          created_at,
+          updated_at
+        )
+      )
+    `)
         .single();
 
     if (error) {
@@ -554,8 +594,7 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
 
     const normalizedStatus = normalizeStatus(merged.posting_status || 'draft');
 
-    const effectiveArchived =
-        merged.is_archived === true || normalizedStatus === 'archived';
+    const effectiveArchived = merged.is_archived === true || normalizedStatus === 'archived';
 
     const effectiveStatus = effectiveArchived
         ? 'archived'
@@ -605,48 +644,50 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         .update(updateData)
         .eq('opening_id', openingId)
         .select(`
-            opening_id,
-            program_id,
-            opening_title,
-            announcement_text,
-            academic_year_id,
-            period_id,
-            allocated_slots,
-            filled_slots,
-            financial_allocation,
-            per_scholar_amount,
-            posting_status,
-            created_at,
-            updated_at,
-            is_archived,
-            academic_years (
-                academic_year_id,
-                label
-            ),
-            scholarship_program (
-                program_id,
-                benefactor_id,
-                program_name,
-                description,
-                gwa_threshold,
-                renewal_cycle,
-                visibility_status,
-                target_audience,
-                is_archived,
-                created_at,
-                updated_at,
-                benefactors (
-                    benefactor_id,
-                    benefactor_name,
-                    benefactor_name,
-                    benefactor_type,
-                    description,
-                    is_archived,
-                    created_at,
-                    updated_at
-                )
-            )
-        `)
+      opening_id,
+      program_id,
+      opening_title,
+      announcement_text,
+      academic_year_id,
+      period_id,
+      allocated_slots,
+      filled_slots,
+      financial_allocation,
+      per_scholar_amount,
+      posting_status,
+      created_at,
+      updated_at,
+      is_archived,
+
+      academic_years (
+        academic_year_id,
+        label
+      ),
+
+      scholarship_program (
+        program_id,
+        benefactor_id,
+        program_name,
+        description,
+        gwa_threshold,
+        renewal_cycle,
+        visibility_status,
+        target_audience,
+        is_archived,
+        created_at,
+        updated_at,
+
+        benefactors (
+          benefactor_id,
+          benefactor_name,
+          benefactor_type,
+          description,
+          is_archived,
+          created_at,
+          updated_at
+        )
+      )
+    `)
         .maybeSingle();
 
     if (error) {
@@ -660,10 +701,7 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
     const applications = await fetchApplicationsForCounts(openingId);
     const counts = buildCounts(data, applications);
 
-    return mapOpening(
-        { ...data, is_archived: effectiveArchived },
-        counts
-    );
+    return mapOpening({ ...data, is_archived: effectiveArchived }, counts);
 };
 
 exports.closeProgramOpening = async (openingId) => {
@@ -676,48 +714,50 @@ exports.closeProgramOpening = async (openingId) => {
         })
         .eq('opening_id', openingId)
         .select(`
-            opening_id,
-            program_id,
-            opening_title,
-            announcement_text,
-            academic_year_id,
-            period_id,
-            allocated_slots,
-            filled_slots,
-            financial_allocation,
-            per_scholar_amount,
-            posting_status,
-            created_at,
-            updated_at,
-            is_archived,
-            academic_years (
-                academic_year_id,
-                label
-            ),
-            scholarship_program (
-                program_id,
-                benefactor_id,
-                program_name,
-                description,
-                gwa_threshold,
-                renewal_cycle,
-                visibility_status,
-                target_audience,
-                is_archived,
-                created_at,
-                updated_at,
-                benefactors (
-                    benefactor_id,
-                    benefactor_name,
-                    benefactor_name,
-                    benefactor_type,
-                    description,
-                    is_archived,
-                    created_at,
-                    updated_at
-                )
-            )
-        `)
+      opening_id,
+      program_id,
+      opening_title,
+      announcement_text,
+      academic_year_id,
+      period_id,
+      allocated_slots,
+      filled_slots,
+      financial_allocation,
+      per_scholar_amount,
+      posting_status,
+      created_at,
+      updated_at,
+      is_archived,
+
+      academic_years (
+        academic_year_id,
+        label
+      ),
+
+      scholarship_program (
+        program_id,
+        benefactor_id,
+        program_name,
+        description,
+        gwa_threshold,
+        renewal_cycle,
+        visibility_status,
+        target_audience,
+        is_archived,
+        created_at,
+        updated_at,
+
+        benefactors (
+          benefactor_id,
+          benefactor_name,
+          benefactor_type,
+          description,
+          is_archived,
+          created_at,
+          updated_at
+        )
+      )
+    `)
         .maybeSingle();
 
     if (error) {

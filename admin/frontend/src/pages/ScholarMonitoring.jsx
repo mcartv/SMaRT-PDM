@@ -5,21 +5,46 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 
 // --- ICONS ---
 import {
-  Search, Download, Eye, ChevronLeft, ChevronRight,
-  AlertTriangle, Users, CheckCircle2, Clock, Loader2,
-  X, Mail, Phone, CalendarDays, ShieldAlert, FileText,
-  Files, ScanSearch, RefreshCw, ExternalLink, FileCheck2,
-  ShieldCheck
+  Search,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  AlertTriangle,
+  Loader2,
+  SlidersHorizontal,
+  X,
+  Mail,
+  Phone,
+  CalendarDays,
+  ShieldAlert,
+  FileText,
+  Files,
+  ScanSearch,
+  ExternalLink,
+  FileCheck2,
+  ShieldCheck,
+  CheckCircle2,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -81,6 +106,7 @@ const RENEWAL_STATUS_STYLE = {
 
 const PAGE_SIZE = 10;
 
+// ─── Helpers ─────────────────────────────────────────────────────
 function getInitials(name = '') {
   return (name || 'NA')
     .split(' ')
@@ -90,7 +116,6 @@ function getInitials(name = '') {
     .toUpperCase();
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────
 function getScholarConditionMeta(gwa, sdu) {
   const g = Number(gwa);
   const level = sdu || 'none';
@@ -106,7 +131,12 @@ function getScholarConditionMeta(gwa, sdu) {
 function getFileTypeLabel(url = '', name = '') {
   const value = `${url} ${name}`.toLowerCase();
   if (value.includes('.pdf')) return 'PDF';
-  if (value.includes('.png') || value.includes('.jpg') || value.includes('.jpeg') || value.includes('.webp')) return 'Image';
+  if (
+    value.includes('.png') ||
+    value.includes('.jpg') ||
+    value.includes('.jpeg') ||
+    value.includes('.webp')
+  ) return 'Image';
   return 'File';
 }
 
@@ -216,6 +246,147 @@ function normalizeRenewalDocuments(payload, scholar) {
       confidence: null,
     },
   ];
+}
+
+// ─── Filter Modal ────────────────────────────────────────────────
+function FilterModal({
+  open,
+  onClose,
+  programOptions,
+  batchOptions,
+  statusOptions,
+  sortOptions,
+  draftProgram,
+  setDraftProgram,
+  draftBatchYear,
+  setDraftBatchYear,
+  draftStatus,
+  setDraftStatus,
+  draftSortBy,
+  setDraftSortBy,
+  onApply,
+  onClear,
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[65] flex items-center justify-center bg-black/35 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-md border-stone-200 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50">
+          <div>
+            <h3 className="text-base font-semibold text-stone-800">Filter Records</h3>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Refine registry and renewal results
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <CardContent className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Program
+            </label>
+            <Select value={draftProgram} onValueChange={setDraftProgram}>
+              <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[100]">
+                {programOptions.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Batch Year
+            </label>
+            <Select value={draftBatchYear} onValueChange={setDraftBatchYear}>
+              <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[100]">
+                {batchOptions.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Status
+            </label>
+            <Select value={draftStatus} onValueChange={setDraftStatus}>
+              <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[100]">
+                {statusOptions.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+              Sort By
+            </label>
+            <Select value={draftSortBy} onValueChange={setDraftSortBy}>
+              <SelectTrigger className="h-10 rounded-lg border-stone-200 text-sm bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[100]">
+                {sortOptions.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={onClear}
+              className="h-9 rounded-lg border-stone-200 text-xs"
+            >
+              Clear
+            </Button>
+            <Button
+              onClick={onApply}
+              className="h-9 rounded-lg text-white text-xs border-none"
+              style={{ background: C.brownMid }}
+            >
+              Apply Filters
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 // ─── Scholar Profile Modal ───────────────────────────────────────
@@ -533,11 +704,7 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
 }
 
 // ─── Renewal Modal ───────────────────────────────────────────────
-function RenewalModal({
-  open,
-  scholar,
-  onClose,
-}) {
+function RenewalModal({ open, scholar, onClose }) {
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState(null);
@@ -584,7 +751,9 @@ function RenewalModal({
         if (mounted) {
           setDocuments(fallbackDocs);
           setSelectedDocId(fallbackDocs.find((d) => d.url)?.id || fallbackDocs[0]?.id || null);
-          setLoadError('Using fallback renewal document fields. Connect your backend endpoint for full OCR extraction and validation data.');
+          setLoadError(
+            'Using fallback renewal document fields. Connect your backend endpoint for full OCR extraction and validation data.'
+          );
         }
       } finally {
         if (mounted) setLoading(false);
@@ -611,12 +780,10 @@ function RenewalModal({
   const renewalStatus = deriveRenewalStatusFromDocuments(documents);
   const renewalMeta = getRenewalStatusMeta(renewalStatus);
 
-  const scholarCondition = getScholarConditionMeta(scholar.gwa, scholar.sdu_level);
-
   const isReadyToApprove =
     uploadedCount > 0 &&
     missingCount === 0 &&
-    selectedDoc?.url;
+    !!selectedDoc?.url;
 
   const updateSelectedDocument = (patch) => {
     setDocuments((prev) =>
@@ -636,7 +803,6 @@ function RenewalModal({
 
       const token = localStorage.getItem('adminToken');
 
-      // Optional backend hook. Safe fallback if endpoint does not exist yet.
       await fetch(
         buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-documents/${selectedDoc.id}/verify`),
         {
@@ -673,7 +839,12 @@ function RenewalModal({
       return;
     }
 
-    if ((finalDecision === 'on_hold' || finalDecision === 'rejected' || finalDecision === 'needs_reupload') && !adminRemarks.trim()) {
+    if (
+      (finalDecision === 'on_hold' ||
+        finalDecision === 'rejected' ||
+        finalDecision === 'needs_reupload') &&
+      !adminRemarks.trim()
+    ) {
       alert('Remarks are required for hold, reject, or re-upload.');
       return;
     }
@@ -710,7 +881,6 @@ function RenewalModal({
         }
       );
 
-      // If endpoint is not wired yet, do not hard-crash the UI.
       if (!res.ok) {
         const raw = await res.text().catch(() => '');
         console.warn('Renewal review endpoint response:', raw);
@@ -803,7 +973,6 @@ function RenewalModal({
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_320px] h-[calc(94vh-150px)]">
-          {/* LEFT REQUIREMENTS */}
           <div className="border-r border-stone-100 bg-stone-50/60 overflow-y-auto">
             <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 sticky top-0">
               <div className="flex items-center gap-2">
@@ -832,8 +1001,8 @@ function RenewalModal({
                       key={doc.id}
                       onClick={() => setSelectedDocId(doc.id)}
                       className={`w-full text-left rounded-xl border px-3 py-2.5 transition-all ${selected
-                        ? 'border-amber-300 bg-amber-50 shadow-sm'
-                        : 'border-stone-200 bg-white hover:bg-stone-50'
+                          ? 'border-amber-300 bg-amber-50 shadow-sm'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -878,7 +1047,6 @@ function RenewalModal({
             </div>
           </div>
 
-          {/* CENTER PREVIEW */}
           <div className="bg-white overflow-hidden border-r border-stone-100">
             <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
               <div className="min-w-0">
@@ -932,7 +1100,6 @@ function RenewalModal({
             </div>
           </div>
 
-          {/* RIGHT VALIDATION */}
           <div className="bg-stone-50/50 overflow-y-auto">
             <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 sticky top-0 z-10">
               <div className="flex items-center gap-2">
@@ -942,6 +1109,12 @@ function RenewalModal({
             </div>
 
             <div className="p-4 space-y-3">
+              {loadError && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-700">
+                  {loadError}
+                </div>
+              )}
+
               {!selectedDoc ? (
                 <div className="rounded-xl border border-dashed border-stone-300 bg-white px-4 py-6 text-center">
                   <p className="text-sm font-medium text-stone-600">No OCR data to display</p>
@@ -1102,10 +1275,10 @@ function RenewalModal({
                             size="sm"
                             variant="outline"
                             className="w-full h-9 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs justify-center"
-                            disabled={savingAction === 'failed'}
-                            onClick={() => handleSaveRenewalDecision('failed')}
+                            disabled={savingAction === 'rejected'}
+                            onClick={() => handleSaveRenewalDecision('rejected')}
                           >
-                            {savingAction === 'failed' ? (
+                            {savingAction === 'rejected' ? (
                               <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                             ) : (
                               <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
@@ -1252,29 +1425,6 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
   );
 }
 
-function MiniStat({ label, value, icon: Icon, soft, accent }) {
-  return (
-    <div
-      className="rounded-xl border bg-white px-4 py-3"
-      style={{ borderColor: '#e7e5e4' }}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium text-stone-500">{label}</p>
-          <p className="mt-0.5 text-xl font-semibold text-stone-900">{value}</p>
-        </div>
-
-        <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-          style={{ background: soft }}
-        >
-          <Icon className="h-4 w-4" style={{ color: accent }} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Component ──────────────────────────────────────────────
 export default function ScholarMonitoring() {
   const [scholars, setScholars] = useState([]);
@@ -1304,8 +1454,13 @@ export default function ScholarMonitoring() {
   const [archiveModalScholar, setArchiveModalScholar] = useState(null);
   const [archiveSaving, setArchiveSaving] = useState(false);
 
-  const [sectionMode, setSectionMode] = useState('registry'); // registry | renewals
-  const [viewType, setViewType] = useState('table'); // table | cards
+  const [sectionMode, setSectionMode] = useState('registry');
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [draftProgram, setDraftProgram] = useState('All Programs');
+  const [draftBatchYear, setDraftBatchYear] = useState('All Years');
+  const [draftStatus, setDraftStatus] = useState('All Statuses');
+  const [draftSortBy, setDraftSortBy] = useState('Name A-Z');
 
   useEffect(() => {
     const fetchScholars = async () => {
@@ -1351,9 +1506,7 @@ export default function ScholarMonitoring() {
     fetchScholars();
   }, []);
 
-  // Realtime updates for scholars
-  useSocketEvent('scholar:updated', (data) => {
-    console.log('[Realtime] Scholar updated:', data);
+  useSocketEvent('scholar:updated', () => {
     const fetchScholars = async () => {
       try {
         const [scholarsRes, statsRes] = await Promise.all([
@@ -1388,11 +1541,11 @@ export default function ScholarMonitoring() {
         console.error('Realtime update error:', err);
       }
     };
+
     fetchScholars();
   }, []);
 
-  useSocketEvent('scholar:created', (data) => {
-    console.log('[Realtime] Scholar created:', data);
+  useSocketEvent('scholar:created', () => {
     const fetchScholars = async () => {
       try {
         const [scholarsRes, statsRes] = await Promise.all([
@@ -1427,6 +1580,7 @@ export default function ScholarMonitoring() {
         console.error('Realtime update error:', err);
       }
     };
+
     fetchScholars();
   }, []);
 
@@ -1613,7 +1767,7 @@ export default function ScholarMonitoring() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, program, batchYear, status, sortBy, viewType, sectionMode]);
+  }, [search, program, batchYear, status, sortBy, sectionMode]);
 
   const totalPages = Math.max(
     1,
@@ -1644,38 +1798,43 @@ export default function ScholarMonitoring() {
     'Batch Oldest',
   ];
 
-  const statCards = useMemo(() => {
-    return [
-      {
-        label: 'Total Scholars',
-        value: stats.total,
-        icon: Users,
-        accent: C.brown,
-        soft: C.amberSoft,
-      },
-      {
-        label: 'Active',
-        value: stats.active,
-        icon: CheckCircle2,
-        accent: C.green,
-        soft: C.greenSoft,
-      },
-      {
-        label: 'At Risk',
-        value: stats.at_risk,
-        icon: AlertTriangle,
-        accent: C.red,
-        soft: C.redSoft,
-      },
-      {
-        label: 'Renewal Review',
-        value: renewalQueue.length,
-        icon: FileCheck2,
-        accent: C.blue,
-        soft: C.blueSoft,
-      },
-    ];
-  }, [stats, renewalQueue.length]);
+  const hasActiveFilters =
+    program !== 'All Programs' ||
+    batchYear !== 'All Years' ||
+    status !== 'All Statuses' ||
+    sortBy !== 'Name A-Z';
+
+  const openFilterModal = () => {
+    setDraftProgram(program);
+    setDraftBatchYear(batchYear);
+    setDraftStatus(status);
+    setDraftSortBy(sortBy);
+    setFilterOpen(true);
+  };
+
+  const applyFilters = () => {
+    setProgram(draftProgram);
+    setBatchYear(draftBatchYear);
+    setStatus(draftStatus);
+    setSortBy(draftSortBy);
+    setFilterOpen(false);
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setDraftProgram('All Programs');
+    setDraftBatchYear('All Years');
+    setDraftStatus('All Statuses');
+    setDraftSortBy('Name A-Z');
+
+    setProgram('All Programs');
+    setBatchYear('All Years');
+    setStatus('All Statuses');
+    setSortBy('Name A-Z');
+
+    setFilterOpen(false);
+    setPage(1);
+  };
 
   if (loading) {
     return (
@@ -1735,11 +1894,24 @@ export default function ScholarMonitoring() {
         saving={archiveSaving}
       />
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((s) => (
-          <MiniStat key={s.label} {...s} />
-        ))}
-      </section>
+      <FilterModal
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        programOptions={programOptions}
+        batchOptions={batchOptions}
+        statusOptions={statusOptions}
+        sortOptions={sortOptions}
+        draftProgram={draftProgram}
+        setDraftProgram={setDraftProgram}
+        draftBatchYear={draftBatchYear}
+        setDraftBatchYear={setDraftBatchYear}
+        draftStatus={draftStatus}
+        setDraftStatus={setDraftStatus}
+        draftSortBy={draftSortBy}
+        setDraftSortBy={setDraftSortBy}
+        onApply={applyFilters}
+        onClear={clearFilters}
+      />
 
       <section
         className="rounded-2xl border bg-white p-3 sm:p-4"
@@ -1783,106 +1955,35 @@ export default function ScholarMonitoring() {
               </button>
             </div>
 
-            {sectionMode === 'registry' && (
-              <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
-                <button
-                  onClick={() => setViewType('table')}
-                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewType === 'table'
-                      ? 'bg-white text-stone-900 shadow-sm'
-                      : 'text-stone-600'
-                    }`}
-                >
-                  Registry
-                </button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openFilterModal}
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+            >
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Filters
+              {hasActiveFilters && (
+                <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  Active
+                </span>
+              )}
+            </Button>
 
-                <button
-                  onClick={() => setViewType('cards')}
-                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewType === 'cards'
-                      ? 'bg-white text-stone-900 shadow-sm'
-                      : 'text-stone-600'
-                    }`}
-                >
-                  Cards
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Select value={program} onValueChange={setProgram}>
-            <SelectTrigger className="w-[170px] h-10 rounded-xl border-stone-200 text-sm bg-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {programOptions.map((p) => (
-                <SelectItem key={p} value={p} className="text-sm">
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={batchYear} onValueChange={setBatchYear}>
-            <SelectTrigger className="w-[140px] h-10 rounded-xl border-stone-200 text-sm bg-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {batchOptions.map((b) => (
-                <SelectItem key={b} value={b} className="text-sm">
-                  {b}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-[150px] h-10 rounded-xl border-stone-200 text-sm bg-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((item) => (
-                <SelectItem key={item} value={item} className="text-sm">
-                  {item}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[150px] h-10 rounded-xl border-stone-200 text-sm bg-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {sortOptions.map((item) => (
-                <SelectItem key={item} value={item} className="text-sm">
-                  {item}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {(search ||
-            program !== 'All Programs' ||
-            batchYear !== 'All Years' ||
-            status !== 'All Statuses' ||
-            sortBy !== 'Name A-Z') && (
+            {search && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
                   setSearch('');
-                  setProgram('All Programs');
-                  setBatchYear('All Years');
-                  setStatus('All Statuses');
-                  setSortBy('Name A-Z');
                   setPage(1);
                 }}
                 className="h-10 rounded-xl text-xs border-stone-200"
               >
-                Reset
+                Reset Search
               </Button>
             )}
+          </div>
         </div>
       </section>
 
@@ -1901,240 +2002,112 @@ export default function ScholarMonitoring() {
           </p>
         </div>
 
-        {pageData.length === 0 ? (
-          <div className="px-5 py-12 text-sm text-stone-400">
-            {sectionMode === 'registry'
-              ? 'No scholars match the current filters.'
-              : 'No scholars are currently in the renewal review queue.'}
-          </div>
-        ) : sectionMode === 'renewals' ? (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-stone-50 hover:bg-stone-50">
-                  <TableHead>Scholar</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Batch</TableHead>
-                  <TableHead>Renewal Status</TableHead>
-                  <TableHead>GWA</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageData.map((s) => {
-                  const renewalMeta = getRenewalStatusMeta(s.renewal_status);
-                  return (
-                    <TableRow key={`renewal-${s.scholar_id}`} className="hover:bg-stone-50/70">
-                      <TableCell>
-                        <div>
-                          <p className="text-sm font-medium text-stone-800">{s.student_name}</p>
-                          <p className="text-xs text-stone-400">{s.student_number}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{s.program_name || 'N/A'}</TableCell>
-                      <TableCell>{s.batch_year || 'N/A'}</TableCell>
-                      <TableCell>
-                        <span
-                          className="text-[10px] font-medium px-2 py-1 rounded-full"
-                          style={{ background: renewalMeta.bg, color: renewalMeta.color }}
-                        >
-                          {renewalMeta.label}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {Number.isFinite(Number(s.gwa)) ? Number(s.gwa).toFixed(2) : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 rounded-lg border-stone-200 text-xs"
-                          onClick={() => handleOpenRenewal(s)}
-                        >
-                          <FileCheck2 className="w-3.5 h-3.5 mr-1.5" />
-                          Review Renewal
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        ) : viewType === 'table' ? (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-stone-50 hover:bg-stone-50">
-                  <TableHead>Scholar</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>Batch</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>GWA</TableHead>
-                  <TableHead>Condition</TableHead>
-                  <TableHead>RO</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
+        <CardContent className="p-4">
+          {pageData.length === 0 ? (
+            <div className="py-16 text-center text-sm text-stone-400">
+              {sectionMode === 'registry'
+                ? 'No scholars match the current filters.'
+                : 'No renewal submissions are currently queued.'}
+            </div>
+          ) : sectionMode === 'renewals' ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-stone-50 hover:bg-stone-50">
+                    <TableHead>Scholar</TableHead>
+                    <TableHead>Program</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Renewal Status</TableHead>
+                    <TableHead>GWA</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageData.map((s) => {
+                    const renewalMeta = getRenewalStatusMeta(s.renewal_status);
 
-              <TableBody>
-                {pageData.map((s) => {
-                  const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
-                  const sduStyle = SDU_STYLE[s.sdu_level || 'none'] || SDU_STYLE.none;
-                  const pct = Number(s.ro_progress || 0);
-
-                  return (
-                    <TableRow key={s.scholar_id} className="hover:bg-stone-50/70">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-9 h-9 rounded-xl border border-stone-200">
-                            <AvatarImage src={s.avatar_url || undefined} alt={s.student_name} />
-                            <AvatarFallback className="rounded-xl text-xs font-bold">
-                              {getInitials(s.student_name)}
-                            </AvatarFallback>
-                          </Avatar>
+                    return (
+                      <TableRow key={`renewal-${s.scholar_id}`} className="hover:bg-stone-50/70">
+                        <TableCell>
                           <div>
                             <p className="text-sm font-medium text-stone-800">{s.student_name}</p>
                             <p className="text-xs text-stone-400">{s.student_number}</p>
                           </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>{s.program_name || 'N/A'}</TableCell>
-                      <TableCell>{s.batch_year || 'N/A'}</TableCell>
-
-                      <TableCell>
-                        <span
-                          className="text-[10px] font-medium px-2 py-1 rounded-full"
-                          style={{
-                            background: s.status === 'Active' ? C.greenSoft : C.redSoft,
-                            color: s.status === 'Active' ? C.green : C.red,
-                          }}
-                        >
-                          {s.status || 'Unknown'}
-                        </span>
-                      </TableCell>
-
-                      <TableCell>
-                        {Number.isFinite(Number(s.gwa)) ? Number(s.gwa).toFixed(2) : '—'}
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
+                        </TableCell>
+                        <TableCell>{s.program_name || 'N/A'}</TableCell>
+                        <TableCell>{s.batch_year || 'N/A'}</TableCell>
+                        <TableCell>
                           <span
                             className="text-[10px] font-medium px-2 py-1 rounded-full"
-                            style={{ background: condition.bg, color: condition.color }}
+                            style={{ background: renewalMeta.bg, color: renewalMeta.color }}
                           >
-                            {condition.label}
+                            {renewalMeta.label}
                           </span>
-
-                          <span
-                            className="text-[10px] font-medium px-2 py-1 rounded-full"
-                            style={{ background: sduStyle.bg, color: sduStyle.color }}
-                          >
-                            {sduStyle.label}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="min-w-[80px]">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-stone-500">Progress</span>
-                            <span className="text-xs font-medium text-stone-700">{pct}%</span>
-                          </div>
-                          <div className="h-2 overflow-hidden rounded-full bg-stone-200">
-                            <div
-                              className="h-2 rounded-full"
-                              style={{
-                                width: `${pct}%`,
-                                background:
-                                  pct === 100 ? C.green :
-                                    pct >= 50 ? C.amber :
-                                      C.red,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        </TableCell>
+                        <TableCell>
+                          {Number.isFinite(Number(s.gwa)) ? Number(s.gwa).toFixed(2) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleViewScholar(s.scholar_id)}
                             className="h-8 rounded-lg border-stone-200 text-xs"
-                          >
-                            <Eye className="mr-1.5 h-3.5 w-3.5" />
-                            View
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
                             onClick={() => handleOpenRenewal(s)}
-                            className="h-8 rounded-lg border-stone-200 text-xs"
                           >
-                            <FileCheck2 className="mr-1.5 h-3.5 w-3.5" />
-                            Renewal
+                            <FileCheck2 className="w-3.5 h-3.5 mr-1.5" />
+                            Review Renewal
                           </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-stone-50 hover:bg-stone-50">
+                    <TableHead>Scholar</TableHead>
+                    <TableHead>Program</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>GWA</TableHead>
+                    <TableHead>Condition</TableHead>
+                    <TableHead>RO</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setArchiveModalScholar(s)}
-                            className="h-8 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs"
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="p-4">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              {pageData.map((s) => {
-                const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
-                const sduStyle = SDU_STYLE[s.sdu_level || 'none'] || SDU_STYLE.none;
-                const pct = Number(s.ro_progress || 0);
-                const gwaValue = Number(s.gwa);
+                <TableBody>
+                  {pageData.map((s) => {
+                    const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
+                    const pct = Number(s.ro_progress || 0);
 
-                return (
-                  <Card
-                    key={s.scholar_id}
-                    className="rounded-2xl border-stone-200 bg-white shadow-none transition hover:border-stone-300"
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex h-full flex-col gap-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3 min-w-0">
-                            <Avatar className="w-11 h-11 rounded-xl border border-stone-200">
+                    return (
+                      <TableRow key={s.scholar_id} className="hover:bg-stone-50/70">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="w-9 h-9 rounded-xl border border-stone-200">
                               <AvatarImage src={s.avatar_url || undefined} alt={s.student_name} />
                               <AvatarFallback className="rounded-xl text-xs font-bold">
                                 {getInitials(s.student_name)}
                               </AvatarFallback>
                             </Avatar>
-
-                            <div className="min-w-0">
-                              <h3 className="text-base font-semibold text-stone-900 truncate">
-                                {s.student_name}
-                              </h3>
+                            <div>
+                              <p className="text-sm font-medium text-stone-800">{s.student_name}</p>
                               <p className="text-xs text-stone-400">{s.student_number}</p>
-                              <p className="mt-1 text-sm text-stone-500 truncate">
-                                {s.program_name || 'No Program'}
-                                {s.batch_year ? ` • ${s.batch_year}` : ''}
-                              </p>
                             </div>
                           </div>
+                        </TableCell>
 
+                        <TableCell>{s.program_name || 'N/A'}</TableCell>
+                        <TableCell>{s.batch_year || 'N/A'}</TableCell>
+
+                        <TableCell>
                           <span
-                            className="text-[10px] font-medium px-2 py-1 rounded-full shrink-0"
+                            className="text-[10px] font-medium px-2 py-1 rounded-full"
                             style={{
                               background: s.status === 'Active' ? C.greenSoft : C.redSoft,
                               color: s.status === 'Active' ? C.green : C.red,
@@ -2142,87 +2115,68 @@ export default function ScholarMonitoring() {
                           >
                             {s.status || 'Unknown'}
                           </span>
-                        </div>
+                        </TableCell>
 
-                        <div className="flex flex-wrap gap-2">
+                        <TableCell>
+                          {Number.isFinite(Number(s.gwa)) ? Number(s.gwa).toFixed(2) : '—'}
+                        </TableCell>
+
+                        <TableCell>
                           <span
                             className="text-[10px] font-medium px-2 py-1 rounded-full"
                             style={{ background: condition.bg, color: condition.color }}
                           >
                             {condition.label}
                           </span>
+                        </TableCell>
 
-                          <span
-                            className="text-[10px] font-medium px-2 py-1 rounded-full"
-                            style={{ background: sduStyle.bg, color: sduStyle.color }}
-                          >
-                            {sduStyle.label}
-                          </span>
-
-                          <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-stone-100 text-stone-600">
-                            GWA {Number.isFinite(gwaValue) ? gwaValue.toFixed(2) : '—'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          <div className="rounded-lg bg-stone-50 px-3 py-2">
-                            <p className="text-[10px] uppercase tracking-wide text-stone-500">Batch</p>
-                            <p className="mt-0.5 text-sm font-semibold text-stone-900">{s.batch_year || 'N/A'}</p>
+                        <TableCell>
+                          <div className="min-w-[100px]">
+                            <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${pct}%`,
+                                  background:
+                                    pct === 100 ? C.green : pct >= 50 ? C.amber : C.red,
+                                }}
+                              />
+                            </div>
+                            <p className="text-[11px] text-stone-500 mt-1">{pct}%</p>
                           </div>
+                        </TableCell>
 
-                          <div className="rounded-lg bg-stone-50 px-3 py-2">
-                            <p className="text-[10px] uppercase tracking-wide text-stone-500">RO</p>
-                            <p className="mt-0.5 text-sm font-semibold text-stone-900">{pct}%</p>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewScholar(s.scholar_id)}
+                              className="h-8 rounded-lg border-stone-200 text-xs"
+                            >
+                              <Eye className="mr-1.5 h-3.5 w-3.5" />
+                              View Profile
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setArchiveModalScholar(s)}
+                              className="h-8 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs"
+                            >
+                              <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
+                              Remove Privilege
+                            </Button>
                           </div>
-
-                          <div className="rounded-lg bg-stone-50 px-3 py-2">
-                            <p className="text-[10px] uppercase tracking-wide text-stone-500">Renewal</p>
-                            <p className="mt-0.5 text-sm font-semibold text-stone-900">
-                              {getRenewalStatusMeta(
-                                deriveRenewalStatusFromDocuments(normalizeRenewalDocuments(null, s))
-                              ).label}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="border-t border-stone-100 pt-3 flex flex-wrap justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewScholar(s.scholar_id)}
-                            className="h-8 rounded-lg border-stone-200 text-xs"
-                          >
-                            <Eye className="mr-1.5 h-3.5 w-3.5" />
-                            View
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleOpenRenewal(s)}
-                            className="h-8 rounded-lg border-stone-200 text-xs"
-                          >
-                            <FileCheck2 className="mr-1.5 h-3.5 w-3.5" />
-                            Renewal
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setArchiveModalScholar(s)}
-                            className="h-8 rounded-lg border-red-200 text-red-700 hover:bg-red-50 text-xs"
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
-          </div>
-        )}
+          )}
+        </CardContent>
 
         <div className="px-5 py-3 bg-stone-50/70 border-t border-stone-100 flex items-center justify-between">
           <span className="text-xs text-stone-400">
@@ -2245,8 +2199,8 @@ export default function ScholarMonitoring() {
               <ChevronLeft className="w-3.5 h-3.5" />
             </Button>
 
-            <span className="text-xs font-medium px-2.5 py-1 bg-white border border-stone-200 rounded-lg">
-              {page} / {totalPages}
+            <span className="text-xs font-medium text-stone-600 px-2.5">
+              Page {page} / {totalPages}
             </span>
 
             <Button

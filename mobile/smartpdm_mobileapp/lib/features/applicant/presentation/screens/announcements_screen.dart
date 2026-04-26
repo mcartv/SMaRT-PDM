@@ -147,8 +147,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     onTap: () {
                       showModalBottomSheet(
                         context: context,
-                        builder: (context) =>
-                            _buildAnnouncementDetail(announcement),
+                        isScrollControlled: true,
+                        builder: (_) => _buildAnnouncementDetail(announcement),
                       );
                     },
                     child: Padding(

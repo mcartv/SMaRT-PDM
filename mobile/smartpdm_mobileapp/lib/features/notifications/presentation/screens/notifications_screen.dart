@@ -16,31 +16,46 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  bool _didInitialize = false;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<NotificationProvider>().initialize();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _didInitialize) return;
+      _didInitialize = true;
+      await context.read<NotificationProvider>().initialize();
     });
   }
 
   Future<void> _handleDelete(
     BuildContext context,
-    NotificationProvider notificationProvider,
+    NotificationProvider provider,
     String notificationId,
   ) async {
-    await notificationProvider.deleteNotification(notificationId);
+    await provider.deleteNotification(notificationId);
+
     if (!mounted) return;
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Notification deleted')));
+  }
+
+  Future<void> _handleMarkAllAsRead() async {
+    final provider = context.read<NotificationProvider>();
+
+    if (provider.isLoading || provider.unreadCount <= 0) return;
+
+    await provider.markAllAsRead();
   }
 
   void _openNotification(AppNotification notification) {
     if (!mounted) return;
 
     final provider = context.read<NotificationProvider>();
+
     if (!notification.isRead) {
       provider.markAsRead(notification.notificationId);
     }
@@ -69,101 +84,117 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : textColor;
 
-    return Consumer<NotificationProvider>(
-      builder: (context, notificationProvider, child) {
-        final generalNotifications =
-            notificationProvider.generalNotificationItems;
-        final unreadCount = notificationProvider.unreadCount;
+    return SmartPdmPageScaffold(
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: isDark ? Colors.white : textColor,
+        elevation: 0,
+        actions: [
+          Consumer<NotificationProvider>(
+            builder: (context, provider, _) {
+              final unreadCount = provider.unreadCount;
 
-        return SmartPdmPageScaffold(
-          appBar: AppBar(
-            title: const Text('Notifications'),
-            backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-            foregroundColor: isDark ? Colors.white : textColor,
-            elevation: 0,
-            actions: [
-              if (unreadCount > 0)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Center(
-                    child: TextButton(
-                      onPressed: notificationProvider.markAllAsRead,
-                      child: Text(
-                        'Mark all as read',
-                        style: TextStyle(color: accentColor, fontSize: 12),
-                      ),
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Center(
+                  child: TextButton(
+                    onPressed: unreadCount > 0 && !provider.isLoading
+                        ? _handleMarkAllAsRead
+                        : null,
+                    child: Text(
+                      unreadCount > 0 ? 'Mark all as read' : 'All read',
                     ),
                   ),
                 ),
-            ],
+              );
+            },
           ),
-          selectedIndex: 0,
-          unreadNotifications: unreadCount,
-          showBottomNav: widget.showBottomNav,
-          showDrawer: false,
-          child: RefreshIndicator(
-            onRefresh: notificationProvider.refresh,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(top: 12, bottom: 12),
-              children: [
-                if (notificationProvider.isLoading &&
-                    generalNotifications.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 48),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (notificationProvider.errorMessage != null &&
-                    generalNotifications.isEmpty)
-                  _NotificationsErrorState(
-                    message: notificationProvider.errorMessage!,
-                    onRetry: notificationProvider.refresh,
-                  )
-                else if (generalNotifications.isEmpty)
-                  _NotificationsEmptyState(
-                    isDark: isDark,
-                    label: 'No notifications',
-                  )
-                else
-                  ...generalNotifications.map(
-                    (notification) => Dismissible(
-                      key: Key(notification.notificationId),
-                      background: Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                        color: Colors.red,
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 16),
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      onDismissed: (_) => _handleDelete(
-                        context,
-                        notificationProvider,
-                        notification.notificationId,
-                      ),
-                      child: _NotificationTile(
-                        notification: notification,
-                        onTap: () => _openNotification(notification),
-                        onDelete: () => _handleDelete(
-                          context,
-                          notificationProvider,
-                          notification.notificationId,
-                        ),
-                        onMarkRead: notification.isRead
-                            ? null
-                            : () => notificationProvider.markAsRead(
-                                notification.notificationId,
-                              ),
-                      ),
-                    ),
-                  ),
-              ],
+        ],
+      ),
+      selectedIndex: 0,
+      unreadNotifications: context.select<NotificationProvider, int>(
+        (provider) => provider.unreadCount,
+      ),
+      showBottomNav: widget.showBottomNav,
+      showDrawer: false,
+      child: Consumer<NotificationProvider>(
+        builder: (context, provider, _) {
+          final generalNotifications = List<AppNotification>.from(
+            provider.generalNotificationItems,
+          );
+
+          return RefreshIndicator(
+            onRefresh: provider.refresh,
+            child: _buildNotificationBody(
+              context: context,
+              provider: provider,
+              notifications: generalNotifications,
+              isDark: isDark,
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildNotificationBody({
+    required BuildContext context,
+    required NotificationProvider provider,
+    required List<AppNotification> notifications,
+    required bool isDark,
+  }) {
+    if (provider.isLoading && notifications.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 120),
+          Center(child: CircularProgressIndicator()),
+        ],
+      );
+    }
+
+    if (provider.errorMessage != null && notifications.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          _NotificationsErrorState(
+            message: provider.errorMessage!,
+            onRetry: provider.refresh,
           ),
+        ],
+      );
+    }
+
+    if (notifications.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          _NotificationsEmptyState(isDark: isDark, label: 'No notifications'),
+        ],
+      );
+    }
+
+    return ListView.builder(
+      key: const PageStorageKey<String>('notifications_list'),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(top: 12, bottom: 12),
+      itemCount: notifications.length,
+      itemBuilder: (context, index) {
+        final notification = notifications[index];
+
+        return _NotificationTile(
+          key: ValueKey<String>(
+            '${notification.notificationId}_${notification.isRead}_$index',
+          ),
+          notification: notification,
+          onTap: () => _openNotification(notification),
+          onDelete: () =>
+              _handleDelete(context, provider, notification.notificationId),
+          onMarkRead: notification.isRead
+              ? null
+              : () => provider.markAsRead(notification.notificationId),
         );
       },
     );
@@ -172,6 +203,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
 class _NotificationTile extends StatelessWidget {
   const _NotificationTile({
+    super.key,
     required this.notification,
     required this.onTap,
     required this.onDelete,
@@ -186,6 +218,7 @@ class _NotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
     final unreadCardColor = isDark ? const Color(0xFF3A2718) : Colors.blue[50]!;
     final titleColor = isDark ? Colors.white : textColor;
@@ -252,6 +285,7 @@ class _NotificationTile extends StatelessWidget {
             if (value == 'read' && onMarkRead != null) {
               onMarkRead!();
             }
+
             if (value == 'delete') {
               onDelete();
             }

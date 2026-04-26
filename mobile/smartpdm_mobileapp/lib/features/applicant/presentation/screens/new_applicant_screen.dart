@@ -98,22 +98,24 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
     try {
       final savedFormData = await _applicationService.fetchMySavedFormData();
-      if (savedFormData['has_saved_form'] == true) {
-        final savedOpening = Map<String, dynamic>.from(
-          savedFormData['opening'] as Map? ?? const {},
-        );
-        final savedOpeningId = _savedString(savedOpening['opening_id']).trim();
-        final shouldReplaceDraft =
-            widget.replaceExistingDraft &&
-            (widget.initialOpeningId ?? '').trim().isNotEmpty &&
-            savedOpeningId.isNotEmpty &&
-            savedOpeningId != (widget.initialOpeningId ?? '').trim();
+      debugPrint('APPLICATION FORM PREFILL RESPONSE: $savedFormData');
 
-        if (!shouldReplaceDraft) {
-          _hydrateFromSavedForm(savedFormData);
-          _hasDraftLoaded = true;
-          await _syncAccountHolderCache();
-        }
+      final savedOpening = Map<String, dynamic>.from(
+        savedFormData['opening'] as Map? ?? const {},
+      );
+
+      final savedOpeningId = _savedString(savedOpening['opening_id']).trim();
+
+      final shouldReplaceDraft =
+          widget.replaceExistingDraft &&
+          (widget.initialOpeningId ?? '').trim().isNotEmpty &&
+          savedOpeningId.isNotEmpty &&
+          savedOpeningId != (widget.initialOpeningId ?? '').trim();
+
+      if (!shouldReplaceDraft) {
+        _hydrateFromSavedForm(savedFormData);
+        _hasDraftLoaded = savedFormData['has_saved_form'] == true;
+        await _syncAccountHolderCache();
       }
     } catch (_) {
       // If the backend has no saved form yet, keep the local bootstrap values.
@@ -293,7 +295,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.fatherLastName = _savedString(father['last_name']);
     _data.fatherFirstName = _savedString(father['first_name']);
     _data.fatherMiddleName = _savedString(father['middle_name']);
-    _data.fatherMobile = _savedString(father['mobile']);
+    _data.fatherMobile = _savedString(father['mobile']).isNotEmpty
+        ? _savedString(father['mobile'])
+        : _savedString(father['mobile_number']);
     _data.fatherEducationalAttainment = _savedString(
       father['educational_attainment'],
     );
@@ -304,7 +308,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.motherLastName = _savedString(mother['last_name']);
     _data.motherFirstName = _savedString(mother['first_name']);
     _data.motherMiddleName = _savedString(mother['middle_name']);
-    _data.motherMobile = _savedString(mother['mobile']);
+    _data.motherMobile = _savedString(mother['mobile']).isNotEmpty
+        ? _savedString(mother['mobile'])
+        : _savedString(mother['mobile_number']);
     _data.motherEducationalAttainment = _savedString(
       mother['educational_attainment'],
     );
@@ -319,7 +325,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     _data.guardianLastName = _savedString(guardian['last_name']);
     _data.guardianFirstName = _savedString(guardian['first_name']);
     _data.guardianMiddleName = _savedString(guardian['middle_name']);
-    _data.guardianMobile = _savedString(guardian['mobile']);
+    _data.guardianMobile = _savedString(guardian['mobile']).isNotEmpty
+        ? _savedString(guardian['mobile'])
+        : _savedString(guardian['mobile_number']);
     _data.guardianEducationalAttainment = _savedString(
       guardian['educational_attainment'],
     );
@@ -370,11 +378,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         _savedString(academic['current_course_code']).isNotEmpty
         ? _savedString(academic['current_course_code'])
         : _data.currentCourse;
-    _data.currentYearLevel = _savedString(academic['current_year_level']);
+    _data.currentYearLevel =
+        _savedString(academic['current_year_level']).isNotEmpty
+        ? _savedString(academic['current_year_level'])
+        : _savedString(academic['year_level']);
     _data.currentSection = _savedString(academic['current_section']).isNotEmpty
         ? _savedString(academic['current_section'])
         : _data.currentSection;
-    _data.lrn = _savedString(academic['lrn']);
 
     _data.financialSupport =
         _savedString(support['financial_support']).isNotEmpty

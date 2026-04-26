@@ -81,14 +81,28 @@ exports.fetchScholarStats = async () => {
   const result = await db.query(`
     SELECT
       COUNT(*) AS total,
-      COUNT(*) FILTER (WHERE s.status = 'Active') AS active,
-      COUNT(*) FILTER (WHERE st.gwa >= 2.0) AS at_risk,
-      ROUND(AVG(NULLIF(st.gwa, 0))::numeric, 2) AS avg_gwa
-    FROM scholars s
-    JOIN students st ON s.student_id = st.student_id
-    LEFT JOIN academic_course ac ON st.course_id = ac.course_id
-    WHERE COALESCE(st.is_archived, false) = false
-      AND COALESCE(s.is_archived, false) = false;
+      COUNT(*) FILTER (
+        WHERE COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+          AND COALESCE(st.scholar_is_archived, false) = false
+      ) AS total_scholar_records,
+      COUNT(*) FILTER (
+        WHERE COALESCE(st.scholarship_status, 'None') = 'Active'
+          AND COALESCE(st.scholar_is_archived, false) = false
+      ) AS active,
+      COUNT(*) FILTER (
+        WHERE COALESCE(st.scholarship_status, 'None') = 'Active'
+          AND COALESCE(st.scholar_is_archived, false) = false
+          AND st.gwa >= 2.0
+      ) AS at_risk,
+      ROUND(
+        AVG(NULLIF(st.gwa, 0)) FILTER (
+          WHERE COALESCE(st.scholarship_status, 'None') = 'Active'
+            AND COALESCE(st.scholar_is_archived, false) = false
+        )::numeric,
+        2
+      ) AS avg_gwa
+    FROM students st
+    WHERE COALESCE(st.is_archived, false) = false;
   `);
 
   return result.rows[0];
@@ -98,89 +112,20 @@ exports.fetchAllScholars = async () => {
   let result;
 
   try {
-    // Preferred query: includes section if the column exists on students
     result = await db.query(`
-    SELECT
-      s.scholar_id,
-      s.student_id,
-      s.application_id,
-      s.program_id,
-      s.status,
-      s.academic_year_id,
-      s.period_id,
-      ay.label AS academic_year,
-      ap.term AS semester,
-      s.date_awarded,
-      COALESCE(s.ro_progress, 0) AS ro_progress,
-      s.remarks,
-
-      st.user_id,
-      st.pdm_id AS student_number,
-      TRIM(CONCAT(COALESCE(st.first_name, ''), ' ', COALESCE(st.last_name, ''))) AS student_name,
-      st.first_name,
-      st.last_name,
-      st.gwa,
-      st.sdo_status,
-      COALESCE(st.section, '') AS section,
-
-      latest_sdo.record_id AS sdo_record_id,
-      latest_sdo.offense_level,
-      latest_sdo.offense_description AS sdo_comment,
-      latest_sdo.date_reported AS sdo_comment_date,
-      latest_sdo.status AS sdo_record_status,
-
-      u.email,
-      u.phone_number,
-      st.profile_photo_url,
-
-      ac.course_code AS program_name
-
-    FROM scholars s
-    JOIN students st
-      ON s.student_id = st.student_id
-    LEFT JOIN users u
-      ON st.user_id = u.user_id
-    LEFT JOIN academic_course ac
-      ON st.course_id = ac.course_id
-    LEFT JOIN academic_years ay
-      ON s.academic_year_id = ay.academic_year_id
-    LEFT JOIN academic_period ap
-      ON s.period_id = ap.period_id
-    LEFT JOIN LATERAL (
       SELECT
-        record_id,
-        offense_level,
-        offense_description,
-        date_reported,
-        status
-      FROM sdo_records
-      WHERE student_id = st.student_id
-      ORDER BY
-        CASE WHEN status = 'Active' THEN 0 ELSE 1 END,
-        date_reported DESC
-      LIMIT 1
-    ) latest_sdo ON true
-    WHERE COALESCE(st.is_archived, false) = false
-      AND COALESCE(s.is_archived, false) = false
-    ORDER BY st.last_name ASC, st.first_name ASC;
-  `);
-  } catch (err) {
-    // Fallback if students.section does not exist yet
-    if (err.message && err.message.includes('st.section')) {
-      result = await db.query(`
-      SELECT
-        s.scholar_id,
-        s.student_id,
-        s.application_id,
-        s.program_id,
-        s.status,
-        s.academic_year_id,
-        s.period_id,
+        st.student_id,
+        st.current_application_id AS application_id,
+        st.current_program_id AS program_id,
+        st.scholarship_status AS status,
+        st.active_academic_year_id AS academic_year_id,
+        st.active_period_id AS period_id,
         ay.label AS academic_year,
         ap.term AS semester,
-        s.date_awarded,
-        COALESCE(s.ro_progress, 0) AS ro_progress,
-        s.remarks,
+        st.date_awarded,
+        COALESCE(st.ro_progress, 0) AS ro_progress,
+        st.scholar_remarks AS remarks,
+        st.scholar_is_archived AS is_archived,
 
         st.user_id,
         st.pdm_id AS student_number,
@@ -189,7 +134,7 @@ exports.fetchAllScholars = async () => {
         st.last_name,
         st.gwa,
         st.sdo_status,
-        '' AS section,
+        COALESCE(st.section, '') AS section,
 
         latest_sdo.record_id AS sdo_record_id,
         latest_sdo.offense_level,
@@ -201,19 +146,17 @@ exports.fetchAllScholars = async () => {
         u.phone_number,
         st.profile_photo_url,
 
-        ac.course_code AS program_name
+        sp.program_name
 
-      FROM scholars s
-      JOIN students st
-        ON s.student_id = st.student_id
+      FROM students st
       LEFT JOIN users u
         ON st.user_id = u.user_id
-      LEFT JOIN academic_course ac
-        ON st.course_id = ac.course_id
+      LEFT JOIN scholarship_program sp
+        ON st.current_program_id = sp.program_id
       LEFT JOIN academic_years ay
-        ON s.academic_year_id = ay.academic_year_id
+        ON st.active_academic_year_id = ay.academic_year_id
       LEFT JOIN academic_period ap
-        ON s.period_id = ap.period_id
+        ON st.active_period_id = ap.period_id
       LEFT JOIN LATERAL (
         SELECT
           record_id,
@@ -229,73 +172,141 @@ exports.fetchAllScholars = async () => {
         LIMIT 1
       ) latest_sdo ON true
       WHERE COALESCE(st.is_archived, false) = false
-        AND COALESCE(s.is_archived, false) = false
+        AND COALESCE(st.scholar_is_archived, false) = false
+        AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
       ORDER BY st.last_name ASC, st.first_name ASC;
     `);
+  } catch (err) {
+    if (err.message && err.message.includes('st.section')) {
+      result = await db.query(`
+        SELECT
+          st.student_id,
+          st.current_application_id AS application_id,
+          st.current_program_id AS program_id,
+          st.scholarship_status AS status,
+          st.active_academic_year_id AS academic_year_id,
+          st.active_period_id AS period_id,
+          ay.label AS academic_year,
+          ap.term AS semester,
+          st.date_awarded,
+          COALESCE(st.ro_progress, 0) AS ro_progress,
+          st.scholar_remarks AS remarks,
+          st.scholar_is_archived AS is_archived,
+
+          st.user_id,
+          st.pdm_id AS student_number,
+          TRIM(CONCAT(COALESCE(st.first_name, ''), ' ', COALESCE(st.last_name, ''))) AS student_name,
+          st.first_name,
+          st.last_name,
+          st.gwa,
+          st.sdo_status,
+          '' AS section,
+
+          latest_sdo.record_id AS sdo_record_id,
+          latest_sdo.offense_level,
+          latest_sdo.offense_description AS sdo_comment,
+          latest_sdo.date_reported AS sdo_comment_date,
+          latest_sdo.status AS sdo_record_status,
+
+          u.email,
+          u.phone_number,
+          st.profile_photo_url,
+
+          sp.program_name
+
+        FROM students st
+        LEFT JOIN users u
+          ON st.user_id = u.user_id
+        LEFT JOIN scholarship_program sp
+          ON st.current_program_id = sp.program_id
+        LEFT JOIN academic_years ay
+          ON st.active_academic_year_id = ay.academic_year_id
+        LEFT JOIN academic_period ap
+          ON st.active_period_id = ap.period_id
+        LEFT JOIN LATERAL (
+          SELECT
+            record_id,
+            offense_level,
+            offense_description,
+            date_reported,
+            status
+          FROM sdo_records
+          WHERE student_id = st.student_id
+          ORDER BY
+            CASE WHEN status = 'Active' THEN 0 ELSE 1 END,
+            date_reported DESC
+          LIMIT 1
+        ) latest_sdo ON true
+        WHERE COALESCE(st.is_archived, false) = false
+          AND COALESCE(st.scholar_is_archived, false) = false
+          AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+        ORDER BY st.last_name ASC, st.first_name ASC;
+      `);
     } else {
       throw err;
     }
   }
 
-  return Promise.all(result.rows.map(async (row) => ({
-    scholar_id: row.scholar_id,
-    student_id: row.student_id,
-    application_id: row.application_id,
-    program_id: row.program_id,
-    status: row.status,
-    academic_year_id: row.academic_year_id,
-    period_id: row.period_id,
-    academic_year: row.academic_year,
-    semester: row.semester,
-    date_awarded: row.date_awarded,
-    ro_progress: row.ro_progress,
-    remarks: row.remarks,
+  return Promise.all(
+    result.rows.map(async (row) => ({
+      scholar_id: row.student_id,
+      student_id: row.student_id,
+      application_id: row.application_id,
+      program_id: row.program_id,
+      status: row.status,
+      academic_year_id: row.academic_year_id,
+      period_id: row.period_id,
+      academic_year: row.academic_year,
+      semester: row.semester,
+      date_awarded: row.date_awarded,
+      ro_progress: row.ro_progress,
+      remarks: row.remarks,
 
-    user_id: row.user_id,
-    student_number: row.student_number,
-    student_name: row.student_name,
-    first_name: row.first_name,
-    last_name: row.last_name,
-    gwa: row.gwa,
-    sdo_status: row.sdo_status,
-    section: row.section || '',
+      user_id: row.user_id,
+      student_number: row.student_number,
+      student_name: row.student_name,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      gwa: row.gwa,
+      sdo_status: row.sdo_status,
+      section: row.section || '',
 
-    sdo_record_id: row.sdo_record_id,
-    offense_level: row.offense_level,
-    sdo_comment: row.sdo_comment || '',
-    sdo_comment_date: row.sdo_comment_date,
-    sdo_record_status: row.sdo_record_status,
+      sdo_record_id: row.sdo_record_id,
+      offense_level: row.offense_level,
+      sdo_comment: row.sdo_comment || '',
+      sdo_comment_date: row.sdo_comment_date,
+      sdo_record_status: row.sdo_record_status,
 
-    email: row.email,
-    phone_number: row.phone_number,
-    profile_photo_url: row.profile_photo_url,
-    avatar_url: await resolveAvatarUrl(row.profile_photo_url),
-    program_name: row.program_name || 'N/A',
+      email: row.email,
+      phone_number: row.phone_number,
+      profile_photo_url: row.profile_photo_url,
+      avatar_url: await resolveAvatarUrl(row.profile_photo_url),
+      program_name: row.program_name || 'N/A',
 
-    sdu_level: mapSdoLevelFromRecord(
-      row.offense_level,
-      row.sdo_record_status,
-      row.sdo_status
-    ),
-  })));
+      sdu_level: mapSdoLevelFromRecord(
+        row.offense_level,
+        row.sdo_record_status,
+        row.sdo_status
+      ),
+    }))
+  );
 };
 
-exports.fetchScholarById = async (scholarId) => {
+exports.fetchScholarById = async (studentId) => {
   const scholarResult = await db.query(
     `
     SELECT
-      s.scholar_id,
-      s.student_id,
-      s.application_id,
-      s.program_id,
-      s.status,
-      s.academic_year_id,
-      s.period_id,
+      st.student_id,
+      st.current_application_id AS application_id,
+      st.current_program_id AS program_id,
+      st.scholarship_status AS status,
+      st.active_academic_year_id AS academic_year_id,
+      st.active_period_id AS period_id,
       ay.label AS academic_year,
       ap.term AS semester,
-      s.date_awarded,
-      COALESCE(s.ro_progress, 0) AS ro_progress,
-      s.remarks,
+      st.date_awarded,
+      COALESCE(st.ro_progress, 0) AS ro_progress,
+      st.scholar_remarks AS remarks,
 
       st.user_id,
       st.pdm_id AS student_number,
@@ -311,7 +322,7 @@ exports.fetchScholarById = async (scholarId) => {
 
       spf.*,
 
-      ac.course_code AS program_name,
+      sp.program_name,
 
       latest_sdo.record_id AS sdo_record_id,
       latest_sdo.offense_level,
@@ -319,19 +330,17 @@ exports.fetchScholarById = async (scholarId) => {
       latest_sdo.date_reported AS sdo_comment_date,
       latest_sdo.status AS sdo_record_status
 
-    FROM scholars s
-    JOIN students st
-      ON s.student_id = st.student_id
+    FROM students st
     LEFT JOIN users u
       ON st.user_id = u.user_id
     LEFT JOIN student_profiles spf
       ON st.student_id = spf.student_id
-    LEFT JOIN academic_course ac
-      ON st.course_id = ac.course_id
+    LEFT JOIN scholarship_program sp
+      ON st.current_program_id = sp.program_id
     LEFT JOIN academic_years ay
-      ON s.academic_year_id = ay.academic_year_id
+      ON st.active_academic_year_id = ay.academic_year_id
     LEFT JOIN academic_period ap
-      ON s.period_id = ap.period_id
+      ON st.active_period_id = ap.period_id
     LEFT JOIN LATERAL (
       SELECT
         record_id,
@@ -346,10 +355,13 @@ exports.fetchScholarById = async (scholarId) => {
         date_reported DESC
       LIMIT 1
     ) latest_sdo ON true
-    WHERE s.scholar_id = $1
+    WHERE st.student_id = $1
+      AND COALESCE(st.is_archived, false) = false
+      AND COALESCE(st.scholar_is_archived, false) = false
+      AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
     LIMIT 1;
     `,
-    [scholarId]
+    [studentId]
   );
 
   if (!scholarResult.rows.length) {
@@ -369,7 +381,7 @@ exports.fetchScholarById = async (scholarId) => {
     .join(', ');
 
   return {
-    scholar_id: row.scholar_id,
+    scholar_id: row.student_id,
     student_id: row.student_id,
     application_id: row.application_id,
     program_id: row.program_id,
@@ -379,7 +391,7 @@ exports.fetchScholarById = async (scholarId) => {
     period_id: row.period_id,
     academic_year: row.academic_year || null,
     semester: row.semester || null,
-    batch_year: row.academic_year || null, // keep old UI working temporarily
+    batch_year: row.academic_year || null,
 
     date_awarded: row.date_awarded || null,
     ro_progress: Number(row.ro_progress || 0),
@@ -437,25 +449,26 @@ exports.fetchScholarById = async (scholarId) => {
   };
 };
 
-exports.fetchScholarRenewalDocuments = async (scholarId) => {
+exports.fetchScholarRenewalDocuments = async (studentId) => {
   const scholarResult = await db.query(
     `
     SELECT
-      s.scholar_id,
-      s.student_id,
-      s.application_id,
+      st.student_id,
+      st.current_application_id AS application_id,
       st.pdm_id AS student_number,
       st.first_name,
       st.last_name,
       TRIM(CONCAT(COALESCE(st.first_name, ''), ' ', COALESCE(st.last_name, ''))) AS student_name,
       st.gwa,
       st.sdo_status
-    FROM scholars s
-    JOIN students st ON s.student_id = st.student_id
-    WHERE s.scholar_id = $1
+    FROM students st
+    WHERE st.student_id = $1
+      AND COALESCE(st.is_archived, false) = false
+      AND COALESCE(st.scholar_is_archived, false) = false
+      AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
     LIMIT 1;
     `,
-    [scholarId]
+    [studentId]
   );
 
   if (!scholarResult.rows.length) {
@@ -465,7 +478,6 @@ exports.fetchScholarRenewalDocuments = async (scholarId) => {
   const scholar = scholarResult.rows[0];
 
   try {
-    // Preferred source if you have a dedicated renewal documents table
     const docsResult = await db.query(
       `
       SELECT
@@ -513,7 +525,6 @@ exports.fetchScholarRenewalDocuments = async (scholarId) => {
     console.warn('RENEWAL DOCUMENTS FALLBACK MODE:', err.message);
   }
 
-  // Safer fallback: use application_documents from the scholar's original application
   if (scholar.application_id) {
     const applicationDocs = await db.query(
       `
@@ -576,18 +587,19 @@ exports.fetchSdoStats = async () => {
       COUNT(*) FILTER (
         WHERE ls.status = 'Active'
       ) AS on_probation,
-      COUNT(*) FILTER (WHERE s.status = 'Active') AS active_scholars
-    FROM scholars s
-    JOIN students st ON s.student_id = st.student_id
+      COUNT(*) FILTER (
+        WHERE COALESCE(st.scholarship_status, 'None') = 'Active'
+          AND COALESCE(st.scholar_is_archived, false) = false
+      ) AS active_scholars
+    FROM students st
     LEFT JOIN latest_sdo ls ON ls.student_id = st.student_id
-    WHERE COALESCE(st.is_archived, false) = false
-      AND COALESCE(s.is_archived, false) = false;
+    WHERE COALESCE(st.is_archived, false) = false;
   `);
 
   return result.rows[0];
 };
 
-exports.updateScholarSdoStatus = async (scholarId, payload, actor = {}) => {
+exports.updateScholarSdoStatus = async (studentId, payload, actor = {}) => {
   const normalizedStatus = String(payload?.status || '')
     .trim()
     .toLowerCase();
@@ -600,16 +612,17 @@ exports.updateScholarSdoStatus = async (scholarId, payload, actor = {}) => {
   const scholarResult = await db.query(
     `
     SELECT
-      s.scholar_id,
       st.student_id,
       st.first_name,
       st.last_name
-    FROM scholars s
-    JOIN students st ON s.student_id = st.student_id
-    WHERE s.scholar_id = $1
+    FROM students st
+    WHERE st.student_id = $1
+      AND COALESCE(st.is_archived, false) = false
+      AND COALESCE(st.scholar_is_archived, false) = false
+      AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
     LIMIT 1;
     `,
-    [scholarId]
+    [studentId]
   );
 
   const scholar = scholarResult.rows[0];
@@ -676,7 +689,7 @@ exports.updateScholarSdoStatus = async (scholarId, payload, actor = {}) => {
   }
 
   return {
-    scholar_id: scholar.scholar_id,
+    scholar_id: scholar.student_id,
     student_id: scholar.student_id,
     student_name: `${scholar.first_name} ${scholar.last_name}`,
     sdo_status: studentStatus,
@@ -685,231 +698,17 @@ exports.updateScholarSdoStatus = async (scholarId, payload, actor = {}) => {
   };
 };
 
-async function getLatestRenewalByScholarId(scholarId) {
+async function getLatestRenewalByStudentId(studentId) {
   const { data, error } = await supabase
     .from('renewals')
-    .select(`
-            renewal_id,
-            scholar_id,
-            period_id,
-            status,
-            deadline_date,
-            submitted_on
-        `)
-    .eq('scholar_id', scholarId)
-    .order('submitted_on', { ascending: false, nullsFirst: false })
-    .order('deadline_date', { ascending: false, nullsFirst: false })
+    .select('*')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data) {
-    throw new Error('Renewal record not found');
-  }
-
-  return data;
+  if (error) throw error;
+  return data || null;
 }
 
-exports.fetchScholarRenewalDocuments = async (scholarId) => {
-  const renewal = await getLatestRenewalByScholarId(scholarId);
-
-  const { data, error } = await supabase
-    .from('renewal_documents')
-    .select(`
-            renewal_document_id,
-            renewal_id,
-            document_type,
-            file_url,
-            is_submitted,
-            review_status,
-            admin_comment,
-            submitted_at,
-            reviewed_at,
-            remarks
-        `)
-    .eq('renewal_id', renewal.renewal_id)
-    .order('submitted_at', { ascending: true, nullsFirst: false });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data || []).map((doc) => ({
-    id: doc.renewal_document_id,
-    renewal_document_id: doc.renewal_document_id,
-    renewal_id: doc.renewal_id,
-    name: doc.document_type,
-    document_type: doc.document_type,
-    type: doc.document_type,
-    url: doc.file_url || '',
-    file_url: doc.file_url || '',
-    status: doc.review_status || 'pending',
-    review_status: doc.review_status || 'pending',
-    uploadedAt: doc.submitted_at,
-    submitted_at: doc.submitted_at,
-    reviewed_at: doc.reviewed_at,
-    remarks: doc.remarks || '',
-    admin_comment: doc.admin_comment || '',
-    ocrStatus:
-      doc.review_status === 'verified'
-        ? 'Verified'
-        : doc.review_status === 'rejected'
-          ? 'Flagged'
-          : 'Ready for OCR',
-    extractedText: '',
-    ocrFields: {},
-    confidence: null,
-    is_submitted: !!doc.is_submitted,
-  }));
-};
-
-exports.verifyScholarRenewalDocument = async (
-  scholarId,
-  renewalDocumentId,
-  payload = {},
-  user = null
-) => {
-  const renewal = await getLatestRenewalByScholarId(scholarId);
-
-  const nextReviewStatus = payload?.ocr_status === 'Verified' ? 'verified' : 'verified';
-  const nextComment = payload?.remarks || payload?.admin_comment || null;
-
-  const { data, error } = await supabase
-    .from('renewal_documents')
-    .update({
-      review_status: nextReviewStatus,
-      admin_comment: nextComment,
-      reviewed_at: new Date().toISOString(),
-      remarks: nextComment,
-    })
-    .eq('renewal_document_id', renewalDocumentId)
-    .eq('renewal_id', renewal.renewal_id)
-    .select(`
-            renewal_document_id,
-            renewal_id,
-            document_type,
-            file_url,
-            is_submitted,
-            review_status,
-            admin_comment,
-            submitted_at,
-            reviewed_at,
-            remarks
-        `)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data) {
-    throw new Error('Renewal document not found');
-  }
-
-  return data;
-};
-
-exports.saveScholarRenewalReview = async (
-  scholarId,
-  payload = {},
-  user = null
-) => {
-  const renewal = await getLatestRenewalByScholarId(scholarId);
-
-  const decisionRaw = String(payload.decision || '').trim().toLowerCase();
-  const remarks = String(payload.remarks || '').trim();
-
-  let renewalStatus = 'Under Review';
-  let scholarStatus = 'Active';
-
-  if (decisionRaw === 'approved') {
-    renewalStatus = 'Approved';
-    scholarStatus = 'Active';
-  } else if (
-    decisionRaw === 'failed' ||
-    decisionRaw === 'rejected' ||
-    decisionRaw === 'on_hold'
-  ) {
-    renewalStatus = 'Failed';
-    scholarStatus = 'On Hold';
-  } else if (decisionRaw === 'needs_reupload') {
-    renewalStatus = 'Under Review';
-    scholarStatus = 'On Hold';
-  } else {
-    throw new Error('Invalid renewal decision');
-  }
-
-  const { data: renewalUpdate, error: renewalError } = await supabase
-    .from('renewals')
-    .update({
-      status: renewalStatus,
-      submitted_on: renewal.submitted_on || new Date().toISOString(),
-    })
-    .eq('renewal_id', renewal.renewal_id)
-    .select(`
-            renewal_id,
-            scholar_id,
-            period_id,
-            status,
-            deadline_date,
-            submitted_on
-        `)
-    .maybeSingle();
-
-  if (renewalError) {
-    throw new Error(renewalError.message);
-  }
-
-  // update all submitted renewal docs with admin remarks if provided
-  if (remarks) {
-    const { error: docsError } = await supabase
-      .from('renewal_documents')
-      .update({
-        remarks,
-        admin_comment: remarks,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq('renewal_id', renewal.renewal_id)
-      .eq('is_submitted', true);
-
-    if (docsError) {
-      throw new Error(docsError.message);
-    }
-  }
-
-  // put scholar on hold if failed
-  const { data: scholarUpdate, error: scholarError } = await supabase
-    .from('scholars')
-    .update({
-      status: scholarStatus,
-      remarks: remarks || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('scholar_id', scholarId)
-    .select(`
-            scholar_id,
-            student_id,
-            program_id,
-            application_id,
-            date_awarded,
-            status,
-            batch_year,
-            ro_progress,
-            remarks,
-            updated_at,
-            is_archived
-        `)
-    .maybeSingle();
-
-  if (scholarError) {
-    throw new Error(scholarError.message);
-  }
-
-  return {
-    renewal: renewalUpdate,
-    scholar: scholarUpdate,
-  };
-};
+exports.getLatestRenewalByStudentId = getLatestRenewalByStudentId;

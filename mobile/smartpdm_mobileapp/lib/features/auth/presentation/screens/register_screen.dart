@@ -77,6 +77,45 @@ By creating an account, you acknowledge that your information may be stored, rev
   bool _obscureConfirmPassword = true;
   bool _acceptedPolicies = false;
   bool _isLoading = false;
+  bool _didApplyArgs = false;
+  bool _isStudentIdReadOnly = false;
+
+  Map<String, dynamic>? _studentData;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_didApplyArgs) return;
+    _didApplyArgs = true;
+
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    final student = (args?['student'] as Map?)?.cast<String, dynamic>();
+    final prefillStudentId = args?['prefillStudentId']?.toString().trim() ?? '';
+    final prefillEmail = args?['prefillEmail']?.toString().trim() ?? '';
+
+    _studentData = student;
+    _isStudentIdReadOnly = args?['isStudentIdReadOnly'] == true;
+
+    if (prefillStudentId.isNotEmpty) {
+      _identifierController.text = prefillStudentId;
+    } else if (student != null) {
+      _identifierController.text =
+          (student['pdm_id'] ?? student['student_number'] ?? '')
+              .toString()
+              .trim();
+    }
+
+    if (prefillEmail.isNotEmpty) {
+      _emailController.text = prefillEmail;
+    } else if (student != null) {
+      _emailController.text = (student['email_address'] ?? '')
+          .toString()
+          .trim();
+    }
+  }
 
   @override
   void dispose() {
@@ -111,10 +150,7 @@ By creating an account, you acknowledge that your information may be stored, rev
     return null;
   }
 
-  void _showPolicyModal({
-    required String title,
-    required String content,
-  }) {
+  void _showPolicyModal({required String title, required String content}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -212,51 +248,109 @@ By creating an account, you acknowledge that your information may be stored, rev
       return;
     }
 
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        final identifier = _identifierController.text.trim();
+    setState(() => _isLoading = true);
 
-        final registration = await _authService.register(
-          email: _emailController.text.trim().toLowerCase(),
-          password: _passwordController.text,
-          studentId: identifier,
-        );
+    try {
+      final identifier = _identifierController.text.trim();
 
-        if (!mounted) return;
+      final registration = await _authService.register(
+        email: _emailController.text.trim().toLowerCase(),
+        password: _passwordController.text,
+        studentId: identifier,
+      );
 
-        Navigator.pushNamed(
-          context,
-          AppRoutes.otp,
-          arguments: {
-            'email': _emailController.text.trim().toLowerCase(),
-            'user_id': registration.userId,
-            'student_id': registration.studentId,
-          },
-        );
-      } on TimeoutException {
-        if (!mounted) return;
+      if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Request timed out. Please check your connection or try again.',
-            ),
+      Navigator.pushNamed(
+        context,
+        AppRoutes.otp,
+        arguments: {
+          'email': _emailController.text.trim().toLowerCase(),
+          'user_id': registration.userId,
+          'student_id': registration.studentId,
+        },
+      );
+    } on TimeoutException {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Request timed out. Please check your connection or try again.',
           ),
-        );
-      } catch (e) {
-        if (!mounted) return;
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  Widget _buildRegistrySummary() {
+    if (_studentData == null) return const SizedBox.shrink();
+
+    final firstName = (_studentData!['first_name'] ?? '').toString().trim();
+    final middleName = (_studentData!['middle_name'] ?? '').toString().trim();
+    final lastName = (_studentData!['last_name'] ?? '').toString().trim();
+    final yearLevel = (_studentData!['year_level'] ?? '').toString().trim();
+    final courseCode = (_studentData!['course_code'] ?? '').toString().trim();
+    final courseName = (_studentData!['course_name'] ?? '').toString().trim();
+
+    final fullName = [
+      firstName,
+      middleName,
+      lastName,
+    ].where((e) => e.isNotEmpty).join(' ');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Registry Record Found',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.darkBrown,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (fullName.isNotEmpty)
+            Text(
+              'Name: $fullName',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+            ),
+          if (courseCode.isNotEmpty || courseName.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Course: ${[courseCode, courseName].where((e) => e.isNotEmpty).join(' • ')}',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+            ),
+          ],
+          if (yearLevel.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Year Level: $yearLevel',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildPolicyAgreement() {
@@ -365,197 +459,228 @@ By creating an account, you acknowledge that your information may be stored, rev
     );
   }
 
+  String? _validateStudentId(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter your Student ID';
+    }
+
+    final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$');
+    final identifier = value.trim();
+
+    if (!studentIdRegex.hasMatch(identifier)) {
+      return 'Invalid format. Student ID must be in the format PDM-YYYY-NNNNNN (e.g., PDM-2023-000001).';
+    }
+
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasRegistryRecord = _studentData != null;
+
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Image.asset(
-                    'assets/images/school_logo.png',
-                    height: 120,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Create an Account',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign up to apply for and manage your SMaRT-PDM scholarships.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-
-                  TextFormField(
-                    controller: _identifierController,
-                    decoration: const InputDecoration(
-                      labelText: 'Student ID',
-                      prefixIcon: Icon(Icons.school_outlined),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your Student ID';
-                      }
-
-                      final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$');
-                      final identifier = value.trim();
-
-                      if (!studentIdRegex.hasMatch(identifier)) {
-                        return 'Invalid format. Student ID must be in the format PDM-YYYY-NNNNNN (e.g., PDM-2023-000001).';
-                      }
-
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email Address',
-                      prefixIcon: Icon(Icons.email_outlined),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your email';
-                      }
-
-                      final email = value.trim();
-                      final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-
-                      if (!emailRegex.hasMatch(email)) {
-                        return 'Please enter a valid email';
-                      }
-
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      helperText:
-                          'Use 15+ chars, or 8+ with a number and lowercase letter.',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                    ),
-                    validator: _validatePassword,
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: _obscureConfirmPassword,
-                    decoration: InputDecoration(
-                      labelText: 'Confirm Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureConfirmPassword =
-                                !_obscureConfirmPassword;
-                          });
-                        },
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
-                      }
-
-                      if (value != _passwordController.text) {
-                        return 'Passwords do not match';
-                      }
-
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: 20),
-                  _buildPolicyAgreement(),
-                  const SizedBox(height: 20),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: _isLoading
-                        ? const Center(
-                            child: SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : Opacity(
-                            opacity: _acceptedPolicies ? 1 : 0.6,
-                            child: IgnorePointer(
-                              ignoring: !_acceptedPolicies,
-                              child: GoldButton(
-                                label: 'Sign Up',
-                                onTap: _handleRegister,
-                              ),
-                            ),
-                          ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Already have an account? ',
-                        style: TextStyle(color: Colors.grey.shade700),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pushReplacementNamed(
-                          context,
-                          AppRoutes.login,
-                        ),
-                        child: const Text(
-                          'Login',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.gold, AppColors.white],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.96),
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
-                ],
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Image.asset(
+                          'assets/images/school_logo.png',
+                          height: 120,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Create an Account',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkBrown,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Sign up to apply for and manage your SMaRT-PDM scholarships.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (hasRegistryRecord) ...[
+                          const SizedBox(height: 20),
+                          _buildRegistrySummary(),
+                        ],
+                        const SizedBox(height: 28),
+                        TextFormField(
+                          controller: _identifierController,
+                          readOnly: _isStudentIdReadOnly,
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: InputDecoration(
+                            labelText: 'Student ID',
+                            prefixIcon: const Icon(Icons.school_outlined),
+                            suffixIcon: _isStudentIdReadOnly
+                                ? const Icon(Icons.lock_outline)
+                                : null,
+                          ),
+                          validator: _validateStudentId,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Email Address',
+                            prefixIcon: Icon(Icons.email_outlined),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your email';
+                            }
+
+                            final email = value.trim();
+                            final emailRegex = RegExp(
+                              r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                            );
+
+                            if (!emailRegex.hasMatch(email)) {
+                              return 'Please enter a valid email';
+                            }
+
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            helperText:
+                                'Use 15+ chars, or 8+ with a number and lowercase letter.',
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                          validator: _validatePassword,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _confirmPasswordController,
+                          obscureText: _obscureConfirmPassword,
+                          decoration: InputDecoration(
+                            labelText: 'Confirm Password',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword;
+                                });
+                              },
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please confirm your password';
+                            }
+
+                            if (value != _passwordController.text) {
+                              return 'Passwords do not match';
+                            }
+
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        _buildPolicyAgreement(),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _isLoading
+                              ? const Center(
+                                  child: SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : GoldButton(
+                                  label: 'Sign Up',
+                                  onTap: _handleRegister,
+                                ),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Already have an account? ',
+                              style: TextStyle(color: Colors.grey.shade700),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pushReplacementNamed(
+                                context,
+                                AppRoutes.studentLookup,
+                                arguments: 'existing',
+                              ),
+                              child: const Text(
+                                'Check Student ID',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

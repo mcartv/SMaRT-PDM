@@ -156,35 +156,34 @@ exports.getROList = async (status = 'pending') => {
     const { data, error } = await supabase
         .from('return_of_obligations')
         .select(`
-            ro_id,
-            scholar_id,
-            department_assigned,
-            task_description,
-            required_hours,
-            rendered_hours,
-            ro_status,
-            deadline_date,
-            proof_file_url,
-            admin_note,
-            rejection_reason,
-            is_carry_over,
-            previous_semester,
-            assigned_at,
-            submitted_at,
-            verified_at,
-            scholars (
-                scholar_id,
-                students (
-                    pdm_id,
-                    first_name,
-                    last_name,
-                    profile_photo_url
-                ),
-                scholarship_program (
-                    program_name
-                )
-            )
-        `)
+    ro_id,
+    student_id,
+    program_id,
+    department_assigned,
+    task_description,
+    required_hours,
+    rendered_hours,
+    ro_status,
+    deadline_date,
+    proof_file_url,
+    rejection_reason,
+    is_carry_over,
+    previous_semester,
+    submitted_at,
+    verified_at,
+
+    students (
+      student_id,
+      pdm_id,
+      first_name,
+      last_name,
+      profile_photo_url
+    ),
+
+    scholarship_program (
+      program_name
+    )
+  `)
         .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -194,12 +193,15 @@ exports.getROList = async (status = 'pending') => {
 
     const rows = (data || []).map((row) => ({
         ...row,
-        student_name: row.scholars?.students
-            ? `${row.scholars.students.first_name} ${row.scholars.students.last_name}`.trim()
+        student_name: row.students
+            ? `${row.students.first_name} ${row.students.last_name}`.trim()
             : 'Unknown Student',
-        student_number: row.scholars?.students?.pdm_id || 'N/A',
-        program_name: row.scholars?.scholarship_program?.program_name || 'Scholar',
-        profile_photo_url: row.scholars?.students?.profile_photo_url || null,
+
+        student_number: row.students?.pdm_id || 'N/A',
+
+        program_name: row.scholarship_program?.program_name || 'Scholar',
+
+        profile_photo_url: row.students?.profile_photo_url || null,
     }));
 
     const mapped = await Promise.all(
@@ -225,6 +227,14 @@ exports.createRO = async (payload, user) => {
         previousSemester = null,
     } = payload || {};
 
+    const { data: activeSetting } = await supabase
+        .from('ro_settings')
+        .select('required_hours, allow_carry_over')
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
     if (!scholarId || !taskDescription || !requiredHours || !deadlineDate) {
         throw new Error('Scholar, task description, required hours, and deadline date are required');
     }
@@ -235,7 +245,7 @@ exports.createRO = async (payload, user) => {
             scholar_id: scholarId,
             department_assigned: departmentAssigned || null,
             task_description: taskDescription,
-            required_hours: Number(requiredHours),
+            required_hours: Number(requiredHours || activeSetting?.required_hours || 10),
             rendered_hours: Number(renderedHours || 0),
             ro_status: 'Pending',
             deadline_date: deadlineDate,

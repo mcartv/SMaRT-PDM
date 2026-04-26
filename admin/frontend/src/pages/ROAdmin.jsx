@@ -1,18 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
-  CheckCircle, XCircle, Clock, FileText, Building2,
-  Calendar, User, Settings, RotateCcw,
-  AlertTriangle, CheckCircle2, Plus, Loader2, X
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText,
+  Building2,
+  Calendar,
+  User,
+  AlertTriangle,
+  CheckCircle2,
+  Plus,
+  Loader2,
+  X,
+  ClipboardCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
 const C = {
-  brown: '#5c2d0e',
   brownMid: '#7c4a2e',
   amber: '#d97706',
   amberSoft: '#FFF7ED',
@@ -22,12 +32,14 @@ const C = {
   redSoft: '#FEF2F2',
   blue: '#1E3A8A',
   blueSoft: '#EFF6FF',
-  border: '#e7e5e4',
-  muted: '#78716c',
-  text: '#1c1917',
   bg: '#faf7f2',
-  white: '#FFFFFF',
 };
+
+const TAB_CONFIG = [
+  { key: 'pending', label: 'Pending', icon: Clock, color: '#d97706' },
+  { key: 'verified', label: 'Verified', icon: CheckCircle2, color: '#16a34a' },
+  { key: 'overdue', label: 'Overdue', icon: AlertTriangle, color: '#dc2626' },
+];
 
 const SCHOLARSHIP_STYLE = {
   TES: { bg: '#EFF6FF', color: '#1E3A8A' },
@@ -38,9 +50,13 @@ const SCHOLARSHIP_STYLE = {
 
 function ScholarPill({ program }) {
   const s = SCHOLARSHIP_STYLE[program] ?? SCHOLARSHIP_STYLE.Scholar;
+
   return (
-    <span className="text-[10px] font-medium px-2 py-1 rounded-full" style={{ background: s.bg, color: s.color }}>
-      {program}
+    <span
+      className="rounded-full px-2 py-1 text-[10px] font-medium"
+      style={{ background: s.bg, color: s.color }}
+    >
+      {program || 'Scholar'}
     </span>
   );
 }
@@ -57,16 +73,21 @@ function StatusChip({ children, tone = 'default' }) {
   const s = map[tone] || map.default;
 
   return (
-    <span className="text-[10px] font-medium px-2 py-1 rounded-full" style={{ background: s.bg, color: s.color }}>
+    <span
+      className="rounded-full px-2 py-1 text-[10px] font-medium"
+      style={{ background: s.bg, color: s.color }}
+    >
       {children}
     </span>
   );
 }
 
-function HoursBar({ logged, required }) {
-  const pct = Math.min(100, Math.round((logged / required) * 100));
-  const met = logged >= required;
-  const color = met ? C.green : logged >= required * 0.5 ? C.amber : C.red;
+function HoursBar({ logged = 0, required = 1 }) {
+  const safeRequired = Number(required) || 1;
+  const safeLogged = Number(logged) || 0;
+  const pct = Math.min(100, Math.round((safeLogged / safeRequired) * 100));
+  const met = safeLogged >= safeRequired;
+  const color = met ? C.green : safeLogged >= safeRequired * 0.5 ? C.amber : C.red;
 
   return (
     <div className="space-y-1.5">
@@ -75,11 +96,15 @@ function HoursBar({ logged, required }) {
           Hours Progress
         </span>
         <span className="text-[11px] font-semibold" style={{ color }}>
-          {logged}/{required} hrs · {pct}%
+          {safeLogged}/{safeRequired} hrs · {pct}%
         </span>
       </div>
-      <div className="h-2 rounded-full bg-stone-200 overflow-hidden">
-        <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+
+      <div className="h-2 overflow-hidden rounded-full bg-stone-200">
+        <div
+          className="h-2 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, background: color }}
+        />
       </div>
     </div>
   );
@@ -88,20 +113,71 @@ function HoursBar({ logged, required }) {
 function InfoBlock({ icon: Icon, label, value }) {
   return (
     <div className="rounded-lg border border-stone-200 bg-white px-3 py-3">
-      <div className="flex items-center gap-2 text-stone-400 mb-1">
-        <Icon className="w-3.5 h-3.5" />
-        <span className="text-[10px] font-medium uppercase tracking-wide">{label}</span>
+      <div className="mb-1 flex items-center gap-2 text-stone-400">
+        <Icon className="h-3.5 w-3.5" />
+        <span className="text-[10px] font-medium uppercase tracking-wide">
+          {label}
+        </span>
       </div>
       <p className="text-xs font-medium text-stone-800">{value || 'N/A'}</p>
     </div>
   );
 }
 
-function CreateROModal({ open, onClose, onSubmit, loading }) {
+function EmptyState({ tab, onAssign }) {
+  const copy = {
+    pending: {
+      title: 'No pending RO submissions',
+      desc: 'Submitted obligations that need review will appear here.',
+    },
+    verified: {
+      title: 'No verified RO records',
+      desc: 'Approved and completed obligations will appear here.',
+    },
+    overdue: {
+      title: 'No overdue obligations',
+      desc: 'Students with missed RO deadlines will appear here.',
+    },
+  };
+
+  const current = copy[tab] || copy.pending;
+
+  return (
+    <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-10 text-center">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50">
+        <ClipboardCheck className="h-6 w-6 text-stone-400" />
+      </div>
+
+      <h3 className="text-sm font-semibold text-stone-800">{current.title}</h3>
+      <p className="mt-1 max-w-md text-xs leading-6 text-stone-500">{current.desc}</p>
+
+      {tab === 'pending' && (
+        <Button
+          onClick={onAssign}
+          size="sm"
+          className="mt-4 rounded-lg border-none text-xs text-white"
+          style={{ background: C.brownMid }}
+        >
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Assign RO
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function CreateROModal({
+  open,
+  onClose,
+  onSubmit,
+  loading,
+  activeRequiredHours = 10,
+  allowCarryOver = true,
+}) {
   const [scholarId, setScholarId] = useState('');
   const [departmentAssigned, setDepartmentAssigned] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
-  const [requiredHours, setRequiredHours] = useState(20);
+  const [requiredHours, setRequiredHours] = useState(activeRequiredHours);
   const [renderedHours, setRenderedHours] = useState(0);
   const [deadlineDate, setDeadlineDate] = useState('');
   const [isCarryOver, setIsCarryOver] = useState(false);
@@ -112,92 +188,168 @@ function CreateROModal({ open, onClose, onSubmit, loading }) {
       setScholarId('');
       setDepartmentAssigned('');
       setTaskDescription('');
-      setRequiredHours(20);
+      setRequiredHours(activeRequiredHours);
       setRenderedHours(0);
       setDeadlineDate('');
       setIsCarryOver(false);
       setPreviousSemester('');
     }
-  }, [open]);
+  }, [open, activeRequiredHours]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
-      <Card className="relative w-full max-w-2xl border-stone-200 shadow-xl bg-white">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 bg-stone-50/70">
+
+      <Card className="relative w-full max-w-2xl overflow-hidden border-stone-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold text-stone-800">Assign Return of Obligation</h3>
-            <p className="text-xs text-stone-500 mt-0.5">Create a new RO record</p>
+            <h3 className="text-sm font-semibold text-stone-800">
+              Assign Return of Obligation
+            </h3>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Create a new RO record for a scholar.
+            </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-stone-100 text-stone-400">
-            <X className="w-4 h-4" />
+
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <CardContent className="p-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <CardContent className="space-y-4 p-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Scholar ID</label>
-              <Input value={scholarId} onChange={(e) => setScholarId(e.target.value)} className="mt-1 h-10 rounded-lg" />
+              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                Scholar ID
+              </label>
+              <Input
+                value={scholarId}
+                onChange={(e) => setScholarId(e.target.value)}
+                className="mt-1 h-10 rounded-lg"
+              />
             </div>
+
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Department Assigned</label>
-              <Input value={departmentAssigned} onChange={(e) => setDepartmentAssigned(e.target.value)} className="mt-1 h-10 rounded-lg" />
+              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                Department Assigned
+              </label>
+              <Input
+                value={departmentAssigned}
+                onChange={(e) => setDepartmentAssigned(e.target.value)}
+                className="mt-1 h-10 rounded-lg"
+              />
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Task Description</label>
-            <Input value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} className="mt-1 h-10 rounded-lg" />
+            <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+              Task Description
+            </label>
+            <Input
+              value={taskDescription}
+              onChange={(e) => setTaskDescription(e.target.value)}
+              className="mt-1 h-10 rounded-lg"
+            />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Required Hours</label>
-              <Input type="number" value={requiredHours} onChange={(e) => setRequiredHours(e.target.value)} className="mt-1 h-10 rounded-lg" />
+              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                Required Hours
+              </label>
+              <Input
+                type="number"
+                value={requiredHours}
+                onChange={(e) => setRequiredHours(e.target.value)}
+                className="mt-1 h-10 rounded-lg"
+              />
             </div>
+
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Rendered Hours</label>
-              <Input type="number" value={renderedHours} onChange={(e) => setRenderedHours(e.target.value)} className="mt-1 h-10 rounded-lg" />
+              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                Rendered Hours
+              </label>
+              <Input
+                type="number"
+                value={renderedHours}
+                onChange={(e) => setRenderedHours(e.target.value)}
+                className="mt-1 h-10 rounded-lg"
+              />
             </div>
+
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Deadline</label>
-              <Input type="datetime-local" value={deadlineDate} onChange={(e) => setDeadlineDate(e.target.value)} className="mt-1 h-10 rounded-lg" />
+              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                Deadline
+              </label>
+              <Input
+                type="datetime-local"
+                value={deadlineDate}
+                onChange={(e) => setDeadlineDate(e.target.value)}
+                className="mt-1 h-10 rounded-lg"
+              />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input type="checkbox" checked={isCarryOver} onChange={(e) => setIsCarryOver(e.target.checked)} />
-            <span className="text-sm text-stone-700">Carry-over obligation</span>
-          </div>
+          {allowCarryOver && (
+            <label className="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+              <input
+                type="checkbox"
+                checked={isCarryOver}
+                onChange={(e) => setIsCarryOver(e.target.checked)}
+              />
+              <span className="text-sm text-stone-700">Carry-over obligation</span>
+            </label>
+          )}
 
           {isCarryOver && (
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Previous Semester</label>
-              <Input value={previousSemester} onChange={(e) => setPreviousSemester(e.target.value)} className="mt-1 h-10 rounded-lg" />
+              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                Previous Semester
+              </label>
+              <Input
+                value={previousSemester}
+                onChange={(e) => setPreviousSemester(e.target.value)}
+                className="mt-1 h-10 rounded-lg"
+              />
             </div>
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={onClose} className="rounded-lg border-stone-200">Cancel</Button>
             <Button
-              onClick={() => onSubmit({
-                scholarId,
-                departmentAssigned,
-                taskDescription,
-                requiredHours,
-                renderedHours,
-                deadlineDate,
-                isCarryOver,
-                previousSemester,
-              })}
+              variant="outline"
+              onClick={onClose}
+              className="rounded-lg border-stone-200"
+            >
+              Cancel
+            </Button>
+
+            <Button
+              onClick={() =>
+                onSubmit({
+                  scholarId,
+                  departmentAssigned,
+                  taskDescription,
+                  requiredHours,
+                  renderedHours,
+                  deadlineDate,
+                  isCarryOver,
+                  previousSemester,
+                })
+              }
               disabled={loading}
-              className="rounded-lg text-white border-none"
+              className="rounded-lg border-none text-white"
               style={{ background: C.brownMid }}
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
               Create RO
             </Button>
           </div>
@@ -212,26 +364,31 @@ export default function ROAdmin() {
   const [items, setItems] = useState([]);
   const [reqHours, setReqHours] = useState(20);
   const [currentSem, setCurrentSem] = useState('1st Sem AY 2025-26');
-  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [configSaving, setConfigSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
+  const [activeROSetting, setActiveROSetting] = useState(null);
 
   const token = localStorage.getItem('adminToken');
 
-  const initials = (name) => name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  const initials = (name = '') =>
+    name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
 
   const loadROData = async (activeTab = tab) => {
     try {
       setLoading(true);
 
-      const [summaryRes, configRes, listRes] = await Promise.all([
+      const [summaryRes, activeSettingRes, listRes] = await Promise.all([
         fetch(buildApiUrl('/api/ro/summary'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(buildApiUrl('/api/ro/config'), {
+        fetch(buildApiUrl('/api/ro-settings/active'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(buildApiUrl(`/api/ro?status=${activeTab}`), {
@@ -240,17 +397,33 @@ export default function ROAdmin() {
       ]);
 
       const summaryData = await summaryRes.json().catch(() => ({}));
-      const configData = await configRes.json().catch(() => ({}));
-      const listData = await listRes.json().catch(() => ([]));
+      const activeSettingData = await activeSettingRes.json().catch(() => ({}));
+      const listData = await listRes.json().catch(() => []);
 
-      if (!summaryRes.ok) throw new Error(summaryData.error || 'Failed to load RO summary');
-      if (!configRes.ok) throw new Error(configData.error || 'Failed to load RO config');
-      if (!listRes.ok) throw new Error(listData.error || 'Failed to load RO list');
+      if (!summaryRes.ok) {
+        throw new Error(summaryData.error || 'Failed to load RO summary');
+      }
 
+      if (!activeSettingRes.ok) {
+        throw new Error(activeSettingData.error || 'Failed to load active RO setting');
+      }
+
+      if (!listRes.ok) {
+        throw new Error(listData.error || 'Failed to load RO list');
+      }
+
+      const setting = activeSettingData.setting || null;
+
+      setActiveROSetting(setting);
       setItems(Array.isArray(listData) ? listData : []);
-      setReqHours(configData.requiredHours || summaryData.requiredHours || 20);
-      setCurrentSem(configData.currentSemester || summaryData.currentSemester || '1st Sem AY 2025-26');
-      setHistory(Array.isArray(configData.history) ? configData.history : []);
+      setReqHours(setting?.required_hours || summaryData.requiredHours || 20);
+
+      setCurrentSem(
+        setting?.academic_period?.term ||
+        setting?.academic_years?.label ||
+        summaryData.currentSemester ||
+        'Active RO Requirement'
+      );
     } catch (err) {
       console.error('LOAD RO ERROR:', err);
       alert(err.message || 'Failed to load RO data');
@@ -263,37 +436,29 @@ export default function ROAdmin() {
     loadROData(tab);
   }, [tab]);
 
-  // Realtime updates for scholar RO data
-  useSocketEvent('scholar:updated', (data) => {
-    console.log('[Realtime] Scholar RO data updated:', data);
-    loadROData(tab);
-  }, []);
-
-  const stats = useMemo(() => {
-    const pendingCount = tab === 'pending' ? items.length : 0;
-    const verifiedCount = tab === 'verified' ? items.length : 0;
-    const overdueCount = tab === 'overdue' ? items.length : 0;
-    const carryOverCount = items.filter((item) => item.carryOver).length;
-
-    return [
-      { label: 'Pending', value: String(tab === 'pending' ? pendingCount : '—'), icon: Clock, accent: C.amber, soft: C.amberSoft },
-      { label: 'Verified', value: String(tab === 'verified' ? verifiedCount : '—'), icon: CheckCircle2, accent: C.green, soft: C.greenSoft },
-      { label: 'Overdue', value: String(tab === 'overdue' ? overdueCount : '—'), icon: AlertTriangle, accent: C.red, soft: C.redSoft },
-      { label: 'Carry-Over', value: String(carryOverCount), icon: RotateCcw, accent: C.blue, soft: C.blueSoft },
-    ];
-  }, [items, tab]);
+  useSocketEvent(
+    'scholar:updated',
+    () => {
+      loadROData(tab);
+    },
+    []
+  );
 
   const handleApprove = async (id) => {
     try {
       setActionLoading(id);
-fetch(buildApiUrl('/api/ro'), {        method: 'PATCH',
+
+      const res = await fetch(buildApiUrl(`/api/ro/${id}/approve`), {
+        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to approve RO');
+
       await loadROData(tab);
     } catch (err) {
       alert(err.message || 'Failed to approve RO');
@@ -308,15 +473,19 @@ fetch(buildApiUrl('/api/ro'), {        method: 'PATCH',
 
     try {
       setActionLoading(id);
-fetch(buildApiUrl(`/api/ro/${id}/reject`), {        method: 'PATCH',
+
+      const res = await fetch(buildApiUrl(`/api/ro/${id}/reject`), {
+        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ reason }),
       });
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to reject RO');
+
       await loadROData(tab);
     } catch (err) {
       alert(err.message || 'Failed to reject RO');
@@ -331,15 +500,19 @@ fetch(buildApiUrl(`/api/ro/${id}/reject`), {        method: 'PATCH',
 
     try {
       setActionLoading(id);
-fetch(buildApiUrl(`/api/ro/${id}/assign-department`), {        method: 'PATCH',
+
+      const res = await fetch(buildApiUrl(`/api/ro/${id}/assign-department`), {
+        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ departmentAssigned }),
       });
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to assign department');
+
       await loadROData(tab);
     } catch (err) {
       alert(err.message || 'Failed to assign department');
@@ -348,41 +521,20 @@ fetch(buildApiUrl(`/api/ro/${id}/assign-department`), {        method: 'PATCH',
     }
   };
 
-  const handleSaveConfig = async () => {
+  const handleCreateRO = async (payload) => {
     try {
-      setConfigSaving(true);
-fetch(buildApiUrl('/api/ro/config'), {        method: 'PATCH',
+      setCreateLoading(true);
+
+      const res = await fetch(buildApiUrl('/api/ro'), {
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          currentSemester: currentSem,
-          requiredHours: reqHours,
+          ...payload,
+          requiredHours: Number(payload.requiredHours || reqHours || 20),
         }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to save config');
-
-      alert('Configuration updated.');
-      await loadROData(tab);
-    } catch (err) {
-      alert(err.message || 'Failed to update requirements');
-    } finally {
-      setConfigSaving(false);
-    }
-  };
-
-  const handleCreateRO = async (payload) => {
-    try {
-      setCreateLoading(true);
-fetch(buildApiUrl('/api/ro'), {        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -399,150 +551,175 @@ fetch(buildApiUrl('/api/ro'), {        method: 'POST',
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading RO workspace...</p>
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
+        <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
+        <p className="text-xs uppercase tracking-widest text-stone-400">
+          Loading RO workspace...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 py-2" style={{ background: C.bg }}>
+    <div className="space-y-4 py-2" style={{ background: C.bg }}>
       <CreateROModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={handleCreateRO}
         loading={createLoading}
+        activeRequiredHours={reqHours}
+        allowCarryOver={activeROSetting?.allow_carry_over !== false}
       />
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>
-            Return of Obligations
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            Monitor RO submissions, approvals, overdue cases, and semester requirements
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-orange-600">Active Requirement</p>
-            <p className="text-lg font-semibold text-orange-700 leading-tight">{reqHours} hrs</p>
-            <p className="text-[11px] text-orange-500 mt-0.5">{currentSem}</p>
+      <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
+        <div className="flex flex-col gap-4 border-b border-stone-100 bg-white px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-stone-900">
+              RO Tracking Workspace
+            </h2>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Review, assign, and verify scholar return-of-obligation records.
+            </p>
           </div>
 
-          <Button
-            onClick={() => setCreateOpen(true)}
-            size="sm"
-            className="rounded-lg text-white text-xs border-none"
-            style={{ background: C.brownMid }}
-          >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            Assign RO
-          </Button>
-        </div>
-      </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2 rounded-full border border-orange-100 bg-white px-3 py-2 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-orange-500" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {stats.map((s) => (
-          <Card key={s.label} className="border-stone-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: s.soft }}>
-                <s.icon className="w-4 h-4" style={{ color: s.accent }} />
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                  Active Requirement
+                </span>
+
+                <span className="text-xs font-semibold text-stone-800">
+                  {reqHours} hrs
+                </span>
+
+                <span className="text-[10px] text-stone-400">
+                  {currentSem}
+                </span>
               </div>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <div className="text-2xl font-semibold" style={{ color: C.text }}>{s.value}</div>
-              <p className="text-xs text-stone-500 mt-0.5">{s.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            </div>
 
-      <Card className="border-stone-200 shadow-none overflow-hidden">
-        <CardHeader className="bg-stone-50/50 border-b border-stone-100 py-3 px-5">
-          <CardTitle className="text-sm font-semibold text-stone-800">RO Tracking Workspace</CardTitle>
-          <CardDescription className="text-xs">
-            Review pending obligations, verified completions, and overdue cases
-          </CardDescription>
-        </CardHeader>
-
-        <div className="flex flex-wrap border-b border-stone-100 bg-white px-2 pt-2">
-          {[
-            { key: 'pending', label: 'Pending', color: C.amber },
-            { key: 'verified', label: 'Verified', color: C.green },
-            { key: 'overdue', label: 'Overdue', color: C.red },
-            { key: 'config', label: 'Settings', color: C.blue, icon: Settings },
-          ].map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${tab === t.key ? '' : 'text-stone-400 border-transparent hover:text-stone-600'
-                }`}
-              style={{
-                borderBottomColor: tab === t.key ? t.color : 'transparent',
-                color: tab === t.key ? t.color : undefined,
-              }}
+            <Button
+              onClick={() => setCreateOpen(true)}
+              size="sm"
+              className="h-10 rounded-xl border-none px-4 text-xs text-white"
+              style={{ background: C.brownMid }}
             >
-              {t.icon ? <t.icon className="w-3.5 h-3.5" /> : null}
-              {t.label}
-            </button>
-          ))}
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Assign RO
+            </Button>
+          </div>
         </div>
 
-        {tab !== 'config' && (
-          <div className="divide-y divide-stone-100">
-            {items.map((ro) => (
-              <div key={ro.id} className="p-5 hover:bg-stone-50/40 transition-colors">
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
-                  <div className="xl:col-span-3 flex items-start gap-3">
-                    <Avatar className="w-11 h-11 border border-stone-200 shadow-sm shrink-0">
+        <div className="flex flex-wrap border-b border-stone-100 bg-stone-50/50 px-3">
+          {TAB_CONFIG.map((t) => {
+            const Icon = t.icon;
+            const active = tab === t.key;
+
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${active ? '' : 'text-stone-400 hover:text-stone-600'
+                  }`}
+                style={{ color: active ? t.color : undefined }}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {t.label}
+                {active && (
+                  <span
+                    className="absolute bottom-0 left-0 h-[2px] w-full"
+                    style={{ background: t.color }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="divide-y divide-stone-100">
+          {items.length === 0 ? (
+            <EmptyState tab={tab} onAssign={() => setCreateOpen(true)} />
+          ) : (
+            items.map((ro) => (
+              <div key={ro.id} className="p-5 transition-colors hover:bg-stone-50/40">
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+                  <div className="flex items-start gap-3 xl:col-span-3">
+                    <Avatar className="h-11 w-11 shrink-0 border border-stone-200 shadow-sm">
                       <AvatarImage
-                        src={ro.student.avatarUrl || undefined}
-                        alt={ro.student.name}
+                        src={ro.student?.avatarUrl || undefined}
+                        alt={ro.student?.name || 'Scholar'}
                       />
-                      <AvatarFallback className="text-xs font-semibold bg-blue-900 text-white">
-                        {initials(ro.student.name)}
+                      <AvatarFallback className="bg-blue-900 text-xs font-semibold text-white">
+                        {initials(ro.student?.name || 'Scholar')}
                       </AvatarFallback>
                     </Avatar>
 
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-stone-900 truncate">{ro.student.name}</p>
-                      <p className="text-[11px] font-mono text-stone-400 mt-0.5">{ro.student.id}</p>
+                      <p className="truncate text-sm font-semibold text-stone-900">
+                        {ro.student?.name || 'Unknown Scholar'}
+                      </p>
+                      <p className="mt-0.5 font-mono text-[11px] text-stone-400">
+                        {ro.student?.id || 'N/A'}
+                      </p>
 
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        <ScholarPill program={ro.student.program} />
+                        <ScholarPill program={ro.student?.program} />
                         {ro.carryOver && <StatusChip tone="amber">Carry-Over</StatusChip>}
                       </div>
                     </div>
                   </div>
 
-                  <div className="xl:col-span-6 space-y-4">
+                  <div className="space-y-4 xl:col-span-6">
                     <div>
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400 mb-1">Obligation</p>
-                      <p className="text-sm font-semibold text-stone-800 leading-tight">{ro.obligation}</p>
+                      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                        Obligation
+                      </p>
+                      <p className="text-sm font-semibold leading-tight text-stone-800">
+                        {ro.obligation || 'No obligation description'}
+                      </p>
 
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        <StatusChip>{ro.type}</StatusChip>
-                        {ro.prevSem ? <StatusChip tone="blue">From {ro.prevSem}</StatusChip> : null}
-                        {ro.status === 'Overdue' ? <StatusChip tone="red">Overdue</StatusChip> : null}
-                        {ro.status === 'Verified' ? <StatusChip tone="green">Verified</StatusChip> : null}
+                        <StatusChip>{ro.type || 'RO'}</StatusChip>
+                        {ro.prevSem ? (
+                          <StatusChip tone="blue">From {ro.prevSem}</StatusChip>
+                        ) : null}
+                        {ro.status === 'Overdue' ? (
+                          <StatusChip tone="red">Overdue</StatusChip>
+                        ) : null}
+                        {ro.status === 'Verified' ? (
+                          <StatusChip tone="green">Verified</StatusChip>
+                        ) : null}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <InfoBlock
                         icon={Calendar}
-                        label={tab === 'verified' ? 'Verified Date' : tab === 'overdue' ? 'Due Date' : 'Submitted'}
+                        label={
+                          tab === 'verified'
+                            ? 'Verified Date'
+                            : tab === 'overdue'
+                              ? 'Due Date'
+                              : 'Submitted'
+                        }
                         value={
                           tab === 'verified'
-                            ? (ro.verifiedDate ? new Date(ro.verifiedDate).toLocaleDateString() : 'N/A')
+                            ? ro.verifiedDate
+                              ? new Date(ro.verifiedDate).toLocaleDateString()
+                              : 'N/A'
                             : tab === 'overdue'
-                              ? (ro.dueDate ? new Date(ro.dueDate).toLocaleDateString() : 'N/A')
-                              : (ro.submitted ? new Date(ro.submitted).toLocaleDateString() : 'Pending submission')
+                              ? ro.dueDate
+                                ? new Date(ro.dueDate).toLocaleDateString()
+                                : 'N/A'
+                              : ro.submitted
+                                ? new Date(ro.submitted).toLocaleDateString()
+                                : 'Pending submission'
                         }
                       />
+
                       <InfoBlock icon={Building2} label="Department" value={ro.dept} />
                       <InfoBlock icon={FileText} label="Document" value={ro.doc || 'No proof uploaded'} />
                     </div>
@@ -551,22 +728,30 @@ fetch(buildApiUrl('/api/ro'), {        method: 'POST',
 
                     {ro.rejectionReason ? (
                       <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-3">
-                        <p className="text-[10px] uppercase tracking-wide text-red-500 font-medium">Rejection Reason</p>
-                        <p className="text-xs font-medium text-red-700 mt-1">{ro.rejectionReason}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-red-500">
+                          Rejection Reason
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-red-700">
+                          {ro.rejectionReason}
+                        </p>
                       </div>
                     ) : null}
                   </div>
 
-                  <div className="xl:col-span-3 flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 xl:col-span-3">
                     {tab === 'pending' && (
                       <>
                         <Button
                           onClick={() => handleApprove(ro.id)}
                           disabled={actionLoading === ro.id}
-                          className="w-full h-10 rounded-lg text-white border-none"
+                          className="h-10 w-full rounded-lg border-none text-white"
                           style={{ background: C.green }}
                         >
-                          {actionLoading === ro.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                          {actionLoading === ro.id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                          )}
                           Approve
                         </Button>
 
@@ -574,9 +759,9 @@ fetch(buildApiUrl('/api/ro'), {        method: 'POST',
                           variant="outline"
                           onClick={() => handleReject(ro.id)}
                           disabled={actionLoading === ro.id}
-                          className="w-full h-10 rounded-lg border-red-100 text-red-600 hover:bg-red-50"
+                          className="h-10 w-full rounded-lg border-red-100 text-red-600 hover:bg-red-50"
                         >
-                          <XCircle className="w-4 h-4 mr-2" />
+                          <XCircle className="mr-2 h-4 w-4" />
                           Reject
                         </Button>
 
@@ -584,9 +769,9 @@ fetch(buildApiUrl('/api/ro'), {        method: 'POST',
                           variant="outline"
                           onClick={() => handleAssignDepartment(ro.id)}
                           disabled={actionLoading === ro.id}
-                          className="w-full h-10 rounded-lg border-stone-200 text-stone-600"
+                          className="h-10 w-full rounded-lg border-stone-200 text-stone-600"
                         >
-                          <User className="w-4 h-4 mr-2" />
+                          <User className="mr-2 h-4 w-4" />
                           Assign to Dept
                         </Button>
                       </>
@@ -594,129 +779,32 @@ fetch(buildApiUrl('/api/ro'), {        method: 'POST',
 
                     {tab === 'verified' && (
                       <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-3">
-                        <p className="text-[10px] uppercase tracking-wide text-green-500 font-medium">Verification</p>
-                        <p className="text-xs font-semibold text-green-700 mt-0.5">Approved and completed</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-green-500">
+                          Verification
+                        </p>
+                        <p className="mt-0.5 text-xs font-semibold text-green-700">
+                          Approved and completed
+                        </p>
                       </div>
                     )}
 
                     {tab === 'overdue' && (
                       <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-3">
-                        <p className="text-[10px] uppercase tracking-wide text-red-500 font-medium">Overdue Alert</p>
-                        <p className="text-xs font-semibold text-red-700 mt-0.5">Immediate follow-up recommended</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-red-500">
+                          Overdue Alert
+                        </p>
+                        <p className="mt-0.5 text-xs font-semibold text-red-700">
+                          Immediate follow-up recommended
+                        </p>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-            ))}
-
-            {items.length === 0 && (
-              <div className="p-10 text-center text-sm text-stone-400">
-                No RO records found.
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'config' && (
-          <div className="p-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-              <Card className="xl:col-span-2 border-stone-200 shadow-none">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold text-stone-800">
-                    RO Hours Configuration
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Set the active semester and the number of required hours for RO compliance
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                        Active Semester
-                      </label>
-                      <Input
-                        value={currentSem}
-                        onChange={(e) => setCurrentSem(e.target.value)}
-                        className="h-10 rounded-lg border-stone-200"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                        Required Hours
-                      </label>
-                      <div className="flex items-center gap-4 rounded-lg border border-stone-200 px-4 py-3 bg-white">
-                        <input
-                          type="range"
-                          min="10"
-                          max="100"
-                          value={reqHours}
-                          onChange={(e) => setReqHours(parseInt(e.target.value))}
-                          className="flex-1 accent-orange-600"
-                        />
-                        <span className="text-lg font-semibold text-orange-600 w-12 text-center">
-                          {reqHours}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-2">
-                    <Button
-                      onClick={handleSaveConfig}
-                      disabled={configSaving}
-                      className="h-10 rounded-lg text-white border-none"
-                      style={{ background: C.blue }}
-                    >
-                      {configSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                      Update Requirements
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-stone-200 shadow-none">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold text-stone-800">
-                    Requirement History
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Previous semester RO baselines
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3">
-                  {history.map((item) => (
-                    <div
-                      key={item.sem}
-                      className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-3 bg-white"
-                    >
-                      <div>
-                        <p className="text-xs font-medium text-stone-800">{item.sem}</p>
-                        <p className="text-[11px] text-stone-400 mt-0.5">Required baseline</p>
-                      </div>
-                      <StatusChip tone="amber">{item.required} hrs</StatusChip>
-                    </div>
-                  ))}
-
-                  {history.length === 0 && (
-                    <div className="text-xs text-stone-400">No history available.</div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </Card>
-
-      <footer className="pt-6 pb-2 border-t border-stone-100">
-        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · RO Monitoring Layer
-        </p>
-      </footer>
     </div>
   );
 }

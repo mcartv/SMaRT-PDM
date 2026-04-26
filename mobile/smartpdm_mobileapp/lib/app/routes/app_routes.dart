@@ -1,6 +1,7 @@
 class AppRoutes {
   // Splash & Authentication
   static const splash = '/splash';
+  static const studentLookup = '/student-lookup';
   static const login = '/login';
   static const register = '/register';
   static const otp = '/otp';
@@ -30,7 +31,7 @@ class AppRoutes {
   static const success = '/success';
   static const scholarshipOpenings = '/scholarship-openings';
 
-  static const topLevel = <String>{home, payouts, profile};
+  static const topLevel = <String>{home, notifications, profile};
 
   static bool isTopLevel(String route) => topLevel.contains(route);
 }

@@ -4,6 +4,7 @@ exports.getRegistry = async (req, res) => {
   try {
     const limit = req.query.limit;
     const offset = req.query.offset;
+
     const data = await studentRegistryService.listStudentRegistry({
       limit,
       offset,
@@ -21,9 +22,10 @@ exports.getRegistry = async (req, res) => {
 
 exports.importRegistry = async (req, res) => {
   try {
-    const result = await studentRegistryService.importStudentRegistryFile(
-      req.file
-    );
+    const result = await studentRegistryService.importStudentRegistryFile({
+      file: req.file,
+      adminId: req.user?.admin_id || req.user?.adminId || null,
+    });
 
     res.status(200).json({
       message: 'Registrar file imported successfully',

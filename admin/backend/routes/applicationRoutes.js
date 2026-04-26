@@ -7,35 +7,21 @@ const { protect } = require('../middleware/authMiddleware');
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
-    },
+    limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// Export / registry
-router.get('/export/excel', protect, applicationController.exportApplicationsExcel);
-router.get('/', protect, applicationController.getApplications);
+// =========================
+// MAIN ROUTES
+// =========================
 
-// Applicant details / docs
+router.get('/', protect, applicationController.getApplications);
 router.get('/:id', protect, applicationController.getApplicationDetails);
 router.get('/:id/documents', protect, applicationController.getApplicationDocuments);
-router.post(
-    '/:id/documents/:documentKey/iot-ocr',
-    protect,
-    applicationController.runApplicationDocumentIotOcr
-);
-router.get(
-    '/:id/documents/:documentKey/ocr',
-    protect,
-    applicationController.getApplicationDocumentOcrSnapshot
-);
-router.patch(
-    '/:id/documents/:documentKey/ocr',
-    protect,
-    applicationController.saveApplicationDocumentOcrSnapshot
-);
 
-// Student/mobile uploads
+// =========================
+// DOCUMENT ACTIONS
+// =========================
+
 router.post(
     '/:id/documents/upload',
     protect,
@@ -43,18 +29,30 @@ router.post(
     applicationController.uploadStudentDocument
 );
 
-// Admin review / verification
-router.post('/:id/verify', protect, applicationController.saveApplicationVerification);
-router.patch('/:id/mark-reviewed', protect, applicationController.markApplicationReviewed);
+// =========================
+// IoT OCR ROUTES (FINAL)
+// =========================
 
-// Admin remarks / decision
-router.patch('/:id/remarks', protect, applicationController.saveApplicationRemarks);
-router.patch('/:id/approve', protect, applicationController.approveApplication);
+router.post(
+    '/:id/documents/:documentKey/iot-ocr',
+    protect,
+    applicationController.runApplicationDocumentIotOcr
+);
 
-// Disqualify only for actual invalid cases
-router.patch('/:id/disqualify', protect, applicationController.disqualifyApplication);
+router.post(
+    '/:id/documents/:documentKey/ocr-snapshot',
+    protect,
+    applicationController.saveApplicationDocumentOcrSnapshot
+);
 
-// Optional compatibility route
-router.post('/:id/disqualify', protect, applicationController.disqualifyApplication);
+// =========================
+// VERIFICATION
+// =========================
+
+router.post(
+    '/:id/verify',
+    protect,
+    applicationController.saveApplicationVerification
+);
 
 module.exports = router;

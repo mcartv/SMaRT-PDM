@@ -14,7 +14,6 @@ import {
     Loader2,
     Save,
     X,
-    Users as UsersIcon,
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
@@ -276,10 +275,6 @@ export default function ProgramsPanel() {
     const [saving, setSaving] = useState(false);
 
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('All');
-    const [archiveFilter, setArchiveFilter] = useState('Active');
-    const [audienceFilter, setAudienceFilter] = useState('All');
-    const [benefactorFilter, setBenefactorFilter] = useState('All');
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -362,40 +357,14 @@ export default function ProgramsPanel() {
         return programs.filter((p) => {
             const benefactorName = p.benefactor_name || benefactorNameMap[p.benefactor_id] || '';
 
-            const matchSearch =
+            return (
                 !q ||
                 (p.program_name || '').toLowerCase().includes(q) ||
                 benefactorName.toLowerCase().includes(q) ||
-                (p.description || '').toLowerCase().includes(q);
-
-            const matchStatus =
-                statusFilter === 'All' ||
-                (p.visibility_status || '').toLowerCase() === statusFilter.toLowerCase();
-
-            const matchAudience =
-                audienceFilter === 'All' ||
-                (p.target_audience || '').toLowerCase() === audienceFilter.toLowerCase();
-
-            const matchBenefactor =
-                benefactorFilter === 'All' ||
-                p.benefactor_id === benefactorFilter;
-
-            const matchArchive =
-                archiveFilter === 'All' ||
-                (archiveFilter === 'Active' && !p.is_archived) ||
-                (archiveFilter === 'Archived' && !!p.is_archived);
-
-            return matchSearch && matchStatus && matchAudience && matchBenefactor && matchArchive;
+                (p.description || '').toLowerCase().includes(q)
+            );
         });
-    }, [
-        programs,
-        benefactorNameMap,
-        search,
-        statusFilter,
-        audienceFilter,
-        benefactorFilter,
-        archiveFilter,
-    ]);
+    }, [programs, benefactorNameMap, search]);
 
     const openCreateModal = () => {
         setModalMode('create');
@@ -453,8 +422,8 @@ export default function ProgramsPanel() {
 
             const isEdit = modalMode === 'edit' && editingProgramId;
             const url = isEdit
-    ? buildApiUrl(`/api/scholarship-program/${editingProgramId}`)
-    : buildApiUrl('/api/scholarship-program');
+                ? buildApiUrl(`/api/scholarship-program/${editingProgramId}`)
+                : buildApiUrl('/api/scholarship-program');
             const method = isEdit ? 'PATCH' : 'POST';
 
             const res = await fetch(url, {
@@ -572,74 +541,16 @@ export default function ProgramsPanel() {
                     />
                 </div>
 
-                <Select value={benefactorFilter} onValueChange={setBenefactorFilter}>
-                    <SelectTrigger className="w-[180px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue placeholder="Benefactor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Benefactors</SelectItem>
-                        {benefactors.map((b) => (
-                            <SelectItem key={b.benefactor_id} value={b.benefactor_id}>
-                                {b.benefactor_name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={audienceFilter} onValueChange={setAudienceFilter}>
-                    <SelectTrigger className="w-[150px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue placeholder="Audience" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All</SelectItem>
-                        <SelectItem value="applicants">Applicants</SelectItem>
-                        <SelectItem value="scholars">Scholars</SelectItem>
-                        <SelectItem value="both">Both</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[120px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All</SelectItem>
-                        <SelectItem value="published">Published</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <Select value={archiveFilter} onValueChange={setArchiveFilter}>
-                    <SelectTrigger className="w-[120px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Archived">Archived</SelectItem>
-                        <SelectItem value="All">All</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {(search ||
-                    benefactorFilter !== 'All' ||
-                    audienceFilter !== 'All' ||
-                    statusFilter !== 'All' ||
-                    archiveFilter !== 'Active') && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                                setSearch('');
-                                setBenefactorFilter('All');
-                                setAudienceFilter('All');
-                                setStatusFilter('All');
-                                setArchiveFilter('Active');
-                            }}
-                            className="h-8 rounded-lg text-xs border-stone-200"
-                        >
-                            Reset
-                        </Button>
-                    )}
+                {search && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSearch('')}
+                        className="h-8 rounded-lg text-xs border-stone-200"
+                    >
+                        Reset
+                    </Button>
+                )}
             </div>
 
             <div className="rounded-lg border border-stone-200 overflow-hidden">
@@ -678,8 +589,8 @@ export default function ProgramsPanel() {
 
                                             <span
                                                 className={`text-[10px] px-2 py-0.5 rounded ${String(p.visibility_status).toLowerCase() === 'published'
-                                                    ? 'bg-green-50 text-green-700'
-                                                    : 'bg-amber-50 text-amber-700'
+                                                        ? 'bg-green-50 text-green-700'
+                                                        : 'bg-amber-50 text-amber-700'
                                                     }`}
                                             >
                                                 {p.visibility_status}

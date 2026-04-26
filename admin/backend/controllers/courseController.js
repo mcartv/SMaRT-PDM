@@ -17,14 +17,12 @@ const createCourse = async (req, res) => {
         const {
             course_code,
             course_name,
-            department_id,
             is_archived,
         } = req.body;
 
         const createdCourse = await courseService.createCourse({
             course_code,
             course_name,
-            department_id,
             is_archived,
         });
 
@@ -58,14 +56,12 @@ const updateCourse = async (req, res) => {
         const {
             course_code,
             course_name,
-            department_id,
             is_archived,
         } = req.body;
 
         const updatedCourse = await courseService.updateCourse(id, {
             course_code,
             course_name,
-            department_id,
             is_archived,
         });
 
@@ -81,10 +77,7 @@ const updateCourse = async (req, res) => {
 
         if (
             error.message === 'Course code is required' ||
-            error.message === 'Course name is required' ||
-            error.message === 'Department is required' ||
-            error.message === 'Department not found' ||
-            error.message === 'Department is archived'
+            error.message === 'Course name is required'
         ) {
             return res.status(400).json({ error: error.message });
         }

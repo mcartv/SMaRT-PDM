@@ -37,10 +37,16 @@ class MobilePayoutItem {
       payoutBatchId: json['payout_batch_id']?.toString() ?? '',
       title: json['title']?.toString() ?? 'Scholarship Payout',
       amount: (json['amount'] as num?)?.toDouble() ?? 0,
-      status: json['status']?.toString() ?? 'Pending',
+      status:
+          json['release_status']?.toString() ??
+          json['status']?.toString() ??
+          'Pending',
       payoutDate: json['payout_date']?.toString() ?? '',
       semester: json['semester']?.toString() ?? '',
-      schoolYear: json['school_year']?.toString() ?? '',
+      schoolYear:
+          json['academic_year']?.toString() ??
+          json['school_year']?.toString() ??
+          '',
       paymentMode: json['payment_mode']?.toString() ?? '',
       batchStatus: json['batch_status']?.toString() ?? '',
       programName: json['program_name']?.toString() ?? 'Scholarship Program',
@@ -59,7 +65,9 @@ class PayoutService {
     final response = await _apiClient.getObject('/api/payouts/me');
     final items = (response['items'] as List<dynamic>? ?? const [])
         .whereType<Map>()
-        .map((item) => MobilePayoutItem.fromJson(Map<String, dynamic>.from(item)))
+        .map(
+          (item) => MobilePayoutItem.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList();
 
     return items;

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -15,20 +16,31 @@ class ApiClient {
   final http.Client _httpClient;
   final SessionService _sessionService = const SessionService();
 
-  Uri buildUri(String path) => Uri.parse('${AppConfig.apiBaseUrl}$path');
+  Uri buildUri(String path) {
+    final normalizedBaseUrl = AppConfig.apiBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$normalizedBaseUrl$normalizedPath');
+  }
 
   Future<Map<String, String>> _buildHeaders({
     String? contentType,
     Map<String, String> extra = const {},
   }) async {
     final headers = <String, String>{...extra};
+
+    headers['Accept'] = 'application/json';
+
     if (contentType != null) {
       headers['Content-Type'] = contentType;
     }
 
     final session = await _sessionService.getCurrentUser();
-    if (session.token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer ${session.token}';
+
+    debugPrint('API REQUEST TOKEN EMPTY: ${session.token.isEmpty}');
+    debugPrint('API REQUEST AUTH ATTACHED: ${session.token.isNotEmpty}');
+
+    if (session.token.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer ${session.token.trim()}';
     }
 
     return headers;
@@ -301,7 +313,10 @@ class ApiClient {
         if (decoded is Map<String, dynamic>) {
           final message = decoded['error'] ?? decoded['message'];
           if (message is String && message.trim().isNotEmpty) {
-            return ApiException(message, statusCode: response.statusCode);
+            return ApiException.fromDynamicStatus(
+              message,
+              decoded['statusCode'],
+            );
           }
         }
       } catch (_) {

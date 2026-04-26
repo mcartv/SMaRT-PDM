@@ -1,108 +1,21 @@
 const ExcelJS = require('exceljs');
 const supabase = require('../config/supabase');
 
-const TABLE_NAME = 'student_registry';
-const REQUIRED_FIELDS = ['student_number', 'given_name', 'last_name'];
+const IMPORT_BATCH_TABLE = 'student_import_batches';
+const IMPORT_ROW_TABLE = 'student_import_rows';
+const MASTER_TABLE = 'student_master_records';
+const REGISTRY_VIEW = 'student_registry';
+const COURSE_TABLE = 'academic_course';
 
-const REGISTRY_TEMPLATE_HEADERS = [
-  'sequence_number',
-  'student_number',
-  'learners_reference_number',
-  'last_name',
-  'given_name',
-  'middle_name',
-  'degree_program',
-  'year_level',
-  'sex_at_birth',
-  'email_address',
-  'phone_number',
-];
-
-const HEADER_MAP = new Map([
-  ['sequence number', 'sequence_number'],
-  ['sequence_number', 'sequence_number'],
-  ['seq no', 'sequence_number'],
-  ['seq', 'sequence_number'],
-
-  ['student number', 'student_number'],
-  ['student_number', 'student_number'],
-  ['student no', 'student_number'],
-  ['student no.', 'student_number'],
-  ['student #', 'student_number'],
-  ['pdm id', 'student_number'],
-  ['pdm_id', 'student_number'],
-
-  ['learners reference number', 'learners_reference_number'],
-  ['learners_reference_number', 'learners_reference_number'],
-  ["learner's reference number", 'learners_reference_number'],
-  ['learner s reference number', 'learners_reference_number'],
-  ['learner reference number', 'learners_reference_number'],
-  ['lrn', 'learners_reference_number'],
-
-  ['last name', 'last_name'],
-  ['lastname', 'last_name'],
-  ['surname', 'last_name'],
-
-  ['given name', 'given_name'],
-  ['given_name', 'given_name'],
-  ['first name', 'given_name'],
-  ['firstname', 'given_name'],
-  ['first_name', 'given_name'],
-  ['name', 'given_name'],
-
-  ['middle name', 'middle_name'],
-  ['middle_name', 'middle_name'],
-  ['middle initial', 'middle_name'],
-  ['middle initial/s', 'middle_name'],
-  ['middle initial.', 'middle_name'],
-
-  ['degree program', 'degree_program'],
-  ['degree_program', 'degree_program'],
-  ['degree programme', 'degree_program'],
-  ['program', 'degree_program'],
-  ['course', 'degree_program'],
-  ['course code', 'degree_program'],
-  ['course name', 'degree_program'],
-
-  ['year level', 'year_level'],
-  ['year_level', 'year_level'],
-  ['year', 'year_level'],
-
-  ['sex at birth', 'sex_at_birth'],
-  ['sex_at_birth', 'sex_at_birth'],
-  ['sex', 'sex_at_birth'],
-
-  ['email', 'email_address'],
-  ['email address', 'email_address'],
-  ['email_address', 'email_address'],
-  ['e-mail address', 'email_address'],
-
-  ['phone number', 'phone_number'],
-  ['phone_number', 'phone_number'],
-  ['mobile number', 'phone_number'],
-  ['contact number', 'phone_number'],
-]);
-
-function normalizeHeader(value) {
-  return String(value || '')
-    .replace(/^\uFEFF/, '')
-    .toLowerCase()
-    .replace(/[_]+/g, ' ')
-    .replace(/['\u2019]/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/[().]/g, '')
-    .trim();
+function buildError(message, statusCode = 500, details = null) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  if (details) err.details = details;
+  return err;
 }
 
 function normalizeText(value) {
-  return String(value || '').replace(/^\uFEFF/, '').trim();
-}
-
-function normalizeTextWithLimit(value, maxLength) {
-  const text = normalizeText(value);
-  if (!text) return null;
-  if (!maxLength || text.length <= maxLength) return text;
-  return text.slice(0, maxLength);
+  return String(value || '').trim();
 }
 
 function normalizeLookupValue(value) {
@@ -113,133 +26,14 @@ function normalizeLookupValue(value) {
     .trim();
 }
 
-function normalizeEmail(value) {
-  const text = normalizeText(value).toLowerCase();
-  return text || null;
-}
-
-function normalizeInteger(value) {
-  const text = normalizeText(value);
-  if (!text) return null;
-
-  const parsed = Number.parseInt(text, 10);
-  if (Number.isNaN(parsed)) return null;
-
-  return parsed;
-}
-
 function normalizeYearLevel(value) {
   const text = normalizeText(value);
   if (!text) return null;
-
   const match = text.match(/\d+/);
   if (!match) return null;
-
-  const parsed = Number.parseInt(match[0], 10);
-  if (Number.isNaN(parsed) || parsed < 1 || parsed > 6) return null;
-
-  return parsed;
-}
-
-async function loadCourseLookupMap() {
-  const { data, error } = await supabase
-    .from('academic_course')
-    .select('course_id, course_code, course_name, is_archived')
-    .eq('is_archived', false);
-
-  if (error) throw error;
-
-  const lookup = new Map();
-
-  (data || []).forEach((course) => {
-    if (!course || course.is_archived) return;
-
-    const keys = [course.course_id, course.course_code, course.course_name];
-
-    keys.forEach((key) => {
-      const normalized = normalizeLookupValue(key);
-      if (normalized && !lookup.has(normalized)) {
-        lookup.set(normalized, course.course_id);
-      }
-    });
-  });
-
-  return lookup;
-}
-
-function getCanonicalField(header) {
-  return HEADER_MAP.get(normalizeHeader(header)) || null;
-}
-
-function parseCsvText(text) {
-  const rows = [];
-  let current = '';
-  let row = [];
-  let inQuotes = false;
-
-  const pushRow = () => {
-    row.push(current);
-    rows.push(row);
-    row = [];
-    current = '';
-  };
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      row.push(current);
-      current = '';
-      continue;
-    }
-
-    if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && next === '\n') {
-        i += 1;
-      }
-      pushRow();
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.length > 0 || row.length > 0) {
-    pushRow();
-  }
-
-  return rows;
-}
-
-function isHeaderRow(row) {
-  const mapped = row.map((cell) => getCanonicalField(cell)).filter(Boolean);
-
-  return (
-    mapped.includes('student_number') &&
-    mapped.includes('given_name') &&
-    mapped.includes('last_name')
-  );
-}
-
-function findHeaderRowIndex(rows) {
-  for (let i = 0; i < rows.length; i += 1) {
-    const row = rows[i].map((value) => String(value || '').trim());
-    if (isHeaderRow(row)) {
-      return i;
-    }
-  }
-  return -1;
+  const n = Number.parseInt(match[0], 10);
+  if (Number.isNaN(n) || n < 1 || n > 6) return null;
+  return n;
 }
 
 async function readWorkbookRows(file) {
@@ -247,24 +41,23 @@ async function readWorkbookRows(file) {
 
   if (fileName.endsWith('.csv')) {
     const text = file.buffer.toString('utf8');
-    return parseCsvText(text);
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    return lines.map((line) => line.split(','));
+  }
+
+  if (fileName.endsWith('.xls')) {
+    throw buildError(
+      'Old .xls files are not supported here. Please save as .xlsx or .csv.',
+      400
+    );
+  }
+
+  if (!fileName.endsWith('.xlsx')) {
+    throw buildError('Unsupported file type.', 400);
   }
 
   const workbook = new ExcelJS.Workbook();
-
-  if (fileName.endsWith('.xlsx')) {
-    await workbook.xlsx.load(file.buffer);
-  } else if (fileName.endsWith('.xls')) {
-    const error = new Error(
-      'Old .xls files are not supported by ExcelJS. Please save the file as .xlsx or .csv first.'
-    );
-    error.statusCode = 400;
-    throw error;
-  } else {
-    const error = new Error('Unsupported file type.');
-    error.statusCode = 400;
-    throw error;
-  }
+  await workbook.xlsx.load(file.buffer);
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) return [];
@@ -277,233 +70,298 @@ async function readWorkbookRows(file) {
   return rows;
 }
 
-function rowsToRecords(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return { records: [], skipped: [], duplicateCount: 0 };
-  }
+function mapHeaders(headerRow) {
+  const map = new Map();
 
-  const headerRowIndex = findHeaderRowIndex(rows);
+  headerRow.forEach((rawHeader, index) => {
+    const header = normalizeLookupValue(rawHeader);
 
-  if (headerRowIndex === -1) {
-    const error = new Error(
-      'Could not find a valid student registry header row in the uploaded file.'
-    );
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const headers = rows[headerRowIndex].map((value) => String(value || '').trim());
-  const fieldMap = new Map();
-
-  headers.forEach((header, index) => {
-    const canonical = getCanonicalField(header);
-    if (canonical) {
-      fieldMap.set(index, canonical);
+    if (
+      ['student number', 'student_number', 'student no', 'pdm id', 'pdm_id'].includes(header)
+    ) {
+      map.set(index, 'student_number');
+    } else if (
+      ['surname', 'last name', 'lastname', 'last_name'].includes(header)
+    ) {
+      map.set(index, 'last_name');
+    } else if (
+      ['first name', 'firstname', 'first_name', 'given name', 'given_name'].includes(header)
+    ) {
+      map.set(index, 'given_name');
+    } else if (
+      ['middle name', 'middlename', 'middle_name'].includes(header)
+    ) {
+      map.set(index, 'middle_name');
+    } else if (
+      ['course', 'course code', 'degree program', 'program'].includes(header)
+    ) {
+      map.set(index, 'degree_program');
+    } else if (
+      ['year level', 'year_level', 'year'].includes(header)
+    ) {
+      map.set(index, 'year_level');
+    } else if (
+      ['sex', 'sex at birth', 'sex_at_birth'].includes(header)
+    ) {
+      map.set(index, 'sex_at_birth');
+    } else if (
+      ['email', 'email address', 'email_address'].includes(header)
+    ) {
+      map.set(index, 'email_address');
+    } else if (
+      ['phone number', 'contact number', 'mobile number', 'phone_number'].includes(header)
+    ) {
+      map.set(index, 'phone_number');
+    } else if (
+      ['lrn', 'learners reference number', 'learners_reference_number'].includes(header)
+    ) {
+      map.set(index, 'learners_reference_number');
+    } else if (
+      ['sequence', 'sequence no', 'sequence number', 'sequence_number'].includes(header)
+    ) {
+      map.set(index, 'sequence_number');
     }
   });
 
-  const missingFields = REQUIRED_FIELDS.filter((field) => {
-    for (const canonical of fieldMap.values()) {
-      if (canonical === field) return false;
-    }
-    return true;
-  });
-
-  if (missingFields.length > 0) {
-    const error = new Error(
-      `Missing required registrar columns: ${missingFields.join(', ')}`
-    );
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const uniqueRows = new Map();
-  const skipped = [];
-  let duplicateCount = 0;
-
-  rows.slice(headerRowIndex + 1).forEach((row, rowIndex) => {
-    const rawRecord = {};
-
-    row.forEach((value, index) => {
-      const field = fieldMap.get(index);
-      if (field) {
-        rawRecord[field] = value;
-      }
-    });
-
-    const record = {
-      sequence_number: normalizeInteger(rawRecord.sequence_number),
-      student_number:
-        normalizeTextWithLimit(rawRecord.student_number, 20)?.toUpperCase() || '',
-      learners_reference_number: normalizeTextWithLimit(
-        rawRecord.learners_reference_number,
-        50
-      ),
-      last_name: normalizeTextWithLimit(rawRecord.last_name, 50),
-      given_name: normalizeTextWithLimit(rawRecord.given_name, 50),
-      middle_name: normalizeTextWithLimit(rawRecord.middle_name, 50),
-      degree_program: normalizeText(rawRecord.degree_program),
-      year_level: normalizeYearLevel(rawRecord.year_level),
-      sex_at_birth: normalizeText(rawRecord.sex_at_birth),
-      email_address: normalizeTextWithLimit(
-        normalizeEmail(rawRecord.email_address),
-        255
-      ),
-      phone_number: normalizeTextWithLimit(rawRecord.phone_number, 50),
-    };
-
-    const isCompletelyEmpty = Object.values(record).every(
-      (value) => value === null || value === ''
-    );
-
-    if (isCompletelyEmpty) {
-      return;
-    }
-
-    if (!record.student_number || !record.last_name || !record.given_name) {
-      skipped.push({
-        row_number: headerRowIndex + rowIndex + 2,
-        reason: 'Missing one or more required fields after normalization.',
-      });
-      return;
-    }
-
-    if (uniqueRows.has(record.student_number)) {
-      duplicateCount += 1;
-    }
-
-    uniqueRows.set(record.student_number, record);
-  });
-
-  return {
-    records: Array.from(uniqueRows.values()),
-    skipped,
-    duplicateCount,
-  };
+  return map;
 }
 
-async function importStudentRegistryFile(file) {
-  if (!file || !file.buffer) {
-    const error = new Error('No file uploaded.');
-    error.statusCode = 400;
-    throw error;
+function parseRows(rows) {
+  if (!rows.length) {
+    return [];
   }
 
-  const rows = await readWorkbookRows(file);
-  const { records, skipped, duplicateCount } = rowsToRecords(rows);
+  const headerRow = rows[0];
+  const headerMap = mapHeaders(headerRow);
 
-  if (records.length === 0) {
-    return {
-      inserted: 0,
-      updated: 0,
-      skipped,
-      duplicate_count: duplicateCount,
-      total: 0,
-      replaced_count: 0,
+  const records = [];
+
+  for (let i = 1; i < rows.length; i += 1) {
+    const row = rows[i];
+    const obj = {
+      row_number: i + 1,
+      raw_payload: {},
     };
-  }
 
-  const courseLookupMap = await loadCourseLookupMap();
+    row.forEach((value, index) => {
+      const key = headerMap.get(index);
+      if (key) obj[key] = value;
+      obj.raw_payload[String(headerRow[index] || `col_${index + 1}`)] = value;
+    });
 
-  const hydratedRecords = records.map((record) => {
-    let courseId = null;
+    const studentNumber = normalizeText(obj.student_number).toUpperCase();
+    const givenName = normalizeText(obj.given_name);
+    const lastName = normalizeText(obj.last_name);
 
-    if (record.degree_program) {
-      const normalizedReference = normalizeLookupValue(record.degree_program);
-      courseId = courseLookupMap.get(normalizedReference) || null;
+    if (!studentNumber && !givenName && !lastName) {
+      continue;
     }
 
-    return {
-      ...record,
-      course_id: courseId,
-    };
-  });
+    if (!studentNumber || !givenName || !lastName) {
+      continue;
+    }
 
-  const { data: existingRows, error: existingError } = await supabase
-    .from(TABLE_NAME)
-    .select('registry_id');
-
-  if (existingError) throw existingError;
-
-  const existingCount = Array.isArray(existingRows) ? existingRows.length : 0;
-
-  if (existingCount > 0) {
-    const { error: deleteError } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .not('registry_id', 'is', null);
-
-    if (deleteError) throw deleteError;
+    records.push({
+      row_number: obj.row_number,
+      student_number: studentNumber,
+      pdm_id: studentNumber,
+      learners_reference_number: normalizeText(obj.learners_reference_number) || null,
+      given_name: givenName,
+      middle_name: normalizeText(obj.middle_name) || null,
+      last_name: lastName,
+      course_code: normalizeText(obj.degree_program) || null,
+      year_level: normalizeYearLevel(obj.year_level),
+      sex_at_birth: normalizeText(obj.sex_at_birth) || null,
+      email_address: normalizeText(obj.email_address).toLowerCase() || null,
+      phone_number: normalizeText(obj.phone_number) || null,
+      sequence_number: obj.sequence_number ? Number(obj.sequence_number) || null : null,
+      raw_payload: obj.raw_payload,
+    });
   }
 
-  const nowIso = new Date().toISOString();
+  return records;
+}
 
-  const payload = hydratedRecords.map((record) => ({
-    student_number: record.student_number,
-    learners_reference_number: record.learners_reference_number || null,
-    given_name: record.given_name,
-    middle_name: record.middle_name || null,
-    last_name: record.last_name,
-    course_id: record.course_id || null,
-    year_level: record.year_level || null,
-    sex_at_birth: record.sex_at_birth || null,
-    email_address: record.email_address || null,
-    phone_number: record.phone_number || null,
-    sequence_number: record.sequence_number || null,
-    imported_at: nowIso,
+async function loadCourseMap() {
+  const { data, error } = await supabase
+    .from(COURSE_TABLE)
+    .select('course_id, course_code, course_name')
+    .eq('is_archived', false);
+
+  if (error) throw error;
+
+  const map = new Map();
+
+  (data || []).forEach((row) => {
+    [row.course_code, row.course_name].forEach((value) => {
+      const key = normalizeLookupValue(value);
+      if (key) map.set(key, row.course_id);
+    });
+  });
+
+  return map;
+}
+
+async function createBatch(file, adminId = null) {
+  const { data, error } = await supabase
+    .from(IMPORT_BATCH_TABLE)
+    .insert({
+      file_name: file.originalname || 'uploaded-file',
+      file_type: (file.originalname || '').split('.').pop()?.toLowerCase() || '',
+      uploaded_by: adminId,
+      total_rows: 0,
+      success_rows: 0,
+      failed_rows: 0,
+      remarks: null,
+    })
+    .select('import_batch_id')
+    .single();
+
+  if (error) throw error;
+  return data.import_batch_id;
+}
+
+async function insertImportRows(importBatchId, parsedRows) {
+  if (!parsedRows.length) return [];
+
+  const payload = parsedRows.map((row) => ({
+    import_batch_id: importBatchId,
+    row_number: row.row_number,
+    raw_payload: row.raw_payload,
+    student_number: row.student_number,
+    pdm_id: row.pdm_id,
+    learners_reference_number: row.learners_reference_number,
+    given_name: row.given_name,
+    middle_name: row.middle_name,
+    last_name: row.last_name,
+    sex_at_birth: row.sex_at_birth,
+    email_address: row.email_address,
+    phone_number: row.phone_number,
+    course_code: row.course_code,
+    course_name: null,
+    department_code: null,
+    department_name: null,
+    year_level: row.year_level,
+    sequence_number: row.sequence_number,
+    status: 'validated',
+    error_message: null,
+  }));
+
+  const { data, error } = await supabase
+    .from(IMPORT_ROW_TABLE)
+    .insert(payload)
+    .select('*');
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function upsertMasterRows(importBatchId, importRows, courseMap) {
+  if (!importRows.length) return [];
+
+  const payload = importRows.map((row) => ({
+    student_number: row.student_number,
+    pdm_id: row.pdm_id || row.student_number,
+    learners_reference_number: row.learners_reference_number || null,
+    first_name: row.given_name,
+    middle_name: row.middle_name || null,
+    last_name: row.last_name,
+    sex_at_birth: row.sex_at_birth || null,
+    email_address: row.email_address || null,
+    phone_number: row.phone_number || null,
+    course_id: courseMap.get(normalizeLookupValue(row.course_code)) || null,
+    year_level: row.year_level || null,
+    sequence_number: row.sequence_number || null,
+    latest_import_batch_id: importBatchId,
+    source_registry: true,
+    raw_snapshot: row.raw_payload || {},
+    is_active: true,
     is_archived: false,
   }));
 
-  const BATCH_SIZE = 500;
+  const { data, error } = await supabase
+    .from(MASTER_TABLE)
+    .upsert(payload, {
+      onConflict: 'student_number',
+      ignoreDuplicates: false,
+    })
+    .select('master_student_id, student_number');
 
-  for (let index = 0; index < payload.length; index += BATCH_SIZE) {
-    const batch = payload.slice(index, index + BATCH_SIZE);
+  if (error) throw error;
+  return data || [];
+}
 
-    const { error: insertError } = await supabase
-      .from(TABLE_NAME)
-      .insert(batch);
+async function markImportRowsCompleted(importRows, masterRows) {
+  const masterMap = new Map(
+    masterRows.map((row) => [row.student_number, row.master_student_id])
+  );
 
-    if (insertError) throw insertError;
+  for (const row of importRows) {
+    const matchedMasterId = masterMap.get(row.student_number) || null;
+
+    const { error } = await supabase
+      .from(IMPORT_ROW_TABLE)
+      .update({
+        matched_master_student_id: matchedMasterId,
+        status: matchedMasterId ? 'imported' : 'failed',
+        error_message: matchedMasterId ? null : 'Master upsert failed',
+      })
+      .eq('import_row_id', row.import_row_id);
+
+    if (error) throw error;
+  }
+}
+
+async function finalizeBatch(importBatchId, totalRows, successRows, failedRows) {
+  const { error } = await supabase
+    .from(IMPORT_BATCH_TABLE)
+    .update({
+      total_rows: totalRows,
+      success_rows: successRows,
+      failed_rows: failedRows,
+      remarks: null,
+    })
+    .eq('import_batch_id', importBatchId);
+
+  if (error) throw error;
+}
+
+async function importStudentRegistryFile({ file, adminId }) {
+  if (!file || !file.buffer) {
+    throw buildError('No file uploaded.', 400);
   }
 
+  const rawRows = await readWorkbookRows(file);
+  const parsedRows = parseRows(rawRows);
+
+  const importBatchId = await createBatch(file, adminId);
+  const courseMap = await loadCourseMap();
+  const importRows = await insertImportRows(importBatchId, parsedRows);
+  const masterRows = await upsertMasterRows(importBatchId, importRows, courseMap);
+
+  await markImportRowsCompleted(importRows, masterRows);
+  await finalizeBatch(
+    importBatchId,
+    parsedRows.length,
+    masterRows.length,
+    Math.max(parsedRows.length - masterRows.length, 0)
+  );
+
   return {
-    inserted: hydratedRecords.length,
-    updated: existingCount,
-    skipped,
-    duplicate_count: duplicateCount,
-    total: hydratedRecords.length,
-    replaced_count: existingCount,
+    import_batch_id: importBatchId,
+    imported: masterRows.length,
+    total: parsedRows.length,
+    failed_rows: Math.max(parsedRows.length - masterRows.length, 0),
   };
 }
 
 async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
-  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 5000);
   const safeOffset = Math.max(Number(offset) || 0, 0);
 
   const { data, error, count } = await supabase
-    .from(TABLE_NAME)
-    .select(
-      `
-        registry_id,
-        sequence_number,
-        student_number,
-        learners_reference_number,
-        given_name,
-        middle_name,
-        last_name,
-        year_level,
-        sex_at_birth,
-        email_address,
-        phone_number,
-        course_id,
-        academic_course (
-          course_id,
-          course_code,
-          course_name
-        )
-      `,
-      { count: 'exact' }
-    )
+    .from(REGISTRY_VIEW)
+    .select('*', { count: 'exact' })
     .eq('is_archived', false)
     .order('sequence_number', { ascending: true, nullsFirst: false })
     .order('student_number', { ascending: true })
@@ -513,12 +371,13 @@ async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
 
   return {
     total: count || 0,
+    limit: safeLimit,
+    offset: safeOffset,
     items: data || [],
   };
 }
 
 module.exports = {
-  REGISTRY_TEMPLATE_HEADERS,
   importStudentRegistryFile,
   listStudentRegistry,
 };

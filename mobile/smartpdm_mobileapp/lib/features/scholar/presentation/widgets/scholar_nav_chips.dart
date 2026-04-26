@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 
-class ScholarNavChips extends StatefulWidget {
+class ScholarNavChips extends StatelessWidget {
   final String selectedLabel;
   final ValueChanged<String> onTap;
   final bool hasNewPayouts;
@@ -13,16 +13,6 @@ class ScholarNavChips extends StatefulWidget {
     this.hasNewPayouts = false,
   });
 
-  @override
-  State<ScholarNavChips> createState() => _ScholarNavChipsState();
-}
-
-class _ScholarNavChipsState extends State<ScholarNavChips> {
-  static double _savedOffset = 0;
-
-  late final ScrollController _scrollController;
-  late final List<GlobalKey> _chipKeys;
-
   static const List<String> _labels = [
     'Payout Schedule',
     'Renewal Documents',
@@ -31,151 +21,105 @@ class _ScholarNavChipsState extends State<ScholarNavChips> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    _chipKeys = List<GlobalKey>.generate(_labels.length, (_) => GlobalKey());
-    _scrollController = ScrollController(initialScrollOffset: _savedOffset);
-    _scrollController.addListener(_persistOffset);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _alignSelectedChip(jump: true),
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant ScholarNavChips oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedLabel != widget.selectedLabel) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _alignSelectedChip());
-    }
-  }
-
-  void _persistOffset() {
-    _savedOffset = _scrollController.offset;
-  }
-
-  void _alignSelectedChip({bool jump = false}) {
-    if (!mounted || !_scrollController.hasClients) return;
-
-    final selectedIndex = _labels.indexOf(widget.selectedLabel);
-    if (selectedIndex < 0) return;
-
-    final maxExtent = _scrollController.position.maxScrollExtent;
-    double targetOffset;
-
-    if (selectedIndex == 0) {
-      targetOffset = 0;
-    } else if (selectedIndex == _labels.length - 1) {
-      targetOffset = maxExtent;
-    } else {
-      final chipContext = _chipKeys[selectedIndex].currentContext;
-      final scrollContext = context;
-      if (chipContext == null) return;
-
-      final chipBox = chipContext.findRenderObject() as RenderBox?;
-      final scrollBox = scrollContext.findRenderObject() as RenderBox?;
-      if (chipBox == null || scrollBox == null) return;
-
-      final chipPosition = chipBox.localToGlobal(
-        Offset.zero,
-        ancestor: scrollBox,
-      );
-      final chipCenter = chipPosition.dx + (chipBox.size.width / 2);
-      final viewportCenter = scrollBox.size.width / 2;
-      targetOffset = _scrollController.offset + (chipCenter - viewportCenter);
-    }
-
-    final clampedOffset = targetOffset.clamp(0.0, maxExtent);
-    _savedOffset = clampedOffset;
-
-    if (jump) {
-      _scrollController.jumpTo(clampedOffset);
-      return;
-    }
-
-    _scrollController.animateTo(
-      clampedOffset,
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  Widget _buildChip(int index, String label) {
-    final isSelected = widget.selectedLabel == label;
-    final showPayoutBadge = label == 'Payout Schedule' && widget.hasNewPayouts;
-
-    return Padding(
-      key: _chipKeys[index],
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => widget.onTap(label),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? primaryColor : Colors.grey[200],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? primaryColor : primaryColor.withOpacity(0.22),
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// 🔹 SECTION LABEL
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+              letterSpacing: 0.3,
             ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 16,
-                child: Icon(
-                  Icons.check,
-                  size: 14,
-                  color: isSelected ? Colors.white : Colors.transparent,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (showPayoutBadge) ...[
-                const SizedBox(width: 6),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ],
+        ),
+
+        /// 🔹 GRID TABS
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _labels.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisExtent: 46,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
           ),
-        ),
-      ),
-    );
-  }
+          itemBuilder: (context, index) {
+            final label = _labels[index];
+            final isSelected = selectedLabel == label;
+            final showDot = label == 'Payout Schedule' && hasNewPayouts;
 
-  @override
-  void dispose() {
-    _scrollController.removeListener(_persistOffset);
-    _savedOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : _savedOffset;
-    _scrollController.dispose();
-    super.dispose();
-  }
+            return InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => onTap(label),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: isSelected ? primaryColor : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? primaryColor
+                        : primaryColor.withOpacity(0.25),
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.18),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : [],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (isSelected) ...[
+                      const Icon(Icons.check, size: 16, color: Colors.white),
+                      const SizedBox(width: 6),
+                    ],
 
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      controller: _scrollController,
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List<Widget>.generate(
-          _labels.length,
-          (index) => _buildChip(index, _labels[index]),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+
+                    if (showDot) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 }

@@ -402,71 +402,56 @@ export default function PayoutManagement() {
     }
   };
 
-  const handleStatusUpdate = async (entry, status) => {
+  const handleStatusUpdate = async (entry, nextStatus) => {
+    const entryId =
+      entry?.payout_entry_id ||
+      entry?.payout_batch_student_id ||
+      entry?.entry_id ||
+      entry?.id;
+
+    if (!entryId) {
+      alert('Missing payout entry ID.');
+      return;
+    }
+
     try {
-      setWorkingEntryId(entry.payout_entry_id);
+      setWorkingEntryId(entryId);
 
-      const res = await fetch(
-        `${API_BASE}/payouts/entries/${entry.payout_entry_id}/status`,
-        {
-          method: 'PATCH',
-          headers: getAuthHeaders(true),
-          body: JSON.stringify({ status }),
-        }
-      );
+      const res = await fetch(`${API_BASE}/payouts/entries/${entryId}/status`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(true),
+        body: JSON.stringify({
+          release_status: nextStatus,
+          status: nextStatus,
+        }),
+      });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data?.message || `Failed to mark as ${status}`);
+        throw new Error(data?.message || data?.error || 'Failed to update payout status');
       }
-
-      setBatches((prev) =>
-        prev.map((batch) => ({
-          ...batch,
-          scholars: Array.isArray(batch.scholars)
-            ? batch.scholars.map((scholar) =>
-              scholar.payout_entry_id === entry.payout_entry_id
-                ? {
-                  ...scholar,
-                  release_status: status,
-                  released_at:
-                    status === 'Released'
-                      ? new Date().toISOString()
-                      : scholar.released_at,
-                }
-                : scholar
-            )
-            : [],
-        }))
-      );
 
       setSelectedBatch((prev) => {
         if (!prev) return prev;
 
         return {
           ...prev,
-          scholars: Array.isArray(prev.scholars)
-            ? prev.scholars.map((scholar) =>
-              scholar.payout_entry_id === entry.payout_entry_id
-                ? {
-                  ...scholar,
-                  release_status: status,
-                  released_at:
-                    status === 'Released'
-                      ? new Date().toISOString()
-                      : scholar.released_at,
-                }
-                : scholar
-            )
-            : [],
+          scholars: (prev.scholars || []).map((scholar) => {
+            const scholarEntryId =
+              scholar?.payout_entry_id ||
+              scholar?.payout_batch_student_id ||
+              scholar?.entry_id ||
+              scholar?.id;
+
+            return String(scholarEntryId) === String(entryId)
+              ? { ...scholar, release_status: nextStatus }
+              : scholar;
+          }),
         };
       });
 
       await loadAll();
-
-      // DO NOT close modal
-      // setSelectedBatch(null);
     } catch (err) {
       console.error('UPDATE PAYOUT STATUS ERROR:', err);
       alert(err.message || 'Failed to update payout status');

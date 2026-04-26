@@ -623,6 +623,8 @@ async function fetchAcademicYears() {
   return rows;
 }
 
+
+
 module.exports = {
   fetchPayoutBatches,
   fetchPayoutOpenings,

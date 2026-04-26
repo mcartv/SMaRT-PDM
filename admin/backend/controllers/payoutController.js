@@ -156,3 +156,17 @@ exports.getAcademicYears = async (req, res) => {
         });
     }
 };
+
+exports.getMyPayouts = async (req, res) => {
+    try {
+        const userId = req.user?.user_id || req.user?.userId || null;
+        const result = await payoutService.fetchMyPayouts(userId);
+        res.status(200).json(result);
+    } catch (err) {
+        console.error('GET MY PAYOUTS ERROR:', err);
+        res.status(err.statusCode || 500).json({
+            message: err.message || 'Failed to load payout schedule.',
+            error: err.message || 'Unknown backend error',
+        });
+    }
+};

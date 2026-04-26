@@ -4,7 +4,7 @@ class AppConfig {
   AppConfig._();
 
   //static const String _defaultDebugBaseUrl = 'http://192.168.22.2:5000';
-  static const String _defaultReleaseBaseUrl = 'https://smart-pdm-mipx.onrender.com';
+  static const String _defaultReleaseBaseUrl = 'https://smart-pdm.onrender.com';
   static const String _defaultDebugBaseUrl = 'https://smart-pdm-mipx.onrender.com';
 
   static String get apiBaseUrl {

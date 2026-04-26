@@ -7,6 +7,9 @@ mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
 **/generated_plugin_registrant.cc
 **/generated_plugins.cmake
 **/GeneratedPluginRegistrant.swift
+**/flutter_export_environment.sh
+**/Flutter-Generated.xcconfig
+**/Flutter/ephemeral/
 
 # Supabase local metadata
 supabase/.temp/

@@ -4,7 +4,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-    Building2,
     BookOpen,
     Plus,
     Edit,
@@ -27,7 +26,6 @@ function CourseModal({
     onClose,
     onSave,
     saving,
-    departments = [],
 }) {
     if (!open) return null;
 
@@ -71,40 +69,6 @@ function CourseModal({
                                 placeholder="e.g. BSIT"
                                 className="h-9 rounded-lg border-stone-200 text-sm"
                             />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <FieldLabel>Department</FieldLabel>
-                            <Select
-                                value={form.department_id}
-                                onValueChange={(value) =>
-                                    setForm((prev) => ({ ...prev, department_id: value }))
-                                }
-                            >
-                                <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
-                                    <SelectValue placeholder="Select department" />
-                                </SelectTrigger>
-
-                                <SelectContent>
-                                    {departments.length === 0 ? (
-                                        <SelectItem value="NO_DEPARTMENT" disabled>
-                                            No departments available
-                                        </SelectItem>
-                                    ) : (
-                                        departments.map((dept) => (
-                                            <SelectItem
-                                                key={dept.department_id}
-                                                value={dept.department_id}
-                                            >
-                                                {dept.department_code}
-                                                {dept.department_name
-                                                    ? ` - ${dept.department_name}`
-                                                    : ''}
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
                         </div>
 
                         <div className="space-y-1.5 md:col-span-2">
@@ -154,8 +118,7 @@ function CourseModal({
                         disabled={
                             saving ||
                             !form.course_code ||
-                            !form.course_name ||
-                            !form.department_id
+                            !form.course_name
                         }
                         className="h-8 rounded-lg text-white text-xs border-none disabled:opacity-50"
                         style={{ background: C.brownMid }}
@@ -173,97 +136,11 @@ function CourseModal({
     );
 }
 
-function DepartmentModal({
-    open,
-    code,
-    setCode,
-    name,
-    setName,
-    onClose,
-    onSave,
-    saving,
-}) {
-    if (!open) return null;
-
-    return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
-            onClick={onClose}
-        >
-            <Card
-                className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-stone-800">Add Department</h3>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="p-1.5 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
-                    >
-                        <X size={14} />
-                    </button>
-                </div>
-
-                <CardContent className="p-4 space-y-3">
-                    <div className="space-y-1.5">
-                        <FieldLabel>Department Code</FieldLabel>
-                        <Input
-                            value={code}
-                            onChange={(e) => setCode(e.target.value.toUpperCase())}
-                            placeholder="e.g. CCS"
-                            className="h-9 rounded-lg border-stone-200 text-sm"
-                        />
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <FieldLabel>Department Full Name</FieldLabel>
-                        <Input
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g. College of Computer Studies"
-                            className="h-9 rounded-lg border-stone-200 text-sm"
-                        />
-                    </div>
-                </CardContent>
-
-                <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={onClose}
-                        className="h-8 rounded-lg border-stone-200 text-xs"
-                    >
-                        Cancel
-                    </Button>
-
-                    <Button
-                        onClick={onSave}
-                        disabled={saving || !code.trim()}
-                        className="h-8 rounded-lg text-white text-xs border-none disabled:opacity-50"
-                        style={{ background: C.brownMid }}
-                    >
-                        {saving ? (
-                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                        ) : (
-                            <Plus className="w-3.5 h-3.5 mr-1.5" />
-                        )}
-                        Add
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    );
-}
-
 function CoursesFilterModal({
     open,
     onClose,
-    departmentFilter,
-    setDepartmentFilter,
     archiveFilter,
     setArchiveFilter,
-    departments,
     onApply,
     onClear,
 }) {
@@ -291,24 +168,6 @@ function CoursesFilterModal({
                 </div>
 
                 <CardContent className="p-4 space-y-3">
-                    <div className="space-y-1.5">
-                        <FieldLabel>Department</FieldLabel>
-                        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                            <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
-                                <SelectValue placeholder="Department" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="All">All Departments</SelectItem>
-                                {departments.map((dept) => (
-                                    <SelectItem key={dept.department_id} value={dept.department_id}>
-                                        {dept.department_code}
-                                        {dept.department_name ? ` - ${dept.department_name}` : ''}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
                     <div className="space-y-1.5">
                         <FieldLabel>Archive Status</FieldLabel>
                         <Select value={archiveFilter} onValueChange={setArchiveFilter}>
@@ -348,17 +207,13 @@ function CoursesFilterModal({
 
 export default function CoursesPanel() {
     const [courses, setCourses] = useState([]);
-    const [departments, setDepartments] = useState([]);
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [departmentSaving, setDepartmentSaving] = useState(false);
 
     const [search, setSearch] = useState('');
-    const [departmentFilter, setDepartmentFilter] = useState('All');
     const [archiveFilter, setArchiveFilter] = useState('Active');
 
-    const [draftDepartmentFilter, setDraftDepartmentFilter] = useState('All');
     const [draftArchiveFilter, setDraftArchiveFilter] = useState('Active');
     const [filterOpen, setFilterOpen] = useState(false);
 
@@ -366,34 +221,13 @@ export default function CoursesPanel() {
     const [modalMode, setModalMode] = useState('create');
     const [editingCourseId, setEditingCourseId] = useState(null);
 
-    const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
-    const [newDepartmentCode, setNewDepartmentCode] = useState('');
-    const [newDepartmentName, setNewDepartmentName] = useState('');
-
     const emptyForm = {
         course_code: '',
         course_name: '',
-        department_id: '',
         is_archived: false,
     };
 
     const [form, setForm] = useState(emptyForm);
-
-    const fetchDepartments = async () => {
-        const res = await fetch(buildApiUrl('/api/departments'), {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!res.ok) {
-            throw new Error('Failed to load departments');
-        }
-
-        const data = await res.json();
-        setDepartments(Array.isArray(data) ? data.filter((d) => !d.is_archived) : []);
-    };
 
     const fetchCourses = async () => {
         const res = await fetch(buildApiUrl('/api/courses'), {
@@ -414,9 +248,9 @@ export default function CoursesPanel() {
     const loadAll = async () => {
         try {
             setLoading(true);
-            await Promise.all([fetchCourses(), fetchDepartments()]);
+            await fetchCourses();
         } catch (err) {
-            console.error('COURSES/DEPARTMENTS FETCH ERROR:', err);
+            console.error('COURSES FETCH ERROR:', err);
             alert(err.message || 'Failed to load maintenance data');
         } finally {
             setLoading(false);
@@ -431,34 +265,21 @@ export default function CoursesPanel() {
         const q = search.trim().toLowerCase();
 
         return courses.filter((c) => {
-            const badgeLabel = c.department
-                ? `${c.department}${c.department_name ? ` - ${c.department_name}` : ''}`
-                : '';
-
             const matchSearch =
                 !q ||
                 (c.course_code || '').toLowerCase().includes(q) ||
-                (c.course_name || '').toLowerCase().includes(q) ||
-                badgeLabel.toLowerCase().includes(q) ||
-                (c.department || '').toLowerCase().includes(q) ||
-                (c.department_name || '').toLowerCase().includes(q);
-
-            const matchDepartment =
-                departmentFilter === 'All' ||
-                c.department_id === departmentFilter ||
-                c.department === departmentFilter;
+                (c.course_name || '').toLowerCase().includes(q);
 
             const matchArchive =
                 archiveFilter === 'All' ||
                 (archiveFilter === 'Active' && !c.is_archived) ||
                 (archiveFilter === 'Archived' && !!c.is_archived);
 
-            return matchSearch && matchDepartment && matchArchive;
+            return matchSearch && matchArchive;
         });
-    }, [courses, search, departmentFilter, archiveFilter]);
+    }, [courses, search, archiveFilter]);
 
-    const hasActiveFilters =
-        departmentFilter !== 'All' || archiveFilter !== 'Active';
+    const hasActiveFilters = archiveFilter !== 'Active';
 
     const openCreateModal = () => {
         setModalMode('create');
@@ -473,28 +294,23 @@ export default function CoursesPanel() {
         setForm({
             course_code: course.course_code || '',
             course_name: course.course_name || '',
-            department_id: course.department_id || '',
             is_archived: !!course.is_archived,
         });
         setModalOpen(true);
     };
 
     const openFilterModal = () => {
-        setDraftDepartmentFilter(departmentFilter);
         setDraftArchiveFilter(archiveFilter);
         setFilterOpen(true);
     };
 
     const applyFilters = () => {
-        setDepartmentFilter(draftDepartmentFilter);
         setArchiveFilter(draftArchiveFilter);
         setFilterOpen(false);
     };
 
     const clearFilters = () => {
-        setDepartmentFilter('All');
         setArchiveFilter('Active');
-        setDraftDepartmentFilter('All');
         setDraftArchiveFilter('Active');
         setFilterOpen(false);
     };
@@ -506,7 +322,6 @@ export default function CoursesPanel() {
             const payload = {
                 course_code: form.course_code.trim().toUpperCase(),
                 course_name: form.course_name.trim(),
-                department_id: form.department_id,
                 is_archived: !!form.is_archived,
             };
 
@@ -516,10 +331,6 @@ export default function CoursesPanel() {
 
             if (!payload.course_name) {
                 throw new Error('Course name is required');
-            }
-
-            if (!payload.department_id) {
-                throw new Error('Department is required');
             }
 
             const isEdit = modalMode === 'edit' && editingCourseId;
@@ -553,46 +364,6 @@ export default function CoursesPanel() {
             alert(err.message || 'Failed to save course');
         } finally {
             setSaving(false);
-        }
-    };
-
-    const handleAddDepartment = async () => {
-        try {
-            setDepartmentSaving(true);
-
-            const payload = {
-                department_code: newDepartmentCode.trim().toUpperCase(),
-                department_name: newDepartmentName.trim() || null,
-            };
-
-            if (!payload.department_code) {
-                throw new Error('Department code is required');
-            }
-
-            const res = await fetch(buildApiUrl('/api/departments'), {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            });
-
-            const data = await res.json().catch(() => ({}));
-
-            if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to add department');
-            }
-
-            setDepartmentModalOpen(false);
-            setNewDepartmentCode('');
-            setNewDepartmentName('');
-            await fetchDepartments();
-        } catch (err) {
-            console.error('ADD DEPARTMENT ERROR:', err);
-            alert(err.message || 'Failed to add department');
-        } finally {
-            setDepartmentSaving(false);
         }
     };
 
@@ -635,32 +406,13 @@ export default function CoursesPanel() {
                 }}
                 onSave={handleSave}
                 saving={saving}
-                departments={departments}
-            />
-
-            <DepartmentModal
-                open={departmentModalOpen}
-                code={newDepartmentCode}
-                setCode={setNewDepartmentCode}
-                name={newDepartmentName}
-                setName={setNewDepartmentName}
-                onClose={() => {
-                    setDepartmentModalOpen(false);
-                    setNewDepartmentCode('');
-                    setNewDepartmentName('');
-                }}
-                onSave={handleAddDepartment}
-                saving={departmentSaving}
             />
 
             <CoursesFilterModal
                 open={filterOpen}
                 onClose={() => setFilterOpen(false)}
-                departmentFilter={draftDepartmentFilter}
-                setDepartmentFilter={setDraftDepartmentFilter}
                 archiveFilter={draftArchiveFilter}
                 setArchiveFilter={setDraftArchiveFilter}
-                departments={departments}
                 onApply={applyFilters}
                 onClear={clearFilters}
             />
@@ -677,16 +429,6 @@ export default function CoursesPanel() {
                     >
                         <RefreshCw className="w-3.5 h-3.5 mr-1" />
                         Refresh
-                    </Button>
-
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 rounded-lg text-xs border-stone-200 text-stone-600"
-                        onClick={() => setDepartmentModalOpen(true)}
-                    >
-                        <Building2 className="w-3.5 h-3.5 mr-1" />
-                        Department
                     </Button>
 
                     <Button
@@ -733,9 +475,7 @@ export default function CoursesPanel() {
                         size="sm"
                         onClick={() => {
                             setSearch('');
-                            setDepartmentFilter('All');
                             setArchiveFilter('Active');
-                            setDraftDepartmentFilter('All');
                             setDraftArchiveFilter('Active');
                         }}
                         className="h-8 rounded-lg text-xs border-stone-200"
@@ -760,60 +500,50 @@ export default function CoursesPanel() {
                     </div>
                 ) : (
                     <div className="divide-y">
-                        {filteredCourses.map((course) => {
-                            const deptLabel = course.department
-                                ? `${course.department}${course.department_name ? ` - ${course.department_name}` : ''}`
-                                : 'No department';
+                        {filteredCourses.map((course) => (
+                            <div
+                                key={course.course_id}
+                                className="flex items-center justify-between px-4 py-3 hover:bg-stone-50"
+                            >
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="text-sm font-medium text-stone-900">
+                                            {course.course_code}
+                                        </h3>
 
-                            return (
-                                <div
-                                    key={course.course_id}
-                                    className="flex items-center justify-between px-4 py-3 hover:bg-stone-50"
-                                >
-                                    <div className="min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <h3 className="text-sm font-medium text-stone-900">
-                                                {course.course_code}
-                                            </h3>
-
-                                            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700">
-                                                {deptLabel}
+                                        {course.is_archived && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded bg-red-50 text-red-700">
+                                                Archived
                                             </span>
-
-                                            {course.is_archived && (
-                                                <span className="text-[10px] px-2 py-0.5 rounded bg-red-50 text-red-700">
-                                                    Archived
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <p className="text-xs text-stone-400 mt-1 truncate">
-                                            {course.course_name}
-                                        </p>
+                                        )}
                                     </div>
 
-                                    <div className="flex gap-1">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 px-2 text-xs"
-                                            onClick={() => openEditModal(course)}
-                                        >
-                                            <Edit size={12} />
-                                        </Button>
-
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 px-2 text-xs"
-                                            onClick={() => handleArchiveToggle(course)}
-                                        >
-                                            <Archive size={12} />
-                                        </Button>
-                                    </div>
+                                    <p className="text-xs text-stone-400 mt-1 truncate">
+                                        {course.course_name}
+                                    </p>
                                 </div>
-                            );
-                        })}
+
+                                <div className="flex gap-1">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => openEditModal(course)}
+                                    >
+                                        <Edit size={12} />
+                                    </Button>
+
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleArchiveToggle(course)}
+                                    >
+                                        <Archive size={12} />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>

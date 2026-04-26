@@ -1425,7 +1425,7 @@ async function uploadApplicationDocumentFile({
   const fileName = `${fileScope}/${definition.id}/${Date.now()}-${sanitizedFileName}`;
 
   const { error: storageError } = await supabase.storage
-    .from('application-documents')
+    .from('documents')
     .upload(fileName, file.buffer, {
       contentType: file.mimetype,
       upsert: true,
@@ -1436,7 +1436,7 @@ async function uploadApplicationDocumentFile({
   }
 
   const { data: publicUrlData } = supabase.storage
-    .from('application-documents')
+    .from('documents')
     .getPublicUrl(fileName);
   const fileUrl = publicUrlData?.publicUrl || null;
 

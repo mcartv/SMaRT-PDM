@@ -24,8 +24,3 @@ class AppConfig {
 
   static String get recaptchaAndroidSiteKey => _recaptchaAndroidSiteKey.trim();
 }
-<<<<<<< HEAD
-
-  
-=======
->>>>>>> origin/dev-local-test

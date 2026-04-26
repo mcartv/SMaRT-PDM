@@ -51,11 +51,37 @@ function ensurePasswordPolicy(password) {
     }
 }
 
-async function sendOTPEmail(email, otp) {
-    console.log('DEV OTP:', { email, otp });
+// for debugging purposes, we log the OTP instead of sending an email. In production, this should be removed or properly secured.
+// async function sendOTPEmail(email, otp) {
+//     console.log('DEV OTP:', { email, otp });
 
+//     if (process.env.SKIP_EMAIL === 'true') {
+//         return;
+//     }
+
+//     await transporter.sendMail({
+//         from: process.env.GMAIL_USER || 'pelimavenice.pdm@gmail.com',
+//         to: email,
+//         subject: 'SMaRT-PDM Account Verification OTP',
+//         html: `
+//       <div style="font-family: Arial, sans-serif;">
+//         <h2>SMaRT-PDM Verification</h2>
+//         <p>Your OTP code is:</p>
+//         <h1 style="letter-spacing: 4px;">${otp}</h1>
+//         <p>This code will expire in 10 minutes.</p>
+//       </div>
+//     `,
+//     });
+// }
+
+async function sendOTPEmail(email, otp) {
     if (process.env.SKIP_EMAIL === 'true') {
+        console.log('DEV OTP:', { email, otp });
         return;
+    }
+
+    if (!process.env.GMAIL_APP_PASSWORD) {
+        throw createHttpError(500, 'GMAIL_APP_PASSWORD is not configured');
     }
 
     await transporter.sendMail({
@@ -63,13 +89,13 @@ async function sendOTPEmail(email, otp) {
         to: email,
         subject: 'SMaRT-PDM Account Verification OTP',
         html: `
-      <div style="font-family: Arial, sans-serif;">
-        <h2>SMaRT-PDM Verification</h2>
-        <p>Your OTP code is:</p>
-        <h1 style="letter-spacing: 4px;">${otp}</h1>
-        <p>This code will expire in 10 minutes.</p>
-      </div>
-    `,
+              <div style="font-family: Arial, sans-serif;">
+                <h2>SMaRT-PDM Verification</h2>
+                <p>Your OTP code is:</p>
+                <h1 style="letter-spacing: 4px;">${otp}</h1>
+                <p>This code will expire in 10 minutes.</p>
+              </div>
+            `,
     });
 }
 

@@ -1710,7 +1710,23 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         throw new Error('document_reviews must be an array');
     }
 
-    const reviewedBy = user?.userId || user?.user_id || null;
+    let reviewedBy = user?.admin_id || null;
+
+    if (!reviewedBy && (user?.user_id || user?.userId)) {
+        const authUserId = user.user_id || user.userId;
+
+        const { data: adminProfile, error: adminProfileError } = await supabase
+            .from('admin_profiles')
+            .select('admin_id')
+            .eq('user_id', authUserId)
+            .maybeSingle();
+
+        if (adminProfileError) {
+            throw new Error(adminProfileError.message);
+        }
+
+        reviewedBy = adminProfile?.admin_id || null;
+    }
     const reviewedAt = new Date().toISOString();
 
     const reviewRows = document_reviews.map((doc) => ({

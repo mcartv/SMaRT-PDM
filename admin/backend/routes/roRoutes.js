@@ -1,17 +1,23 @@
 const express = require('express');
 const router = express.Router();
 
-const programOpeningController = require('../controllers/programOpeningController');
+const roController = require('../controllers/roController');
 const { protect } = require('../middleware/authMiddleware');
 
-router.get('/admin/applications-summary', protect, programOpeningController.getOpeningsApplicationSummary);
-router.get('/mobile', programOpeningController.getMobileOpenings);
-router.get('/', protect, programOpeningController.getAllProgramOpenings);
-router.get('/:openingId', protect, programOpeningController.getProgramOpeningById);
-router.get('/:openingId/applications', protect, programOpeningController.getApplicationsByOpeningId);
+// Static routes FIRST
+router.get('/summary', protect, roController.getSummary);
+router.get('/config', protect, roController.getConfig);
+router.patch('/config', protect, roController.updateConfig);
 
-router.post('/', protect, programOpeningController.createProgramOpening);
-router.patch('/:openingId', protect, programOpeningController.updateProgramOpening);
-router.patch('/:openingId/close', protect, programOpeningController.closeProgramOpening);
+// List route
+router.get('/', protect, roController.getROList);
+
+// Create route
+router.post('/', protect, roController.createRO);
+
+// Dynamic routes LAST
+router.patch('/:id/approve', protect, roController.approveRO);
+router.patch('/:id/reject', protect, roController.rejectRO);
+router.patch('/:id/assign-department', protect, roController.assignDepartment);
 
 module.exports = router;

@@ -20,10 +20,7 @@ import {
     KeyRound,
 } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────
 // Mock data
-// Replace later with real backend/admin session data
-// ─────────────────────────────────────────────────────────────
 const SESSION_LOG = [
     {
         device: 'Chrome · Windows 11',
@@ -48,59 +45,52 @@ const ACTIVITY_LOG = [
     { action: 'Reviewed return of obligation submissions', time: 'Mar 19, 2026 · 01:40 PM' },
 ];
 
-// ─────────────────────────────────────────────────────────────
-// Reusable UI
-// ─────────────────────────────────────────────────────────────
 function SectionCard({ title, subtitle, icon: Icon, children, action }) {
     return (
-        <Card className="rounded-2xl border-stone-200 shadow-sm bg-white overflow-hidden">
-            <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-stone-100 bg-stone-50/60">
+        <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
+            <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-4 py-4">
                 <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white border border-stone-200 flex items-center justify-center shadow-sm shrink-0">
-                        <Icon className="w-4 h-4 text-stone-600" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white">
+                        <Icon className="h-4 w-4 text-stone-600" />
                     </div>
+
                     <div>
                         <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
-                        {subtitle ? <p className="text-xs text-stone-500 mt-0.5">{subtitle}</p> : null}
+                        {subtitle ? (
+                            <p className="mt-0.5 text-xs text-stone-500">{subtitle}</p>
+                        ) : null}
                     </div>
                 </div>
+
                 {action ? <div className="shrink-0">{action}</div> : null}
             </div>
 
-            <CardContent className="p-5">{children}</CardContent>
+            <CardContent className="p-4">{children}</CardContent>
         </Card>
     );
 }
 
 function InfoRow({ icon: Icon, label, value }) {
     return (
-        <div className="flex items-start gap-3 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3">
-            <div className="w-9 h-9 rounded-lg bg-white border border-stone-200 flex items-center justify-center shrink-0">
-                <Icon className="w-4 h-4 text-stone-500" />
-            </div>
+        <div className="rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3">
+            <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white">
+                    <Icon className="h-4 w-4 text-stone-500" />
+                </div>
 
-            <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-wider text-stone-400 font-medium">{label}</p>
-                <p className="text-sm font-semibold text-stone-800 break-words">{value || '—'}</p>
+                <div className="min-w-0">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">
+                        {label}
+                    </p>
+                    <p className="mt-1 break-words text-sm font-semibold text-stone-800">
+                        {value || '—'}
+                    </p>
+                </div>
             </div>
         </div>
     );
 }
 
-function StatCard({ label, value }) {
-    return (
-        <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-4">
-            <p className="text-2xl font-bold text-stone-900 leading-none">{value}</p>
-            <p className="text-[11px] uppercase tracking-wider text-stone-500 mt-2 font-medium">
-                {label}
-            </p>
-        </div>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Main
-// ─────────────────────────────────────────────────────────────
 export default function AdminProfile() {
     const [savedProfile] = useState(() => {
         const saved = localStorage.getItem('adminProfile');
@@ -138,80 +128,64 @@ export default function AdminProfile() {
     }, [adminData.firstName, adminData.lastName]);
 
     return (
-        <div className="space-y-6 py-2">
-            {/* Header */}
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-stone-900">Admin Profile</h1>
-                    <p className="text-sm text-stone-500 mt-1">
-                        View your account information, status, recent activity, and current sessions.
-                    </p>
-                </div>
+        <div className="space-y-5 py-2">
+            <Card className="overflow-hidden rounded-3xl border-stone-200 bg-white shadow-none">
+                <CardContent className="p-5">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                            <Avatar className="h-20 w-20 border-4 border-white shadow-sm">
+                                <AvatarImage src={adminData.avatarUrl || undefined} alt={fullName} />
+                                <AvatarFallback className="bg-stone-800 text-xl font-bold text-white">
+                                    {initials}
+                                </AvatarFallback>
+                            </Avatar>
 
-                <Button
-                    variant="outline"
-                    className="w-fit rounded-xl border-stone-200 text-stone-700"
-                    onClick={() => (window.location.href = '/admin/maintenance')}
-                >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Go to Maintenance
-                </Button>
-            </div>
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+                                        {fullName}
+                                    </h1>
 
-            {/* Hero Card */}
-            <Card className="rounded-3xl border-stone-200 shadow-sm overflow-hidden bg-white">
-                <CardContent className="p-0">
-                    <div className="bg-gradient-to-r from-stone-50 to-amber-50/60 border-b border-stone-100 px-6 py-6">
-                        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
-                            <div className="flex flex-col md:flex-row md:items-center gap-5">
-                                <Avatar className="w-24 h-24 border-4 border-white shadow-md">
-                                    <AvatarImage src={adminData.avatarUrl || undefined} alt={fullName} />
-                                    <AvatarFallback className="bg-stone-800 text-white text-2xl font-bold">
-                                        {initials}
-                                    </AvatarFallback>
-                                </Avatar>
+                                    <Badge className="border border-green-100 bg-green-50 text-green-700 hover:bg-green-50">
+                                        <BadgeCheck className="mr-1.5 h-3.5 w-3.5" />
+                                        {adminData.status}
+                                    </Badge>
 
-                                <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                                        <h2 className="text-2xl font-bold text-stone-900">{fullName}</h2>
-                                        <Badge className="bg-green-50 text-green-700 border border-green-100 hover:bg-green-50">
-                                            <BadgeCheck className="w-3.5 h-3.5 mr-1.5" />
-                                            {adminData.status}
-                                        </Badge>
-                                        <Badge
-                                            variant="outline"
-                                            className="rounded-full border-stone-200 text-stone-600 bg-white"
-                                        >
-                                            {adminData.role}
-                                        </Badge>
-                                    </div>
-
-                                    <p className="text-sm font-medium text-stone-600">{adminData.position}</p>
-                                    <p className="text-xs uppercase tracking-wider text-stone-400 mt-1">
-                                        {adminData.department}
-                                    </p>
-
-                                    <p className="text-sm text-stone-600 mt-4 max-w-3xl leading-6">
-                                        {adminData.bio}
-                                    </p>
+                                    <Badge
+                                        variant="outline"
+                                        className="border-stone-200 bg-white text-stone-600"
+                                    >
+                                        {adminData.role}
+                                    </Badge>
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 xl:w-[430px]">
-                                <StatCard label="Applications Processed" value="284" />
-                                <StatCard label="Documents Verified" value="91" />
-                                <StatCard label="Reports Generated" value="18" />
-                                <StatCard label="Years Active" value="3" />
+                                <p className="mt-2 text-sm font-medium text-stone-700">
+                                    {adminData.position}
+                                </p>
+                                <p className="mt-1 text-xs uppercase tracking-wider text-stone-400">
+                                    {adminData.department}
+                                </p>
+
+                                <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">
+                                    {adminData.bio}
+                                </p>
                             </div>
                         </div>
+
+                        <Button
+                            variant="outline"
+                            className="w-fit rounded-xl border-stone-200 text-stone-700"
+                            onClick={() => (window.location.href = '/admin/maintenance')}
+                        >
+                            <Settings className="mr-2 h-4 w-4" />
+                            Open Maintenance
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Main grid */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                {/* Left */}
-                <div className="xl:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+                <div className="space-y-5 xl:col-span-2">
                     <SectionCard
                         title="Account Information"
                         subtitle="Read-only profile details for this admin account."
@@ -219,13 +193,13 @@ export default function AdminProfile() {
                         action={
                             <Badge
                                 variant="outline"
-                                className="hidden sm:inline-flex rounded-full border-stone-200 text-stone-500 bg-white"
+                                className="hidden rounded-full border-stone-200 bg-white text-stone-500 sm:inline-flex"
                             >
                                 View Only
                             </Badge>
                         }
                     >
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <InfoRow icon={User} label="Full Name" value={fullName} />
                             <InfoRow icon={Shield} label="Role" value={adminData.role} />
                             <InfoRow icon={Mail} label="Email Address" value={adminData.email} />
@@ -234,9 +208,10 @@ export default function AdminProfile() {
                             <InfoRow icon={KeyRound} label="Position / Role Title" value={adminData.position} />
                         </div>
 
-                        <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-                            <p className="text-sm text-amber-800 font-medium">
-                                Profile updates and account editing are managed in <span className="font-semibold">Maintenance</span>.
+                        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                            <p className="text-sm font-medium text-amber-800">
+                                Profile updates and account editing are managed in{' '}
+                                <span className="font-semibold">Maintenance</span>.
                             </p>
                         </div>
                     </SectionCard>
@@ -250,41 +225,30 @@ export default function AdminProfile() {
                             {ACTIVITY_LOG.map((item, index) => (
                                 <div
                                     key={index}
-                                    className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-2xl border border-stone-100 bg-stone-50/40 px-4 py-3"
+                                    className="flex flex-col gap-2 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
                                 >
-                                    <div className="flex items-start gap-3 min-w-0">
-                                        <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                                    <div className="flex min-w-0 items-start gap-3">
+                                        <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
                                         <p className="text-sm font-medium text-stone-700">{item.action}</p>
                                     </div>
-                                    <p className="text-xs text-stone-400 whitespace-nowrap">{item.time}</p>
+
+                                    <p className="whitespace-nowrap text-xs text-stone-400">{item.time}</p>
                                 </div>
                             ))}
                         </div>
                     </SectionCard>
                 </div>
 
-                {/* Right */}
-                <div className="space-y-6">
+                <div className="space-y-5">
                     <SectionCard
                         title="Account Status"
                         subtitle="Current standing of this administrator account."
                         icon={Shield}
                     >
                         <div className="space-y-3">
-                            <div className="rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                                <p className="text-[11px] uppercase tracking-wider text-stone-400 mb-1">Status</p>
-                                <p className="text-sm font-semibold text-stone-800">{adminData.status}</p>
-                            </div>
-
-                            <div className="rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                                <p className="text-[11px] uppercase tracking-wider text-stone-400 mb-1">Access Level</p>
-                                <p className="text-sm font-semibold text-stone-800">{adminData.role}</p>
-                            </div>
-
-                            <div className="rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                                <p className="text-[11px] uppercase tracking-wider text-stone-400 mb-1">Assigned Office</p>
-                                <p className="text-sm font-semibold text-stone-800">{adminData.department}</p>
-                            </div>
+                            <InfoRow icon={Shield} label="Status" value={adminData.status} />
+                            <InfoRow icon={BadgeCheck} label="Access Level" value={adminData.role} />
+                            <InfoRow icon={Building2} label="Assigned Office" value={adminData.department} />
                         </div>
                     </SectionCard>
 
@@ -300,31 +264,35 @@ export default function AdminProfile() {
                                 return (
                                     <div
                                         key={index}
-                                        className="rounded-2xl border border-stone-100 bg-stone-50/40 p-4"
+                                        className="rounded-xl border border-stone-100 bg-stone-50/40 p-4"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="flex items-start gap-3">
                                                 <div
-                                                    className={`w-10 h-10 rounded-xl flex items-center justify-center border ${session.current
-                                                            ? 'bg-green-50 text-green-700 border-green-100'
-                                                            : 'bg-white text-stone-500 border-stone-200'
+                                                    className={`flex h-10 w-10 items-center justify-center rounded-xl border ${session.current
+                                                            ? 'border-green-100 bg-green-50 text-green-700'
+                                                            : 'border-stone-200 bg-white text-stone-500'
                                                         }`}
                                                 >
-                                                    <Icon className="w-4 h-4" />
+                                                    <Icon className="h-4 w-4" />
                                                 </div>
 
                                                 <div>
-                                                    <p className="text-sm font-semibold text-stone-800">{session.device}</p>
-                                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-stone-500">
-                                                        <MapPin className="w-3.5 h-3.5" />
+                                                    <p className="text-sm font-semibold text-stone-800">
+                                                        {session.device}
+                                                    </p>
+
+                                                    <div className="mt-1 flex items-center gap-1.5 text-xs text-stone-500">
+                                                        <MapPin className="h-3.5 w-3.5" />
                                                         <span>{session.location}</span>
                                                     </div>
-                                                    <p className="text-xs text-stone-400 mt-1">{session.time}</p>
+
+                                                    <p className="mt-1 text-xs text-stone-400">{session.time}</p>
                                                 </div>
                                             </div>
 
                                             {session.current ? (
-                                                <Badge className="bg-green-50 text-green-700 border border-green-100 hover:bg-green-50">
+                                                <Badge className="border border-green-100 bg-green-50 text-green-700 hover:bg-green-50">
                                                     Current
                                                 </Badge>
                                             ) : null}
@@ -340,20 +308,18 @@ export default function AdminProfile() {
                         subtitle="Profile modifications should be handled elsewhere."
                         icon={Settings}
                     >
-                        <div className="space-y-3">
-                            <button
-                                onClick={() => (window.location.href = '/admin/maintenance')}
-                                className="w-full flex items-center justify-between rounded-2xl border border-stone-200 bg-white hover:bg-stone-50 transition-colors px-4 py-3 text-left"
-                            >
-                                <div>
-                                    <p className="text-sm font-semibold text-stone-800">Open Maintenance</p>
-                                    <p className="text-xs text-stone-500 mt-0.5">
-                                        Edit admin details, account settings, and maintenance records.
-                                    </p>
-                                </div>
-                                <ChevronRight className="w-4 h-4 text-stone-400" />
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => (window.location.href = '/admin/maintenance')}
+                            className="flex w-full items-center justify-between rounded-2xl border border-stone-200 bg-white px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                        >
+                            <div>
+                                <p className="text-sm font-semibold text-stone-800">Open Maintenance</p>
+                                <p className="mt-0.5 text-xs text-stone-500">
+                                    Edit admin details, account settings, and maintenance records.
+                                </p>
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-stone-400" />
+                        </button>
                     </SectionCard>
                 </div>
             </div>

@@ -47,6 +47,19 @@ class _StepPersonalState extends State<StepPersonal> {
     'Divorced',
   ];
 
+  final List<String> religionOptions = [
+    'Roman Catholic',
+    'Christian',
+    'Iglesia ni Cristo',
+    'Islam',
+    'Buddhist',
+    'Born Again Christian',
+    'Seventh-day Adventist',
+    'Jehovah`s Witness',
+    'None',
+    'Other',
+  ];
+
   final Map<String, Map<String, List<String>>> locationData = {
     'Abra': {},
     'Agusan del Norte': {},
@@ -300,31 +313,29 @@ class _StepPersonalState extends State<StepPersonal> {
 
   String selectedSex = 'Male';
   String selectedCivilStatus = 'Single';
+  String? selectedReligion;
   String? selectedProvince;
   String? selectedCity;
   String? selectedBarangay;
 
-  int? get _currentAge => ApplicationData.parseAgeValue(ageController.text);
+  void _updateAgeFromDOB(String value) {
+    final parsed = ApplicationData.parseInputDate(value);
 
-  void _setAge(int value) {
-    final safeValue = value < 16 ? 16 : value;
-    ageController.text = safeValue.toString();
-    widget.data.age = safeValue.toString();
-    widget.onChanged();
-  }
-
-  void _incrementAge() {
-    final nextValue = (_currentAge ?? 15) + 1;
-    _setAge(nextValue);
-  }
-
-  void _decrementAge() {
-    final currentValue = _currentAge ?? 16;
-    if (currentValue <= 16) {
-      _setAge(16);
+    if (parsed == null) {
+      ageController.text = '';
+      widget.data.age = '';
+      widget.onChanged();
       return;
     }
-    _setAge(currentValue - 1);
+
+    final computedAge = ApplicationData.calculateAge(parsed);
+
+    if (computedAge == null) return;
+
+    ageController.text = computedAge.toString();
+    widget.data.age = computedAge.toString();
+
+    widget.onChanged();
   }
 
   String? _requiredError(String value, String label) {
@@ -402,6 +413,13 @@ class _StepPersonalState extends State<StepPersonal> {
       text: widget.data.citizenship,
     );
     religionController = TextEditingController(text: widget.data.religion);
+    final savedReligion = widget.data.religion.trim();
+
+    selectedReligion = religionOptions.contains(savedReligion)
+        ? savedReligion
+        : savedReligion.isNotEmpty
+        ? 'Other'
+        : null;
     unitBldgNoController = TextEditingController(text: widget.data.unitBldgNo);
     houseLotBlockNoController = TextEditingController(
       text: widget.data.houseLotBlockNo,
@@ -635,43 +653,12 @@ class _StepPersonalState extends State<StepPersonal> {
           _row([
             _field(
               label: 'Age *',
-              child: InputDecorator(
-                decoration: _dec('Age').copyWith(errorText: _ageError()),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        (_currentAge ?? 16).toString(),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          height: 28,
-                          width: 28,
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            iconSize: 18,
-                            onPressed: _incrementAge,
-                            icon: const Icon(Icons.keyboard_arrow_up),
-                          ),
-                        ),
-                        SizedBox(
-                          height: 28,
-                          width: 28,
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            iconSize: 18,
-                            onPressed: _decrementAge,
-                            icon: const Icon(Icons.keyboard_arrow_down),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              child: TextFormField(
+                controller: ageController,
+                readOnly: true, // ✅ LOCKED
+                decoration: _dec(
+                  'Auto-calculated',
+                ).copyWith(errorText: _ageError()),
               ),
             ),
             _field(
@@ -697,9 +684,11 @@ class _StepPersonalState extends State<StepPersonal> {
                   if (pickedDate != null) {
                     final formatted =
                         '${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.year}';
+
                     dobController.text = formatted;
                     widget.data.dateOfBirth = formatted;
-                    widget.onChanged();
+
+                    _updateAgeFromDOB(formatted);
                   }
                 },
               ),
@@ -781,14 +770,31 @@ class _StepPersonalState extends State<StepPersonal> {
             ),
             _field(
               label: 'Religion *',
-              child: TextFormField(
-                controller: religionController,
+              child: DropdownButtonFormField<String>(
+                initialValue: selectedReligion,
+                hint: const Text('Select religion'),
                 decoration: _dec('Religion').copyWith(
-                  errorText: _requiredError(
-                    religionController.text,
-                    'Religion',
-                  ),
+                  errorText: _requiredError(widget.data.religion, 'Religion'),
                 ),
+                items: religionOptions
+                    .map(
+                      (religion) => DropdownMenuItem(
+                        value: religion,
+                        child: Text(religion),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+
+                  setState(() {
+                    selectedReligion = value;
+                    religionController.text = value;
+                    widget.data.religion = value;
+                  });
+
+                  widget.onChanged();
+                },
               ),
             ),
           ]),

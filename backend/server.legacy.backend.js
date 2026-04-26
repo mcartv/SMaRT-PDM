@@ -2,63 +2,44 @@ require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
+
 const {
   buildAuthToken,
   protect,
   authenticateSocket,
-} = require('./middleware/authMiddleware');
-const { createAccountRecoveryService } = require('./services/accountRecoveryService');
-const notificationService = require('./services/notificationService');
-const messageService = require('./services/messageService');
+} = require('./src/middleware/authMiddleware');
+
+const { createAccountRecoveryService } = require('./src/services/accountRecoveryService');
+const notificationService = require('./src/services/notificationService');
+const messageService = require('./src/services/messageService');
 
 const app = express();
-const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5000",
-      "https://smart-pdm-mipx.onrender.com"
-    ],
-    methods: ["GET", "POST"],
-    credentials: true
-  },
-  transports: ['websocket'],
-  allowEIO3: true,
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  // Add these for Render compatibility
-  allowUpgrades: true,
-  perMessageDeflate: false,
-  httpCompression: false
-});
+const router = express.Router();
 
 // Add connection error handling
-io.engine.on("connection_error", (err) => {
-  console.log("Connection error:", err);
-});
+// io.engine.on("connection_error", (err) => {
+//   console.log("Connection error:", err);
+// });
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/', (req, res) => {
+router.get('/', (req, res) => {
   res.send('Backend is running! 🚀');
 });
 
-app.get('/favicon.ico', (_req, res) => {
+router.get('/favicon.ico', (_req, res) => {
   res.status(204).end();
 });
 
 // Health check for WebSocket
-app.get('/api/socket-health', (req, res) => {
+router.get('/api/socket-health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     websocket: 'enabled',
@@ -67,17 +48,63 @@ app.get('/api/socket-health', (req, res) => {
 });
 
 // // Force WebSocket upgrade path
-// app.get('/socket.io/', (req, res) => {
+// router.get'/socket.io/', (req, res) => {
 //   res.status(200).send('Socket.io endpoint ready');
 // });
 
 // Used by the mobile app to auto-detect the active development backend.
-app.get('/api/health', (_req, res) => {
+router.get('/api/health', (_req, res) => {
   return res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
   });
 });
+
+console.log('✅ CHECK-STUDENT-ID ROUTE LOADED');
+
+//   try {
+//     const student_id = String(req.body?.student_id || '').trim().toUpperCase();
+
+//     if (!student_id) {
+//       return res.status(400).json({
+//         error: 'Student ID is required',
+//       });
+//     }
+
+//     const registryStudent = await resolveRegistrarStudentByStudentNumber(student_id);
+
+//     if (!registryStudent) {
+//       return res.status(200).json({
+//         exists: false,
+//         hasAccount: false,
+//         student: null,
+//       });
+//     }
+
+//     const { data: existingUser, error } = await supabase
+//       .from('users')
+//       .select('user_id')
+//       .eq('username', student_id)
+//       .maybeSingle();
+
+//     if (error) {
+//       console.error('USER LOOKUP ERROR:', error);
+//       return res.status(500).json({ error: error.message });
+//     }
+
+//     return res.status(200).json({
+//       exists: true,
+//       hasAccount: !!existingUser,
+//       student: registryStudent,
+//     });
+
+//   } catch (err) {
+//     console.error('CHECK STUDENT ERROR:', err);
+//     return res.status(500).json({
+//       error: err.message,
+//     });
+//   }
+// });
 
 // Configure multer to hold the uploaded file in memory temporarily
 const upload = multer({ storage: multer.memoryStorage() });
@@ -143,10 +170,88 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   },
 });
 
+notificationService.configureNotificationService({
+  io: null,
+  supabase,
+});
 
-notificationService.configureNotificationService({ io, supabase });
-messageService.configureMessageService({ io, supabase });
-io.use(authenticateSocket);
+messageService.configureMessageService({
+  io: null,
+  supabase,
+});
+
+// router.post('/api/auth/verify-otp', async (req, res) => {
+//   try {
+//     const { email, otp } = req.body;
+
+//     if (!email || !otp) {
+//       return res.status(400).json({
+//         error: 'Email and OTP are required',
+//       });
+//     }
+
+//     // 🔍 Find user with matching OTP
+//     const { data: user, error: userError } = await supabase
+//       .from('users')
+//       .select('*')
+//       .eq('email', email)
+//       .eq('otp_code', otp)
+//       .maybeSingle();
+
+//     if (userError) {
+//       console.error('VERIFY OTP USER LOOKUP ERROR:', userError);
+//       return res.status(500).json({ error: userError.message });
+//     }
+
+//     if (!user) {
+//       return res.status(400).json({
+//         error: 'Invalid OTP',
+//       });
+//     }
+
+//     // ✅ Mark user verified
+//     const { error: updateUserError } = await supabase
+//       .from('users')
+//       .update({
+//         is_otp_verified: true,
+//         otp_code: null,
+//       })
+//       .eq('user_id', user.user_id);
+
+//     if (updateUserError) {
+//       console.error('VERIFY OTP USER UPDATE ERROR:', updateUserError);
+//       return res.status(500).json({ error: updateUserError.message });
+//     }
+
+//     // ✅ ALSO update student status (IMPORTANT for your system)
+//     const { error: updateStudentError } = await supabase
+//       .from('students')
+//       .update({
+//         account_status: 'Verified',
+//       })
+//       .eq('user_id', user.user_id);
+
+//     if (updateStudentError) {
+//       console.error('VERIFY OTP STUDENT UPDATE ERROR:', updateStudentError);
+//       return res.status(500).json({ error: updateStudentError.message });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: 'OTP verified successfully',
+//     });
+
+//   } catch (err) {
+//     console.error('VERIFY OTP ROUTE ERROR:', err);
+//     return res.status(500).json({
+//       error: err.message,
+//     });
+//   }
+// });
+
+// notificationService.configureNotificationService({ io, supabase });
+// messageService.configureMessageService({ io, supabase });
+// io.use(authenticateSocket);
 
 // Temporary in-memory store for OTPs and pending registrations
 const otpStore = new Map();
@@ -282,19 +387,19 @@ async function buildAuthUser(user, studentProfile = null) {
     is_pdm_student: eligibility.isRegistrarMatch,
     registrar_student: eligibility.registryStudent
       ? {
-          pdm_id: eligibility.registryStudent.student_number,
-          learners_reference_number:
-            eligibility.registryStudent.learners_reference_number ?? null,
-          last_name: eligibility.registryStudent.last_name ?? null,
-          first_name: eligibility.registryStudent.first_name ?? null,
-          middle_name: eligibility.registryStudent.middle_name ?? null,
-          course_id: eligibility.registryStudent.course_id ?? null,
-          year_level: eligibility.registryStudent.year_level ?? null,
-          is_archived: eligibility.registryStudent.is_archived ?? false,
-          sex_at_birth: eligibility.registryStudent.sex_at_birth ?? null,
-          email_address: eligibility.registryStudent.email_address ?? null,
-          phone_number: eligibility.registryStudent.phone_number ?? null,
-        }
+        pdm_id: eligibility.registryStudent.student_number,
+        learners_reference_number:
+          eligibility.registryStudent.learners_reference_number ?? null,
+        last_name: eligibility.registryStudent.last_name ?? null,
+        first_name: eligibility.registryStudent.first_name ?? null,
+        middle_name: eligibility.registryStudent.middle_name ?? null,
+        course_id: eligibility.registryStudent.course_id ?? null,
+        year_level: eligibility.registryStudent.year_level ?? null,
+        is_archived: eligibility.registryStudent.is_archived ?? false,
+        sex_at_birth: eligibility.registryStudent.sex_at_birth ?? null,
+        email_address: eligibility.registryStudent.email_address ?? null,
+        phone_number: eligibility.registryStudent.phone_number ?? null,
+      }
       : null,
   };
 }
@@ -794,33 +899,6 @@ async function listSupportTicketsForAdmin() {
   return (data || []).map(mapSupportTicketRow);
 }
 
-async function resolveScholarRecordForStudent(studentId) {
-  if (!studentId) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from('scholars')
-    .select('scholar_id, student_id, application_id, program_id, status, is_archived')
-    .eq('student_id', studentId)
-    .eq('status', 'Active')
-    .eq('is_archived', false)
-    .order('date_awarded', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data || null;
-}
-
-async function resolveHasScholarAccessForStudent(studentId) {
-  const scholarRecord = await resolveScholarRecordForStudent(studentId);
-  return !!scholarRecord;
-}
-
 async function resolveOpeningById(openingId) {
   if (!openingId) {
     return null;
@@ -901,39 +979,6 @@ async function resolveApplicantDraftByUserId(userId) {
   }
 }
 
-async function upsertApplicantDraftByUserId(userId, { openingId, payload }) {
-  const { data, error } = await supabase
-    .from(APPLICATION_DRAFT_TABLE)
-    .upsert(
-      {
-        user_id: userId,
-        opening_id: openingId,
-        payload,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    )
-    .select('draft_id, user_id, opening_id, payload, created_at, updated_at')
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
-
-async function clearApplicantDraftByUserId(userId) {
-  const { error } = await supabase
-    .from(APPLICATION_DRAFT_TABLE)
-    .delete()
-    .eq('user_id', userId);
-
-  if (error) {
-    throw error;
-  }
-}
-
 async function resolveLatestOpeningApplicationForUser(userId) {
   const studentRecord = await resolveStudentByUserId(userId);
   if (!studentRecord) {
@@ -975,33 +1020,9 @@ async function resolveActiveOpeningApplicationForUser(userId) {
     return null;
   }
 
-  const [scholarRecord, applicationResult] = await Promise.all([
-    resolveScholarRecordForStudent(studentRecord.student_id),
-    supabase
-      .from('applications')
-      .select(
-        'application_id, student_id, program_id, opening_id, application_status, document_status, submission_date, is_disqualified'
-      )
-      .eq('student_id', studentRecord.student_id)
-      .not('opening_id', 'is', null)
-      .order('submission_date', { ascending: false, nullsFirst: false })
-      .limit(25),
-  ]);
-
   if (applicationResult.error) {
     throw applicationResult.error;
   }
-
-  const activeApplication = (applicationResult.data || []).find((application) => {
-    if (
-      scholarRecord?.application_id &&
-      scholarRecord.application_id === application.application_id
-    ) {
-      return false;
-    }
-
-    return isActiveApplicationRecord(application);
-  });
 
   if (!activeApplication) {
     return null;
@@ -1029,10 +1050,6 @@ async function fetchVisibleProgramOpeningsForUser(userId) {
     );
   }
 
-  const scholarRecord = studentRecord?.student_id
-    ? await resolveScholarRecordForStudent(studentRecord.student_id)
-    : null;
-
   const { data, error } = await supabase
     .from('program_openings')
     .select(`
@@ -1054,19 +1071,6 @@ async function fetchVisibleProgramOpeningsForUser(userId) {
   if (error) {
     throw error;
   }
-
-  const visibleOpenings = (data || []).filter((opening) => {
-    if (!scholarRecord) {
-      return true;
-    }
-
-    return isTesProgramName(opening.scholarship_program?.program_name || '');
-  });
-
-  return {
-    items: visibleOpenings,
-    scholarRecord,
-  };
 }
 
 function mapApplicantOpening(opening, {
@@ -1113,7 +1117,7 @@ function mapApplicantOpening(opening, {
       : 0,
     required_document_count: isActiveOpening
       ? activeApplicationDocumentSummary?.requiredCount ??
-          APPLICATION_DOCUMENT_DEFINITIONS.length
+      APPLICATION_DOCUMENT_DEFINITIONS.length
       : 0,
   };
 }
@@ -1180,18 +1184,6 @@ async function buildApplicantOpeningsPayload(userId) {
   const draftOpening = draft?.opening_id
     ? await resolveOpeningById(draft.opening_id)
     : null;
-
-  return {
-    hasSavedDraft: !!draft,
-    draftOpeningId: draft?.opening_id || '',
-    draftOpeningTitle: draftOpening?.opening_title || '',
-    draftProgramName: draftOpening?.scholarship_program?.program_name || '',
-    activeApplicationId:
-      activeApplicationResult?.application?.application_id || '',
-    activeOpeningId: activeApplicationResult?.application?.opening_id || '',
-    isApprovedScholar: !!visibleOpeningsResult.scholarRecord,
-    items: mappedItems,
-  };
 }
 
 async function fetchLatestVisibleProgramOpeningForUser(userId) {
@@ -1297,78 +1289,6 @@ async function fetchAvailableOpeningsForMobile(userId) {
   };
 }
 
-async function buildSavedFormDataForMobile(userId) {
-  const context = await loadStudentProfileContextByUserId(userId);
-
-  if (!context) {
-    return {
-      has_saved_form: false,
-      account: {},
-      personal: {},
-      address: {},
-      contact: {},
-      family: {},
-      academic: {},
-      support: {},
-      discipline: {},
-      essays: {},
-    };
-  }
-
-  const user = context.user || {};
-  const student = context.student || {};
-  const profile = context.student_profile || {};
-  const course = context.course || {};
-
-  return {
-    has_saved_form: true,
-    account: {
-      user_id: user.user_id || '',
-      student_id: student.pdm_id || user.username || '',
-    },
-    personal: {
-      first_name: student.first_name || '',
-      middle_name: student.middle_name || '',
-      last_name: student.last_name || '',
-      maiden_name: profile.maiden_name || '',
-      age: '',
-      date_of_birth: profile.date_of_birth || '',
-      sex: profile.sex || '',
-      place_of_birth: profile.place_of_birth || '',
-      citizenship: profile.citizenship || '',
-      civil_status: profile.civil_status || '',
-      religion: profile.religion || '',
-    },
-    address: {
-      street: profile.street_address || '',
-      subdivision: profile.subdivision || '',
-      city_municipality: profile.city || '',
-      province: profile.province || '',
-      zip_code: profile.zip_code || '',
-    },
-    contact: {
-      landline: profile.landline_number || '',
-      mobile_number: user.phone_number || '',
-      email: user.email || '',
-    },
-    family: {
-      father: {},
-      mother: {},
-      sibling: {},
-      guardian: {},
-    },
-    academic: {
-      current_course: course.course_code || '',
-      current_course_code: course.course_code || '',
-      student_number: student.pdm_id || '',
-      lrn: profile.learners_reference_number || '',
-    },
-    support: {},
-    discipline: {},
-    essays: {},
-  };
-}
-
 async function buildCurrentRenewalForMobile(userId) {
   const studentRecord = await resolveStudentByUserId(userId);
 
@@ -1403,25 +1323,7 @@ async function buildCurrentRenewalForMobile(userId) {
     };
   }
 
-  const { data: scholarRecord, error: scholarError } = await supabase
-    .from('scholars')
-    .select(`
-      scholar_id,
-      program_id,
-      scholarship_program (
-        program_name,
-        benefactor_id
-      )
-    `)
-    .eq('student_id', studentRecord.student_id)
-    .maybeSingle();
-
-  if (scholarError) {
-    throw scholarError;
-  }
-
   let benefactorName = null;
-  const benefactorId = scholarRecord?.scholarship_program?.benefactor_id;
   if (benefactorId) {
     const { data: benefactorRow, error: benefactorError } = await supabase
       .from('benefactors')
@@ -1442,440 +1344,6 @@ async function buildCurrentRenewalForMobile(userId) {
     now.getMonth() < 6
       ? `${now.getFullYear() - 1}-${now.getFullYear()}`
       : `${now.getFullYear()}-${now.getFullYear() + 1}`;
-
-  return {
-    renewal: {
-      renewal_id: '',
-      scholar_id: scholarRecord?.scholar_id || '',
-      student_id: studentRecord.student_id || '',
-      program_id: scholarRecord?.program_id || '',
-      semester_label: semesterLabel,
-      school_year_label: schoolYearLabel,
-      renewal_status: 'Pending Submission',
-      document_status: 'Missing Docs',
-      admin_comment: null,
-      submitted_at: null,
-      reviewed_at: null,
-    },
-    documents: [],
-    scholar: {
-      program_name: scholarRecord?.scholarship_program?.program_name || 'Scholarship',
-      benefactor_name: benefactorName,
-    },
-    student: {
-      name: `${studentRecord.first_name || ''} ${studentRecord.last_name || ''}`.trim() || 'Scholar',
-      pdm_id: studentRecord.pdm_id || '',
-    },
-    cycle: {
-      semester_label: semesterLabel,
-      school_year_label: schoolYearLabel,
-    },
-  };
-}
-
-async function fetchMyPayoutSchedules(userId) {
-  const studentRecord = await resolveStudentByUserId(userId);
-
-  if (!studentRecord?.student_id) {
-    return { items: [] };
-  }
-
-  const { data: scholarRecord, error: scholarError } = await supabase
-    .from('scholars')
-    .select('scholar_id')
-    .eq('student_id', studentRecord.student_id)
-    .maybeSingle();
-
-  if (scholarError) {
-    throw scholarError;
-  }
-
-  if (!scholarRecord?.scholar_id) {
-    return { items: [] };
-  }
-
-  const { data, error } = await supabase
-    .from('payout_batch_scholars')
-    .select(`
-      payout_entry_id,
-      amount_received,
-      release_status,
-      payout_batches!fk_payout_batch_scholars_batch (
-        payout_batch_id,
-        payout_title,
-        payout_date,
-        payment_mode,
-        batch_status,
-        program_id
-      )
-    `)
-    .eq('scholar_id', scholarRecord.scholar_id);
-
-  if (error) {
-    throw error;
-  }
-
-  const rows = Array.isArray(data) ? data : [];
-  const programIds = rows
-    .map((row) => row?.payout_batches?.program_id)
-    .filter(Boolean);
-
-  let programMap = {};
-  if (programIds.length > 0) {
-    const { data: programs, error: programError } = await supabase
-      .from('scholarship_program')
-      .select('program_id, program_name, benefactor_id')
-      .in('program_id', programIds);
-
-    if (programError) {
-      throw programError;
-    }
-
-    const benefactorIds = (programs || [])
-      .map((item) => item.benefactor_id)
-      .filter(Boolean);
-
-    let benefactorMap = {};
-    if (benefactorIds.length > 0) {
-      const { data: benefactors, error: benefactorError } = await supabase
-        .from('benefactors')
-        .select('benefactor_id, benefactor_name')
-        .in('benefactor_id', benefactorIds);
-
-      if (benefactorError) {
-        throw benefactorError;
-      }
-
-      benefactorMap = Object.fromEntries(
-        (benefactors || []).map((item) => [item.benefactor_id, item.benefactor_name])
-      );
-    }
-
-    programMap = Object.fromEntries(
-      (programs || []).map((item) => [
-        item.program_id,
-        {
-          program_name: item.program_name,
-          benefactor_name: benefactorMap[item.benefactor_id] || null,
-        },
-      ])
-    );
-  }
-
-  const items = rows
-    .map((row) => {
-      const batch = row.payout_batches || {};
-      const programInfo = programMap[batch.program_id] || {};
-
-      return {
-        payout_entry_id: row.payout_entry_id,
-        payout_batch_id: batch.payout_batch_id || '',
-        title: batch.payout_title || 'Scholarship Payout',
-        amount: row.amount_received || 0,
-        status: row.release_status || 'Pending',
-        payout_date: batch.payout_date || '',
-        semester: batch.semester || '',
-        school_year: batch.school_year || '',
-        payment_mode: batch.payment_mode || '',
-        batch_status: batch.batch_status || '',
-        program_name: programInfo.program_name || 'Scholarship Program',
-        benefactor_name: programInfo.benefactor_name || null,
-        reference: batch.payout_batch_id || '',
-      };
-    })
-    .sort((a, b) => {
-      const aDate = a.payout_date || '';
-      const bDate = b.payout_date || '';
-      return bDate.localeCompare(aDate);
-    });
-
-  return { items };
-}
-
-async function buildSavedFormDataForMobile(userId) {
-  const context = await loadStudentProfileContextByUserId(userId);
-
-  if (!context) {
-    return {
-      has_saved_form: false,
-      account: {},
-      personal: {},
-      address: {},
-      contact: {},
-      family: {},
-      academic: {},
-      support: {},
-      discipline: {},
-      essays: {},
-    };
-  }
-
-  const user = context.user || {};
-  const student = context.student || {};
-  const profile = context.student_profile || {};
-  const course = context.course || {};
-
-  return {
-    has_saved_form: true,
-    account: {
-      user_id: user.user_id || '',
-      student_id: student.pdm_id || user.username || '',
-    },
-    personal: {
-      first_name: student.first_name || '',
-      middle_name: student.middle_name || '',
-      last_name: student.last_name || '',
-      maiden_name: profile.maiden_name || '',
-      age: '',
-      date_of_birth: profile.date_of_birth || '',
-      sex: profile.sex || '',
-      place_of_birth: profile.place_of_birth || '',
-      citizenship: profile.citizenship || '',
-      civil_status: profile.civil_status || '',
-      religion: profile.religion || '',
-    },
-    address: {
-      street: profile.street_address || '',
-      subdivision: profile.subdivision || '',
-      city_municipality: profile.city || '',
-      province: profile.province || '',
-      zip_code: profile.zip_code || '',
-    },
-    contact: {
-      landline: profile.landline_number || '',
-      mobile_number: user.phone_number || '',
-      email: user.email || '',
-    },
-    family: {
-      father: {},
-      mother: {},
-      sibling: {},
-      guardian: {},
-    },
-    academic: {
-      current_course: course.course_code || '',
-      student_number: student.pdm_id || '',
-      lrn: profile.learners_reference_number || '',
-    },
-    support: {},
-    discipline: {},
-    essays: {},
-  };
-}
-
-async function buildCurrentRenewalForMobile(userId) {
-  const studentRecord = await resolveStudentByUserId(userId);
-
-  if (!studentRecord?.student_id) {
-    return {
-      renewal: {
-        renewal_id: '',
-        scholar_id: '',
-        student_id: '',
-        program_id: '',
-        semester_label: '',
-        school_year_label: '',
-        renewal_status: 'Pending Submission',
-        document_status: 'Missing Docs',
-        admin_comment: null,
-        submitted_at: null,
-        reviewed_at: null,
-      },
-      documents: [],
-      scholar: {
-        program_name: 'Scholarship',
-        benefactor_name: null,
-      },
-      student: {
-        name: 'Scholar',
-        pdm_id: '',
-      },
-      cycle: {
-        semester_label: '',
-        school_year_label: '',
-      },
-    };
-  }
-
-  const { data: scholarRecord, error: scholarError } = await supabase
-    .from('scholars')
-    .select(`
-      scholar_id,
-      program_id,
-      scholarship_program (
-        program_name,
-        benefactor_id
-      )
-    `)
-    .eq('student_id', studentRecord.student_id)
-    .maybeSingle();
-
-  if (scholarError) {
-    throw scholarError;
-  }
-
-  let benefactorName = null;
-  const benefactorId = scholarRecord?.scholarship_program?.benefactor_id;
-  if (benefactorId) {
-    const { data: benefactorRow } = await supabase
-      .from('benefactors')
-      .select('benefactor_name')
-      .eq('benefactor_id', benefactorId)
-      .maybeSingle();
-
-    benefactorName = benefactorRow?.benefactor_name || null;
-  }
-
-  const now = new Date();
-  const semesterLabel = now.getMonth() < 6 ? 'Second Semester' : 'First Semester';
-  const schoolYearLabel =
-    now.getMonth() < 6
-      ? `${now.getFullYear() - 1}-${now.getFullYear()}`
-      : `${now.getFullYear()}-${now.getFullYear() + 1}`;
-
-  return {
-    renewal: {
-      renewal_id: '',
-      scholar_id: scholarRecord?.scholar_id || '',
-      student_id: studentRecord.student_id || '',
-      program_id: scholarRecord?.program_id || '',
-      semester_label: semesterLabel,
-      school_year_label: schoolYearLabel,
-      renewal_status: 'Pending Submission',
-      document_status: 'Missing Docs',
-      admin_comment: null,
-      submitted_at: null,
-      reviewed_at: null,
-    },
-    documents: [],
-    scholar: {
-      program_name: scholarRecord?.scholarship_program?.program_name || 'Scholarship',
-      benefactor_name: benefactorName,
-    },
-    student: {
-      name: `${studentRecord.first_name || ''} ${studentRecord.last_name || ''}`.trim() || 'Scholar',
-      pdm_id: studentRecord.pdm_id || '',
-    },
-    cycle: {
-      semester_label: semesterLabel,
-      school_year_label: schoolYearLabel,
-    },
-  };
-}
-
-async function fetchMyPayoutSchedules(userId) {
-  const studentRecord = await resolveStudentByUserId(userId);
-
-  if (!studentRecord?.student_id) {
-    return { items: [] };
-  }
-
-  const { data: scholarRecord, error: scholarError } = await supabase
-    .from('scholars')
-    .select('scholar_id')
-    .eq('student_id', studentRecord.student_id)
-    .maybeSingle();
-
-  if (scholarError) {
-    throw scholarError;
-  }
-
-  if (!scholarRecord?.scholar_id) {
-    return { items: [] };
-  }
-
-  const { data, error } = await supabase
-    .from('payout_batch_scholars')
-    .select(`
-      payout_entry_id,
-      amount_received,
-      release_status,
-      payout_batches!fk_payout_batch_scholars_batch (
-        payout_batch_id,
-        payout_title,
-        payout_date,
-        payment_mode,
-        batch_status,
-        program_id
-      )
-    `)
-    .eq('scholar_id', scholarRecord.scholar_id);
-
-  if (error) {
-    throw error;
-  }
-
-  const rows = Array.isArray(data) ? data : [];
-  const programIds = rows
-    .map((row) => row?.payout_batches?.program_id)
-    .filter(Boolean);
-
-  let programMap = {};
-  if (programIds.length > 0) {
-    const { data: programs, error: programError } = await supabase
-      .from('scholarship_program')
-      .select('program_id, program_name, benefactor_id')
-      .in('program_id', programIds);
-
-    if (programError) {
-      throw programError;
-    }
-
-    const benefactorIds = (programs || [])
-      .map((item) => item.benefactor_id)
-      .filter(Boolean);
-
-    let benefactorMap = {};
-    if (benefactorIds.length > 0) {
-      const { data: benefactors, error: benefactorError } = await supabase
-        .from('benefactors')
-        .select('benefactor_id, benefactor_name')
-        .in('benefactor_id', benefactorIds);
-
-      if (benefactorError) {
-        throw benefactorError;
-      }
-
-      benefactorMap = Object.fromEntries(
-        (benefactors || []).map((item) => [item.benefactor_id, item.benefactor_name])
-      );
-    }
-
-    programMap = Object.fromEntries(
-      (programs || []).map((item) => [
-        item.program_id,
-        {
-          program_name: item.program_name,
-          benefactor_name: benefactorMap[item.benefactor_id] || null,
-        },
-      ])
-    );
-  }
-
-  const items = rows
-    .map((row) => {
-      const batch = row.payout_batches || {};
-      const programInfo = programMap[batch.program_id] || {};
-
-      return {
-        payout_entry_id: row.payout_entry_id,
-        payout_batch_id: batch.payout_batch_id || '',
-        title: batch.payout_title || 'Scholarship Payout',
-        amount: row.amount_received || 0,
-        status: row.release_status || 'Pending',
-        payout_date: batch.payout_date || '',
-        semester: batch.semester || '',
-        school_year: batch.school_year || '',
-        payment_mode: batch.payment_mode || '',
-        batch_status: batch.batch_status || '',
-        program_name: programInfo.program_name || 'Scholarship Program',
-        benefactor_name: programInfo.benefactor_name || null,
-        reference: batch.payout_batch_id || '',
-      };
-    })
-    .sort((a, b) => String(b.payout_date).compareTo(String(a.payout_date)));
-
-  return { items };
 }
 
 async function buildApplicantDocumentPackage({
@@ -1957,7 +1425,7 @@ async function uploadApplicationDocumentFile({
   const fileName = `${fileScope}/${definition.id}/${Date.now()}-${sanitizedFileName}`;
 
   const { error: storageError } = await supabase.storage
-    .from('application-documents')
+    .from('documents')
     .upload(fileName, file.buffer, {
       contentType: file.mimetype,
       upsert: true,
@@ -1968,7 +1436,7 @@ async function uploadApplicationDocumentFile({
   }
 
   const { data: publicUrlData } = supabase.storage
-    .from('application-documents')
+    .from('documents')
     .getPublicUrl(fileName);
   const fileUrl = publicUrlData?.publicUrl || null;
 
@@ -2488,18 +1956,6 @@ async function resolveRegistrarStudentByStudentNumber(studentNumber) {
 async function resolveStudentEligibilityByStudentNumber(studentNumber) {
   const registryStudent = await resolveRegistrarStudentByStudentNumber(studentNumber);
 
-  if (!registryStudent) {
-    return {
-      isRegistrarMatch: false,
-      hasApplication: false,
-      hasScholarAccess: false,
-      status: 'non-PDM / not registered',
-      registryStudent: null,
-      studentRecord: null,
-      scholarRecord: null,
-    };
-  }
-
   const studentNumberValue = normalizeStudentNumber(registryStudent.student_number);
   const { data: studentRecord, error: studentError } = await supabase
     .from('students')
@@ -2511,30 +1967,7 @@ async function resolveStudentEligibilityByStudentNumber(studentNumber) {
     throw studentError;
   }
 
-  if (!studentRecord?.student_id) {
-    return {
-      isRegistrarMatch: true,
-      hasApplication: false,
-      hasScholarAccess: false,
-      status: 'eligible student',
-      registryStudent,
-      studentRecord: null,
-      scholarRecord: null,
-    };
-  }
-
-  const scholarRecord = await resolveScholarRecordForStudent(studentRecord.student_id);
-  const { data: applicationRecords, error: applicationError } = await supabase
-    .from('applications')
-    .select('application_id, application_status, is_disqualified')
-    .eq('student_id', studentRecord.student_id);
-
-  if (applicationError) {
-    throw applicationError;
-  }
-
   const hasApplication = (applicationRecords || []).length > 0;
-  const hasScholarAccess = !!scholarRecord;
   const status = hasScholarAccess
     ? 'existing scholar'
     : hasApplication
@@ -2548,7 +1981,6 @@ async function resolveStudentEligibilityByStudentNumber(studentNumber) {
     status,
     registryStudent,
     studentRecord,
-    scholarRecord,
   };
 }
 
@@ -3022,20 +2454,6 @@ async function submitApplicantOpeningApplication({
     );
   }
 
-  const scholarRecord = studentRecord?.student_id
-    ? await resolveScholarRecordForStudent(studentRecord.student_id)
-    : null;
-
-  if (
-    scholarRecord &&
-    !isTesProgramName(opening.scholarship_program?.program_name || '')
-  ) {
-    throw createHttpError(
-      403,
-      'Approved scholars can only apply to TES scholarship openings.'
-    );
-  }
-
   const activeApplication = await resolveActiveOpeningApplicationForUser(userId);
   if (activeApplication?.application?.application_id) {
     throw createHttpError(
@@ -3113,7 +2531,6 @@ async function submitApplicantOpeningApplication({
     applicationRecord.application_id,
     persisted.studentRecord.student_id
   );
-  await clearApplicantDraftByUserId(userId);
 
   return buildApplicationSubmissionResponse({
     applicationId: applicationRecord.application_id,
@@ -3153,303 +2570,8 @@ const accountRecoveryService = createAccountRecoveryService({
   transporter,
 });
 
-// --- ROUTES ---
-
-app.get('/api/courses', protect, async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('academic_course')
-      .select('course_id, course_code, course_name, is_archived, department_id')
-      .eq('is_archived', false)
-      .not('course_code', 'is', null)
-      .not('course_name', 'is', null)
-      .order('course_code', { ascending: true });
-
-    if (error) {
-      console.error('COURSES FETCH ERROR:', error);
-      return res.status(500).json({
-        error: error.message || 'Failed to load courses.',
-      });
-    }
-
-    const items = (data || [])
-      .filter((course) => {
-        const code = String(course.course_code || '').trim();
-        const name = String(course.course_name || '').trim();
-        return code.length > 0 && name.length > 0;
-      })
-      .map((course) => ({
-        course_id: course.course_id,
-        course_code: String(course.course_code || '').trim(),
-        course_name: String(course.course_name || '').trim(),
-        department_id: course.department_id,
-        label: `${String(course.course_code || '').trim()} - ${String(course.course_name || '').trim()}`,
-      }));
-
-    return res.status(200).json({ items });
-  } catch (error) {
-    console.error('COURSES ROUTE ERROR:', error);
-    return res.status(500).json({
-      error: error.message || 'Failed to load courses.',
-    });
-  }
-});
-
-// 1. Register Route
-app.post('/api/auth/register', async (req, res) => {
-  let { email, password, student_id } = req.body;
-
-  console.log('DEBUG (Backend): Received registration request body:', req.body);
-
-  try {
-    email = (email || '').toString().trim().toLowerCase();
-    student_id = (student_id || '').toString().trim();
-
-    if (!email || !password || !student_id) {
-      return res.status(400).json({ error: 'Email, password, and Student ID are required' });
-    }
-
-    accountRecoveryService.ensurePasswordPolicy(password);
-
-    const studentIdRegex = /^PDM-\d{4}-\d{6}$/;
-    if (!studentIdRegex.test(student_id)) {
-      return res.status(400).json({
-        error: 'Student ID must be in the format PDM-YYYY-NNNNNN (e.g. PDM-2023-000001)',
-      });
-    }
-
-    const registrarStudent = await resolveRegistrarStudentByStudentNumber(
-      student_id
-    );
-
-    if (!registrarStudent) {
-      return res.status(403).json({
-        error: 'Student ID is not registered in the registrar records.',
-      });
-    }
-
-    const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
-      .from('users')
-      .select('username')
-      .eq('username', student_id)
-      .maybeSingle();
-
-    if (studentIdCheckError) {
-      console.error('Supabase Student ID Check Error:', studentIdCheckError);
-      return res.status(500).json({ error: 'Database error during student ID check' });
-    }
-
-    if (existingUserByStudentId) {
-      return res.status(409).json({ error: 'Student ID already registered' });
-    }
-
-    const { data: existingUserByEmail, error: emailCheckError } = await supabase
-      .from('users')
-      .select('email')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (emailCheckError) {
-      console.error('Supabase Email Check Error:', emailCheckError);
-      return res.status(500).json({ error: 'Database error during email check' });
-    }
-
-    if (existingUserByEmail) {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-
-    for (const [storedEmail, pending] of pendingRegistrationStore.entries()) {
-      if (Date.now() > pending.expiresAt) {
-        pendingRegistrationStore.delete(storedEmail);
-        otpStore.delete(storedEmail);
-        continue;
-      }
-
-      if (storedEmail === email || pending.student_id === student_id) {
-        otpStore.delete(storedEmail);
-        pendingRegistrationStore.delete(storedEmail);
-      }
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const otp = generateOTP();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-
-    pendingRegistrationStore.set(email, {
-      email,
-      student_id,
-      registrar_student: registrarStudent,
-      password_hash: hashedPassword,
-      role: 'Student',
-      expiresAt,
-    });
-
-    otpStore.set(email, { otp, expiresAt });
-
-    await sendOTPEmail(email, otp);
-
-    return res.status(200).json({
-      message: 'OTP sent. Complete verification to finish registration.',
-      user: {
-        user_id: null,
-        email,
-        student_id,
-        role: 'Student',
-        is_verified: false,
-      },
-    });
-  } catch (error) {
-    console.error('REGISTER ROUTE ERROR:', error);
-    return res.status(500).json({
-      error: error.message || 'Failed to process registration',
-    });
-  }
-});
-
-// 2. Verify OTP Route
-app.post('/api/auth/verify-otp', async (req, res) => {
-  let { email, otp } = req.body;
-
-  try {
-    email = (email || '').toString().trim().toLowerCase();
-    otp = (otp || '').toString().trim();
-
-    const record = otpStore.get(email);
-    const pendingRegistration = pendingRegistrationStore.get(email);
-
-    if (!record || !pendingRegistration) {
-      return res.status(400).json({ error: 'No pending registration found or OTP already used' });
-    }
-
-    if (Date.now() > record.expiresAt || Date.now() > pendingRegistration.expiresAt) {
-      otpStore.delete(email);
-      pendingRegistrationStore.delete(email);
-      return res.status(400).json({ error: 'OTP has expired. Please register again.' });
-    }
-
-    if (record.otp !== otp) {
-      return res.status(400).json({ error: 'Invalid OTP' });
-    }
-
-    const registrarStudent = await resolveRegistrarStudentByStudentNumber(
-      pendingRegistration.student_id
-    );
-
-    if (!registrarStudent) {
-      otpStore.delete(email);
-      pendingRegistrationStore.delete(email);
-      return res.status(403).json({
-        error: 'Student ID is not registered in the registrar records.',
-      });
-    }
-
-    const { data: existingUserByStudentId, error: studentIdCheckError } = await supabase
-      .from('users')
-      .select('username')
-      .eq('username', pendingRegistration.student_id)
-      .maybeSingle();
-
-    if (studentIdCheckError) {
-      console.error('Supabase Student ID Recheck Error:', studentIdCheckError);
-      return res.status(500).json({ error: 'Database error during final student ID validation' });
-    }
-
-    if (existingUserByStudentId) {
-      otpStore.delete(email);
-      pendingRegistrationStore.delete(email);
-      return res.status(409).json({ error: 'Student ID already registered' });
-    }
-
-    const { data: existingUserByEmail, error: emailCheckError } = await supabase
-      .from('users')
-      .select('email')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (emailCheckError) {
-      console.error('Supabase Email Recheck Error:', emailCheckError);
-      return res.status(500).json({ error: 'Database error during final email validation' });
-    }
-
-    if (existingUserByEmail) {
-      otpStore.delete(email);
-      pendingRegistrationStore.delete(email);
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-
-    const { data: insertedUser, error: insertError } = await supabase
-      .from('users')
-      .insert([
-        {
-          email: pendingRegistration.email,
-          username: pendingRegistration.student_id,
-          password_hash: pendingRegistration.password_hash,
-          is_otp_verified: true,
-          role: pendingRegistration.role || 'Student',
-        },
-      ])
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error('Supabase Insert Error During OTP Verification:', insertError);
-      return res.status(500).json({ error: 'Failed to complete registration' });
-    }
-
-    // --- BEGIN: Auto-create student profile from registrar data ---
-    const registrarStudentData = pendingRegistration.registrar_student;
-    if (registrarStudentData && insertedUser.user_id) {
-      const studentPayload = {
-        user_id: insertedUser.user_id,
-        pdm_id: registrarStudentData.student_number,
-        first_name: registrarStudentData.first_name,
-        middle_name: registrarStudentData.middle_name,
-        last_name: registrarStudentData.last_name,
-        course_id: registrarStudentData.course_id,
-        year_level: registrarStudentData.year_level,
-        account_status: 'Verified',
-        is_profile_complete: false,
-      };
-
-      const { error: studentInsertError } = await supabase
-        .from('students')
-        .insert([studentPayload]);
-
-      if (studentInsertError) {
-        // The user is created but the student profile is not.
-        // For now, just log it. A more robust solution would use a transaction.
-        console.error('Failed to create student record during registration:', studentInsertError);
-      } else {
-        // Link the user_id back to the registry to mark it as "claimed"
-        const { error: registryUpdateError } = await supabase
-          .from('student_registry')
-          .update({ user_id: insertedUser.user_id })
-          .eq('registry_id', registrarStudentData.registry_id);
-
-        if (registryUpdateError) {
-          console.warn('Failed to link user to student registry:', registryUpdateError);
-        }
-      }
-    }
-    // --- END: Auto-create student profile ---
-
-    otpStore.delete(email);
-    pendingRegistrationStore.delete(email);
-
-    return res.status(200).json({
-      ...(await buildAuthResponse(insertedUser)),
-      message: 'Email verified successfully',
-    });
-  } catch (error) {
-    console.error('VERIFY OTP ROUTE ERROR:', error);
-    return res.status(500).json({
-      error: error.message || 'Failed to verify OTP',
-    });
-  }
-});
-
 // 3. Resend OTP Route
-app.post('/api/auth/resend-otp', async (req, res) => {
+router.post('/api/auth/resend-otp', async (req, res) => {
   let { email } = req.body;
 
   try {
@@ -3489,7 +2611,7 @@ app.post('/api/auth/resend-otp', async (req, res) => {
 });
 
 // 4. Cancel Registration Route
-app.post('/api/profile/setup', protect, async (req, res) => {
+router.post('/api/profile/setup', protect, async (req, res) => {
   try {
     const userId = getRequestUserId(req);
 
@@ -3642,7 +2764,7 @@ app.post('/api/profile/setup', protect, async (req, res) => {
   }
 });
 
-app.post('/api/auth/upload-avatar', protect, upload.single('image'), async (req, res) => {
+router.post('/api/auth/upload-avatar', protect, upload.single('image'), async (req, res) => {
   try {
     const userId = getRequestUserId(req);
     const context = await loadStudentProfileContextByUserId(userId);
@@ -3703,7 +2825,7 @@ app.post('/api/auth/upload-avatar', protect, upload.single('image'), async (req,
 });
 
 // 5. Account Recovery Lookup Route
-app.post('/api/auth/recovery/lookup', async (req, res) => {
+router.post('/api/auth/recovery/lookup', async (req, res) => {
   try {
     const accounts = await accountRecoveryService.lookupAccounts(
       req.body?.identifier
@@ -3719,7 +2841,7 @@ app.post('/api/auth/recovery/lookup', async (req, res) => {
 });
 
 // 6. Account Recovery Start Route
-app.post('/api/auth/recovery/start', async (req, res) => {
+router.post('/api/auth/recovery/start', async (req, res) => {
   try {
     const payload = await accountRecoveryService.startRecovery({
       userId: req.body?.user_id,
@@ -3739,7 +2861,7 @@ app.post('/api/auth/recovery/start', async (req, res) => {
 });
 
 // 7. Account Recovery Resend Code Route
-app.post('/api/auth/recovery/resend-code', async (req, res) => {
+router.post('/api/auth/recovery/resend-code', async (req, res) => {
   try {
     const payload = await accountRecoveryService.resendRecoveryCode(
       req.body?.session_id
@@ -3755,7 +2877,7 @@ app.post('/api/auth/recovery/resend-code', async (req, res) => {
 });
 
 // 8. Account Recovery Verify Code Route
-app.post('/api/auth/recovery/verify-code', async (req, res) => {
+router.post('/api/auth/recovery/verify-code', async (req, res) => {
   try {
     const payload = await accountRecoveryService.verifyRecoveryCode({
       sessionId: req.body?.session_id,
@@ -3772,7 +2894,7 @@ app.post('/api/auth/recovery/verify-code', async (req, res) => {
 });
 
 // 9. Account Recovery Reset Password Route
-app.post('/api/auth/recovery/reset-password', async (req, res) => {
+router.post('/api/auth/recovery/reset-password', async (req, res) => {
   try {
     const payload = await accountRecoveryService.resetPassword({
       resetToken: req.body?.reset_token,
@@ -3788,164 +2910,134 @@ app.post('/api/auth/recovery/reset-password', async (req, res) => {
   }
 });
 
-// 10. Login Route
-app.post('/api/auth/login', async (req, res) => {
-  const { student_id, password } = req.body;
+// router.get('/api/profile/me', protect, async (req, res) => {
+//   try {
+//     const userId = getRequestUserId(req);
+//     const context = await loadStudentProfileContextByUserId(userId);
 
-  if (!student_id || !password) {
-    return res.status(400).json({ error: 'Student ID and password are required' });
-  }
+//     if (!context?.user) {
+//       return res.status(404).json({ error: 'User profile not found.' });
+//     }
 
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('username', student_id)
-    .maybeSingle();
+//     res.status(200).json(await buildMyProfileResponse(context));
+//   } catch (error) {
+//     console.error('PROFILE ME FETCH ERROR:', error);
+//     res.status(500).json({ error: error.message || 'Failed to load profile.' });
+//   }
+// });
 
-  if (error || !data) {
-    return res.status(401).json({ error: 'Invalid Student ID or password' });
-  }
+// router.patch('/api/profile/me', protect, async (req, res) => {
+//   try {
+//     const userId = getRequestUserId(req);
+//     const context = await loadStudentProfileContextByUserId(userId);
 
-  const isMatch = await bcrypt.compare(password, data.password_hash);
-  if (!isMatch) {
-    return res.status(401).json({ error: 'Invalid Student ID or password' });
-  }
+//     if (!context?.user) {
+//       return res.status(404).json({ error: 'User profile not found.' });
+//     }
 
-  if (!data.is_otp_verified) {
-    return res.status(403).json({ error: 'Please verify your email first' });
-  }
+//     if (!context.student?.student_id) {
+//       return res.status(404).json({ error: 'No student profile is linked to this account.' });
+//     }
 
-  res.status(200).json(await buildAuthResponse(data));
-});
+//     const payload = req.body ?? {};
+//     const email = (payload.email ?? '').toString().trim();
+//     const phoneNumber = (payload.phone_number ?? '').toString().trim();
+//     const firstName = (payload.first_name ?? '').toString().trim();
+//     const lastName = (payload.last_name ?? '').toString().trim();
+//     const courseCode = (payload.course_code ?? '').toString().trim();
 
-app.get('/api/profile/me', protect, async (req, res) => {
-  try {
-    const userId = getRequestUserId(req);
-    const context = await loadStudentProfileContextByUserId(userId);
+//     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+//       return res.status(400).json({ error: 'Please provide a valid email address.' });
+//     }
 
-    if (!context?.user) {
-      return res.status(404).json({ error: 'User profile not found.' });
-    }
+//     let courseId = context.student.course_id ?? null;
+//     if (courseCode) {
+//       try {
+//         const resolvedCourseId = await resolveCourseIdByCode(courseCode);
+//         if (!resolvedCourseId) {
+//           return res.status(400).json({ error: 'Selected course is invalid.' });
+//         }
 
-    res.status(200).json(await buildMyProfileResponse(context));
-  } catch (error) {
-    console.error('PROFILE ME FETCH ERROR:', error);
-    res.status(500).json({ error: error.message || 'Failed to load profile.' });
-  }
-});
+//         courseId = resolvedCourseId;
+//       } catch (courseError) {
+//         console.error('Profile course lookup error:', courseError);
+//         return res.status(500).json({ error: 'Failed to validate course.' });
+//       }
+//     }
 
-app.patch('/api/profile/me', protect, async (req, res) => {
-  try {
-    const userId = getRequestUserId(req);
-    const context = await loadStudentProfileContextByUserId(userId);
+//     const nextUserPayload = {};
+//     if (email) nextUserPayload.email = email;
+//     nextUserPayload.phone_number = phoneNumber || null;
 
-    if (!context?.user) {
-      return res.status(404).json({ error: 'User profile not found.' });
-    }
+//     const { error: userUpdateError } = await supabase
+//       .from('users')
+//       .update(nextUserPayload)
+//       .eq('user_id', userId);
 
-    if (!context.student?.student_id) {
-      return res.status(404).json({ error: 'No student profile is linked to this account.' });
-    }
+//     if (userUpdateError) {
+//       console.error('Profile user update error:', userUpdateError);
+//       return res.status(500).json({ error: userUpdateError.message || 'Failed to update account information.' });
+//     }
 
-    const payload = req.body ?? {};
-    const email = (payload.email ?? '').toString().trim();
-    const phoneNumber = (payload.phone_number ?? '').toString().trim();
-    const firstName = (payload.first_name ?? '').toString().trim();
-    const lastName = (payload.last_name ?? '').toString().trim();
-    const courseCode = (payload.course_code ?? '').toString().trim();
+//     const nextStudentPayload = {};
+//     if (firstName) nextStudentPayload.first_name = firstName;
+//     if (lastName) nextStudentPayload.last_name = lastName;
+//     nextStudentPayload.course_id = courseId;
 
-    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      return res.status(400).json({ error: 'Please provide a valid email address.' });
-    }
+//     const { error: studentUpdateError } = await supabase
+//       .from('students')
+//       .update(nextStudentPayload)
+//       .eq('student_id', context.student.student_id);
 
-    let courseId = context.student.course_id ?? null;
-    if (courseCode) {
-      try {
-        const resolvedCourseId = await resolveCourseIdByCode(courseCode);
-        if (!resolvedCourseId) {
-          return res.status(400).json({ error: 'Selected course is invalid.' });
-        }
+//     if (studentUpdateError) {
+//       console.error('Profile student update error:', studentUpdateError);
+//       return res.status(500).json({ error: studentUpdateError.message || 'Failed to update student information.' });
+//     }
 
-        courseId = resolvedCourseId;
-      } catch (courseError) {
-        console.error('Profile course lookup error:', courseError);
-        return res.status(500).json({ error: 'Failed to validate course.' });
-      }
-    }
+//     const normalizedProfilePayload = {
+//       student_id: context.student.student_id,
+//       date_of_birth: payload.date_of_birth ?? context.student_profile?.date_of_birth ?? null,
+//       place_of_birth: payload.place_of_birth ?? context.student_profile?.place_of_birth ?? null,
+//       sex: normalizeStudentProfileSex(
+//         payload.sex ?? context.student_profile?.sex ?? null
+//       ),
+//       civil_status: payload.civil_status ?? context.student_profile?.civil_status ?? null,
+//       maiden_name: payload.maiden_name ?? context.student_profile?.maiden_name ?? null,
+//       religion: payload.religion ?? context.student_profile?.religion ?? null,
+//       citizenship: payload.citizenship ?? context.student_profile?.citizenship ?? 'Filipino',
+//       street_address: payload.street_address ?? payload.address ?? context.student_profile?.street_address ?? null,
+//       subdivision: payload.subdivision ?? context.student_profile?.subdivision ?? null,
+//       city: payload.city ?? context.student_profile?.city ?? null,
+//       province: payload.province ?? context.student_profile?.province ?? null,
+//       zip_code: payload.zip_code ?? context.student_profile?.zip_code ?? null,
+//       landline_number: payload.landline_number ?? context.student_profile?.landline_number ?? null,
+//       learners_reference_number:
+//         payload.learners_reference_number ??
+//         context.student_profile?.learners_reference_number ??
+//         null,
+//     };
 
-    const nextUserPayload = {};
-    if (email) nextUserPayload.email = email;
-    nextUserPayload.phone_number = phoneNumber || null;
+//     const { error: profileUpdateError } = await supabase
+//       .from('student_profiles')
+//       .upsert([normalizedProfilePayload], { onConflict: 'student_id' });
 
-    const { error: userUpdateError } = await supabase
-      .from('users')
-      .update(nextUserPayload)
-      .eq('user_id', userId);
+//     if (profileUpdateError) {
+//       console.error('Profile student_profiles upsert error:', profileUpdateError);
+//       return res.status(500).json({ error: profileUpdateError.message || 'Failed to update profile details.' });
+//     }
 
-    if (userUpdateError) {
-      console.error('Profile user update error:', userUpdateError);
-      return res.status(500).json({ error: userUpdateError.message || 'Failed to update account information.' });
-    }
+//     const refreshedContext = await loadStudentProfileContextByUserId(userId);
+//     res.status(200).json({
+//       message: 'Profile updated successfully.',
+//       ...(await buildMyProfileResponse(refreshedContext)),
+//     });
+//   } catch (error) {
+//     console.error('PROFILE ME UPDATE ERROR:', error);
+//     res.status(500).json({ error: error.message || 'Failed to update profile.' });
+//   }
+// });
 
-    const nextStudentPayload = {};
-    if (firstName) nextStudentPayload.first_name = firstName;
-    if (lastName) nextStudentPayload.last_name = lastName;
-    nextStudentPayload.course_id = courseId;
-
-    const { error: studentUpdateError } = await supabase
-      .from('students')
-      .update(nextStudentPayload)
-      .eq('student_id', context.student.student_id);
-
-    if (studentUpdateError) {
-      console.error('Profile student update error:', studentUpdateError);
-      return res.status(500).json({ error: studentUpdateError.message || 'Failed to update student information.' });
-    }
-
-    const normalizedProfilePayload = {
-      student_id: context.student.student_id,
-      date_of_birth: payload.date_of_birth ?? context.student_profile?.date_of_birth ?? null,
-      place_of_birth: payload.place_of_birth ?? context.student_profile?.place_of_birth ?? null,
-      sex: normalizeStudentProfileSex(
-        payload.sex ?? context.student_profile?.sex ?? null
-      ),
-      civil_status: payload.civil_status ?? context.student_profile?.civil_status ?? null,
-      maiden_name: payload.maiden_name ?? context.student_profile?.maiden_name ?? null,
-      religion: payload.religion ?? context.student_profile?.religion ?? null,
-      citizenship: payload.citizenship ?? context.student_profile?.citizenship ?? 'Filipino',
-      street_address: payload.street_address ?? payload.address ?? context.student_profile?.street_address ?? null,
-      subdivision: payload.subdivision ?? context.student_profile?.subdivision ?? null,
-      city: payload.city ?? context.student_profile?.city ?? null,
-      province: payload.province ?? context.student_profile?.province ?? null,
-      zip_code: payload.zip_code ?? context.student_profile?.zip_code ?? null,
-      landline_number: payload.landline_number ?? context.student_profile?.landline_number ?? null,
-      learners_reference_number:
-        payload.learners_reference_number ??
-        context.student_profile?.learners_reference_number ??
-        null,
-    };
-
-    const { error: profileUpdateError } = await supabase
-      .from('student_profiles')
-      .upsert([normalizedProfilePayload], { onConflict: 'student_id' });
-
-    if (profileUpdateError) {
-      console.error('Profile student_profiles upsert error:', profileUpdateError);
-      return res.status(500).json({ error: profileUpdateError.message || 'Failed to update profile details.' });
-    }
-
-    const refreshedContext = await loadStudentProfileContextByUserId(userId);
-    res.status(200).json({
-      message: 'Profile updated successfully.',
-      ...(await buildMyProfileResponse(refreshedContext)),
-    });
-  } catch (error) {
-    console.error('PROFILE ME UPDATE ERROR:', error);
-    res.status(500).json({ error: error.message || 'Failed to update profile.' });
-  }
-});
-
-app.get('/api/notifications', protect, async (req, res) => {
+router.get('/api/notifications', protect, async (req, res) => {
   try {
     const payload = await notificationService.listUserNotifications(req.user.user_id, {
       limit: req.query.limit,
@@ -3959,7 +3051,7 @@ app.get('/api/notifications', protect, async (req, res) => {
   }
 });
 
-app.post('/api/internal/notifications/user', async (req, res) => {
+router.post('/api/internal/notifications/user', async (req, res) => {
   if (!isAuthorizedInternalRequest(req)) {
     return res.status(403).json({ error: 'Forbidden.' });
   }
@@ -4000,43 +3092,7 @@ app.post('/api/internal/notifications/user', async (req, res) => {
   }
 });
 
-app.get('/api/openings', protect, async (req, res) => {
-  try {
-    const payload = await buildApplicantOpeningsPayload(getRequestUserId(req));
-    res.status(200).json(payload);
-  } catch (error) {
-    console.error('OPENINGS ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to load scholarship openings.',
-    });
-  }
-});
-
-app.get('/api/openings/latest', protect, async (req, res) => {
-  try {
-    const latestOpening = await fetchLatestVisibleProgramOpeningForUser(
-      getRequestUserId(req)
-    );
-    res.status(200).json({ item: latestOpening });
-  } catch (error) {
-    console.error('LATEST OPENING ROUTE ERROR:', error);
-    res.status(500).json({
-      error: error.message || 'Failed to load the latest scholarship opening.',
-    });
-  }
-});
-
-app.get('/api/applications/me/form-data', protect, async (req, res) => {
-  try {
-    const payload = await buildSavedFormDataForMobile(req.user.user_id);
-    res.status(200).json(payload);
-  } catch (error) {
-    console.error('FORM DATA ERROR:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/renewals/me/current', protect, async (req, res) => {
+router.get('/api/renewals/me/current', protect, async (req, res) => {
   try {
     const payload = await buildCurrentRenewalForMobile(req.user.user_id);
     res.status(200).json(payload);
@@ -4046,7 +3102,7 @@ app.get('/api/renewals/me/current', protect, async (req, res) => {
   }
 });
 
-app.get('/api/payouts/me', protect, async (req, res) => {
+router.get('/api/payouts/me', protect, async (req, res) => {
   try {
     const payload = await fetchMyPayoutSchedules(req.user.user_id);
     res.status(200).json(payload);
@@ -4056,7 +3112,7 @@ app.get('/api/payouts/me', protect, async (req, res) => {
   }
 });
 
-app.get('/api/notifications/unread-count', protect, async (req, res) => {
+router.get('/api/notifications/unread-count', protect, async (req, res) => {
   try {
     const unreadCount = await notificationService.getUnreadCount(req.user.user_id);
     res.status(200).json({ unreadCount });
@@ -4094,7 +3150,7 @@ app.patch('/api/notifications/:id/read', protect, async (req, res) => {
   }
 });
 
-app.delete('/api/notifications/:id', protect, async (req, res) => {
+router.delete('/api/notifications/:id', protect, async (req, res) => {
   try {
     const deleted = await notificationService.deleteNotification(req.user.user_id, req.params.id);
 
@@ -4109,7 +3165,7 @@ app.delete('/api/notifications/:id', protect, async (req, res) => {
   }
 });
 
-app.post('/api/notifications/device-token', protect, async (req, res) => {
+router.post('/api/notifications/device-token', protect, async (req, res) => {
   const { deviceToken, platform } = req.body ?? {};
 
   if (!deviceToken || !platform) {
@@ -4129,207 +3185,7 @@ app.post('/api/notifications/device-token', protect, async (req, res) => {
   }
 });
 
-app.get('/api/support-tickets/me', protect, async (req, res) => {
-  try {
-    const studentRecord = await resolveStudentByUserId(getRequestUserId(req));
-
-    if (!studentRecord?.student_id) {
-      return res.status(404).json({
-        error: 'No student profile is linked to this account.',
-      });
-    }
-
-    const items = await listSupportTicketsForStudent(studentRecord.student_id);
-    res.status(200).json({ items });
-  } catch (error) {
-    console.error('SUPPORT TICKETS ME ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to load your support tickets.',
-    });
-  }
-});
-
-app.post('/api/support-tickets', protect, async (req, res) => {
-  try {
-    const studentRecord = await resolveStudentByUserId(getRequestUserId(req));
-
-    if (!studentRecord?.student_id) {
-      return res.status(404).json({
-        error: 'No student profile is linked to this account.',
-      });
-    }
-
-    const issueCategory = (req.body?.issue_category || '').toString().trim();
-    const description = (req.body?.description || '').toString().trim();
-
-    if (!issueCategory) {
-      return res.status(400).json({ error: 'issue_category is required.' });
-    }
-
-    if (issueCategory.length > 50) {
-      return res.status(400).json({
-        error: 'issue_category must be 50 characters or fewer.',
-      });
-    }
-
-    if (!description) {
-      return res.status(400).json({ error: 'description is required.' });
-    }
-
-    const { data, error } = await supabase
-      .from('support_tickets')
-      .insert({
-        student_id: studentRecord.student_id,
-        issue_category: issueCategory,
-        description,
-      })
-      .select(`
-        ticket_id,
-        student_id,
-        issue_category,
-        description,
-        status,
-        handled_by,
-        created_at,
-        resolved_at
-      `)
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    res.status(201).json({
-      message: 'Support ticket created successfully.',
-      data: mapSupportTicketRow(data),
-    });
-  } catch (error) {
-    console.error('SUPPORT TICKET CREATE ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to create support ticket.',
-    });
-  }
-});
-
-app.get('/api/support-tickets', protect, async (req, res) => {
-  try {
-    if (!isSupportAdmin(req)) {
-      return res.status(403).json({
-        error: 'Only staff accounts can access support tickets.',
-      });
-    }
-
-    const items = await listSupportTicketsForAdmin();
-    res.status(200).json({ items });
-  } catch (error) {
-    console.error('SUPPORT TICKET LIST ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to load support tickets.',
-    });
-  }
-});
-
-app.patch('/api/support-tickets/:ticketId', protect, async (req, res) => {
-  try {
-    if (!isSupportAdmin(req)) {
-      return res.status(403).json({
-        error: 'Only staff accounts can update support tickets.',
-      });
-    }
-
-    const nextStatusRaw = req.body?.status;
-    const nextStatus = nextStatusRaw == null ? null : nextStatusRaw.toString().trim();
-    const assignToSelf = req.body?.assignToSelf === true;
-    const adminId = req.user?.adminId || req.user?.admin_id || null;
-
-    if (!adminId && assignToSelf) {
-      return res.status(400).json({
-        error: 'Your account is missing an admin profile link.',
-      });
-    }
-
-    if (!nextStatus && !assignToSelf) {
-      return res.status(400).json({
-        error: 'Provide a status or set assignToSelf to true.',
-      });
-    }
-
-    if (nextStatus && !SUPPORT_TICKET_STATUSES.includes(nextStatus)) {
-      return res.status(400).json({
-        error: `status must be one of: ${SUPPORT_TICKET_STATUSES.join(', ')}.`,
-      });
-    }
-
-    const updatePayload = {};
-
-    if (nextStatus) {
-      updatePayload.status = nextStatus;
-      if (nextStatus === 'Resolved' || nextStatus === 'Closed') {
-        updatePayload.resolved_at = new Date().toISOString();
-      }
-      if ((nextStatus === 'Open' || nextStatus === 'In Progress') && !assignToSelf) {
-        updatePayload.resolved_at = null;
-      }
-      if (nextStatus !== 'Open' && adminId) {
-        updatePayload.handled_by = adminId;
-      }
-    }
-
-    if (assignToSelf) {
-      updatePayload.handled_by = adminId;
-      if (!nextStatus) {
-        updatePayload.resolved_at = null;
-      }
-    }
-
-    const { data, error } = await supabase
-      .from('support_tickets')
-      .update(updatePayload)
-      .eq('ticket_id', req.params.ticketId)
-      .select(`
-        ticket_id,
-        student_id,
-        issue_category,
-        description,
-        status,
-        handled_by,
-        created_at,
-        resolved_at,
-        students!support_tickets_student_id_fkey (
-          student_id,
-          first_name,
-          last_name,
-          pdm_id
-        ),
-        admin_profiles!support_tickets_handled_by_fkey (
-          admin_id,
-          first_name,
-          last_name
-        )
-      `)
-      .maybeSingle();
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data) {
-      return res.status(404).json({ error: 'Support ticket not found.' });
-    }
-
-    res.status(200).json({
-      message: 'Support ticket updated successfully.',
-      data: mapSupportTicketRow(data),
-    });
-  } catch (error) {
-    console.error('SUPPORT TICKET UPDATE ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to update support ticket.',
-    });
-  }
-});
-
-app.get('/api/messages/unread-count', protect, async (req, res) => {
+router.get('/api/messages/unread-count', protect, async (req, res) => {
   try {
     const unreadCount = await messageService.getUnreadCount(getRequestUserId(req));
     res.status(200).json({ unreadCount });
@@ -4341,7 +3197,7 @@ app.get('/api/messages/unread-count', protect, async (req, res) => {
   }
 });
 
-app.get('/api/messages/thread', protect, async (req, res) => {
+router.get('/api/messages/thread', protect, async (req, res) => {
   try {
     const payload = await messageService.listFixedThread(getRequestUserId(req));
     res.status(200).json(payload);
@@ -4353,7 +3209,7 @@ app.get('/api/messages/thread', protect, async (req, res) => {
   }
 });
 
-app.post('/api/messages/thread', protect, async (req, res) => {
+router.post('/api/messages/thread', protect, async (req, res) => {
   try {
     const payload = await messageService.sendToFixedThread(
       getRequestUserId(req),
@@ -4380,7 +3236,7 @@ app.patch('/api/messages/thread/read', protect, async (req, res) => {
   }
 });
 
-app.get('/api/messages/conversations', protect, async (req, res) => {
+router.get('/api/messages/conversations', protect, async (req, res) => {
   try {
     const items = await messageService.listAdminConversations(getRequestUserId(req));
     res.status(200).json({ items });
@@ -4392,7 +3248,7 @@ app.get('/api/messages/conversations', protect, async (req, res) => {
   }
 });
 
-app.get('/api/messages/conversations/:counterpartyId', protect, async (req, res) => {
+router.get('/api/messages/conversations/:counterpartyId', protect, async (req, res) => {
   try {
     const payload = await messageService.listAdminConversation(
       getRequestUserId(req),
@@ -4407,7 +3263,7 @@ app.get('/api/messages/conversations/:counterpartyId', protect, async (req, res)
   }
 });
 
-app.post('/api/messages/conversations/:counterpartyId', protect, async (req, res) => {
+router.post('/api/messages/conversations/:counterpartyId', protect, async (req, res) => {
   try {
     const payload = await messageService.sendAdminConversationMessage(
       getRequestUserId(req),
@@ -4440,7 +3296,7 @@ app.patch('/api/messages/conversations/:counterpartyId/read', protect, async (re
 
 // --- GROUP MESSAGES ROUTES ---
 
-app.get('/api/messages/rooms/admin', protect, async (req, res) => {
+router.get('/api/messages/rooms/admin', protect, async (req, res) => {
   try {
     const payload = await messageService.listRoomsForAdmin(getRequestUserId(req));
     res.status(200).json(payload);
@@ -4450,7 +3306,7 @@ app.get('/api/messages/rooms/admin', protect, async (req, res) => {
   }
 });
 
-app.post('/api/messages/rooms', protect, async (req, res) => {
+router.post('/api/messages/rooms', protect, async (req, res) => {
   try {
     const { roomName, userIds } = req.body;
     const payload = await messageService.createRoom(getRequestUserId(req), roomName, userIds);
@@ -4461,7 +3317,7 @@ app.post('/api/messages/rooms', protect, async (req, res) => {
   }
 });
 
-app.post('/api/messages/rooms/:roomId/members', protect, async (req, res) => {
+router.post('/api/messages/rooms/:roomId/members', protect, async (req, res) => {
   try {
     const { userIds } = req.body;
     const payload = await messageService.addGroupMembers(getRequestUserId(req), req.params.roomId, userIds);
@@ -4472,7 +3328,7 @@ app.post('/api/messages/rooms/:roomId/members', protect, async (req, res) => {
   }
 });
 
-app.delete('/api/messages/rooms/:roomId/members/:userId', protect, async (req, res) => {
+router.delete('/api/messages/rooms/:roomId/members/:userId', protect, async (req, res) => {
   try {
     const payload = await messageService.removeGroupMember(getRequestUserId(req), req.params.roomId, req.params.userId);
     res.status(200).json(payload);
@@ -4482,7 +3338,7 @@ app.delete('/api/messages/rooms/:roomId/members/:userId', protect, async (req, r
   }
 });
 
-app.get('/api/messages/rooms', protect, async (req, res) => {
+router.get('/api/messages/rooms', protect, async (req, res) => {
   try {
     const payload = await messageService.listRoomsForUser(getRequestUserId(req));
     res.status(200).json(payload);
@@ -4492,7 +3348,7 @@ app.get('/api/messages/rooms', protect, async (req, res) => {
   }
 });
 
-app.get('/api/messages/rooms/:roomId/thread', protect, async (req, res) => {
+router.get('/api/messages/rooms/:roomId/thread', protect, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 200;
     const items = await messageService.fetchRoomThread(getRequestUserId(req), req.params.roomId, { limit });
@@ -4503,7 +3359,7 @@ app.get('/api/messages/rooms/:roomId/thread', protect, async (req, res) => {
   }
 });
 
-app.post('/api/messages/rooms/:roomId/send', protect, async (req, res) => {
+router.post('/api/messages/rooms/:roomId/send', protect, async (req, res) => {
   try {
     const payload = await messageService.sendRoomMessage(getRequestUserId(req), req.params.roomId, req.body?.messageBody);
     res.status(201).json(payload);
@@ -4518,7 +3374,7 @@ app.patch('/api/messages/rooms/:roomId/read', protect, async (req, res) => {
   res.status(200).json({ success: true, messageIds: [] });
 });
 
-app.get('/api/messages/members/scholars', protect, async (req, res) => {
+router.get('/api/messages/members/scholars', protect, async (req, res) => {
   try {
     const { data: students, error } = await supabase
       .from('students')
@@ -4533,7 +3389,7 @@ app.get('/api/messages/members/scholars', protect, async (req, res) => {
       student_number: s.pdm_id,
       student_name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
       program_name: s.academic_course?.course_name || 'Unknown Program',
-      benefactor_name: 'PDM' 
+      benefactor_name: 'PDM'
     }));
 
     res.status(200).json({ items });
@@ -4545,7 +3401,7 @@ app.get('/api/messages/members/scholars', protect, async (req, res) => {
 
 
 
-app.get('/api/faqs', async (req, res) => {
+router.get('/api/faqs', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('faqs')
@@ -4579,7 +3435,7 @@ app.get('/api/faqs', async (req, res) => {
   }
 });
 
-app.get('/api/scholarship-programs', async (req, res) => {
+router.get('/api/scholarship-programs', async (req, res) => {
   const { data, error } = await supabase
     .from('scholarship_program')
     .select('program_id, program_name')
@@ -4593,105 +3449,7 @@ app.get('/api/scholarship-programs', async (req, res) => {
   res.status(200).json(data ?? []);
 });
 
-app.get('/api/applications/me/form-data', protect, async (req, res) => {
-  try {
-    const draft = await resolveApplicantDraftByUserId(getRequestUserId(req));
-
-    if (!draft) {
-      return res.status(200).json({ has_saved_form: false });
-    }
-
-    const payload =
-      draft.payload && typeof draft.payload === 'object' ? draft.payload : {};
-    const opening = draft.opening_id
-      ? await resolveOpeningById(draft.opening_id)
-      : null;
-
-    res.status(200).json({
-      has_saved_form: true,
-      ...payload,
-      opening: {
-        opening_id: opening?.opening_id || draft.opening_id || '',
-        opening_title: opening?.opening_title || '',
-        program_name: opening?.scholarship_program?.program_name || '',
-      },
-      draft_updated_at: draft.updated_at || draft.created_at || null,
-    });
-  } catch (error) {
-    console.error('APPLICATION FORM DATA ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to load your saved application draft.',
-    });
-  }
-});
-
-app.put('/api/applications/me/form-data', protect, async (req, res) => {
-  try {
-    const userId = getRequestUserId(req);
-    const openingId = req.body?.opening?.opening_id?.toString().trim();
-
-    if (!openingId) {
-      return res.status(400).json({
-        error: 'opening.opening_id is required to save an application draft.',
-      });
-    }
-
-    const opening = await resolveOpeningById(openingId);
-    if (!opening) {
-      return res.status(404).json({ error: 'Scholarship opening not found.' });
-    }
-
-    if ((opening.posting_status || '').toLowerCase() !== 'open') {
-      return res.status(409).json({
-        error: 'This scholarship opening is no longer accepting applications.',
-      });
-    }
-
-    const studentRecord = await resolveStudentByUserId(userId);
-    const scholarRecord = studentRecord?.student_id
-      ? await resolveScholarRecordForStudent(studentRecord.student_id)
-      : null;
-
-    if (
-      scholarRecord &&
-      !isTesProgramName(opening.scholarship_program?.program_name || '')
-    ) {
-      return res.status(403).json({
-        error: 'Approved scholars can only access TES scholarship openings.',
-      });
-    }
-
-    const activeApplication = await resolveActiveOpeningApplicationForUser(userId);
-    if (activeApplication?.application?.application_id) {
-      return res.status(409).json({
-        error:
-          'You already have an active scholarship application. Finish that application before starting a new one.',
-      });
-    }
-
-    await upsertApplicantDraftByUserId(userId, {
-      openingId,
-      payload: req.body ?? {},
-    });
-
-    res.status(200).json({
-      message: 'Application draft saved.',
-      has_saved_form: true,
-      opening: {
-        opening_id: opening.opening_id,
-        opening_title: opening.opening_title || '',
-        program_name: opening.scholarship_program?.program_name || '',
-      },
-    });
-  } catch (error) {
-    console.error('APPLICATION FORM SAVE ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to save your application draft.',
-    });
-  }
-});
-
-app.get('/api/applications/me/documents', protect, async (req, res) => {
+router.get('/api/applications/me/documents', protect, async (req, res) => {
   try {
     const activeApplication = await resolveActiveOpeningApplicationForUser(
       getRequestUserId(req)
@@ -4718,7 +3476,7 @@ app.get('/api/applications/me/documents', protect, async (req, res) => {
   }
 });
 
-app.get('/api/applications/me/status-summary', protect, async (req, res) => {
+router.get('/api/applications/me/status-summary', protect, async (req, res) => {
   try {
     const payload = await buildApplicantStatusSummaryForUser(req.user.user_id);
     res.status(200).json(payload);
@@ -4730,7 +3488,7 @@ app.get('/api/applications/me/status-summary', protect, async (req, res) => {
   }
 });
 
-app.post('/api/applications/me/documents/:documentKey/upload', protect, upload.single('document'), async (req, res) => {
+router.post('/api/applications/me/documents/:documentKey/upload', protect, upload.single('document'), async (req, res) => {
   try {
     const activeApplication = await resolveActiveOpeningApplicationForUser(
       getRequestUserId(req)
@@ -4760,24 +3518,7 @@ app.post('/api/applications/me/documents/:documentKey/upload', protect, upload.s
   }
 });
 
-app.post('/api/openings/:openingId/apply', protect, async (req, res) => {
-  try {
-    const responsePayload = await submitApplicantOpeningApplication({
-      userId: getRequestUserId(req),
-      openingId: req.params.openingId,
-      incomingPayload: req.body ?? {},
-    });
-
-    res.status(200).json(responsePayload);
-  } catch (error) {
-    console.error('OPENING APPLICATION ROUTE ERROR:', error);
-    res.status(error.statusCode || 500).json({
-      error: error.message || 'Failed to submit your scholarship application.',
-    });
-  }
-});
-
-app.post('/api/applications', protect, async (req, res) => {
+router.post('/api/applications', protect, async (req, res) => {
   try {
     const openingId =
       req.body?.opening?.opening_id ||
@@ -4807,7 +3548,7 @@ app.post('/api/applications', protect, async (req, res) => {
   }
 });
 
-app.get('/api/applications/:id', async (req, res) => {
+router.get('/api/applications/:id', async (req, res) => {
   try {
     const payload = await buildApplicationDetails(req.params.id);
     res.status(200).json(payload);
@@ -4815,18 +3556,6 @@ app.get('/api/applications/:id', async (req, res) => {
     console.error('Application detail fetch error:', error);
     res.status(500).json({ error: error.message || 'Failed to load application details.' });
   }
-});
-
-// --- SOCKET.IO USER CHANNELS ---
-io.on('connection', (socket) => {
-  console.log(`User connected via Socket.io: ${socket.id}`);
-  if (socket.user?.user_id) {
-    socket.join(`user:${socket.user.user_id}`);
-  }
-
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
 });
 
 // ===== 404 HANDLER - MUST BE LAST =====
@@ -4844,13 +3573,10 @@ app.use((req, res) => {
       'GET /api/courses',
       'GET /api/faqs',
       'GET /api/profile/me',
-      'GET /api/openings'
     ]
   });
 });
 
 const PORT = Number(process.env.PORT) || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running and listening on port ${PORT}`);
-});
 
+module.exports = router;

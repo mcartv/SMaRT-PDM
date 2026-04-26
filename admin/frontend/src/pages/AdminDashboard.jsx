@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,11 +6,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Users, GraduationCap, TrendingUp, TrendingDown, Download, AlertCircle, Award,
+  Users,
+  GraduationCap,
+  TrendingUp,
+  TrendingDown,
+  Download,
+  AlertCircle,
+  Award,
 } from 'lucide-react';
 import {
-  BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from 'recharts';
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -50,10 +64,46 @@ const AXIS_PROPS = {
 
 // ─── Data ────────────────────────────────────────────────────────
 const STATS = [
-  { label: 'UAQTEA Beneficiaries', value: '2,418', sub: '1st Sem · AY 2025–26', icon: Users, accent: C.brown, soft: C.amberSoft, trend: '+15.9%', up: true },
-  { label: 'TDP Scholars', value: '24', sub: '15 + 9 per semester', icon: Award, accent: C.amber, soft: '#fef3c7', trend: '−71.1%', up: false },
-  { label: 'FHE Graduates', value: '1,517', sub: 'Cumulative 2020–2025', icon: GraduationCap, accent: C.green, soft: C.greenSoft, trend: '+Total', up: true },
-  { label: 'Private Beneficiaries', value: '126', sub: '1st Sem · AY 2025–26', icon: Users, accent: C.brownLight, soft: C.sand, trend: 'New AY', up: true },
+  {
+    label: 'UAQTEA Beneficiaries',
+    value: '2,418',
+    sub: '1st Sem · AY 2025–26',
+    icon: Users,
+    accent: C.brown,
+    soft: C.amberSoft,
+    trend: '+15.9%',
+    up: true,
+  },
+  {
+    label: 'TDP Scholars',
+    value: '24',
+    sub: '15 + 9 per semester',
+    icon: Award,
+    accent: C.amber,
+    soft: '#fef3c7',
+    trend: '−71.1%',
+    up: false,
+  },
+  {
+    label: 'FHE Graduates',
+    value: '1,517',
+    sub: 'Cumulative 2020–2025',
+    icon: GraduationCap,
+    accent: C.green,
+    soft: C.greenSoft,
+    trend: '+Total',
+    up: true,
+  },
+  {
+    label: 'Private Beneficiaries',
+    value: '126',
+    sub: '1st Sem · AY 2025–26',
+    icon: Users,
+    accent: C.brownLight,
+    soft: C.sand,
+    trend: 'New AY',
+    up: true,
+  },
 ];
 
 const UAQTEA_DATA = [
@@ -101,6 +151,7 @@ const BENEFACTORS = [
   { name: 'Food Crafters', value: 10, color: C.amber },
   { name: 'BC Packaging', value: 5, color: C.yellow },
 ];
+
 const BENEFACTOR_TOTAL = BENEFACTORS.reduce((s, b) => s + b.value, 0);
 
 const FAB_ROWS = [
@@ -113,127 +164,98 @@ const FAB_ROWS = [
   { program: 'BTLED', bcPkg: 0, food: 1, gen: 0, kai: 7, total: 8 },
 ];
 
-const INSIGHTS = [
-  { label: 'UAQTEA Growth', val: '64%', note: 'From 1,473 (2018) → 2,418 (2025)', accent: C.brown, soft: C.amberSoft },
-  { label: 'TDP Decline', val: '94%', note: 'Peak 386 (2021–22) → 24 (2024–25)', accent: C.amber, soft: '#fef3c7' },
-  { label: 'FHE Peak Batch', val: '382', note: 'Highest graduate count in 2023', accent: C.green, soft: C.greenSoft },
-  { label: 'Kaizen Dominance', val: '76%', note: '96 of 126 private beneficiaries', accent: C.brownLight, soft: C.sand },
-  { label: 'BSIT Leading', val: '34', note: 'Most private assistance recipients', accent: C.brownMid, soft: '#fef9f0' },
-  { label: 'Summer Recovery', val: '240', note: 'FHE from 0 (pandemic) → 240 in 2025', accent: C.amber, soft: C.amberSoft },
-];
-
 // ─── Component ───────────────────────────────────────────────────
 export default function AdminDashboard() {
-  // Realtime listeners for dashboard data updates
-  useSocketEvent('scholar:created', () => {
-    console.log('[Realtime] New scholar - dashboard stats may need refresh');
-  }, []);
+  useSocketEvent('scholar:created', () => { });
+  useSocketEvent('payout:created', () => { });
+  useSocketEvent('opening:created', () => { });
 
-  useSocketEvent('payout:created', () => {
-    console.log('[Realtime] New payout - dashboard may need refresh');
-  }, []);
-
-  useSocketEvent('opening:created', () => {
-    console.log('[Realtime] New opening - dashboard may need refresh');
-  }, []);
   return (
-    <div className="space-y-6 py-2" style={{ background: C.bg }}>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>Dashboard</h1>
-          <p className="text-sm mt-0.5" style={{ color: C.muted }}>OSFA Scholarship Monitoring & Tracking · AY 2025–2026</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="rounded-lg border-stone-200 text-stone-600 text-xs">
-            Schedule Report
-          </Button>
-          <Button size="sm" className="rounded-lg text-white text-xs border-none" style={{ background: C.brownMid }}>
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Export Analytics
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-5 py-2" style={{ background: C.bg }}>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {STATS.map((s) => (
           <Card key={s.label} className="border-stone-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: s.soft }}>
-                <s.icon className="w-4 h-4" style={{ color: s.accent }} />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-xl"
+                style={{ background: s.soft }}
+              >
+                <s.icon className="h-4 w-4" style={{ color: s.accent }} />
               </div>
+
               <Badge
                 variant="outline"
-                className={`border-none text-xs font-medium ${s.up ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}
+                className={`border-none text-xs font-medium ${s.up ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+                  }`}
               >
-                {s.up ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                {s.up ? (
+                  <TrendingUp className="mr-1 h-3 w-3" />
+                ) : (
+                  <TrendingDown className="mr-1 h-3 w-3" />
+                )}
                 {s.trend}
               </Badge>
             </CardHeader>
+
             <CardContent className="px-4 pb-4">
-              <div className="text-2xl font-semibold" style={{ color: C.text }}>{s.value}</div>
-              <p className="text-xs font-medium text-stone-500 mt-0.5">{s.label}</p>
-              <p className="text-[11px] text-stone-400 mt-0.5">{s.sub}</p>
+              <div className="text-2xl font-semibold">{s.value}</div>
+              <p className="text-xs text-stone-500">{s.label}</p>
+              <p className="text-[11px] text-stone-400">{s.sub}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Enrollment Trends (Tabbed Charts) */}
+      {/* Enrollment Trends */}
       <Card className="border-stone-200 shadow-none">
         <Tabs defaultValue="uaqtea" className="w-full">
-          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-stone-100 pb-4">
-            <div>
-              <CardTitle className="text-base font-semibold">Enrollment Trends</CardTitle>
-              <CardDescription className="text-xs mt-0.5">Longitudinal program participation metrics</CardDescription>
-            </div>
-            <TabsList className="bg-stone-100 p-1 rounded-lg h-8">
-              <TabsTrigger value="uaqtea" className="rounded-md text-xs px-4 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">UAQTEA</TabsTrigger>
-              <TabsTrigger value="tdp" className="rounded-md text-xs px-4 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">TDP</TabsTrigger>
-              <TabsTrigger value="fhe" className="rounded-md text-xs px-4 h-6 data-[state=active]:bg-white data-[state=active]:shadow-sm">FHE</TabsTrigger>
+          <CardHeader className="flex flex-col gap-3 border-b border-stone-100 pb-4 md:flex-row md:items-center md:justify-between">
+            <CardTitle className="text-sm font-semibold">Enrollment Trends</CardTitle>
+
+            <TabsList className="h-8 rounded-lg bg-stone-100 p-1">
+              <TabsTrigger value="uaqtea" className="text-xs px-4">UAQTEA</TabsTrigger>
+              <TabsTrigger value="tdp" className="text-xs px-4">TDP</TabsTrigger>
+              <TabsTrigger value="fhe" className="text-xs px-4">FHE</TabsTrigger>
             </TabsList>
           </CardHeader>
 
-          <CardContent className="pt-4">
-            <TabsContent value="uaqtea" className="h-72 mt-0">
+          <CardContent className="pt-4 h-72">
+            <TabsContent value="uaqtea" className="h-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={UAQTEA_DATA} barGap={4} barCategoryGap="25%">
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="year" {...AXIS_PROPS} />
-                  <YAxis domain={[0, 2700]} {...AXIS_PROPS} />
-                  <Tooltip {...TOOLTIP_STYLE} />
-                  <Bar dataKey="sem1" fill={C.brownMid} name="1st Semester" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="sem2" fill={C.yellow} name="2nd Semester" radius={[3, 3, 0, 0]} />
+                <BarChart data={UAQTEA_DATA}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="sem1" fill={C.brownMid} />
+                  <Bar dataKey="sem2" fill={C.yellow} />
                 </BarChart>
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="tdp" className="h-72 mt-0">
+            <TabsContent value="tdp" className="h-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={TDP_DATA} barGap={4} barCategoryGap="25%">
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="year" {...AXIS_PROPS} />
-                  <YAxis domain={[0, 220]} {...AXIS_PROPS} />
-                  <Tooltip {...TOOLTIP_STYLE} />
-                  <Bar dataKey="sem1" fill={C.brownMid} name="1st Sem" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="sem2" fill={C.amber} name="2nd Sem" radius={[3, 3, 0, 0]} />
+                <BarChart data={TDP_DATA}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="sem1" fill={C.brownMid} />
+                  <Bar dataKey="sem2" fill={C.amber} />
                 </BarChart>
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="fhe" className="h-72 mt-0">
+            <TabsContent value="fhe" className="h-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={FHE_GRAD_DATA} barCategoryGap="40%">
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="batch" {...AXIS_PROPS} />
-                  <YAxis domain={[0, 420]} {...AXIS_PROPS} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v) => [`${v} graduates`]} />
-                  <Bar dataKey="n" name="Graduates" radius={[3, 3, 0, 0]}>
-                    {FHE_GRAD_DATA.map((e) => (
-                      <Cell key={e.batch} fill={e.batch === '2023' ? C.yellow : C.brownLight} />
-                    ))}
-                  </Bar>
+                <BarChart data={FHE_GRAD_DATA}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="batch" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="n" fill={C.brownLight} />
                 </BarChart>
               </ResponsiveContainer>
             </TabsContent>
@@ -242,124 +264,76 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Secondary Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+        {/* Summer */}
         <Card className="border-stone-200 shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">FHE Summer Enrollment</CardTitle>
-            <CardDescription className="text-xs">Performance during post-pandemic recovery</CardDescription>
+          <CardHeader>
+            <CardTitle className="text-sm">FHE Summer Enrollment</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={FHE_SUMMER_DATA} barCategoryGap="40%">
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="year" {...AXIS_PROPS} />
-                  <YAxis domain={[0, 270]} {...AXIS_PROPS} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v) => [`${v} scholars`]} />
-                  <Bar dataKey="n" name="Enrolled" radius={[3, 3, 0, 0]}>
-                    {FHE_SUMMER_DATA.map((e, i) => (
-                      <Cell key={i} fill={e.pandemic ? C.red : C.brownMid} opacity={e.pandemic ? 0.25 : 1} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-stone-500 bg-stone-50 px-3 py-2 rounded-lg border border-stone-100">
-              <AlertCircle size={13} className="text-stone-400 shrink-0" />
-              Pandemic zero-enrollment period: 2019–2022.
-            </div>
+
+          <CardContent className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={FHE_SUMMER_DATA}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="year" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="n" fill={C.brownMid} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
+        {/* Benefactors */}
         <Card className="border-stone-200 shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Distribution by Benefactor</CardTitle>
-            <CardDescription className="text-xs">Stakeholder contribution weighting</CardDescription>
+          <CardHeader>
+            <CardTitle className="text-sm">Benefactor Distribution</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col sm:flex-row items-center gap-6">
-            <div className="h-44 w-full sm:w-1/2">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={BENEFACTORS} cx="50%" cy="50%" innerRadius={52} outerRadius={72} dataKey="value" paddingAngle={4}>
-                    {BENEFACTORS.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
-                  </Pie>
-                  <Tooltip {...TOOLTIP_STYLE} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="w-full sm:w-1/2 space-y-2.5">
-              {BENEFACTORS.map((e) => (
-                <div key={e.name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-sm" style={{ background: e.color }} />
-                    <span className="text-stone-600">{e.name}</span>
-                  </div>
-                  <span className="font-medium text-stone-800">
-                    {e.value} <span className="text-stone-400 font-normal">({Math.round(e.value / BENEFACTOR_TOTAL * 100)}%)</span>
-                  </span>
-                </div>
-              ))}
-              <div className="pt-2.5 border-t border-stone-100 flex items-center justify-between text-xs font-medium">
-                <span style={{ color: C.text }}>Total Support</span>
-                <span style={{ color: C.brownMid }}>{BENEFACTOR_TOTAL}</span>
-              </div>
-            </div>
+
+          <CardContent className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={BENEFACTORS} dataKey="value">
+                  {BENEFACTORS.map((e, i) => (
+                    <Cell key={i} fill={e.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Financial Assistance Matrix */}
-      <Card className="border-stone-200 shadow-none overflow-hidden">
-        <CardHeader className="bg-stone-50/60 border-b border-stone-100 pb-3">
-          <CardTitle className="text-sm font-semibold">Financial Assistance Matrix</CardTitle>
-          <CardDescription className="text-xs">Cross-program distribution of private sector assistance</CardDescription>
-        </CardHeader>
+      {/* Matrix */}
+      <Card className="border-stone-200 shadow-none">
         <Table>
-          <TableHeader className="bg-stone-50/80">
-            <TableRow className="hover:bg-transparent border-stone-100">
-              <TableHead className="font-medium text-stone-700 py-3 px-5 text-xs">Academic Program</TableHead>
-              <TableHead className="text-center font-medium text-stone-500 text-xs">BC Packaging</TableHead>
-              <TableHead className="text-center font-medium text-stone-500 text-xs">Food Crafters</TableHead>
-              <TableHead className="text-center font-medium text-stone-500 text-xs">Genmart</TableHead>
-              <TableHead className="text-center font-medium text-stone-500 text-xs">Kaizen</TableHead>
-              <TableHead className="text-center font-medium text-stone-700 text-xs">Total</TableHead>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Program</TableHead>
+              <TableHead>BC</TableHead>
+              <TableHead>Food</TableHead>
+              <TableHead>Gen</TableHead>
+              <TableHead>Kaizen</TableHead>
+              <TableHead>Total</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {FAB_ROWS.map((row) => (
-              <TableRow key={row.program} className="hover:bg-amber-50/20 border-stone-100 transition-colors">
-                <TableCell className="font-medium text-stone-800 py-3 px-5 text-sm">{row.program}</TableCell>
-                <TableCell className="text-center text-stone-500 text-sm">{row.bcPkg || '—'}</TableCell>
-                <TableCell className="text-center text-stone-500 text-sm">{row.food || '—'}</TableCell>
-                <TableCell className="text-center text-stone-500 text-sm">{row.gen || '—'}</TableCell>
-                <TableCell className="text-center text-stone-500 text-sm">{row.kai || '—'}</TableCell>
-                <TableCell className="text-center font-semibold text-white text-sm" style={{ background: C.brownMid }}>{row.total}</TableCell>
+              <TableRow key={row.program}>
+                <TableCell>{row.program}</TableCell>
+                <TableCell>{row.bcPkg || '-'}</TableCell>
+                <TableCell>{row.food || '-'}</TableCell>
+                <TableCell>{row.gen || '-'}</TableCell>
+                <TableCell>{row.kai || '-'}</TableCell>
+                <TableCell className="font-semibold">{row.total}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
 
-      {/* Insights Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {INSIGHTS.map((ins) => (
-          <Card key={ins.label} className="border-none shadow-none hover:-translate-y-0.5 transition-transform" style={{ background: ins.soft }}>
-            <CardContent className="pt-4 pb-4">
-              <Badge className="mb-2 bg-white/60 border-none text-xs font-medium" style={{ color: ins.accent }}>
-                {ins.label}
-              </Badge>
-              <div className="text-2xl font-semibold mb-1" style={{ color: ins.accent }}>{ins.val}</div>
-              <p className="text-xs text-stone-600/70 leading-relaxed">{ins.note}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <footer className="pt-6 pb-2 border-t border-stone-100">
-        <p className="text-center text-[11px] text-stone-300 uppercase tracking-widest">
-          SMaRT PDM · Integrated Scholarship Management
-        </p>
-      </footer>
     </div>
   );
 }

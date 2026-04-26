@@ -6,11 +6,11 @@ class ScholarAccessService {
   static const String lockedMessage =
       'Scholar features are available only to approved scholars.';
 
-  static const Set<String> scholarOnlyRoutes = {
+  static final Set<String> scholarOnlyRoutes = {
     AppRoutes.payouts,
     AppRoutes.roAssignment,
     AppRoutes.roCompletion,
-    AppRoutes.tickets,
+    AppRoutes.renewalDocuments,
   };
 
   static Future<bool> isVerifiedScholar() async {
@@ -19,15 +19,42 @@ class ScholarAccessService {
   }
 
   static bool isScholarOnlyRoute(String route) {
+    if (route == AppRoutes.profile) return false;
+    if (route == AppRoutes.home) return false;
+    if (route == AppRoutes.notifications) return false;
+    if (route == AppRoutes.faqs) return false;
+    if (route == AppRoutes.tickets) return false;
+    if (route == AppRoutes.scholarshipOpenings) return false;
+    if (route == AppRoutes.documents) return false;
+    if (route == AppRoutes.status) return false;
+
     return scholarOnlyRoutes.contains(route);
   }
 
-  static Future<bool> ensureScholarAccess(BuildContext context) async {
-    final isVerified = await isVerifiedScholar();
-    if (!isVerified && context.mounted) {
+  static Future<bool> ensureRouteAccess(
+    BuildContext context,
+    String route,
+  ) async {
+    if (!isScholarOnlyRoute(route)) return true;
+
+    final hasAccess = await isVerifiedScholar();
+
+    if (!hasAccess && context.mounted) {
       showLockedMessage(context);
     }
-    return isVerified;
+
+    return hasAccess;
+  }
+
+  // Backward-compatible method for old files still calling this.
+  static Future<bool> ensureScholarAccess(BuildContext context) async {
+    final hasAccess = await isVerifiedScholar();
+
+    if (!hasAccess && context.mounted) {
+      showLockedMessage(context);
+    }
+
+    return hasAccess;
   }
 
   static void showLockedMessage(BuildContext context) {

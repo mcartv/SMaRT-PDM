@@ -70,49 +70,44 @@ exports.createPayoutBatch = async (req, res) => {
 };
 
 exports.updateScholarStatus = async (req, res) => {
-    console.log('PAYOUT STATUS ROUTE HIT:', {
-        payoutEntryId: req.params.payoutEntryId,
-        body: req.body,
-    });
-    console.log('PAYOUT STATUS UPDATED ROW:', row);
     try {
         const { payoutEntryId } = req.params;
-        const { status } = req.body;
+
+        const nextStatus =
+            req.body?.release_status ||
+            req.body?.status;
+
+        console.log('PAYOUT STATUS ROUTE HIT:', {
+            payoutEntryId,
+            body: req.body,
+        });
 
         if (!payoutEntryId) {
-            return res.status(400).json({ message: 'payoutEntryId is required' });
+            return res.status(400).json({
+                message: 'Missing payout entry ID',
+            });
         }
 
-        const allowed = ['Pending', 'Released', 'Absent', 'On Hold', 'Cancelled'];
-
-        if (!allowed.includes(status)) {
-            return res.status(400).json({ message: 'Invalid status' });
+        if (!nextStatus) {
+            return res.status(400).json({
+                message: 'Missing payout status',
+            });
         }
 
-        const updatePayload = {
-            release_status: status,
-            updated_at: new Date().toISOString(),
-        };
+        const updated = await payoutService.updateScholarPayoutStatus({
+            payout_entry_id: payoutEntryId,
+            next_status: nextStatus,
+        });
 
-        if (status === 'Released') {
-            updatePayload.released_at = new Date().toISOString();
-        }
+        return res.status(200).json({
+            message: 'Payout status updated successfully',
+            data: updated,
+        });
+    } catch (error) {
+        console.error('UPDATE PAYOUT STATUS ERROR:', error);
 
-        const { data, error } = await require('../config/supabase')
-            .from('payout_batch_students')
-            .update(updatePayload)
-            .eq('payout_entry_id', payoutEntryId)
-            .select('*')
-            .single();
-
-        if (error) throw error;
-
-        res.status(200).json(data);
-
-    } catch (err) {
-        console.error('UPDATE PAYOUT STATUS ERROR:', err);
-        res.status(500).json({
-            message: err.message || 'Failed to update payout status',
+        return res.status(error.statusCode || 500).json({
+            message: error.message || 'Failed to update payout status',
         });
     }
 };

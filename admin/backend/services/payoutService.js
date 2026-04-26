@@ -623,6 +623,90 @@ async function fetchAcademicYears() {
   return rows;
 }
 
+async function fetchMyPayouts(userId) {
+  if (!userId) {
+    const err = new Error('Authentication required.');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const studentResult = await pool.query(
+    `
+    SELECT student_id
+    FROM students
+    WHERE user_id = $1
+    LIMIT 1;
+    `,
+    [userId]
+  );
+
+  const student = studentResult.rows[0];
+
+  if (!student) {
+    const err = new Error('Student profile not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const payoutResult = await pool.query(
+    `
+    SELECT
+      pbs.payout_entry_id,
+      pbs.payout_batch_id,
+      pbs.application_id,
+      pbs.amount_received,
+      pbs.release_status,
+      pbs.released_at,
+      pbs.check_number,
+      pbs.remarks AS entry_remarks,
+      pbs.created_at,
+      pb.payout_title,
+      pb.payout_date,
+      pb.payment_mode,
+      pb.amount_per_scholar,
+      pb.batch_status,
+      pb.remarks AS batch_remarks,
+      sp.program_name,
+      ay.label AS academic_year,
+      ap.term AS semester
+    FROM payout_batch_students pbs
+    INNER JOIN payout_batches pb
+      ON pb.payout_batch_id = pbs.payout_batch_id
+    LEFT JOIN scholarship_program sp
+      ON sp.program_id = pb.program_id
+    LEFT JOIN academic_years ay
+      ON ay.academic_year_id = pb.academic_year_id
+    LEFT JOIN academic_period ap
+      ON ap.period_id = pb.period_id
+    WHERE pbs.student_id = $1
+      AND COALESCE(pb.is_archived, FALSE) = FALSE
+    ORDER BY pb.created_at DESC, pbs.created_at DESC;
+    `,
+    [student.student_id]
+  );
+
+  return {
+    items: payoutResult.rows.map((row) => ({
+      payout_entry_id: row.payout_entry_id,
+      payout_batch_id: row.payout_batch_id,
+      application_id: row.application_id,
+      title: row.payout_title || 'Scholarship Payout',
+      amount: Number(row.amount_received || row.amount_per_scholar || 0),
+      release_status: row.release_status || 'Pending',
+      payout_date: row.payout_date || null,
+      semester: row.semester || '-',
+      academic_year: row.academic_year || '-',
+      payment_mode: row.payment_mode || '-',
+      batch_status: row.batch_status || 'Pending',
+      program_name: row.program_name || 'Scholarship Program',
+      reference: row.check_number || row.payout_entry_id,
+      remarks: row.entry_remarks || row.batch_remarks || '',
+      released_at: row.released_at || null,
+      created_at: row.created_at,
+    })),
+  };
+}
+
 module.exports = {
   fetchPayoutBatches,
   fetchPayoutOpenings,
@@ -631,4 +715,5 @@ module.exports = {
   updateScholarPayoutStatus,
   archivePayoutBatch,
   fetchAcademicYears,
+  fetchMyPayouts,
 };

@@ -22,7 +22,14 @@ class ApplicantDocumentsService {
     String? filePath,
     Uint8List? fileBytes,
   }) async {
-    final path = '/api/applications/me/documents/$documentRouteParam/upload';
+    final documentId = documentRouteParam.trim();
+
+    if (documentId.isEmpty) {
+      throw ArgumentError('Document ID is required for upload.');
+    }
+
+    final path = '/api/applications/me/documents/$documentId/upload';
+
     Map<String, dynamic> response;
 
     if (fileBytes != null) {

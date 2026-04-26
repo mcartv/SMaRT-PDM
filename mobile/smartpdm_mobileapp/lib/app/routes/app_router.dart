@@ -24,12 +24,16 @@ import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/report_
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_completion_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/student_lookup_screen.dart';
 
 class AppRouter {
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.splash:
         return _buildRoute(settings, (_) => const SplashScreen());
+
+      case AppRoutes.studentLookup:
+        return _buildRoute(settings, (_) => StudentLookupScreen(mode: settings.arguments as String?));
 
       case AppRoutes.login:
         return _buildRoute(settings, (_) => const LoginScreen());

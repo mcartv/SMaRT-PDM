@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -6,6 +5,7 @@ import 'package:smartpdm_mobileapp/features/applicant/data/services/program_open
 import 'package:smartpdm_mobileapp/features/notifications/data/services/notification_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:flutter/widgets.dart';
 
 class NotificationProvider extends ChangeNotifier {
   NotificationProvider({
@@ -126,16 +126,29 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   Future<void> markAllAsRead() async {
+    if (_isLoading) return;
+
     try {
+      _isLoading = true;
+      notifyListeners();
+
       await _notificationService.markAllAsRead();
-      _notifications = _notifications
-          .map((notification) => notification.copyWith(isRead: true))
-          .toList();
-      _recalculateUnreadCount();
-      notifyListeners();
+
+      final updatedList = _notifications
+          .map((item) => item.copyWith(isRead: true))
+          .toList(growable: false);
+
+      _notifications = updatedList;
+      _unreadCount = 0;
+      _errorMessage = null;
     } catch (error) {
-      _errorMessage = error.toString();
-      notifyListeners();
+      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _isLoading = false;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
     }
   }
 
@@ -279,7 +292,8 @@ class NotificationProvider extends ChangeNotifier {
   bool _isScholarApprovalNotification(AppNotification notification) {
     final normalizedType = notification.type.toLowerCase();
     final normalizedTitle = notification.title.toLowerCase();
-    final normalizedReference = (notification.referenceType ?? '').toLowerCase();
+    final normalizedReference = (notification.referenceType ?? '')
+        .toLowerCase();
 
     return normalizedReference == 'scholar' &&
         (normalizedType == 'scholar approved' ||

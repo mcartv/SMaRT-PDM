@@ -35,6 +35,10 @@ class ApplicationData {
 
   // Family Data
   String parentGuardianAddress = '';
+  bool sameAddressAsApplicant = false;
+  bool fatherPresent = true;
+  bool motherPresent = true;
+  bool guardianOnly = false;
 
   String fatherLastName = '';
   String fatherFirstName = '';
@@ -98,7 +102,6 @@ class ApplicationData {
   String currentYearLevel = '';
   String currentSection = '';
   String studentNumber = '';
-  String lrn = '';
 
   String financialSupport = 'Parents';
   bool scholarshipHistory = false;
@@ -220,6 +223,12 @@ class ApplicationData {
   Map<String, dynamic> toSubmissionPayload() {
     final normalizedMobile = normalizeMobileNumber(mobileNumber);
     return {
+      'opening_id': openingId.trim(),
+      'opening': {
+        'opening_id': openingId.trim(),
+        'opening_title': openingTitle.trim(),
+        'program_name': openingProgramName.trim(),
+      },
       'account': {
         'user_id': userId.trim(),
         'student_id': accountStudentId.trim(),
@@ -255,6 +264,10 @@ class ApplicationData {
         'email': normalizeEmail(email),
       },
       'family': {
+        'same_address_as_applicant': sameAddressAsApplicant,
+        'father_present': fatherPresent,
+        'mother_present': motherPresent,
+        'guardian_only': guardianOnly,
         'parent_guardian_address': _title(parentGuardianAddress),
         'father': {
           'last_name': _title(fatherLastName),
@@ -320,7 +333,6 @@ class ApplicationData {
         'current_year_level': _parseInt(currentYearLevel),
         'current_section': _title(currentSection),
         'student_number': studentNumber.trim(),
-        'lrn': lrn.trim(),
       },
       'support': {
         'financial_support': financialSupport.trim(),

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
-import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class DashboardScreen extends StatelessWidget {
   final bool showBottomNav;
@@ -20,26 +23,30 @@ class DashboardScreen extends StatelessWidget {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('SMaRT-PDM'),
+        title: const Text(
+          'SMaRT-PDM',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        centerTitle: false,
         automaticallyImplyLeading: false,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: isDark ? Colors.white : textColor,
         actions: [
           Consumer<NotificationProvider>(
-            builder: (context, notificationProvider, child) {
+            builder: (context, provider, _) {
               return Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 10),
                 child: Badge(
-                  isLabelVisible: notificationProvider.unreadCount > 0,
-                  label: Text('${notificationProvider.unreadCount}'),
+                  isLabelVisible: provider.unreadCount > 0,
+                  label: Text('${provider.unreadCount}'),
                   backgroundColor: Colors.red,
                   child: IconButton(
+                    tooltip: 'Notifications',
+                    icon: const Icon(Icons.notifications_none_rounded),
                     onPressed: () {
                       Navigator.pushNamed(context, AppRoutes.notifications);
                     },
-                    tooltip: 'Open Notifications',
-                    icon: Icon(
-                      Icons.notifications_none,
-                      color: isDark ? Colors.white : textColor,
-                    ),
                   ),
                 ),
               );
@@ -64,49 +71,105 @@ class DashboardContent extends StatefulWidget {
 }
 
 class _DashboardContentState extends State<DashboardContent> {
-  String _userName = 'Student';
-  bool _hasScholarAccess = false;
-  bool get _effectiveScholarAccess =>
-      context.watch<NotificationProvider>().hasScholarAccess ||
-      _hasScholarAccess;
+  final ProgramOpeningService _openingService = ProgramOpeningService();
 
-  bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
-  Color get _pageBackground =>
-      _isDarkMode ? const Color(0xFF24180F) : Colors.white.withOpacity(0.96);
-  Color get _surfaceColor =>
-      _isDarkMode ? const Color(0xFF332216) : const Color(0xFFF8F3ED);
-  Color get _titleColor => _isDarkMode ? Colors.white : textColor;
-  Color get _subtitleColor => _isDarkMode ? Colors.white70 : Colors.black54;
-  Color get _bodyColor => _isDarkMode ? Colors.white70 : Colors.black87;
-  Color get _heroOverlay => _isDarkMode
-      ? const Color(0xFF4A331B).withOpacity(0.66)
-      : Colors.white.withOpacity(0.58);
-  List<Color> get _heroGradient => _isDarkMode
-      ? const [
-          Color(0xFF4D2B0F),
-          Color(0xFF6B4318),
-          Color(0xFF8A6526),
-          Color(0xFFD49C10),
-        ]
-      : const [Color(0xFFF8F3ED), Color(0xFFF4E1B8)];
+  String _studentId = 'Student';
+  bool _cachedScholarAccess = false;
+
+  bool _isLoadingOpenings = true;
+  List<ProgramOpening> _latestOpenings = [];
+
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+
+  bool get _hasScholarAccess {
+    final provider = context.watch<NotificationProvider>();
+    return provider.hasScholarAccess || _cachedScholarAccess;
+  }
+
+  Color get _background =>
+      _isDark ? const Color(0xFF1F150F) : const Color(0xFFFAF7F2);
+
+  Color get _surface => _isDark ? const Color(0xFF2E2118) : Colors.white;
+
+  Color get _primaryText => _isDark ? Colors.white : textColor;
+
+  Color get _secondaryText => _isDark ? Colors.white70 : Colors.black54;
 
   @override
   void initState() {
     super.initState();
-    _loadAndDisplayUserData();
+    _loadDashboardData();
   }
 
-  Future<void> _loadAndDisplayUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final studentId = prefs.getString('user_student_id') ?? 'Student';
-    final hasScholarAccess = prefs.getBool('user_has_scholar_access') ?? false;
+  Future<void> _loadDashboardData() async {
+    await Future.wait([_loadUserData(), _loadLatestOpenings()]);
+  }
 
-    if (mounted) {
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!mounted) return;
+
+    setState(() {
+      _studentId = prefs.getString('user_student_id') ?? 'Student';
+      _cachedScholarAccess = prefs.getBool('user_has_scholar_access') ?? false;
+    });
+  }
+
+  Future<void> _loadLatestOpenings() async {
+    try {
+      final result = await _openingService.fetchAvailableOpenings();
+
+      if (!mounted) return;
+
       setState(() {
-        _userName = studentId;
-        _hasScholarAccess = hasScholarAccess;
+        _latestOpenings = result.items.take(3).toList();
+        _isLoadingOpenings = false;
+      });
+    } catch (error) {
+      debugPrint('DASHBOARD OPENINGS ERROR: $error');
+
+      if (!mounted) return;
+
+      setState(() {
+        _latestOpenings = [];
+        _isLoadingOpenings = false;
       });
     }
+  }
+
+  String _safeText(dynamic value, {String fallback = ''}) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+
+  String _notificationLabel(AppNotification notification) {
+    final type = _safeText(notification.type).toUpperCase();
+
+    if (type.contains('ANNOUNCEMENT')) return 'ANNOUNCEMENT';
+    if (type.contains('OPENING')) return 'OPENING';
+    if (type.contains('APPLICATION')) return 'APPLICATION';
+    if (type.contains('DOCUMENT')) return 'DOCUMENT';
+
+    return 'OFFICE UPDATE';
+  }
+
+  String _notificationPreview(AppNotification notification) {
+    final message = _safeText(notification.message);
+    if (message.isNotEmpty) return message;
+
+    return 'Check the latest scholarship and office updates from OSFA.';
+  }
+
+  bool _isOpeningUpdate(AppNotification notification) {
+    final type = _safeText(notification.type).toLowerCase();
+    final refType = _safeText(notification.referenceType).toLowerCase();
+    final title = _safeText(notification.title).toLowerCase();
+
+    return type.contains('opening') ||
+        refType.contains('opening') ||
+        title.contains('opening') ||
+        title.contains('scholarship');
   }
 
   void _openOfficeUpdateArticle(
@@ -129,499 +192,438 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   List<String> _officeUpdateTags(AppNotification notification) {
-    final haystack = '${notification.title} ${notification.message}'
-        .toUpperCase();
+    final text =
+        '${_safeText(notification.title)} ${_safeText(notification.message)}'
+            .toUpperCase();
+
     final tags = <String>[];
 
-    void addIfPresent(String keyword, String label) {
-      if (haystack.contains(keyword) && !tags.contains(label)) {
+    void add(String keyword, String label) {
+      if (text.contains(keyword) && !tags.contains(label)) {
         tags.add(label);
       }
     }
 
-    addIfPresent('CHED', 'CHED');
-    addIfPresent('UNIFAST', 'UNIFAST');
-    addIfPresent('TES', 'TES');
-    addIfPresent('TDP', 'TDP');
+    add('CHED', 'CHED');
+    add('UNIFAST', 'UNIFAST');
+    add('TES', 'TES');
+    add('TDP', 'TDP');
 
-    if ((haystack.contains('PRIVATE') ||
-            haystack.contains('GRANT') ||
-            haystack.contains('BENEFACTOR')) &&
-        !tags.contains('Private Grants')) {
+    if (text.contains('PRIVATE') ||
+        text.contains('GRANT') ||
+        text.contains('BENEFACTOR')) {
       tags.add('Private Grants');
     }
 
-    if (tags.isEmpty && notification.isOpeningUpdate) {
-      tags.addAll(const ['Openings', 'Scholarship', 'Applicants']);
+    if (tags.isEmpty && _isOpeningUpdate(notification)) {
+      tags.addAll(const ['Openings', 'Scholarship']);
     }
 
     if (tags.isEmpty) {
-      tags.add(
-        notification.officeUpdateLabel == 'ANNOUNCEMENT'
-            ? 'Office Notice'
-            : 'Scholarship Update',
-      );
+      tags.add('Office Notice');
     }
 
-    return tags.take(5).toList();
+    return tags.take(4).toList();
   }
 
-  Widget _buildOfficeUpdateFeaturedCard(
-    BuildContext context,
-    AppNotification notification,
-  ) {
-    return _InteractiveOfficeUpdatesCard(
-      notification: notification,
-      tags: _officeUpdateTags(notification),
-      onTap: () => _openOfficeUpdateArticle(context, notification),
-      onOpeningsTap: notification.isOpeningUpdate && !_effectiveScholarAccess
-          ? () => _openScholarshipOpenings(context)
-          : null,
+  AppNotification _fallbackUpdate() {
+    return AppNotification(
+      notificationId: 'fallback-office-update',
+      userId: '',
+      type: 'Announcement',
+      title: 'Scholarship opportunities are posted here',
+      message:
+          'Check office updates for CHED, UNIFAST, TES, TDP, and private grant announcements.',
+      referenceId: null,
+      referenceType: 'announcement',
+      isRead: true,
+      pushSent: false,
+      createdAt: DateTime.now(),
     );
   }
 
-  Widget _buildOfficeUpdatesSection() {
-    return Consumer<NotificationProvider>(
-      builder: (context, notificationProvider, child) {
-        final officeUpdates = notificationProvider.homeOfficeUpdatesItems;
+  Widget _sectionTitle(
+    String title, {
+    String? actionLabel,
+    VoidCallback? onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 4, 2, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: _primaryText,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          if (actionLabel != null && onTap != null)
+            TextButton(
+              onPressed: onTap,
+              child: Text(
+                actionLabel,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
-        if (officeUpdates.isEmpty) {
-          return _buildOfficeUpdateFallbackCard(context);
-        }
+  Widget _buildHero() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _isDark
+              ? const [Color(0xFF3B2415), Color(0xFF5D3717), Color(0xFF8A651E)]
+              : const [Color(0xFFFFF9ED), Color(0xFFF8E7BE), Color(0xFFEEC96A)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(_isDark ? 0.25 : 0.08),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Image.asset('assets/images/school_logo.png'),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _hasScholarAccess
+                          ? 'Welcome back, Scholar'
+                          : 'Welcome, Applicant',
+                      style: TextStyle(
+                        color: _primaryText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _studentId,
+                      style: TextStyle(
+                        color: _primaryText,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusPill(
+                label: _hasScholarAccess ? 'Scholar' : 'Applicant',
+                isDark: _isDark,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Scholarship Monitoring & Reporting Tool',
+            style: TextStyle(
+              color: _primaryText,
+              fontSize: 25,
+              height: 1.1,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _hasScholarAccess
+                ? 'Track renewals, return obligations, payouts, and updates.'
+                : 'Apply for scholarships, upload requirements, and monitor your application.',
+            style: TextStyle(
+              color: _secondaryText,
+              fontSize: 13.5,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-        return _buildOfficeUpdateFeaturedCard(context, officeUpdates.first);
+  Widget _buildQuickActions() {
+    final actions = _hasScholarAccess
+        ? [
+            _QuickAction(
+              icon: Icons.upload_file_rounded,
+              title: 'Renewal',
+              subtitle: 'Upload documents',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.renewalDocuments),
+            ),
+            _QuickAction(
+              icon: Icons.assignment_turned_in_rounded,
+              title: 'RO',
+              subtitle: 'Submit progress',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
+            ),
+            _QuickAction(
+              icon: Icons.notifications_none_rounded,
+              title: 'Updates',
+              subtitle: 'View notices',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.notifications),
+            ),
+          ]
+        : [
+            _QuickAction(
+              icon: Icons.school_rounded,
+              title: 'Apply',
+              subtitle: 'Open scholarships',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
+            ),
+            _QuickAction(
+              icon: Icons.upload_file_rounded,
+              title: 'Documents',
+              subtitle: 'Requirements',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
+            ),
+            _QuickAction(
+              icon: Icons.fact_check_rounded,
+              title: 'Status',
+              subtitle: 'Track progress',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.status),
+            ),
+          ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 390;
+        final width = isCompact
+            ? constraints.maxWidth
+            : (constraints.maxWidth - 20) / 3;
+
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: actions
+              .map(
+                (action) => SizedBox(
+                  width: width,
+                  child: _QuickActionCard(action: action, isDark: _isDark),
+                ),
+              )
+              .toList(),
+        );
       },
     );
   }
 
-  Widget _buildOfficeUpdatesHeading(int totalUpdates) {
-    return Text(
-      'Office Updates',
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: _titleColor,
-      ),
-    );
-  }
+  Widget _buildLatestOpenings() {
+    if (_hasScholarAccess) {
+      return const SizedBox.shrink();
+    }
 
-  Widget _buildOfficeUpdateFallbackCard(BuildContext context) {
-    return _buildOfficeUpdateFeaturedCard(
-      context,
-      AppNotification(
-        notificationId: 'fallback-office-update',
-        userId: '',
-        type: 'Announcement',
-        title:
-            'Scholarship opportunities from agencies and private benefactors',
-        message:
-            'Stay updated on CHED, UNIFAST, TES, TDP, and private grant support including BC Packaging, Food Crafters, Genmart, Kaizen, and Pusong Mapagkalinga.',
-        referenceId: null,
-        referenceType: 'announcement',
-        isRead: true,
-        pushSent: false,
-        createdAt: DateTime.now(),
-      ),
-    );
-  }
-
-  Widget _buildCampusHero() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        image: DecorationImage(
-          image: const AssetImage('assets/images/school_logo.png'),
-          fit: BoxFit.cover,
-          opacity: _isDarkMode ? 0.18 : 0.1,
-        ),
-        gradient: LinearGradient(
-          colors: _heroGradient,
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(16),
+    if (_isLoadingOpenings) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: _heroOverlay,
+          color: _surface,
+          borderRadius: BorderRadius.circular(24),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.all(6),
-                    child: Image.asset(
-                      'assets/images/school_logo.png',
-                      width: 42,
-                      height: 42,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pambayang Dalubhasaan ng Marilao',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: _titleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Hello, $_userName!',
-                        style: TextStyle(color: _subtitleColor, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              '"WHERE QUALITY EDUCATION IS A RIGHT, NOT A PRIVILEGE"',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: _titleColor,
-              ),
-            ),
-          ],
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_latestOpenings.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(24),
         ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionTile({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final isCompact = MediaQuery.of(context).size.width < 360;
-    final outerRadius = BorderRadius.circular(26);
-    final innerRadius = BorderRadius.circular(24);
-
-    return Material(
-      color: _isDarkMode ? const Color(0xFF342417) : Colors.white,
-      elevation: _isDarkMode ? 0 : 2,
-      borderRadius: outerRadius,
-      shadowColor: const Color(0xFF2E1607).withOpacity(0.12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: outerRadius,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: _isDarkMode ? 0 : (isCompact ? 3 : 4),
-            vertical: _isDarkMode ? 0 : (isCompact ? 3 : 4),
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: _isDarkMode ? const Color(0xFF342417) : Colors.white,
-              borderRadius: innerRadius,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _isDarkMode ? const Color(0xFF342417) : null,
-                borderRadius: innerRadius,
-                border: _isDarkMode
-                    ? null
-                    : Border.all(
-                        color: AppColors.gold.withOpacity(0.75),
-                        width: 1.2,
-                      ),
-              ),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 10 : 12,
-                  vertical: isCompact ? 10 : 12,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: isCompact ? 34 : 38,
-                      height: isCompact ? 34 : 38,
-                      decoration: BoxDecoration(
-                        color: _isDarkMode ? Colors.transparent : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        icon,
-                        color: AppColors.gold,
-                        size: isCompact ? 18 : 20,
-                      ),
-                    ),
-                    SizedBox(width: isCompact ? 8 : 10),
-                    Flexible(
-                      child: Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: isCompact ? 14 : 15,
-                          fontWeight: FontWeight.w800,
-                          color: _isDarkMode ? Colors.white : textColor,
-                          letterSpacing: 0.1,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        child: Text(
+          'No scholarship openings are available right now.',
+          style: TextStyle(
+            color: _secondaryText,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildApplicantSection(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      children: _latestOpenings.map((opening) {
+        final openingTitle = _safeText(
+          opening.openingTitle,
+          fallback: 'Scholarship Opening',
+        );
+        final programName = _safeText(
+          opening.programName,
+          fallback: 'Scholarship Program',
+        );
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              if (!_isDark)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 10,
+            ),
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.gold.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(Icons.school_rounded, color: primaryColor),
+            ),
+            title: Text(
+              openingTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _primaryText,
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                programName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: _secondaryText, fontSize: 12),
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () {
+              Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
+            },
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildOfficeUpdate() {
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, _) {
+        final notification = provider.homeOfficeUpdatesItems.isNotEmpty
+            ? provider.homeOfficeUpdatesItems.first
+            : _fallbackUpdate();
+
+        return _OfficeUpdateCard(
+          label: _notificationLabel(notification),
+          title: _safeText(notification.title, fallback: 'Office Update'),
+          preview: _notificationPreview(notification),
+          tags: _officeUpdateTags(notification),
+          isDark: _isDark,
+          onTap: () => _openOfficeUpdateArticle(context, notification),
+          onOpeningsTap: _isOpeningUpdate(notification) && !_hasScholarAccess
+              ? () => _openScholarshipOpenings(context)
+              : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildApplicantTools() {
+    return _ActionGroupCard(
+      isDark: _isDark,
       children: [
-        Text(
-          'Scholarship Application',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: _titleColor,
-          ),
+        _MenuAction(
+          icon: Icons.person_add_alt_1_rounded,
+          title: 'Apply for New Scholarship',
+          subtitle: 'Start or continue an application',
+          onTap: () =>
+              Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
         ),
-        const SizedBox(height: 10),
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-          child: Column(
-            children: [
-              ListTile(
-                leading: Icon(
-                  Icons.person_add,
-                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
-                ),
-                title: const Text('Apply for New Scholarship'),
-                subtitle: Text(
-                  'Start your application as a new scholar',
-                  style: TextStyle(color: _subtitleColor),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: _isDarkMode ? Colors.white54 : Colors.grey,
-                ),
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
-                },
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(
-                  Icons.settings_outlined,
-                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
-                ),
-                title: const Text('App Settings'),
-                subtitle: Text(
-                  'Manage preferences, privacy, and account options',
-                  style: TextStyle(color: _subtitleColor),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: _isDarkMode ? Colors.white54 : Colors.grey,
-                ),
-                onTap: () => showAppSettingsSheet(context),
-              ),
-            ],
-          ),
+        _MenuAction(
+          icon: Icons.upload_file_rounded,
+          title: 'Upload Scholarship Requirements',
+          subtitle: 'Submit documents for your application',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
         ),
-        const SizedBox(height: 20),
-        Text(
-          'General Information',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: _titleColor,
-          ),
+        _MenuAction(
+          icon: Icons.help_outline_rounded,
+          title: 'FAQs',
+          subtitle: 'Read common scholarship questions',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
         ),
-        const SizedBox(height: 10),
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-          child: Column(
-            children: [
-              ListTile(
-                leading: Icon(
-                  Icons.question_answer,
-                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
-                ),
-                title: const Text('FAQs'),
-                subtitle: Text(
-                  'Frequently asked questions',
-                  style: TextStyle(color: _subtitleColor),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: _isDarkMode ? Colors.white54 : Colors.grey,
-                ),
-                onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(
-                  Icons.notifications,
-                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
-                ),
-                title: const Text('View Notifications'),
-                subtitle: Text(
-                  'Check your notifications and updates',
-                  style: TextStyle(color: _subtitleColor),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: _isDarkMode ? Colors.white54 : Colors.grey,
-                ),
-                onTap: () =>
-                    Navigator.pushNamed(context, AppRoutes.notifications),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(
-                  Icons.file_upload,
-                  color: _isDarkMode ? const Color(0xFFFFD54F) : primaryColor,
-                ),
-                title: const Text('Upload Scholarship Requirements'),
-                subtitle: Text(
-                  'Upload your scholarship requirements after submitting an opening-specific application',
-                  style: TextStyle(color: _subtitleColor),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: _isDarkMode ? Colors.white54 : Colors.grey,
-                ),
-                onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
-              ),
-            ],
-          ),
+        _MenuAction(
+          icon: Icons.settings_outlined,
+          title: 'App Settings',
+          subtitle: 'Manage preferences and account options',
+          onTap: () => showAppSettingsSheet(context),
         ),
       ],
     );
   }
 
-  Widget _buildScholarSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildScholarTools() {
+    return _ActionGroupCard(
+      isDark: _isDark,
       children: [
-        Text(
-          'Return Obligations',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: _titleColor,
-          ),
+        _MenuAction(
+          icon: Icons.assignment_rounded,
+          title: 'View RO Assignment',
+          subtitle: 'Check assigned tasks and required hours',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
         ),
-        const SizedBox(height: 10),
-        Card(
-          color: _surfaceColor,
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.assignment_turned_in,
-                        color: AppColors.darkBrown,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Research Opportunity (RO) Management',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: _titleColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Access your RO assignments, submit completions, and track your progress.',
-                  style: TextStyle(fontSize: 14, color: _bodyColor),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.roAssignment,
-                        ),
-                        icon: const Icon(Icons.visibility),
-                        label: const Text('View RO'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          foregroundColor: _isDarkMode
-                              ? Colors.white
-                              : AppColors.darkBrown,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.roCompletion,
-                        ),
-                        icon: const Icon(Icons.done_all),
-                        label: const Text('Submit RO'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _isDarkMode
-                              ? Colors.white
-                              : AppColors.darkBrown,
-                          side: BorderSide(
-                            color: AppColors.gold.withOpacity(0.8),
-                          ),
-                          backgroundColor: AppColors.gold.withOpacity(0.10),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        _MenuAction(
+          icon: Icons.done_all_rounded,
+          title: 'Submit RO Completion',
+          subtitle: 'Upload proof and track progress',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
+        ),
+        _MenuAction(
+          icon: Icons.upload_file_rounded,
+          title: 'Renewal Documents',
+          subtitle: 'Submit renewal requirements',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.renewalDocuments),
+        ),
+        _MenuAction(
+          icon: Icons.notifications_none_rounded,
+          title: 'Scholarship Updates',
+          subtitle: 'View announcements and office notices',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
         ),
       ],
     );
@@ -629,112 +631,48 @@ class _DashboardContentState extends State<DashboardContent> {
 
   @override
   Widget build(BuildContext context) {
-    final officeUpdateCount = context
-        .watch<NotificationProvider>()
-        .homeOfficeUpdatesItems
-        .length;
-
-    return SizedBox.expand(
-      child: Container(
-        decoration: BoxDecoration(color: _pageBackground),
-        child: SafeArea(
+    return Container(
+      color: _background,
+      child: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadDashboardData,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildCampusHero(),
-                const SizedBox(height: 12),
-                _buildOfficeUpdatesHeading(
-                  officeUpdateCount > 0 ? officeUpdateCount : 1,
-                ),
-                const SizedBox(height: 10),
-                _buildOfficeUpdatesSection(),
-                const SizedBox(height: 20),
-                Text(
-                  'Quick Actions',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: _titleColor,
+                _buildHero(),
+                const SizedBox(height: 22),
+                _sectionTitle('Quick Actions'),
+                _buildQuickActions(),
+                if (!_hasScholarAccess) ...[
+                  const SizedBox(height: 22),
+                  _sectionTitle(
+                    'Latest Openings',
+                    actionLabel: 'View all',
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.scholarshipOpenings,
+                    ),
                   ),
+                  _buildLatestOpenings(),
+                ],
+                const SizedBox(height: 22),
+                _sectionTitle(
+                  'Office Updates',
+                  actionLabel: 'View all',
+                  onTap: () =>
+                      Navigator.pushNamed(context, AppRoutes.notifications),
                 ),
-                const SizedBox(height: 10),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isCompact = constraints.maxWidth < 420;
-                    final itemWidth = isCompact
-                        ? constraints.maxWidth
-                        : (constraints.maxWidth - 20) / 3;
-
-                    return Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        SizedBox(
-                          width: itemWidth,
-                          child: _buildQuickActionTile(
-                            context: context,
-                            icon: Icons.upload_file,
-                            label: 'Upload',
-                            onTap: () {
-                              final isScholar =
-                                  context
-                                      .read<NotificationProvider>()
-                                      .hasScholarAccess ||
-                                  _hasScholarAccess;
-                              Navigator.pushNamed(
-                                context,
-                                isScholar
-                                    ? AppRoutes.renewalDocuments
-                                    : AppRoutes.documents,
-                              );
-                            },
-                          ),
-                        ),
-                        SizedBox(
-                          width: itemWidth,
-                          child: _buildQuickActionTile(
-                            context: context,
-                            icon: Icons.campaign_outlined,
-                            label: 'Announcements',
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.notifications,
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: itemWidth,
-                          child: _buildQuickActionTile(
-                            context: context,
-                            icon: Icons.assignment_turned_in,
-                            label: 'Obligs',
-                            onTap: () {
-                              final isScholar =
-                                  context
-                                      .read<NotificationProvider>()
-                                      .hasScholarAccess ||
-                                  _hasScholarAccess;
-                              Navigator.pushNamed(
-                                context,
-                                isScholar
-                                    ? AppRoutes.roCompletion
-                                    : AppRoutes.status,
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+                _buildOfficeUpdate(),
+                const SizedBox(height: 22),
+                _sectionTitle(
+                  _hasScholarAccess ? 'Scholar Tools' : 'Applicant Tools',
                 ),
-                const SizedBox(height: 20),
-                if (!_effectiveScholarAccess)
-                  _buildApplicantSection(context)
-                else
-                  _buildScholarSection(context),
-                const SizedBox(height: 20),
+                _hasScholarAccess
+                    ? _buildScholarTools()
+                    : _buildApplicantTools(),
               ],
             ),
           ),
@@ -744,193 +682,239 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 }
 
-class _InteractiveOfficeUpdatesCard extends StatefulWidget {
-  const _InteractiveOfficeUpdatesCard({
-    required this.notification,
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.isDark});
+
+  final String label;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withOpacity(0.12)
+            : Colors.white.withOpacity(0.65),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: isDark ? Colors.white24 : Colors.white),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isDark ? Colors.white : textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAction {
+  const _QuickAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({required this.action, required this.isDark});
+
+  final _QuickAction action;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = isDark ? const Color(0xFF2E2118) : Colors.white;
+    final title = isDark ? Colors.white : textColor;
+    final subtitle = isDark ? Colors.white60 : Colors.black54;
+
+    return Material(
+      color: surface,
+      borderRadius: BorderRadius.circular(22),
+      elevation: isDark ? 0 : 1.5,
+      shadowColor: Colors.black.withOpacity(0.10),
+      child: InkWell(
+        onTap: action.onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withOpacity(isDark ? 0.18 : 0.14),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(
+                  action.icon,
+                  color: isDark ? const Color(0xFFFFD54F) : primaryColor,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      action.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: title,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      action.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: subtitle,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OfficeUpdateCard extends StatelessWidget {
+  const _OfficeUpdateCard({
+    required this.label,
+    required this.title,
+    required this.preview,
     required this.tags,
+    required this.isDark,
     required this.onTap,
     this.onOpeningsTap,
   });
 
-  final AppNotification notification;
+  final String label;
+  final String title;
+  final String preview;
   final List<String> tags;
+  final bool isDark;
   final VoidCallback onTap;
   final VoidCallback? onOpeningsTap;
 
   @override
-  State<_InteractiveOfficeUpdatesCard> createState() =>
-      _InteractiveOfficeUpdatesCardState();
-}
-
-class _InteractiveOfficeUpdatesCardState
-    extends State<_InteractiveOfficeUpdatesCard> {
-  bool _isHovered = false;
-  bool _isPressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF3A2418) : Colors.white;
+    final surface = isDark ? const Color(0xFF2E2118) : Colors.white;
     final titleColor = isDark ? Colors.white : textColor;
-    final bodyColor = isDark ? const Color(0xFFD5C1AE) : Colors.black87;
-    final borderColor = isDark ? const Color(0xFFD9A327) : AppColors.gold;
-    final chipBackground = isDark
-        ? const Color(0xFF7D5B1A).withOpacity(0.38)
-        : const Color(0xFFF2E5D1);
-    final chipTextColor = isDark ? const Color(0xFF2A180B) : textColor;
+    final bodyColor = isDark ? Colors.white70 : Colors.black87;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() {
-        _isHovered = false;
-        _isPressed = false;
-      }),
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _isPressed = true),
-        onTapCancel: () => setState(() => _isPressed = false),
-        onTapUp: (_) => setState(() => _isPressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          scale: _isPressed ? 0.97 : 1,
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: borderColor,
-                width: _isHovered ? 2.0 : 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(
-                    0xFF2E1607,
-                  ).withOpacity(_isHovered ? 0.18 : 0.10),
-                  blurRadius: _isHovered ? 24 : 16,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: surface,
+      borderRadius: BorderRadius.circular(26),
+      elevation: isDark ? 0 : 1.5,
+      shadowColor: Colors.black.withOpacity(0.10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(26),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: chipBackground,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            widget.notification.officeUpdateLabel,
-                            style: TextStyle(
-                              color: chipTextColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          widget.notification.title,
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: titleColor,
-                            height: 1.12,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          widget.notification.previewText,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: bodyColor,
-                            height: 1.45,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: widget.tags
-                              .map((tag) => _OfficeUpdateTag(label: tag))
-                              .toList(),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: widget.onTap,
-                            style: ElevatedButton.styleFrom(
-                              elevation: 0,
-                              backgroundColor: AppColors.gold,
-                              foregroundColor: AppColors.darkBrown,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'View all updates',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Icon(Icons.chevron_right_rounded, size: 20),
-                              ],
-                            ),
-                          ),
-                        ),
-                        if (widget.onOpeningsTap != null) ...[
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: widget.onOpeningsTap,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.brown,
-                                side: const BorderSide(
-                                  color: Color(0xFFD8B16A),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 13,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: const Text(
-                                'Apply to openings',
-                                style: TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                  _ChipLabel(label: label, isDark: isDark, filled: true),
+                  ...tags.map((tag) => _ChipLabel(label: tag, isDark: isDark)),
                 ],
               ),
-            ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: titleColor,
+                  fontSize: 18,
+                  height: 1.2,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                preview,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: bodyColor,
+                  fontSize: 13.5,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onTap,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: AppColors.darkBrown,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      child: const Text(
+                        'Read update',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                  if (onOpeningsTap != null) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: onOpeningsTap,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark
+                              ? Colors.white
+                              : AppColors.brown,
+                          side: BorderSide(
+                            color: AppColors.gold.withOpacity(0.75),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                        ),
+                        child: const Text(
+                          'Apply',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -938,31 +922,133 @@ class _InteractiveOfficeUpdatesCardState
   }
 }
 
-class _OfficeUpdateTag extends StatelessWidget {
-  const _OfficeUpdateTag({required this.label});
+class _ChipLabel extends StatelessWidget {
+  const _ChipLabel({
+    required this.label,
+    required this.isDark,
+    this.filled = false,
+  });
 
   final String label;
+  final bool isDark;
+  final bool filled;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF4A2F20) : const Color(0xFFF8EFD8),
+        color: filled
+            ? AppColors.gold.withOpacity(isDark ? 0.35 : 0.22)
+            : isDark
+            ? Colors.white.withOpacity(0.08)
+            : const Color(0xFFF8EFD8),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: isDark ? const Color(0xFFD8A425) : const Color(0xFFE4C789),
+          color: AppColors.gold.withOpacity(filled ? 0.55 : 0.25),
         ),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: isDark ? const Color(0xFFF0D7A0) : textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
         ),
+      ),
+    );
+  }
+}
+
+class _ActionGroupCard extends StatelessWidget {
+  const _ActionGroupCard({required this.children, required this.isDark});
+
+  final List<_MenuAction> children;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2E2118) : Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          if (!isDark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+        ],
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < children.length; i++) ...[
+            children[i].build(context, isDark),
+            if (i != children.length - 1)
+              Divider(
+                height: 1,
+                indent: 68,
+                color: isDark ? Colors.white10 : const Color(0xFFEFE5D8),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuAction {
+  const _MenuAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  Widget build(BuildContext context, bool isDark) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: AppColors.gold.withOpacity(isDark ? 0.18 : 0.12),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Icon(
+          icon,
+          color: isDark ? const Color(0xFFFFD54F) : primaryColor,
+          size: 21,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isDark ? Colors.white : textColor,
+          fontWeight: FontWeight.w900,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Text(
+          subtitle,
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+      ),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: isDark ? Colors.white38 : Colors.black38,
       ),
     );
   }

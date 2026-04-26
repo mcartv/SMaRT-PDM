@@ -14,6 +14,7 @@ import {
     Loader2,
     Save,
     X,
+    SlidersHorizontal,
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
@@ -255,6 +256,96 @@ function DepartmentModal({
     );
 }
 
+function CoursesFilterModal({
+    open,
+    onClose,
+    departmentFilter,
+    setDepartmentFilter,
+    archiveFilter,
+    setArchiveFilter,
+    departments,
+    onApply,
+    onClear,
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-stone-800">Filter Courses</h3>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-1.5 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                <CardContent className="p-4 space-y-3">
+                    <div className="space-y-1.5">
+                        <FieldLabel>Department</FieldLabel>
+                        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                            <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                                <SelectValue placeholder="Department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="All">All Departments</SelectItem>
+                                {departments.map((dept) => (
+                                    <SelectItem key={dept.department_id} value={dept.department_id}>
+                                        {dept.department_code}
+                                        {dept.department_name ? ` - ${dept.department_name}` : ''}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <FieldLabel>Archive Status</FieldLabel>
+                        <Select value={archiveFilter} onValueChange={setArchiveFilter}>
+                            <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Active">Active</SelectItem>
+                                <SelectItem value="Archived">Archived</SelectItem>
+                                <SelectItem value="All">All</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
+
+                <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={onClear}
+                        className="h-8 rounded-lg border-stone-200 text-xs"
+                    >
+                        Clear
+                    </Button>
+
+                    <Button
+                        onClick={onApply}
+                        className="h-8 rounded-lg text-white text-xs border-none"
+                        style={{ background: C.brownMid }}
+                    >
+                        Apply
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
 export default function CoursesPanel() {
     const [courses, setCourses] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -266,6 +357,10 @@ export default function CoursesPanel() {
     const [search, setSearch] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('All');
     const [archiveFilter, setArchiveFilter] = useState('Active');
+
+    const [draftDepartmentFilter, setDraftDepartmentFilter] = useState('All');
+    const [draftArchiveFilter, setDraftArchiveFilter] = useState('Active');
+    const [filterOpen, setFilterOpen] = useState(false);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -362,6 +457,9 @@ export default function CoursesPanel() {
         });
     }, [courses, search, departmentFilter, archiveFilter]);
 
+    const hasActiveFilters =
+        departmentFilter !== 'All' || archiveFilter !== 'Active';
+
     const openCreateModal = () => {
         setModalMode('create');
         setEditingCourseId(null);
@@ -379,6 +477,26 @@ export default function CoursesPanel() {
             is_archived: !!course.is_archived,
         });
         setModalOpen(true);
+    };
+
+    const openFilterModal = () => {
+        setDraftDepartmentFilter(departmentFilter);
+        setDraftArchiveFilter(archiveFilter);
+        setFilterOpen(true);
+    };
+
+    const applyFilters = () => {
+        setDepartmentFilter(draftDepartmentFilter);
+        setArchiveFilter(draftArchiveFilter);
+        setFilterOpen(false);
+    };
+
+    const clearFilters = () => {
+        setDepartmentFilter('All');
+        setArchiveFilter('Active');
+        setDraftDepartmentFilter('All');
+        setDraftArchiveFilter('Active');
+        setFilterOpen(false);
     };
 
     const handleSave = async () => {
@@ -535,6 +653,18 @@ export default function CoursesPanel() {
                 saving={departmentSaving}
             />
 
+            <CoursesFilterModal
+                open={filterOpen}
+                onClose={() => setFilterOpen(false)}
+                departmentFilter={draftDepartmentFilter}
+                setDepartmentFilter={setDraftDepartmentFilter}
+                archiveFilter={draftArchiveFilter}
+                setArchiveFilter={setDraftArchiveFilter}
+                departments={departments}
+                onApply={applyFilters}
+                onClear={clearFilters}
+            />
+
             <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-stone-900">Academic Courses</h2>
 
@@ -575,40 +705,29 @@ export default function CoursesPanel() {
                 <div className="relative flex-1 min-w-[220px]">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
                     <Input
-                        placeholder="Search..."
+                        placeholder="Search course..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-8 h-8 text-xs rounded-lg border-stone-200"
                     />
                 </div>
 
-                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                    <SelectTrigger className="w-[170px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="All">All Departments</SelectItem>
-                        {departments.map((dept) => (
-                            <SelectItem key={dept.department_id} value={dept.department_id}>
-                                {dept.department_code}
-                                {dept.department_name ? ` - ${dept.department_name}` : ''}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={openFilterModal}
+                    className="h-8 rounded-lg text-xs border-stone-200"
+                >
+                    <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
+                    Filters
+                    {hasActiveFilters && (
+                        <span className="ml-1 rounded-full bg-stone-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                            Active
+                        </span>
+                    )}
+                </Button>
 
-                <Select value={archiveFilter} onValueChange={setArchiveFilter}>
-                    <SelectTrigger className="w-[130px] h-8 rounded-lg border-stone-200 text-xs">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Archived">Archived</SelectItem>
-                        <SelectItem value="All">All</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                {(search || departmentFilter !== 'All' || archiveFilter !== 'Active') && (
+                {(search || hasActiveFilters) && (
                     <Button
                         variant="outline"
                         size="sm"
@@ -616,6 +735,8 @@ export default function CoursesPanel() {
                             setSearch('');
                             setDepartmentFilter('All');
                             setArchiveFilter('Active');
+                            setDraftDepartmentFilter('All');
+                            setDraftArchiveFilter('Active');
                         }}
                         className="h-8 rounded-lg text-xs border-stone-200"
                     >

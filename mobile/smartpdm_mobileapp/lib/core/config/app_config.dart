@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 class AppConfig {
   AppConfig._();
 
-  //static const String _defaultDebugBaseUrl = 'http://192.168.22.2:5000';
-  static const String _defaultReleaseBaseUrl = 'https://smart-pdm.onrender.com';
-  static const String _defaultDebugBaseUrl = 'https://smart-pdm-mipx.onrender.com';
+  // Use deployed backend in release, local LAN backend in debug.
+  static const String _defaultReleaseBaseUrl =
+      'https://smart-pdm-mipx.onrender.com';
+  static const String _defaultDebugBaseUrl = 'http://192.168.22.2:5000';
+
 
   static String get apiBaseUrl {
     const configuredValue = String.fromEnvironment('API_BASE_URL');
@@ -20,7 +22,6 @@ class AppConfig {
         : normalizedValue;
   }
 
-  // ✅ Define the missing variable
   static const String _recaptchaAndroidSiteKey = String.fromEnvironment(
     'RECAPTCHA_ANDROID_SITE_KEY',
   );

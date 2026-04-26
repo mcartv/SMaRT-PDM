@@ -66,6 +66,20 @@ function formatDate(value) {
   });
 }
 
+async function parseErrorResponse(response, fallback = 'Request failed') {
+  try {
+    const data = await response.json();
+
+    return (
+      data?.error ||
+      data?.message ||
+      fallback
+    );
+  } catch {
+    return fallback;
+  }
+}
+
 function getStatusGroup(status = '') {
   const raw = normalizeStatus(status);
 

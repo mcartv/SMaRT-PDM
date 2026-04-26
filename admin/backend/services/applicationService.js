@@ -34,11 +34,6 @@ const REJECTED_APPLICATION_NOTIFICATION = Object.freeze({
 
 const APPLICATION_DOCUMENT_DEFINITIONS = [
     {
-        id: 'survey_form',
-        name: 'Survey Form',
-        aliases: ['survey form'],
-    },
-    {
         id: 'letter_of_request',
         name: 'Letter of Request',
         aliases: ['letter of request', 'request letter'],
@@ -67,16 +62,6 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
         ],
     },
     {
-        id: 'certificate_of_indigency',
-        name: 'Certificate of Indigency',
-        aliases: ['certificate of indigency', 'indigency'],
-    },
-    {
-        id: 'letter_of_request',
-        name: 'Letter of Request',
-        aliases: ['letter of request', 'request letter', 'lor'],
-    },
-    {
         id: 'application_form',
         name: 'Application Form',
         aliases: ['application form', 'application'],
@@ -84,8 +69,6 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
 ];
 
 const DOCUMENT_TYPE_ALIASES = {
-    survey_form: 'survey_form',
-
     letter_of_request: 'letter_of_request',
     request_letter: 'letter_of_request',
 
@@ -96,9 +79,6 @@ const DOCUMENT_TYPE_ALIASES = {
     certificate_of_registration: 'certificate_of_registration',
     registration: 'certificate_of_registration',
 
-    senior_high_school_card: 'senior_high_school_card',
-    shs_card: 'senior_high_school_card',
-
     grade_card: 'student_grade_forms',
     grade_forms: 'student_grade_forms',
     grades: 'student_grade_forms',
@@ -106,27 +86,13 @@ const DOCUMENT_TYPE_ALIASES = {
     grade_form: 'student_grade_forms',
     grade_report: 'student_grade_forms',
     report_card: 'student_grade_forms',
-
-    certificate_of_indigency: 'certificate_of_indigency',
-    indigency: 'certificate_of_indigency',
-
-    lor: 'letter_of_request',
-    letter_of_request: 'letter_of_request',
-    request_letter: 'letter_of_request',
-
-    id_picture: 'id_picture',
-    picture: 'id_picture',
-    photo: 'id_picture',
 };
 
 const DOCUMENT_TYPE_TO_NAME = {
-    survey_form: 'Survey Form',
     letter_of_request: 'Letter of Request',
     certificate_of_indigency: 'Certificate of Indigency',
     certificate_of_registration: 'Certificate of Registration',
     student_grade_forms: 'Grade Report',
-    certificate_of_indigency: 'Certificate of Indigency',
-    letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
 };
 
@@ -434,6 +400,17 @@ function normalizeDocumentType(value) {
         .replace(/[\s-]+/g, '_');
 
     return DOCUMENT_TYPE_ALIASES[normalized] || normalized;
+}
+
+// STEP 1 — Added helper to consistently derive a document key from any document object.
+// Checks document_type first, then file_name, then document_name, then normalizes.
+function getDocumentKey(document = {}) {
+    const raw =
+        document.document_type ||
+        document.file_name ||
+        document.document_name ||
+        '';
+    return normalizeDocumentType(raw);
 }
 
 function inferDocumentKey(document = {}) {
@@ -761,27 +738,31 @@ async function buildApplicationDetails(applicationId) {
     const reviewByKey = new Map(
         (reviewsResult.data || []).map((review) => [review.document_key, review])
     );
+
+    // STEP 3 — Build ocrRows from the query result for use in fallback matching below
+    const ocrRows = ocrResult.data || [];
+
     const ocrByKey = new Map(
-        (ocrResult.data || []).map((ocrRow) => {
-            const resolvedKey = normalizeDocumentType(
-                ocrRow.document_key || ocrRow.document_type || ''
+        (ocrRows).map((row) => {
+            const key = normalizeDocumentType(
+                row.document_key || row.document_type || ''
             );
 
             return [
-                resolvedKey,
+                key,
                 {
-                    id: ocrRow.document_id || null,
-                    document_key: resolvedKey,
-                    document_type: ocrRow.document_type || null,
-                    file_url: ocrRow.file_url || null,
-                    scanned_via_iot: !!ocrRow.scanned_via_iot,
-                    iot_device_id: ocrRow.iot_device_id || null,
-                    extracted_name: ocrRow.ocr_extracted_name || null,
-                    extracted_gwa: ocrRow.ocr_extracted_gwa ?? null,
-                    confidence: ocrRow.ocr_confidence ?? null,
-                    raw_text: ocrRow.ocr_raw_text || '',
-                    scanned_at: ocrRow.scanned_at || null,
-                    updated_at: ocrRow.updated_at || null,
+                    id: row.document_id || null,
+                    document_key: key,
+                    document_type: row.document_type || null,
+                    file_url: row.file_url || null,
+                    scanned_via_iot: !!row.scanned_via_iot,
+                    iot_device_id: row.iot_device_id || null,
+                    extracted_name: row.ocr_extracted_name || null,
+                    extracted_gwa: row.ocr_extracted_gwa ?? null,
+                    confidence: row.ocr_confidence ?? null,
+                    raw_text: row.ocr_raw_text || '',
+                    scanned_at: row.scanned_at || null,
+                    updated_at: row.updated_at || null,
                 },
             ];
         })
@@ -791,9 +772,29 @@ async function buildApplicationDetails(applicationId) {
 
     const normalizedDocuments = await Promise.all(
         rawDocuments.map(async (document) => {
-            const documentKey = inferDocumentKey(document);
+            // STEP 2 — Use getDocumentKey for consistent normalization across all document fields
+            const documentKey = getDocumentKey(document);
             const review = reviewByKey.get(documentKey) || null;
-            const ocr = ocrByKey.get(documentKey) || null;
+
+            // STEP 3 — OCR matching with normalized key + fallback linear scan
+            let ocr = ocrByKey.get(documentKey) || null;
+            if (!ocr && ocrRows?.length) {
+                const fallback = ocrRows.find((row) => {
+                    const rowKey = normalizeDocumentType(
+                        row.document_key || row.document_type || ''
+                    );
+                    return rowKey === documentKey;
+                });
+                if (fallback) {
+                    ocr = {
+                        extracted_name: fallback.ocr_extracted_name || null,
+                        extracted_gwa: fallback.ocr_extracted_gwa ?? null,
+                        confidence: fallback.ocr_confidence ?? null,
+                        raw_text: fallback.ocr_raw_text || '',
+                    };
+                }
+            }
+
             const filePath = document.file_path || null;
             const signedUrl = filePath ? await getSignedFileUrl(filePath) : null;
 
@@ -819,25 +820,27 @@ async function buildApplicationDetails(applicationId) {
         })
     );
 
-    normalizedDocuments.push({
-        id: 'application_form',
-        document_key: 'application_form',
-        name: 'Application Form',
-        document_type: 'Application Form',
-        file_name: null,
-        file_path: null,
-        url: null,
-        file_url: null,
-        signed_url: null,
-        status: reviewByKey.get('application_form')?.review_status || 'pending',
-        admin_comment: reviewByKey.get('application_form')?.admin_comment || '',
-        notes: null,
-        ocr: {},
-        ocr_confidence: null,
-        uploaded_at: applicationRecord.submission_date || null,
-        submitted_at: applicationRecord.submission_date || null,
-        reviewed_at: reviewByKey.get('application_form')?.reviewed_at || null,
-    });
+    if (!normalizedDocuments.some(d => d.id === 'application_form')) {
+        normalizedDocuments.push({
+            id: 'application_form',
+            document_key: 'application_form',
+            name: 'Application Form',
+            document_type: 'Application Form',
+            file_name: null,
+            file_path: null,
+            url: null,
+            file_url: null,
+            signed_url: null,
+            status: reviewByKey.get('application_form')?.review_status || 'pending',
+            admin_comment: reviewByKey.get('application_form')?.admin_comment || '',
+            notes: null,
+            ocr: {},
+            ocr_confidence: null,
+            uploaded_at: applicationRecord.submission_date || null,
+            submitted_at: applicationRecord.submission_date || null,
+            reviewed_at: reviewByKey.get('application_form')?.reviewed_at || null,
+        });
+    }
 
     const documents = ensureDocumentCoverage(normalizedDocuments);
 
@@ -1360,7 +1363,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         .from('application_documents')
         .select('file_path, file_url')
         .eq('application_id', applicationId)
-        .eq('document_type', documentTypeName)
+        .eq('document_type', DOCUMENT_TYPE_TO_NAME[normalizedDocumentKey])
         .maybeSingle();
 
     if (sourceDocumentError) {
@@ -1387,6 +1390,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     }
 
     const existingRow = existingOcrRows?.[0] || null;
+
     const payload = {
         student_id: applicationRow.student_id,
         linked_record_id: applicationId,

@@ -14,6 +14,8 @@ import {
   Calendar,
   Filter,
   Loader2,
+  Eye,
+  RotateCcw,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -65,6 +67,27 @@ function TemplateCard({ report, active, onClick }) {
   );
 }
 
+function formatCellValue(value) {
+  if (value === null || value === undefined || value === '') return '—';
+
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+
+  if (typeof value === 'string' && value.includes('T')) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString();
+    }
+  }
+
+  return String(value);
+}
+
+function formatHeader(key) {
+  return String(key || '')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export default function ReportGeneration() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -73,20 +96,57 @@ export default function ReportGeneration() {
   const [programs, setPrograms] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
   const [semesters, setSemesters] = useState([]);
+  const [benefactors, setBenefactors] = useState([]);
 
   const [selected, setSelected] = useState('applications');
   const [academicYearId, setAcademicYearId] = useState('all');
   const [semester, setSemester] = useState('all');
   const [programId, setProgramId] = useState('all');
+  const [benefactorId, setBenefactorId] = useState('all');
+
+  const [previewRows, setPreviewRows] = useState([]);
+  const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [hasPreviewed, setHasPreviewed] = useState(false);
 
   useEffect(() => {
     loadMetadata();
   }, []);
 
+  useEffect(() => {
+    setPreviewRows([]);
+    setPreviewTotal(0);
+    setHasPreviewed(false);
+  }, [selected, academicYearId, semester, programId, benefactorId]);
+
   const selectedReport = useMemo(
     () => reportTypes.find((r) => r.id === selected) || reportTypes[0],
     [reportTypes, selected]
   );
+
+  const previewColumns = useMemo(() => {
+    if (!previewRows.length) return [];
+    return Object.keys(previewRows[0] || {});
+  }, [previewRows]);
+
+  const selectedLabels = useMemo(() => {
+    const year =
+      academicYears.find((item) => item.academic_year_id === academicYearId)
+        ?.label || 'All Academic Years';
+
+    const term =
+      semesters.find((item) => item.value === semester)?.label || 'All Semesters';
+
+    const program =
+      programs.find((item) => item.program_id === programId)?.program_name ||
+      'All Programs';
+
+    const benefactor =
+      benefactors.find((item) => item.benefactor_id === benefactorId)
+        ?.benefactor_name || 'All Benefactors';
+
+    return { year, term, program, benefactor };
+  }, [academicYears, semesters, programs, benefactors, academicYearId, semester, programId, benefactorId]);
 
   async function loadMetadata() {
     try {
@@ -106,6 +166,7 @@ export default function ReportGeneration() {
       setPrograms(data.programs || []);
       setAcademicYears(data.academicYears || []);
       setSemesters(data.semesters || []);
+      setBenefactors(data.benefactors || []);
 
       if (data.reportTypes?.[0]?.id) {
         setSelected(data.reportTypes[0].id);
@@ -118,18 +179,56 @@ export default function ReportGeneration() {
     }
   }
 
+  function buildParams() {
+    return new URLSearchParams({
+      reportType: selected,
+      academicYearId,
+      semester,
+      programId,
+      benefactorId,
+    });
+  }
+
+  function resetFilters() {
+    setAcademicYearId('all');
+    setSemester('all');
+    setProgramId('all');
+    setBenefactorId('all');
+    setPreviewRows([]);
+    setPreviewTotal(0);
+    setHasPreviewed(false);
+  }
+
+  async function handlePreviewReport() {
+    try {
+      setPreviewLoading(true);
+
+      const res = await fetch(`${API_BASE}/reports/preview?${buildParams()}`, {
+        headers: getAuthHeaders(),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to preview report.');
+      }
+
+      setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
+      setPreviewTotal(Number(data.total || data.rows?.length || 0));
+      setHasPreviewed(true);
+    } catch (error) {
+      console.error('REPORT PREVIEW ERROR:', error);
+      alert(error.message || 'Failed to preview report.');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   async function handleGenerateReport() {
     try {
       setGenerating(true);
 
-      const params = new URLSearchParams({
-        reportType: selected,
-        academicYearId,
-        semester,
-        programId,
-      });
-
-      const res = await fetch(`${API_BASE}/reports/export?${params}`, {
+      const res = await fetch(`${API_BASE}/reports/export?${buildParams()}`, {
         headers: getAuthHeaders(),
       });
 
@@ -238,6 +337,27 @@ export default function ReportGeneration() {
 
               <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                  Benefactor
+                </label>
+                <Select value={benefactorId} onValueChange={setBenefactorId}>
+                  <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {benefactors.map((benefactor) => (
+                      <SelectItem
+                        key={benefactor.benefactor_id}
+                        value={benefactor.benefactor_id}
+                      >
+                        {benefactor.benefactor_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Program
                 </label>
                 <Select value={programId} onValueChange={setProgramId}>
@@ -256,24 +376,24 @@ export default function ReportGeneration() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
-                Semester
-              </label>
-              <Select value={semester} onValueChange={setSemester}>
-                <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {semesters.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                  Semester
+                </label>
+                <Select value={semester} onValueChange={setSemester}>
+                  <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesters.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
@@ -287,14 +407,29 @@ export default function ReportGeneration() {
                     Selected configuration
                   </p>
                   <p className="mt-1 text-xs leading-6 text-stone-500">
-                    {selectedReport?.name || 'Report'} • Excel export • Live
-                    database records
+                    {selectedReport?.name || 'Report'} • {selectedLabels.year} •{' '}
+                    {selectedLabels.term} • {selectedLabels.benefactor} •{' '}
+                    {selectedLabels.program}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-3 border-t border-stone-100 pt-4 sm:flex-row">
+              <Button
+                variant="outline"
+                className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                disabled={previewLoading || generating}
+                onClick={handlePreviewReport}
+              >
+                {previewLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="mr-2 h-4 w-4" />
+                )}
+                Preview
+              </Button>
+
               <Button
                 className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
                 style={{ background: C.brown }}
@@ -304,24 +439,102 @@ export default function ReportGeneration() {
                 {generating ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <FileText className="mr-2 h-4 w-4" />
+                  <Download className="mr-2 h-4 w-4" />
                 )}
-                Generate Excel Report
+                Download Excel Report
               </Button>
 
               <Button
                 variant="outline"
                 className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
-                disabled={generating}
-                onClick={handleGenerateReport}
+                disabled={previewLoading || generating}
+                onClick={resetFilters}
               >
-                <Download className="mr-2 h-4 w-4" />
-                Download
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {hasPreviewed && (
+        <Card className="overflow-hidden border-stone-200 bg-white shadow-none">
+          <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-stone-800">
+                  Report Preview
+                </h2>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  {previewRows.length > 0
+                    ? `Showing ${previewRows.length} of ${previewTotal} matching records.`
+                    : 'No matching records found for the selected filters.'}
+                </p>
+              </div>
+
+              {previewRows.length > 0 && (
+                <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-[11px] font-medium text-stone-500">
+                  Preview only
+                </span>
+              )}
+            </div>
+          </div>
+
+          <CardContent className="p-0">
+            {previewLoading ? (
+              <div className="flex h-[180px] items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
+              </div>
+            ) : previewRows.length === 0 ? (
+              <div className="flex h-[180px] flex-col items-center justify-center px-4 text-center">
+                <FileText className="mb-2 h-7 w-7 text-stone-300" />
+                <p className="text-sm font-medium text-stone-700">
+                  No records to preview
+                </p>
+                <p className="mt-1 text-xs text-stone-500">
+                  Try changing the academic year, benefactor, program, or semester.
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-[420px] overflow-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 z-10 bg-stone-50 text-stone-500">
+                    <tr>
+                      {previewColumns.map((key) => (
+                        <th
+                          key={key}
+                          className="whitespace-nowrap border-b border-stone-100 px-4 py-3 font-semibold"
+                        >
+                          {formatHeader(key)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {previewRows.map((row, index) => (
+                      <tr
+                        key={index}
+                        className="border-t border-stone-100 hover:bg-stone-50/70"
+                      >
+                        {previewColumns.map((key) => (
+                          <td
+                            key={key}
+                            className="whitespace-nowrap px-4 py-3 text-stone-600"
+                          >
+                            {formatCellValue(row[key])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="overflow-hidden border-stone-200 bg-white shadow-none">
         <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">

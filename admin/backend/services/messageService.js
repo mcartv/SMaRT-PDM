@@ -539,7 +539,7 @@ exports.fetchScholarMembers = async () => {
         st.profile_photo_url,
         TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
         COALESCE(sp.program_name, ac.course_code, 'No Program') AS program_name,
-        COALESCE(sp.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
+        COALESCE(b.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
       FROM students st
       LEFT JOIN users u
         ON st.user_id = u.user_id
@@ -547,6 +547,8 @@ exports.fetchScholarMembers = async () => {
         ON st.course_id = ac.course_id
       LEFT JOIN scholarship_program sp
         ON st.current_program_id = sp.program_id
+      LEFT JOIN benefactors b
+        ON sp.benefactor_id = b.benefactor_id
       WHERE COALESCE(st.is_archived, false) = false
         AND COALESCE(st.scholar_is_archived, false) = false
         AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
@@ -578,8 +580,8 @@ exports.fetchScholarMembers = async () => {
           st.last_name,
           st.profile_photo_url,
           TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
-          COALESCE(ac.course_code, 'No Program') AS program_name,
-          COALESCE(sp.program_name, 'Unassigned Benefactor') AS benefactor_name
+          COALESCE(sp.program_name, ac.course_code, 'No Program') AS program_name,
+          COALESCE(b.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
         FROM current_scholars s
         JOIN students st
           ON s.student_id = st.student_id
@@ -589,6 +591,8 @@ exports.fetchScholarMembers = async () => {
           ON st.course_id = ac.course_id
         LEFT JOIN scholarship_program sp
           ON s.program_id = sp.program_id
+        LEFT JOIN benefactors b
+          ON sp.benefactor_id = b.benefactor_id
         WHERE COALESCE(st.is_archived, false) = false
           AND u.user_id IS NOT NULL
         ORDER BY student_name ASC;
@@ -614,8 +618,8 @@ exports.fetchScholarMembers = async () => {
           st.last_name,
           st.profile_photo_url,
           TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
-          COALESCE(ac.course_code, 'No Program') AS program_name,
-          COALESCE(sp.program_name, 'Unassigned Benefactor') AS benefactor_name
+          COALESCE(sp.program_name, ac.course_code, 'No Program') AS program_name,
+          COALESCE(b.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
         FROM scholars s
         JOIN students st
           ON s.student_id = st.student_id
@@ -625,6 +629,8 @@ exports.fetchScholarMembers = async () => {
           ON st.course_id = ac.course_id
         LEFT JOIN scholarship_program sp
           ON s.program_id = sp.program_id
+        LEFT JOIN benefactors b
+          ON sp.benefactor_id = b.benefactor_id
         WHERE COALESCE(st.is_archived, false) = false
           AND u.user_id IS NOT NULL
         ORDER BY student_name ASC;

@@ -523,33 +523,115 @@ exports.markRoomMessagesRead = async (currentUserId, roomId) => {
 };
 
 exports.fetchScholarMembers = async () => {
-  const result = await db.query(
-    `
-    SELECT
-      u.user_id,
-      s.scholar_id,
-      st.student_id,
-      st.pdm_id AS student_number,
-      st.first_name,
-      st.last_name,
-      st.profile_photo_url,
-      TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
-      COALESCE(ac.course_code, 'No Program') AS program_name,
-      COALESCE(sp.program_name, 'Unassigned Benefactor') AS benefactor_name
-    FROM scholars s
-    JOIN students st
-      ON s.student_id = st.student_id
-    LEFT JOIN users u
-      ON st.user_id = u.user_id
-    LEFT JOIN academic_course ac
-      ON st.course_id = ac.course_id
-    LEFT JOIN scholarship_program sp
-      ON s.program_id = sp.program_id
-    WHERE COALESCE(st.is_archived, false) = false
-      AND u.user_id IS NOT NULL
-    ORDER BY student_name ASC;
-    `
-  );
+  let result;
+
+  try {
+    // Preferred schema: scholars are tracked directly in the students table.
+    result = await db.query(
+      `
+      SELECT
+        u.user_id,
+        st.student_id AS scholar_id,
+        st.student_id,
+        st.pdm_id AS student_number,
+        st.first_name,
+        st.last_name,
+        st.profile_photo_url,
+        TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
+        COALESCE(sp.program_name, ac.course_code, 'No Program') AS program_name,
+        COALESCE(sp.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
+      FROM students st
+      LEFT JOIN users u
+        ON st.user_id = u.user_id
+      LEFT JOIN academic_course ac
+        ON st.course_id = ac.course_id
+      LEFT JOIN scholarship_program sp
+        ON st.current_program_id = sp.program_id
+      WHERE COALESCE(st.is_archived, false) = false
+        AND COALESCE(st.scholar_is_archived, false) = false
+        AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+        AND u.user_id IS NOT NULL
+      ORDER BY student_name ASC;
+      `
+    );
+  } catch (modernErr) {
+    const message = String(modernErr?.message || '').toLowerCase();
+    const isSchemaMismatch =
+      message.includes('current_program_id') ||
+      message.includes('scholar_is_archived') ||
+      message.includes('scholarship_status');
+
+    if (!isSchemaMismatch) {
+      throw modernErr;
+    }
+
+    try {
+      // Legacy schema fallback: current_scholars table stores program linkage.
+      result = await db.query(
+        `
+        SELECT
+          u.user_id,
+          s.scholar_id,
+          st.student_id,
+          st.pdm_id AS student_number,
+          st.first_name,
+          st.last_name,
+          st.profile_photo_url,
+          TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
+          COALESCE(ac.course_code, 'No Program') AS program_name,
+          COALESCE(sp.program_name, 'Unassigned Benefactor') AS benefactor_name
+        FROM current_scholars s
+        JOIN students st
+          ON s.student_id = st.student_id
+        LEFT JOIN users u
+          ON st.user_id = u.user_id
+        LEFT JOIN academic_course ac
+          ON st.course_id = ac.course_id
+        LEFT JOIN scholarship_program sp
+          ON s.program_id = sp.program_id
+        WHERE COALESCE(st.is_archived, false) = false
+          AND u.user_id IS NOT NULL
+        ORDER BY student_name ASC;
+        `
+      );
+    } catch (legacyErr) {
+      const legacyMessage = String(legacyErr?.message || '').toLowerCase();
+      const isCurrentScholarsMissing = legacyMessage.includes('current_scholars');
+
+      if (!isCurrentScholarsMissing) {
+        throw legacyErr;
+      }
+
+      // Older fallback: scholars table.
+      result = await db.query(
+        `
+        SELECT
+          u.user_id,
+          s.scholar_id,
+          st.student_id,
+          st.pdm_id AS student_number,
+          st.first_name,
+          st.last_name,
+          st.profile_photo_url,
+          TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
+          COALESCE(ac.course_code, 'No Program') AS program_name,
+          COALESCE(sp.program_name, 'Unassigned Benefactor') AS benefactor_name
+        FROM scholars s
+        JOIN students st
+          ON s.student_id = st.student_id
+        LEFT JOIN users u
+          ON st.user_id = u.user_id
+        LEFT JOIN academic_course ac
+          ON st.course_id = ac.course_id
+        LEFT JOIN scholarship_program sp
+          ON s.program_id = sp.program_id
+        WHERE COALESCE(st.is_archived, false) = false
+          AND u.user_id IS NOT NULL
+        ORDER BY student_name ASC;
+        `
+      );
+    }
+  }
 
   const items = [];
 

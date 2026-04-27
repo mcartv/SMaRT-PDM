@@ -9,7 +9,6 @@ const PANEL_BASE = '#2e4b43';
 const PANEL_TEXT = '#ecfdf5';
 const PANEL_SUB = '#a7f3d0';
 const ACCENT = '#16a34a';
-const ALLOWED_SDO_EMAIL = 'sdo@pdm.edu.ph';
 
 export default function SDOLogin() {
   const navigate = useNavigate();
@@ -25,12 +24,6 @@ export default function SDOLogin() {
     setError('');
 
     const normalizedEmail = email.trim().toLowerCase();
-
-    if (normalizedEmail !== ALLOWED_SDO_EMAIL) {
-      setError('Only sdo@pdm.edu.ph can log in to the SDO portal.');
-      setIsLoading(false);
-      return;
-    }
 
     try {
       const response = await fetch(buildApiUrl('/api/auth/sdo/login'), {

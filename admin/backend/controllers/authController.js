@@ -3,7 +3,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
-const ALLOWED_SDO_EMAIL = 'sdo@pdm.edu.ph';
 
 const ADMIN_USER_QUERY = `
     SELECT
@@ -81,12 +80,6 @@ async function loginWithRole(req, res, role) {
             });
         }
 
-        if (role === 'sdo' && normalizedEmail !== ALLOWED_SDO_EMAIL) {
-            return res.status(403).json({
-                message: 'Only sdo@pdm.edu.ph is authorized for the SDO portal',
-            });
-        }
-
         const result = await db.query(ADMIN_USER_QUERY, [normalizedEmail]);
         const user = result.rows[0];
 
@@ -114,15 +107,11 @@ async function loginWithRole(req, res, role) {
         }
 
         if (role === 'sdo') {
-            if (!(user.user_role === 'SDO' || isSdoProfile(user))) {
+            const userRole = String(user.user_role || '').trim().toLowerCase();
+
+            if (!(userRole === 'sdo' || isSdoProfile(user))) {
                 return res.status(403).json({
                     message: 'This account is not authorized for the SDO portal',
-                });
-            }
-
-            if (normalizeEmail(user.email) !== ALLOWED_SDO_EMAIL) {
-                return res.status(403).json({
-                    message: 'Only sdo@pdm.edu.ph is authorized for the SDO portal',
                 });
             }
         }

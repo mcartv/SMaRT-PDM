@@ -117,7 +117,7 @@ export default function SDODashboard() {
   const cards = [
     {
       label: 'Total Scholars',
-      value: Number(stats?.total || 0),
+      value: Number(stats?.total ?? stats?.active_scholars ?? 0),
       icon: Users,
       accent: C.brown,
       soft: C.amberSoft,

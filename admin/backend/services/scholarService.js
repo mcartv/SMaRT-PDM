@@ -115,17 +115,17 @@ exports.fetchAllScholars = async () => {
     result = await db.query(`
       SELECT
         st.student_id,
-        st.current_application_id AS application_id,
-        st.current_program_id AS program_id,
-        st.scholarship_status AS status,
-        st.active_academic_year_id AS academic_year_id,
-        st.active_period_id AS period_id,
+        cs.application_id AS application_id,
+        cs.program_id AS program_id,
+        cs.status AS status,
+        cs.academic_year_id AS academic_year_id,
+        cs.period_id AS period_id,
         ay.label AS academic_year,
         ap.term AS semester,
-        st.date_awarded,
-        COALESCE(st.ro_progress, 0) AS ro_progress,
-        st.scholar_remarks AS remarks,
-        st.scholar_is_archived AS is_archived,
+        cs.date_awarded,
+        COALESCE(cs.ro_progress, 0) AS ro_progress,
+        cs.remarks,
+        cs.is_archived,
 
         st.user_id,
         st.pdm_id AS student_number,
@@ -149,14 +149,16 @@ exports.fetchAllScholars = async () => {
         sp.program_name
 
       FROM students st
+      JOIN current_scholars cs
+        ON cs.student_id = st.student_id
       LEFT JOIN users u
         ON st.user_id = u.user_id
       LEFT JOIN scholarship_program sp
-        ON st.current_program_id = sp.program_id
+        ON cs.program_id = sp.program_id
       LEFT JOIN academic_years ay
-        ON st.active_academic_year_id = ay.academic_year_id
+        ON cs.academic_year_id = ay.academic_year_id
       LEFT JOIN academic_period ap
-        ON st.active_period_id = ap.period_id
+        ON cs.period_id = ap.period_id
       LEFT JOIN LATERAL (
         SELECT
           record_id,
@@ -172,12 +174,153 @@ exports.fetchAllScholars = async () => {
         LIMIT 1
       ) latest_sdo ON true
       WHERE COALESCE(st.is_archived, false) = false
-        AND COALESCE(st.scholar_is_archived, false) = false
-        AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+        AND COALESCE(cs.is_archived, false) = false
+        AND COALESCE(cs.status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
       ORDER BY st.last_name ASC, st.first_name ASC;
     `);
   } catch (err) {
-    if (err.message && err.message.includes('st.section')) {
+    const errorText = String(err?.message || '').toLowerCase();
+    const isCurrentSchemaMismatch =
+      errorText.includes('current_scholars') ||
+      errorText.includes('cs.application_id') ||
+      errorText.includes('cs.program_id') ||
+      errorText.includes('cs.status') ||
+      errorText.includes('cs.academic_year_id') ||
+      errorText.includes('cs.period_id');
+
+    if (isCurrentSchemaMismatch) {
+      if (err.message && err.message.includes('st.section')) {
+        result = await db.query(`
+          SELECT
+            st.student_id,
+            st.current_application_id AS application_id,
+            st.current_program_id AS program_id,
+            st.scholarship_status AS status,
+            st.active_academic_year_id AS academic_year_id,
+            st.active_period_id AS period_id,
+            ay.label AS academic_year,
+            ap.term AS semester,
+            st.date_awarded,
+            COALESCE(st.ro_progress, 0) AS ro_progress,
+            st.scholar_remarks AS remarks,
+            st.scholar_is_archived AS is_archived,
+
+            st.user_id,
+            st.pdm_id AS student_number,
+            TRIM(CONCAT(COALESCE(st.first_name, ''), ' ', COALESCE(st.last_name, ''))) AS student_name,
+            st.first_name,
+            st.last_name,
+            st.gwa,
+            st.sdo_status,
+            '' AS section,
+
+            latest_sdo.record_id AS sdo_record_id,
+            latest_sdo.offense_level,
+            latest_sdo.offense_description AS sdo_comment,
+            latest_sdo.date_reported AS sdo_comment_date,
+            latest_sdo.status AS sdo_record_status,
+
+            u.email,
+            u.phone_number,
+            st.profile_photo_url,
+
+            sp.program_name
+
+          FROM students st
+          LEFT JOIN users u
+            ON st.user_id = u.user_id
+          LEFT JOIN scholarship_program sp
+            ON st.current_program_id = sp.program_id
+          LEFT JOIN academic_years ay
+            ON st.active_academic_year_id = ay.academic_year_id
+          LEFT JOIN academic_period ap
+            ON st.active_period_id = ap.period_id
+          LEFT JOIN LATERAL (
+            SELECT
+              record_id,
+              offense_level,
+              offense_description,
+              date_reported,
+              status
+            FROM sdo_records
+            WHERE student_id = st.student_id
+            ORDER BY
+              CASE WHEN status = 'Active' THEN 0 ELSE 1 END,
+              date_reported DESC
+            LIMIT 1
+          ) latest_sdo ON true
+          WHERE COALESCE(st.is_archived, false) = false
+            AND COALESCE(st.scholar_is_archived, false) = false
+            AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+          ORDER BY st.last_name ASC, st.first_name ASC;
+        `);
+      } else {
+        result = await db.query(`
+          SELECT
+            st.student_id,
+            st.current_application_id AS application_id,
+            st.current_program_id AS program_id,
+            st.scholarship_status AS status,
+            st.active_academic_year_id AS academic_year_id,
+            st.active_period_id AS period_id,
+            ay.label AS academic_year,
+            ap.term AS semester,
+            st.date_awarded,
+            COALESCE(st.ro_progress, 0) AS ro_progress,
+            st.scholar_remarks AS remarks,
+            st.scholar_is_archived AS is_archived,
+
+            st.user_id,
+            st.pdm_id AS student_number,
+            TRIM(CONCAT(COALESCE(st.first_name, ''), ' ', COALESCE(st.last_name, ''))) AS student_name,
+            st.first_name,
+            st.last_name,
+            st.gwa,
+            st.sdo_status,
+            COALESCE(st.section, '') AS section,
+
+            latest_sdo.record_id AS sdo_record_id,
+            latest_sdo.offense_level,
+            latest_sdo.offense_description AS sdo_comment,
+            latest_sdo.date_reported AS sdo_comment_date,
+            latest_sdo.status AS sdo_record_status,
+
+            u.email,
+            u.phone_number,
+            st.profile_photo_url,
+
+            sp.program_name
+
+          FROM students st
+          LEFT JOIN users u
+            ON st.user_id = u.user_id
+          LEFT JOIN scholarship_program sp
+            ON st.current_program_id = sp.program_id
+          LEFT JOIN academic_years ay
+            ON st.active_academic_year_id = ay.academic_year_id
+          LEFT JOIN academic_period ap
+            ON st.active_period_id = ap.period_id
+          LEFT JOIN LATERAL (
+            SELECT
+              record_id,
+              offense_level,
+              offense_description,
+              date_reported,
+              status
+            FROM sdo_records
+            WHERE student_id = st.student_id
+            ORDER BY
+              CASE WHEN status = 'Active' THEN 0 ELSE 1 END,
+              date_reported DESC
+            LIMIT 1
+          ) latest_sdo ON true
+          WHERE COALESCE(st.is_archived, false) = false
+            AND COALESCE(st.scholar_is_archived, false) = false
+            AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+          ORDER BY st.last_name ASC, st.first_name ASC;
+        `);
+      }
+    } else if (err.message && err.message.includes('st.section')) {
       result = await db.query(`
         SELECT
           st.student_id,
@@ -257,6 +400,7 @@ exports.fetchAllScholars = async () => {
       academic_year_id: row.academic_year_id,
       period_id: row.period_id,
       academic_year: row.academic_year,
+      batch_year: row.academic_year || null,
       semester: row.semester,
       date_awarded: row.date_awarded,
       ro_progress: row.ro_progress,
@@ -563,38 +707,93 @@ exports.fetchScholarRenewalDocuments = async (studentId) => {
 };
 
 exports.fetchSdoStats = async () => {
-  const result = await db.query(`
-    WITH latest_sdo AS (
-      SELECT DISTINCT ON (sr.student_id)
-        sr.student_id,
-        sr.offense_level,
-        sr.status
-      FROM sdo_records sr
-      ORDER BY sr.student_id,
-               CASE WHEN sr.status = 'Active' THEN 0 ELSE 1 END,
-               sr.date_reported DESC
-    )
-    SELECT
-      COUNT(*) FILTER (
-        WHERE COALESCE(st.sdo_status, 'Clear') = 'Clear'
-      ) AS clear_count,
-      COUNT(*) FILTER (
-        WHERE ls.status = 'Active' AND ls.offense_level = 'Minor (P1)'
-      ) AS minor_count,
-      COUNT(*) FILTER (
-        WHERE ls.status = 'Active' AND ls.offense_level = 'Major (P2)'
-      ) AS major_count,
-      COUNT(*) FILTER (
-        WHERE ls.status = 'Active'
-      ) AS on_probation,
-      COUNT(*) FILTER (
-        WHERE COALESCE(st.scholarship_status, 'None') = 'Active'
-          AND COALESCE(st.scholar_is_archived, false) = false
-      ) AS active_scholars
-    FROM students st
-    LEFT JOIN latest_sdo ls ON ls.student_id = st.student_id
-    WHERE COALESCE(st.is_archived, false) = false;
-  `);
+  let result;
+
+  try {
+    result = await db.query(`
+      WITH latest_sdo AS (
+        SELECT DISTINCT ON (sr.student_id)
+          sr.student_id,
+          sr.offense_level,
+          sr.status
+        FROM sdo_records sr
+        ORDER BY sr.student_id,
+                 CASE WHEN sr.status = 'Active' THEN 0 ELSE 1 END,
+                 sr.date_reported DESC
+      )
+      SELECT
+        COUNT(*) AS total,
+        COUNT(*) FILTER (
+          WHERE COALESCE(st.sdo_status, 'Clear') = 'Clear'
+        ) AS clear_count,
+        COUNT(*) FILTER (
+          WHERE ls.status = 'Active' AND ls.offense_level = 'Minor (P1)'
+        ) AS minor_count,
+        COUNT(*) FILTER (
+          WHERE ls.status = 'Active' AND ls.offense_level = 'Major (P2)'
+        ) AS major_count,
+        COUNT(*) FILTER (
+          WHERE ls.status = 'Active'
+        ) AS on_probation,
+        COUNT(*) FILTER (
+          WHERE COALESCE(cs.status, 'None') = 'Active'
+            AND COALESCE(cs.is_archived, false) = false
+        ) AS active_scholars
+      FROM students st
+      JOIN current_scholars cs
+        ON cs.student_id = st.student_id
+      LEFT JOIN latest_sdo ls ON ls.student_id = st.student_id
+      WHERE COALESCE(st.is_archived, false) = false
+        AND COALESCE(cs.is_archived, false) = false;
+    `);
+  } catch (err) {
+    const errorText = String(err?.message || '').toLowerCase();
+    const isCurrentSchemaMismatch =
+      errorText.includes('current_scholars') ||
+      errorText.includes('cs.status') ||
+      errorText.includes('cs.is_archived');
+
+    if (!isCurrentSchemaMismatch) {
+      throw err;
+    }
+
+    result = await db.query(`
+      WITH latest_sdo AS (
+        SELECT DISTINCT ON (sr.student_id)
+          sr.student_id,
+          sr.offense_level,
+          sr.status
+        FROM sdo_records sr
+        ORDER BY sr.student_id,
+                 CASE WHEN sr.status = 'Active' THEN 0 ELSE 1 END,
+                 sr.date_reported DESC
+      )
+      SELECT
+        COUNT(*) FILTER (
+          WHERE COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+            AND COALESCE(st.scholar_is_archived, false) = false
+        ) AS total,
+        COUNT(*) FILTER (
+          WHERE COALESCE(st.sdo_status, 'Clear') = 'Clear'
+        ) AS clear_count,
+        COUNT(*) FILTER (
+          WHERE ls.status = 'Active' AND ls.offense_level = 'Minor (P1)'
+        ) AS minor_count,
+        COUNT(*) FILTER (
+          WHERE ls.status = 'Active' AND ls.offense_level = 'Major (P2)'
+        ) AS major_count,
+        COUNT(*) FILTER (
+          WHERE ls.status = 'Active'
+        ) AS on_probation,
+        COUNT(*) FILTER (
+          WHERE COALESCE(st.scholarship_status, 'None') = 'Active'
+            AND COALESCE(st.scholar_is_archived, false) = false
+        ) AS active_scholars
+      FROM students st
+      LEFT JOIN latest_sdo ls ON ls.student_id = st.student_id
+      WHERE COALESCE(st.is_archived, false) = false;
+    `);
+  }
 
   return result.rows[0];
 };
@@ -609,21 +808,53 @@ exports.updateScholarSdoStatus = async (studentId, payload, actor = {}) => {
     throw new Error('Invalid SDO status value');
   }
 
-  const scholarResult = await db.query(
-    `
-    SELECT
-      st.student_id,
-      st.first_name,
-      st.last_name
-    FROM students st
-    WHERE st.student_id = $1
-      AND COALESCE(st.is_archived, false) = false
-      AND COALESCE(st.scholar_is_archived, false) = false
-      AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
-    LIMIT 1;
-    `,
-    [studentId]
-  );
+  let scholarResult;
+
+  try {
+    scholarResult = await db.query(
+      `
+      SELECT
+        st.student_id,
+        st.first_name,
+        st.last_name
+      FROM students st
+      JOIN current_scholars cs
+        ON cs.student_id = st.student_id
+      WHERE st.student_id = $1
+        AND COALESCE(st.is_archived, false) = false
+        AND COALESCE(cs.is_archived, false) = false
+        AND COALESCE(cs.status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+      LIMIT 1;
+      `,
+      [studentId]
+    );
+  } catch (err) {
+    const errorText = String(err?.message || '').toLowerCase();
+    const isCurrentSchemaMismatch =
+      errorText.includes('current_scholars') ||
+      errorText.includes('cs.status') ||
+      errorText.includes('cs.is_archived');
+
+    if (!isCurrentSchemaMismatch) {
+      throw err;
+    }
+
+    scholarResult = await db.query(
+      `
+      SELECT
+        st.student_id,
+        st.first_name,
+        st.last_name
+      FROM students st
+      WHERE st.student_id = $1
+        AND COALESCE(st.is_archived, false) = false
+        AND COALESCE(st.scholar_is_archived, false) = false
+        AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
+      LIMIT 1;
+      `,
+      [studentId]
+    );
+  }
 
   const scholar = scholarResult.rows[0];
   if (!scholar) {

@@ -54,15 +54,16 @@ class SmartPdmDrawer extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     userName,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: titleColor,
-                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
                     isScholar ? 'Approved Scholar' : 'Applicant',
-                    style: TextStyle(color: subtitleColor, fontSize: 12),
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: subtitleColor,
+                    ),
                   ),
                 ],
               ),
@@ -75,8 +76,7 @@ class SmartPdmDrawer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Text(
                 'APPLICANT',
-                style: TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: sectionColor,
                   letterSpacing: 1,
@@ -109,8 +109,7 @@ class SmartPdmDrawer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
               child: Text(
                 'SCHOLAR',
-                style: TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: sectionColor,
                   letterSpacing: 1,
@@ -151,8 +150,7 @@ class SmartPdmDrawer extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               'ACCOUNT',
-              style: TextStyle(
-                fontSize: 12,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: sectionColor,
                 letterSpacing: 1,
@@ -304,10 +302,9 @@ class _DrawerAvatar extends StatelessWidget {
       backgroundColor: Colors.white,
       child: Text(
         initial,
-        style: TextStyle(
-          fontSize: 24,
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.bold,
-          color: isDark ? AppColors.darkBrown : AppColors.darkBrown,
+          color: AppColors.darkBrown,
         ),
       ),
     );

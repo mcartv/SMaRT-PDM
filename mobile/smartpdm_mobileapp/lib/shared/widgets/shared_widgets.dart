@@ -11,8 +11,7 @@ class AppHeader extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       child: Text(
         subtitle,
-        style: const TextStyle(
-          fontSize: 20,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,
           color: AppColors.darkBrown,
         ),
@@ -45,9 +44,8 @@ class StepIndicator extends StatelessWidget {
               backgroundColor: isActive ? AppColors.gold : AppColors.lightGray,
               child: Text(
                 '${index + 1}',
-                style: TextStyle(
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: isActive ? AppColors.darkBrown : Colors.white,
-                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -55,8 +53,7 @@ class StepIndicator extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               labels[index],
-              style: TextStyle(
-                fontSize: 10,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: isActive ? AppColors.brown : AppColors.lightGray,
               ),
             ),

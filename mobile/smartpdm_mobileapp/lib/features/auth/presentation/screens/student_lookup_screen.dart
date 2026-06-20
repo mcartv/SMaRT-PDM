@@ -164,8 +164,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                       const SizedBox(height: 18),
                       Text(
                         title,
-                        style: const TextStyle(
-                          fontSize: 28,
+                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: AppColors.darkBrown,
                         ),
@@ -174,8 +173,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                       const SizedBox(height: 8),
                       Text(
                         subtitle,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade700,
                           height: 1.4,
                         ),
@@ -223,8 +221,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                       const SizedBox(height: 14),
                       Text(
                         'Use your official Student ID to continue.',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
                           color: Colors.grey.shade600,
                         ),
                         textAlign: TextAlign.center,

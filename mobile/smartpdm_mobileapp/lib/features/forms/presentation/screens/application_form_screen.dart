@@ -39,14 +39,14 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Leave application form?'),
-          content: const Text(
+          title: Text('Leave application form?'),
+          content: Text(
             'Your application will stay as a draft. You can return later to continue editing before submitting.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Stay'),
+              child: Text('Stay'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
@@ -54,7 +54,7 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Leave as Draft'),
+              child: Text('Leave as Draft'),
             ),
           ],
         );
@@ -152,13 +152,13 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                 const SizedBox(height: 18),
                 _InfoNotice(),
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'Personal Information',
-                  style: TextStyle(
-                    fontSize: 18,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                     fontWeight: FontWeight.w900,
-                    color: AppColors.darkBrown,
-                  ),
+                    color: AppColors.darkBrown
+),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -299,7 +299,7 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _goNext,
                     icon: const Icon(Icons.arrow_forward),
-                    label: const Text('Continue to Documents'),
+                    label: Text('Continue to Documents'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
@@ -343,18 +343,20 @@ class _HeaderCard extends StatelessWidget {
             tooltip: 'Back to dashboard',
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Scholarship Application',
-            style: TextStyle(
-              fontSize: 22,
+            style: Theme.of(context).textTheme.displayLarge?.copyWith(
+
               fontWeight: FontWeight.w900,
-              color: AppColors.darkBrown,
-            ),
+              color: AppColors.darkBrown
+),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Complete your details carefully. If you leave, your progress is treated as a draft.',
-            style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ color: Colors.black54, height: 1.4
+),
           ),
         ],
       ),
@@ -373,16 +375,15 @@ class _InfoNotice extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.orange.withOpacity(0.22)),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, color: Colors.orange),
-          SizedBox(width: 10),
+          const Icon(Icons.info_outline, color: Colors.orange),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               'You can review and edit your application before final submission. Uploaded requirements are handled on the Documents page.',
-              style: TextStyle(
-                fontSize: 13,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Colors.black54,
                 height: 1.4,
               ),

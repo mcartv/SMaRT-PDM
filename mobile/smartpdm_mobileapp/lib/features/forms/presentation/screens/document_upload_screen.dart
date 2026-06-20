@@ -16,7 +16,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Document Upload'),
+        title: Text('Document Upload'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -33,18 +33,19 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: primaryColor.withOpacity(0.12)),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Scholarship requirement uploads now live in Documents.',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   'This legacy screen is no longer used for the active applicant document flow.',
-                  style: TextStyle(
-                    fontSize: 13,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.black54,
                     height: 1.4,
                   ),
@@ -59,7 +60,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               onPressed: () =>
                   Navigator.pushNamed(context, AppRoutes.documents),
               icon: const Icon(Icons.folder_open),
-              label: const Text('Open Scholarship Documents'),
+              label: Text('Open Scholarship Documents'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
@@ -73,7 +74,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
             child: OutlinedButton(
               onPressed: () =>
                   AppNavigator.goToTopLevel(context, AppRoutes.payouts),
-              child: const Text('Back to Scholar Tab'),
+              child: Text('Back to Scholar Tab'),
             ),
           ),
         ],

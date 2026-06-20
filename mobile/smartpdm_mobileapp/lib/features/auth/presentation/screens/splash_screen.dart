@@ -112,11 +112,10 @@ class _SplashScreenState extends State<SplashScreen> {
                             const SizedBox(height: 8),
 
                             /// SUBTITLE
-                            const Text(
+                            Text(
                               'Scholarship Monitoring & Reporting Tool',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 15,
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                 color: AppColors.brown,
                               ),
                             ),
@@ -127,8 +126,7 @@ class _SplashScreenState extends State<SplashScreen> {
                             Text(
                               'Select how you want to continue',
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: Colors.grey.shade700,
                               ),
                             ),
@@ -160,8 +158,7 @@ class _SplashScreenState extends State<SplashScreen> {
                             /// FOOTNOTE
                             Text(
                               'Use your Student ID to continue',
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                                 color: Colors.grey.shade600,
                               ),
                             ),

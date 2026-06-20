@@ -74,14 +74,16 @@ class _SuccessScreenState extends State<SuccessScreen> {
               const SizedBox(height: 20),
               Text(
                 title,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+ fontWeight: FontWeight.bold
+),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
               if (canGeneratePdf) ...[
                 const SizedBox(height: 24),
@@ -119,7 +121,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     );
                   },
                   icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('View Documents'),
+                  label: Text('View Documents'),
                 ),
               ],
               const SizedBox(height: 30),
@@ -131,7 +133,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     (route) => false,
                   ); // Go back to dashboard
                 },
-                child: const Text('Back to Dashboard'),
+                child: Text('Back to Dashboard'),
               ),
             ],
           ),

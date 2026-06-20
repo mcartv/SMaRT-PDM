@@ -85,15 +85,17 @@ class _MessagingScreenState extends State<MessagingScreen> {
           children: [
             Text(
               widget.title ?? 'OSFA Support Admin',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+ fontWeight: FontWeight.w500
+),
             ),
-            const Text(
+            Text(
               'Active now',
-              style: TextStyle(
-                fontSize: 12,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                 fontWeight: FontWeight.normal,
-                color: Colors.white70,
-              ),
+                color: Colors.white70
+),
             ),
           ],
         ),
@@ -135,11 +137,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Text(
                                 '9:24 PM',
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: Colors.grey.shade500,
+                                  fontWeight: FontWeight.w500
+),
                               ),
                             ),
                           _buildMessageBubble(msg, isMe: isMe),
@@ -185,11 +186,11 @@ class _MessagingScreenState extends State<MessagingScreen> {
                     padding: const EdgeInsets.only(left: 4.0, bottom: 4.0),
                     child: Text(
                       message.senderName!,
-                      style: const TextStyle(
-                        fontSize: 12,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         color: Colors.black54,
-                        fontWeight: FontWeight.bold,
-                      ),
+                        fontWeight: FontWeight.bold
+),
                     ),
                   ),
                 Container(
@@ -204,10 +205,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   ),
                   child: Text(
                     message.messageBody,
-                    style: TextStyle(
-                      color: isMe ? Colors.white : Colors.black87,
-                      fontSize: 16,
-                    ),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+color: isMe ? Colors.white : Colors.black87
+),
                   ),
                 ),
               ],

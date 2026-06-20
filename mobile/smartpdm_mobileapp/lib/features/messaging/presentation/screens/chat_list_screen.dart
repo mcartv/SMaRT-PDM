@@ -47,7 +47,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => AppNavigator.goBackOrHome(context),
         ),
-        title: const Text('Chats', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+        title: Text('Chats', style: Theme.of(context).textTheme.titleLarge?.copyWith(
+ fontWeight: FontWeight.w500
+)),
       ),
       selectedIndex: 0,
       showBottomNav: false,
@@ -59,8 +61,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
               backgroundColor: primaryColor,
               child: const Icon(Icons.support_agent, color: Colors.white),
             ),
-            title: const Text('OSFA Support Admin', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text('Direct messaging'),
+            title: Text('OSFA Support Admin', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text('Direct messaging'),
             onTap: _openAdminThread,
             trailing: provider.unreadCount > 0 
               ? Container(
@@ -68,7 +70,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
                   child: Text(
                     '${provider.unreadCount}', 
-                    style: const TextStyle(color: Colors.white, fontSize: 12)
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: Colors.white
+)
                   )
                 ) 
               : const Icon(Icons.chevron_right),

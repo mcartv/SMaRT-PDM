@@ -187,8 +187,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                       const SizedBox(height: 18),
                       Text(
                         title,
-                        style: const TextStyle(
-                          fontSize: 20,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -198,8 +197,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                           controller: controller,
                           child: Text(
                             content,
-                            style: TextStyle(
-                              fontSize: 14,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Colors.grey.shade800,
                               height: 1.6,
                             ),
@@ -332,20 +330,26 @@ By creating an account, you acknowledge that your information may be stored, rev
           if (fullName.isNotEmpty)
             Text(
               'Name: $fullName',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade800,
+              ),
             ),
           if (courseCode.isNotEmpty || courseName.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               'Course: ${[courseCode, courseName].where((e) => e.isNotEmpty).join(' • ')}',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade800,
+              ),
             ),
           ],
           if (yearLevel.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               'Year Level: $yearLevel',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade800,
+              ),
             ),
           ],
         ],
@@ -387,8 +391,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                     children: [
                       Text(
                         'I have read and agree to the ',
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade800,
                           height: 1.5,
                         ),
@@ -409,8 +412,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                       ),
                       Text(
                         ' and the ',
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade800,
                           height: 1.5,
                         ),
@@ -431,8 +433,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                       ),
                       Text(
                         '.',
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade800,
                           height: 1.5,
                         ),
@@ -442,8 +443,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                   const SizedBox(height: 8),
                   Text(
                     'This agreement is required before creating your account.',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: _acceptedPolicies
                           ? Colors.green.shade700
                           : Colors.red.shade400,
@@ -518,10 +518,9 @@ By creating an account, you acknowledge that your information may be stored, rev
                           fit: BoxFit.contain,
                         ),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Create an Account',
-                          style: TextStyle(
-                            fontSize: 28,
+                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: AppColors.darkBrown,
                           ),
@@ -530,8 +529,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                         const SizedBox(height: 8),
                         Text(
                           'Sign up to apply for and manage your SMaRT-PDM scholarships.',
-                          style: TextStyle(
-                            fontSize: 14,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Colors.grey.shade700,
                           ),
                           textAlign: TextAlign.center,

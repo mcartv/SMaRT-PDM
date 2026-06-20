@@ -88,7 +88,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('Application Status')),
+      appBar: AppBar(title: Text('Application Status')),
       selectedIndex: 0,
       child: RefreshIndicator(
         onRefresh: _loadStatus,
@@ -239,11 +239,11 @@ class _StatusSummaryView extends StatelessWidget {
                     Expanded(
                       child: Text(
                         applicationStatus,
-                        style: TextStyle(
-                          fontSize: 18,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                           fontWeight: FontWeight.w800,
-                          color: statusColor,
-                        ),
+                          color: statusColor
+),
                       ),
                     ),
                   ],
@@ -251,7 +251,9 @@ class _StatusSummaryView extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text(
                   _statusDescription(),
-                  style: const TextStyle(fontSize: 14, height: 1.45),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ height: 1.45
+),
                 ),
               ],
             ),
@@ -270,10 +272,10 @@ class _StatusSummaryView extends StatelessWidget {
                       : summary.programName?.trim().isNotEmpty == true
                       ? summary.programName!
                       : 'Scholarship Application',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
+                    fontWeight: FontWeight.w800
+),
                 ),
                 const SizedBox(height: 14),
                 _StatusDetailRow(
@@ -302,7 +304,7 @@ class _StatusSummaryView extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: () => Navigator.pushNamed(context, AppRoutes.documents),
             icon: const Icon(Icons.upload_file),
-            label: const Text('Open Scholarship Requirements'),
+            label: Text('Open Scholarship Requirements'),
           ),
         ),
       ],
@@ -337,10 +339,14 @@ class _StatusMessageCard extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+ fontWeight: FontWeight.w800
+),
             ),
             const SizedBox(height: 10),
-            Text(message, style: const TextStyle(fontSize: 14, height: 1.45)),
+            Text(message, style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ height: 1.45
+)),
             const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,

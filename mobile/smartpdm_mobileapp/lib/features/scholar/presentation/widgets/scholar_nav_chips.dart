@@ -30,8 +30,7 @@ class ScholarNavChips extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Text(
             'Quick Actions',
-            style: TextStyle(
-              fontSize: 12,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: Colors.grey.shade600,
               letterSpacing: 0.3,
@@ -94,8 +93,7 @@ class ScholarNavChips extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12.5,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: isSelected ? Colors.white : Colors.black87,
                         ),

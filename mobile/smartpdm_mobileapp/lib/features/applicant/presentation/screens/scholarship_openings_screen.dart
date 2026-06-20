@@ -120,18 +120,18 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         context: context,
         builder: (dialogContext) {
           return AlertDialog(
-            title: const Text('Existing draft found'),
+            title: Text('Existing draft found'),
             content: Text(
               'You already have a saved draft for ${result.draftOpeningTitle.isNotEmpty ? result.draftOpeningTitle : 'another scholarship opening'}. Continue that draft or replace it with ${opening.openingTitle}?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Continue Draft'),
+                child: Text('Continue Draft'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Replace Draft'),
+                child: Text('Replace Draft'),
               ),
             ],
           );
@@ -173,20 +173,20 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
           children: [
             Text(
               'Uploaded',
-              style: TextStyle(
-                fontSize: 13,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                 fontWeight: FontWeight.w700,
-                color: titleColor,
-              ),
+                color: titleColor
+),
             ),
             const Spacer(),
             Text(
               '$uploadedCount/$requiredCount',
-              style: TextStyle(
-                fontSize: 13,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                 fontWeight: FontWeight.w700,
-                color: subtitleColor,
-              ),
+                color: subtitleColor
+),
             ),
           ],
         ),
@@ -203,7 +203,9 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         const SizedBox(height: 6),
         Text(
           '$uploadedCount of $requiredCount required documents uploaded.',
-          style: TextStyle(fontSize: 12, color: subtitleColor),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
         ),
       ],
     );
@@ -219,7 +221,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final result = _result;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('Scholarship Openings')),
+      appBar: AppBar(title: Text('Scholarship Openings')),
       selectedIndex: 0,
       showDrawer: false,
       child: RefreshIndicator(
@@ -239,20 +241,20 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                 children: [
                   Text(
                     'Available Scholarship Openings',
-                    style: TextStyle(
-                      fontSize: 20,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                       fontWeight: FontWeight.w800,
-                      color: titleColor,
-                    ),
+                      color: titleColor
+),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Select an admin-posted scholarship opening to start or continue your application. One active application is allowed at a time.',
-                    style: TextStyle(
-                      fontSize: 14,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                       height: 1.45,
-                      color: subtitleColor,
-                    ),
+                      color: subtitleColor
+),
                   ),
                 ],
               ),
@@ -271,11 +273,11 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   children: [
                     Text(
                       'Saved draft available',
-                      style: TextStyle(
-                        fontSize: 15,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
                         fontWeight: FontWeight.w700,
-                        color: titleColor,
-                      ),
+                        color: titleColor
+),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -285,7 +287,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: () => _openApplicationForm(),
-                      child: const Text('Continue Draft'),
+                      child: Text('Continue Draft'),
                     ),
                   ],
                 ),
@@ -321,7 +323,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: _loadOpenings,
-                      child: const Text('Try Again'),
+                      child: Text('Try Again'),
                     ),
                   ],
                 ),
@@ -368,20 +370,20 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                                 children: [
                                   Text(
                                     opening.openingTitle,
-                                    style: TextStyle(
-                                      fontSize: 18,
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                                       fontWeight: FontWeight.w800,
-                                      color: titleColor,
-                                    ),
+                                      color: titleColor
+),
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
                                     opening.programName,
-                                    style: TextStyle(
-                                      fontSize: 14,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                                       fontWeight: FontWeight.w700,
-                                      color: accentColor,
-                                    ),
+                                      color: accentColor
+),
                                   ),
                                 ],
                               ),
@@ -426,11 +428,11 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                           const SizedBox(height: 10),
                           Text(
                             opening.announcementText,
-                            style: TextStyle(
-                              fontSize: 13,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                               height: 1.4,
-                              color: subtitleColor,
-                            ),
+                              color: subtitleColor
+),
                           ),
                         ],
                         if (showUploadProgress) ...[

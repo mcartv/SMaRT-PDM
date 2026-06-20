@@ -313,7 +313,9 @@ class _StepFamilyState extends State<StepFamily> {
     children: [
       Text(
         label,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+fontWeight: FontWeight.bold
+),
       ),
       const SizedBox(height: 8),
       child,
@@ -467,7 +469,10 @@ class _StepFamilyState extends State<StepFamily> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('FATHER\'S NAME', style: sectionTitle),
+        Text('FATHER\'S NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -545,7 +550,10 @@ class _StepFamilyState extends State<StepFamily> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('MOTHER\'S MAIDEN NAME', style: sectionTitle),
+        Text('MOTHER\'S MAIDEN NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -623,7 +631,10 @@ class _StepFamilyState extends State<StepFamily> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('SIBLING\'S NAME', style: sectionTitle),
+        Text('SIBLING\'S NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -667,7 +678,10 @@ class _StepFamilyState extends State<StepFamily> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('GUARDIAN\'S NAME', style: sectionTitle),
+        Text('GUARDIAN\'S NAME', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
         const SizedBox(height: 12),
         _row([
           _field(
@@ -745,7 +759,10 @@ class _StepFamilyState extends State<StepFamily> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('ARE YOUR PARENTS A NATIVE OF MARILAO?', style: sectionTitle),
+        Text('ARE YOUR PARENTS A NATIVE OF MARILAO?', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
         const SizedBox(height: 4),
         Wrap(
           children: parentNativeOptions.map((option) {
@@ -772,7 +789,7 @@ class _StepFamilyState extends State<StepFamily> {
                     widget.onChanged();
                   },
                 ),
-                Text(option, style: const TextStyle(fontSize: 13)),
+                Text(option, style: Theme.of(context).textTheme.bodyMedium),
               ],
             );
           }).toList(),
@@ -840,16 +857,22 @@ class _StepFamilyState extends State<StepFamily> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('II. FAMILY DATA', style: sectionTitle),
+          Text('II. FAMILY DATA', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 24),
 
-          Text('ADDRESS OF PARENTS / GUARDIAN', style: sectionTitle),
+          Text('ADDRESS OF PARENTS / GUARDIAN', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
           const SizedBox(height: 8),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Same address as applicant'),
-            subtitle: const Text(
+            title: Text('Same address as applicant'),
+            subtitle: Text(
               'Turn this on if the parent or guardian lives at the same permanent address.',
             ),
             value: sameAddress,
@@ -865,8 +888,8 @@ class _StepFamilyState extends State<StepFamily> {
           const SizedBox(height: 24),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('No parents / Guardian only'),
-            subtitle: const Text(
+            title: Text('No parents / Guardian only'),
+            subtitle: Text(
               'Use this if both parents are absent or unavailable.',
             ),
             value: guardianOnly,
@@ -876,8 +899,8 @@ class _StepFamilyState extends State<StepFamily> {
           if (!guardianOnly) ...[
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Father is present / listed'),
-              subtitle: const Text(
+              title: Text('Father is present / listed'),
+              subtitle: Text(
                 'Turn off if father was absent during growth or not listed in birth certificate.',
               ),
               value: hasFather,
@@ -885,8 +908,8 @@ class _StepFamilyState extends State<StepFamily> {
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Mother is present / listed'),
-              subtitle: const Text(
+              title: Text('Mother is present / listed'),
+              subtitle: Text(
                 'Turn off if mother was absent during growth or not listed in birth certificate.',
               ),
               value: hasMother,
@@ -921,8 +944,3 @@ class _StepFamilyState extends State<StepFamily> {
   }
 }
 
-const TextStyle sectionTitle = TextStyle(
-  fontSize: 15,
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-);

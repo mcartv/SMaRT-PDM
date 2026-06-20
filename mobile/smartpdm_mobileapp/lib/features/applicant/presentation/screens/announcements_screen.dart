@@ -101,7 +101,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Announcements'),
+        title: Text('Announcements'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -130,7 +130,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             // Announcements Count
             Text(
               'Showing ${filtered.length} announcements',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: Colors.grey
+),
             ),
             const SizedBox(height: 12),
 
@@ -163,10 +165,10 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               Expanded(
                                 child: Text(
                                   announcement['title']!,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
+                                    fontWeight: FontWeight.bold
+),
                                 ),
                               ),
                               Container(
@@ -182,13 +184,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 ),
                                 child: Text(
                                   announcement['priority']!.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 10,
+                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                                     fontWeight: FontWeight.bold,
                                     color: _getPriorityColor(
                                       announcement['priority']!,
-                                    ),
-                                  ),
+                                    )
+),
                                 ),
                               ),
                             ],
@@ -211,22 +213,22 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 ),
                                 child: Text(
                                   announcement['category']!,
-                                  style: TextStyle(
-                                    fontSize: 12,
+                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                                     fontWeight: FontWeight.bold,
                                     color: _getCategoryColor(
                                       announcement['category']!,
-                                    ),
-                                  ),
+                                    )
+),
                                 ),
                               ),
                               const Spacer(),
                               Text(
                                 announcement['date']!,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
+                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                                  color: Colors.grey
+),
                               ),
                             ],
                           ),
@@ -237,22 +239,22 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                             announcement['description']!,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                               color: Colors.grey,
-                              height: 1.4,
-                            ),
+                              height: 1.4
+),
                           ),
                           const SizedBox(height: 12),
 
                           // Read More
                           Text(
                             'Tap to read more →',
-                            style: TextStyle(
-                              fontSize: 12,
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                               color: primaryColor,
-                              fontWeight: FontWeight.bold,
-                            ),
+                              fontWeight: FontWeight.bold
+),
                           ),
                         ],
                       ),
@@ -305,10 +307,10 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   Expanded(
                     child: Text(
                       announcement['title']!,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
+                        fontWeight: FontWeight.bold
+),
                     ),
                   ),
                   Container(
@@ -324,11 +326,11 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     ),
                     child: Text(
                       announcement['category']!,
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         fontWeight: FontWeight.bold,
-                        color: _getCategoryColor(announcement['category']!),
-                      ),
+                        color: _getCategoryColor(announcement['category']!)
+),
                     ),
                   ),
                 ],
@@ -341,7 +343,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
               const SizedBox(height: 20),
               Text(
                 announcement['description']!,
-                style: const TextStyle(fontSize: 14, height: 1.6),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ height: 1.6
+),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -351,7 +355,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
                   ),
-                  child: const Text(
+                  child: Text(
                     'Close',
                     style: TextStyle(color: Colors.white),
                   ),

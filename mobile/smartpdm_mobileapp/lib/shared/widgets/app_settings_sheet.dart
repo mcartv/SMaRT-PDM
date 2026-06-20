@@ -46,8 +46,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
       padding: const EdgeInsets.only(top: 24, bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 16,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           fontWeight: FontWeight.w700,
           color: AppColors.darkBrown,
         ),
@@ -138,15 +137,14 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         'App Settings',
-                        style: TextStyle(
-                          fontSize: 22,
+                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: AppColors.darkBrown,
                         ),

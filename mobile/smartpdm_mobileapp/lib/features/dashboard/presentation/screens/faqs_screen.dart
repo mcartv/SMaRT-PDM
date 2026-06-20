@@ -80,7 +80,7 @@ class _FaqsScreenState extends State<FaqsScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('FAQs'),
+        title: Text('FAQs'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
         elevation: 0,
@@ -113,20 +113,20 @@ class _FaqsScreenState extends State<FaqsScreen> {
                 children: [
                   Text(
                     'Scholarship Help Center',
-                    style: TextStyle(
-                      fontSize: 22,
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+
                       fontWeight: FontWeight.w900,
-                      color: titleColor,
-                    ),
+                      color: titleColor
+),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Browse the most common questions from applicants and scholars. Pull down to refresh any time.',
-                    style: TextStyle(
-                      fontSize: 14,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                       height: 1.45,
-                      color: subtitleColor,
-                    ),
+                      color: subtitleColor
+),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -161,11 +161,11 @@ class _FaqsScreenState extends State<FaqsScreen> {
                     _searchQuery.trim().isEmpty
                         ? '${_faqs.length} questions available'
                         : '${filteredFaqs.length} matching questions',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                       fontWeight: FontWeight.w600,
-                      color: subtitleColor,
-                    ),
+                      color: subtitleColor
+),
                   ),
                 ],
               ),
@@ -235,19 +235,21 @@ class _FaqCard extends StatelessWidget {
           collapsedIconColor: accentColor,
           title: Text(
             item.question,
-            style: TextStyle(
-              fontSize: 15,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
               fontWeight: FontWeight.w800,
               color: titleColor,
-              height: 1.3,
-            ),
+              height: 1.3
+),
           ),
           children: [
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 item.answer,
-                style: TextStyle(fontSize: 14, height: 1.55, color: bodyColor),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ height: 1.55, color: bodyColor
+),
               ),
             ),
           ],
@@ -298,7 +300,7 @@ class _FaqsEmptyState extends StatelessWidget {
                 const SizedBox(height: 16),
                 OutlinedButton(
                   onPressed: onClearSearch,
-                  child: const Text('Clear search'),
+                  child: Text('Clear search'),
                 ),
               ],
             ],
@@ -337,7 +339,7 @@ class _FaqsErrorState extends StatelessWidget {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: onRetry,
-                child: const Text('Try again'),
+                child: Text('Try again'),
               ),
             ],
           ),

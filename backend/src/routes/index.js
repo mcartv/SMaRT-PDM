@@ -13,7 +13,10 @@ const supportTicketRoutes = require('./supportTicketRoutes');
 
 const router = express.Router();
 
+
+
 router.use('/api/auth', authRoutes);
+
 router.use('/api/courses', courseRoutes);
 router.use('/api/profile', profileRoutes);
 router.use('/api/applications', applicationRoutes);

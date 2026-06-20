@@ -27,7 +27,7 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
     final chipTextColor = isDark ? Colors.white : AppColors.darkBrown;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('Office Update')),
+      appBar: AppBar(title: Text('Office Update')),
       selectedIndex: 2,
       showBottomNav: showBottomNav,
       showDrawer: false,
@@ -67,23 +67,23 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                     ),
                     child: Text(
                       notification.officeUpdateLabel,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         fontWeight: FontWeight.w800,
                         color: chipTextColor,
-                        letterSpacing: 0.5,
-                      ),
+                        letterSpacing: 0.5
+),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     notification.title,
-                    style: TextStyle(
-                      fontSize: 28,
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+
                       fontWeight: FontWeight.w900,
                       height: 1.1,
-                      color: titleColor,
-                    ),
+                      color: titleColor
+),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -96,22 +96,22 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         _formatArticleTimestamp(notification.createdAt),
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                           color: isDark ? Colors.white60 : Colors.grey[700],
-                          fontWeight: FontWeight.w600,
-                        ),
+                          fontWeight: FontWeight.w600
+),
                       ),
                     ],
                   ),
                   const SizedBox(height: 22),
                   Text(
                     notification.previewText,
-                    style: TextStyle(
-                      fontSize: 16,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
                       height: 1.7,
-                      color: bodyColor,
-                    ),
+                      color: bodyColor
+),
                   ),
                   if (notification.isOpeningUpdate) ...[
                     const SizedBox(height: 28),
@@ -127,11 +127,11 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                         children: [
                           Text(
                             'Ready to apply?',
-                            style: TextStyle(
-                              fontSize: 16,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
                               fontWeight: FontWeight.w800,
-                              color: titleColor,
-                            ),
+                              color: titleColor
+),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -145,11 +145,11 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                             children: [
                               ElevatedButton(
                                 onPressed: () => _openOpenings(context),
-                                child: const Text('Apply Now'),
+                                child: Text('Apply Now'),
                               ),
                               OutlinedButton(
                                 onPressed: () => _openOpenings(context),
-                                child: const Text('View Scholarship Openings'),
+                                child: Text('View Scholarship Openings'),
                               ),
                             ],
                           ),

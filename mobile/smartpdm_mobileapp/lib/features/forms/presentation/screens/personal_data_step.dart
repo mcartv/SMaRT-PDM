@@ -39,7 +39,9 @@ class _PersonalDataStepState extends State<PersonalDataStep> {
           children: [
             Text(
               'Personal Information',
-              style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             SizedBox(height: 24.h),
             TextFormField(

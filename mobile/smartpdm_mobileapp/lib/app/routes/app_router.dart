@@ -13,6 +13,8 @@ import 'package:smartpdm_mobileapp/features/auth/presentation/screens/forgot_pas
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/login_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/otp_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/register_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_otp_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/splash_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/faqs_screen.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/status_tracking_screen.dart';
@@ -46,6 +48,12 @@ class AppRouter {
 
       case AppRoutes.forgotPassword:
         return _buildRoute(settings, (_) => const ForgotPasswordScreen());
+
+      case AppRoutes.resetPasswordOtp:
+        return _buildRoute(settings, (_) => const ResetPasswordOtpScreen());
+
+      case AppRoutes.resetPassword:
+        return _buildRoute(settings, (_) => const ResetPasswordScreen());
 
       case AppRoutes.changeEmail:
         return _buildRoute(settings, (_) => const ChangeEmailScreen());

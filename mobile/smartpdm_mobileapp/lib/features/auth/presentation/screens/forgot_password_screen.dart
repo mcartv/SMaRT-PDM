@@ -2,72 +2,42 @@ import 'package:flutter/material.dart';
 
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
+import 'package:smartpdm_mobileapp/features/auth/data/services/password_reset_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
-/// Simplified "Forgot Password" screen.
-///
-/// Requirements from user:
-/// - delete the current complex multi-step flow
-/// - make it simple and straightforward
-/// - use app theme colors
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({
     super.key,
-    this.recoveryService,
-    this.captchaService,
-  });
+    PasswordResetService? passwordResetService,
+  }) : _passwordResetService = passwordResetService;
 
-  // Kept for backward compatibility with existing tests/routes.
-  final dynamic recoveryService;
-  final dynamic captchaService;
-
+  final PasswordResetService? _passwordResetService;
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  late final PasswordResetService _passwordResetService =
+      widget._passwordResetService ?? PasswordResetService();
+
   final _formKey = GlobalKey<FormState>();
-  final _identifierController = TextEditingController();
+  final _studentIdController = TextEditingController();
 
   bool _isLoading = false;
   String? _error;
 
   @override
   void dispose() {
-    _identifierController.dispose();
+    _studentIdController.dispose();
     super.dispose();
-  }
-
-  bool _isValidIdentifier(String value) {
-    final v = value.trim();
-    if (v.isEmpty) return false;
-
-    if (v.contains('@')) {
-      return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v);
-    }
-
-    // Mobile format used in app: 09XXXXXXXXX
-    return RegExp(r'^09\d{9}$').hasMatch(v);
   }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
 
-    final id = _identifierController.text.trim();
-    final isValid = _isValidIdentifier(id);
-
-    if (!isValid) {
-      setState(() => _error = 'Enter a valid email or mobile number.');
-      return;
-    }
-
-    // This simplified flow only navigates to the OTP screen.
-    // Your OTP verification implementation may currently assume email.
-    // If you later wire the recovery endpoints, replace this navigation.
-    final email = id.contains('@') ? id : null;
-
-    if (email == null) {
-      setState(() => _error = 'Mobile recovery is not connected yet. Use email for now.');
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
@@ -77,12 +47,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
+      final studentId = PasswordResetService.normalizeStudentId(
+        _studentIdController.text,
+      );
+      final message = await _passwordResetService.forgotPassword(studentId);
+
       if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+
       Navigator.pushNamed(
         context,
-        AppRoutes.otp,
-        arguments: {'email': email},
+        AppRoutes.resetPasswordOtp,
+        arguments: {'studentId': studentId},
       );
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -131,7 +113,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                       const SizedBox(height: 12),
                     ],
-
                     Text(
                       'Forgot your password?',
                       style: Theme.of(context).textTheme.displayLarge?.copyWith(
@@ -140,70 +121,50 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Enter your email or mobile number. We will send a verification code.',
+                      'Enter your Student ID and we will send password reset instructions to your registered email address.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: mutedColor,
                       ),
                     ),
                     const SizedBox(height: 20),
-
                     TextFormField(
-                      controller: _identifierController,
-                      keyboardType: TextInputType.emailAddress,
+                      controller: _studentIdController,
+                      textCapitalization: TextCapitalization.characters,
                       textInputAction: TextInputAction.done,
                       decoration: InputDecoration(
-                        labelText: 'Email or mobile number',
-                        hintText: 'e.g. name@example.com or 09XXXXXXXXX',
+                        labelText: 'Student ID',
+                        hintText: 'PDM-2024-000123',
+                        prefixIcon: const Icon(Icons.school_outlined),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(borderRadius),
                         ),
                       ),
-                      validator: (v) {
-                        final value = v ?? '';
-                        if (value.trim().isEmpty) {
-                          return 'This field is required.';
+                      validator: (value) {
+                        final trimmed = (value ?? '').trim();
+                        if (trimmed.isEmpty) {
+                          return 'Student ID is required.';
                         }
-                        if (!_isValidIdentifier(value)) {
-                          return 'Enter a valid email or mobile number.';
+                        if (!PasswordResetService.isValidStudentId(trimmed)) {
+                          return 'Please enter a valid Student ID (e.g., PDM-2024-000123)';
                         }
                         return null;
                       },
                       onFieldSubmitted: (_) => _submit(),
                     ),
-
                     const SizedBox(height: 20),
-
                     SizedBox(
                       height: 52,
-                      child: FilledButton(
-                        onPressed: _isLoading ? null : _submit,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: pdmWhite,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
+                      child: _isLoading
+                          ? const Center(
+                              child: SizedBox(
                                 height: 22,
                                 width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                'Send code',
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                                child: CircularProgressIndicator(strokeWidth: 2.5),
                               ),
-                      ),
+                            )
+                          : GoldButton(label: 'Send Instructions', onTap: _submit),
                     ),
-
                     const SizedBox(height: 14),
-
                     TextButton(
                       onPressed: () {
                         Navigator.pushNamedAndRemoveUntil(
@@ -224,4 +185,3 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 }
-

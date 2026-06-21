@@ -1,18 +1,10 @@
 const supabase = require('../config/supabase');
 const bcrypt = require('bcrypt');
-const nodemailer = require('nodemailer');
+const { transporter } = require('../config/mailer');
 const { buildAuthToken } = require('../middleware/authMiddleware');
 
 const otpStore = new Map();
 const pendingRegistrationStore = new Map();
-
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.GMAIL_USER || 'pelimavenice.pdm@gmail.com',
-        pass: process.env.GMAIL_APP_PASSWORD,
-    },
-});
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);

@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const supabase = require('../config/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'smart-pdm-dev-secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -28,6 +29,7 @@ function buildAuthToken(user) {
             email: user.email,
             student_id: user.username,
             role: user.role,
+            token_version: user.token_version || 1,
         }),
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES_IN }
@@ -38,7 +40,29 @@ function verifyToken(token) {
     return normalizeDecodedUser(jwt.verify(token, JWT_SECRET));
 }
 
-function protect(req, res, next) {
+async function validateTokenVersion(decoded = {}) {
+    const userId = decoded.user_id || decoded.userId || decoded.sub;
+    if (!userId) {
+        return false;
+    }
+
+    const { data: user, error } = await supabase
+        .from('users')
+        .select('token_version')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (error || !user) {
+        return false;
+    }
+
+    const tokenVersion = decoded.token_version || 1;
+    const currentVersion = user.token_version || 1;
+
+    return tokenVersion === currentVersion;
+}
+
+async function protect(req, res, next) {
     try {
         const token = extractToken(req.headers.authorization);
 
@@ -46,14 +70,21 @@ function protect(req, res, next) {
             return res.status(401).json({ error: 'Authentication required.' });
         }
 
-        req.user = verifyToken(token);
+        const decoded = verifyToken(token);
+        const isValidVersion = await validateTokenVersion(decoded);
+
+        if (!isValidVersion) {
+            return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+        }
+
+        req.user = decoded;
         next();
     } catch (error) {
         return res.status(401).json({ error: 'Invalid or expired authentication token.' });
     }
 }
 
-function authenticateSocket(socket, next) {
+async function authenticateSocket(socket, next) {
     try {
         const rawToken =
             socket.handshake?.auth?.token ||
@@ -66,7 +97,14 @@ function authenticateSocket(socket, next) {
             return next(new Error('Authentication required.'));
         }
 
-        socket.user = verifyToken(token);
+        const decoded = verifyToken(token);
+        const isValidVersion = await validateTokenVersion(decoded);
+
+        if (!isValidVersion) {
+            return next(new Error('Invalid or expired authentication token.'));
+        }
+
+        socket.user = decoded;
         return next();
     } catch (error) {
         return next(new Error('Invalid or expired authentication token.'));

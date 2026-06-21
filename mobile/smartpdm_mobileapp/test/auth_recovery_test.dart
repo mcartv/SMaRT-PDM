@@ -1,32 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:smartpdm_mobileapp/features/auth/data/models/recovery_models.dart';
-import 'package:smartpdm_mobileapp/features/auth/data/services/recovery_captcha_service.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/auth/data/services/password_reset_service.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/recovery_service.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/login_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_otp_screen.dart';
 
-class _FakeRecoveryService extends RecoveryService {
-  _FakeRecoveryService({this.accounts = const []});
+class _FakePasswordResetService extends PasswordResetService {
+  _FakePasswordResetService({this.onForgotPassword});
 
-  final List<RecoveryAccount> accounts;
-  String? lastLookupIdentifier;
+  final Future<String> Function(String studentId)? onForgotPassword;
+  String? lastStudentId;
 
   @override
-  Future<List<RecoveryAccount>> lookupRecoveryAccounts(
-    String identifier,
-  ) async {
-    lastLookupIdentifier = identifier;
-    return accounts;
+  Future<String> forgotPassword(String studentId) async {
+    lastStudentId = studentId;
+    return onForgotPassword?.call(studentId) ??
+        'If an account exists, password reset instructions have been sent.';
   }
-}
-
-class _FakeCaptchaService extends RecoveryCaptchaService {
-  @override
-  bool get isSupported => true;
-
-  @override
-  Future<String> executePasswordResetCaptcha() async => 'fake-captcha-token';
 }
 
 void main() {
@@ -60,79 +52,47 @@ void main() {
   });
 
   group('ForgotPasswordScreen', () {
-    testWidgets('moves to choose account after a successful lookup', (
-      WidgetTester tester,
-    ) async {
-      final fakeRecoveryService = _FakeRecoveryService(
-        accounts: const [
-          RecoveryAccount(
-            userId: 'user-1',
-            displayName: 'Venice Pelima',
-            studentId: 'PDM-2024-000001',
-            maskedEmail: 'v***@*******',
-            maskedPhone: '+63912****89',
-            hasEmail: true,
-            hasPhone: true,
-          ),
-        ],
-      );
-
+    testWidgets('validates student id format', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: ForgotPasswordScreen(
-            recoveryService: fakeRecoveryService,
-            captchaService: _FakeCaptchaService(),
+            passwordResetService: _FakePasswordResetService(),
           ),
         ),
       );
 
-      await tester.enterText(find.byType(TextField).first, '+639123456789');
-      await tester.tap(find.text('Continue'));
+      await tester.enterText(find.byType(TextFormField), 'invalid-id');
+      await tester.tap(find.text('Send Instructions'));
       await tester.pumpAndSettle();
 
-      expect(fakeRecoveryService.lastLookupIdentifier, '+639123456789');
-      expect(find.text('Choose your account'), findsOneWidget);
-      expect(find.text('Venice Pelima'), findsOneWidget);
-      expect(find.text('PDM-2024-000001'), findsOneWidget);
+      expect(
+        find.text('Please enter a valid Student ID (e.g., PDM-2024-000123)'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('shows available recovery methods after selecting an account', (
+    testWidgets('submits student id and navigates to otp screen', (
       WidgetTester tester,
     ) async {
-      final fakeRecoveryService = _FakeRecoveryService(
-        accounts: const [
-          RecoveryAccount(
-            userId: 'user-1',
-            displayName: 'Venice Pelima',
-            studentId: 'PDM-2024-000001',
-            maskedEmail: 'v***@*******',
-            maskedPhone: '+63912****89',
-            hasEmail: true,
-            hasPhone: true,
-          ),
-        ],
-      );
+      final fakeService = _FakePasswordResetService();
 
       await tester.pumpWidget(
         MaterialApp(
+          routes: {
+            AppRoutes.resetPasswordOtp: (_) => const ResetPasswordOtpScreen(),
+          },
           home: ForgotPasswordScreen(
-            recoveryService: fakeRecoveryService,
-            captchaService: _FakeCaptchaService(),
+            passwordResetService: fakeService,
           ),
         ),
       );
 
-      await tester.enterText(find.byType(TextField).first, '09123456789');
-      await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Venice Pelima'));
+      await tester.enterText(find.byType(TextFormField), 'PDM-2024-000123');
+      await tester.tap(find.text('Send Instructions'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Choose a way to login'), findsOneWidget);
-      expect(find.text('Get code via email'), findsOneWidget);
-      expect(find.text('Get code via SMS'), findsOneWidget);
-      expect(find.text('Continue with password'), findsOneWidget);
-      expect(find.text('Not you?'), findsOneWidget);
+      expect(fakeService.lastStudentId, 'PDM-2024-000123');
+      expect(find.text('Enter Reset Code'), findsOneWidget);
     });
   });
 

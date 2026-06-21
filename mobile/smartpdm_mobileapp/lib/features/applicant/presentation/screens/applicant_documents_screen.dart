@@ -90,6 +90,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }).toList();
 
     filtered.sort((a, b) {
+      if (a.isSubmitted != b.isSubmitted) {
+        return a.isSubmitted ? 1 : -1;
+      }
+
       final orderA = _documentOrder(a.documentType);
       final orderB = _documentOrder(b.documentType);
       return orderA.compareTo(orderB);

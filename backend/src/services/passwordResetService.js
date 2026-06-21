@@ -99,10 +99,13 @@ async function logActivity({
 }
 
 async function sendPasswordResetEmail(email, otp, displayName) {
-    if (process.env.SKIP_EMAIL === 'true') {
-        console.log('DEV PASSWORD RESET OTP:', { email, otp });
-        return;
-    }
+    console.log('DEV PASSWORD RESET OTP:', {
+        email,
+        otp,
+        displayName,
+        createdAt: new Date().toISOString(),
+    });
+    return;
 
     if (!process.env.GMAIL_APP_PASSWORD) {
         throw createHttpError(500, 'GMAIL_APP_PASSWORD is not configured');

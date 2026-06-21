@@ -1,6 +1,28 @@
+# Dependencies and build output
 node_modules/
 dist/
 build/
+
+# Local editor settings
+.vscode/
+.idea/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Local logs and scratch output
+*.log
+*.err
+*.out
+
+# Local backup/export artifacts
+backups/
+*.dump
+*.backup
+
+# Project-specific local assets
 mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
 
 # Flutter generated files
@@ -13,8 +35,6 @@ mobile/smartpdm_mobileapp/lib/shared/widgets/oracleJdk-26/
 
 # Supabase local metadata
 supabase/.temp/
-*.dump
-*.backup
 
 # Supabase CLI generated files
 supabase/**/linked-project.json

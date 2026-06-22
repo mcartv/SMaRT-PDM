@@ -42,7 +42,6 @@ class _StepAcademicState extends State<StepAcademic> {
   late final TextEditingController elementaryYearController;
 
   late final TextEditingController currentYearLevelController;
-  late final TextEditingController currentSectionController;
   late final TextEditingController studentNumberController;
 
   final List<String> supportOptions = [
@@ -60,9 +59,20 @@ class _StepAcademicState extends State<StepAcademic> {
     'BSHM',
     'BTLED',
   ];
+  static const List<String> _defaultSectionOptions = [
+    'A',
+    'B',
+    'C',
+    'D',
+    'E',
+    'F',
+    'G',
+  ];
 
   String selectedFinancialSupport = 'Parents';
   String? selectedCourse;
+  late final List<String> sectionOptions;
+  String? selectedSection;
 
   bool scholarshipHistory = false;
   bool scholarshipElementary = false;
@@ -160,7 +170,7 @@ class _StepAcademicState extends State<StepAcademic> {
 
   String? _sectionError() {
     if (!widget.showErrors) return null;
-    if (currentSectionController.text.trim().isEmpty) {
+    if ((selectedSection ?? '').trim().isEmpty) {
       return 'Section is required.';
     }
     return null;
@@ -257,9 +267,6 @@ class _StepAcademicState extends State<StepAcademic> {
     currentYearLevelController = TextEditingController(
       text: widget.data.currentYearLevel,
     );
-    currentSectionController = TextEditingController(
-      text: widget.data.currentSection,
-    );
     studentNumberController = TextEditingController(
       text: widget.data.studentNumber.isNotEmpty
           ? widget.data.studentNumber
@@ -268,6 +275,15 @@ class _StepAcademicState extends State<StepAcademic> {
 
     selectedCourse = courseOptions.contains(widget.data.currentCourse)
         ? widget.data.currentCourse
+        : null;
+    final normalizedCurrentSection = widget.data.currentSection.trim();
+    final uniqueSections = <String>{
+      ..._defaultSectionOptions,
+      if (normalizedCurrentSection.isNotEmpty) normalizedCurrentSection,
+    };
+    sectionOptions = uniqueSections.toList()..sort();
+    selectedSection = sectionOptions.contains(normalizedCurrentSection)
+        ? normalizedCurrentSection
         : null;
     selectedFinancialSupport = widget.data.financialSupport.isNotEmpty
         ? widget.data.financialSupport
@@ -332,7 +348,6 @@ class _StepAcademicState extends State<StepAcademic> {
     );
 
     _bind(currentYearLevelController, (v) => widget.data.currentYearLevel = v);
-    _bind(currentSectionController, (v) => widget.data.currentSection = v);
     _bind(studentNumberController, (v) => widget.data.studentNumber = v);
     _bind(
       scholarshipDetailsController,
@@ -371,7 +386,6 @@ class _StepAcademicState extends State<StepAcademic> {
     elementaryClubController.dispose();
     elementaryYearController.dispose();
     currentYearLevelController.dispose();
-    currentSectionController.dispose();
     studentNumberController.dispose();
     scholarshipDetailsController.dispose();
     scholarshipOthersSpecifyController.dispose();
@@ -459,11 +473,22 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
             _field(
               'Section',
-              TextFormField(
-                controller: currentSectionController,
-                decoration: _dec(
-                  'Section',
-                ).copyWith(errorText: _sectionError()),
+              DropdownButtonFormField<String>(
+                initialValue: selectedSection,
+                decoration: _dec('Section').copyWith(errorText: _sectionError()),
+                items: sectionOptions
+                    .map(
+                      (section) => DropdownMenuItem<String>(
+                        value: section,
+                        child: Text(section),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => selectedSection = value);
+                  widget.data.currentSection = value ?? '';
+                  widget.onChanged();
+                },
               ),
             ),
           ]),

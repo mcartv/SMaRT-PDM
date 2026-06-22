@@ -134,12 +134,14 @@ class MessagingProvider extends ChangeNotifier {
       if (_activeGroupId != null) {
         await _messageService.markRoomThreadRead(_activeGroupId!);
         _markMessagesRead(_messages.map((e) => e.messageId).toList());
-        _recalculateUnreadCount();
+        await refreshUnreadCount(notify: false);
         notifyListeners();
         return;
       }
       
-      final result = await _messageService.markThreadRead();
+      final result = await _messageService.markThreadRead(
+        counterpartyId: _counterpartyId,
+      );
       if (result.messageIds.isNotEmpty) {
         _markMessagesRead(result.messageIds);
         _recalculateUnreadCount();
@@ -162,13 +164,14 @@ class MessagingProvider extends ChangeNotifier {
     try {
       if (_activeGroupId != null) {
         _messages = await _messageService.fetchRoomThread(_activeGroupId!);
+        await refreshUnreadCount(notify: false);
       } else {
         final result = await _messageService.fetchThread();
         _counterpartyId = result.counterpartyId;
         _messages = result.items.toList();
+        _recalculateUnreadCount();
       }
       _messages.sort((left, right) => right.sentAt.compareTo(left.sentAt));
-      _recalculateUnreadCount();
     } catch (error) {
       _errorMessage = error.toString();
     } finally {

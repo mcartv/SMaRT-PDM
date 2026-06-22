@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_typography.dart';
 
 class AppTheme {
   static ThemeData light() {
@@ -15,6 +16,7 @@ class AppTheme {
     );
 
     final baseTheme = ThemeData(
+      useMaterial3: true,
       colorScheme: colorScheme,
       primarySwatch: MaterialColor(primaryColor.toARGB32(), <int, Color>{
         50: primaryColor.withValues(alpha: 0.1),
@@ -41,29 +43,29 @@ class AppTheme {
         selectedItemColor: accentColor,
       ),
       visualDensity: VisualDensity.adaptivePlatformDensity,
+      textTheme: AppTypography.textTheme(textColor: textColor),
     );
 
     return baseTheme.copyWith(
-      textTheme: baseTheme.textTheme.apply(
-        bodyColor: textColor,
-        displayColor: textColor,
-      ),
-      primaryTextTheme: baseTheme.primaryTextTheme.apply(
-        bodyColor: textColor,
-        displayColor: textColor,
-      ),
+      primaryTextTheme: AppTypography.textTheme(textColor: textColor),
       appBarTheme: baseTheme.appBarTheme.copyWith(foregroundColor: textColor),
     );
   }
 
   static ThemeData dark() {
+    const darkTextColor = Colors.white;
+    const darkMutedTextColor = Colors.white70;
+
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: primaryColor,
+      primary: accentColor,
+      secondary: accentColor,
+      brightness: Brightness.dark,
+    );
+
     return ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
-        primary: accentColor,
-        secondary: accentColor,
-        brightness: Brightness.dark,
-      ),
+      useMaterial3: true,
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: const Color(0xFF24180F),
       canvasColor: const Color(0xFF2D1E12),
       cardColor: const Color(0xFF332216),
@@ -79,6 +81,9 @@ class AppTheme {
       ),
       dividerColor: Colors.white12,
       visualDensity: VisualDensity.adaptivePlatformDensity,
+      textTheme: AppTypography.textTheme(textColor: darkTextColor),
+      primaryTextTheme: AppTypography.textTheme(textColor: darkTextColor),
+      hintColor: darkMutedTextColor,
     );
   }
 }

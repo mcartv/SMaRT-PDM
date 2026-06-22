@@ -66,7 +66,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('RO Assignment'),
+        title: Text('RO Assignment'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
@@ -85,16 +85,18 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
             // Header
             Text(
               'Research Opportunity Assignments',
-              style: TextStyle(
-                fontSize: 20,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                 fontWeight: FontWeight.bold,
-                color: titleColor,
-              ),
+                color: titleColor
+),
             ),
             const SizedBox(height: 8),
             Text(
               'As a scholar, you are required to complete research opportunities',
-              style: TextStyle(color: subtitleColor, fontSize: 13),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+color: subtitleColor
+),
             ),
             const SizedBox(height: 20),
 
@@ -125,19 +127,19 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                                 children: [
                                   Text(
                                     assignment['title'],
-                                    style: TextStyle(
-                                      fontSize: 16,
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
                                       fontWeight: FontWeight.bold,
-                                      color: titleColor,
-                                    ),
+                                      color: titleColor
+),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     assignment['id'],
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: subtitleColor,
-                                    ),
+                                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                                      color: subtitleColor
+),
                                   ),
                                 ],
                               ),
@@ -155,11 +157,11 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                               ),
                               child: Text(
                                 assignment['status'],
-                                style: TextStyle(
-                                  fontSize: 11,
+                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                                   fontWeight: FontWeight.bold,
-                                  color: isActive ? Colors.green : Colors.blue,
-                                ),
+                                  color: isActive ? Colors.green : Colors.blue
+),
                               ),
                             ),
                           ],
@@ -225,20 +227,20 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                             children: [
                               Text(
                                 'Description',
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                                   fontWeight: FontWeight.bold,
-                                  color: subtitleColor,
-                                ),
+                                  color: subtitleColor
+),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 assignment['description'],
-                                style: TextStyle(
-                                  fontSize: 13,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                                   height: 1.5,
-                                  color: titleColor,
-                                ),
+                                  color: titleColor
+),
                               ),
                             ],
                           ),
@@ -258,7 +260,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                                 );
                               },
                               icon: const Icon(Icons.done_all),
-                              label: const Text(
+                              label: Text(
                                 'Submit Completion',
                                 maxLines: 1,
                                 overflow: TextOverflow.visible,
@@ -287,7 +289,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
                                 );
                               },
                               icon: const Icon(Icons.info),
-                              label: const Text(
+                              label: Text(
                                 'Awaiting Confirmation',
                                 maxLines: 1,
                                 overflow: TextOverflow.visible,
@@ -328,20 +330,20 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
         const SizedBox(width: 8),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
             color: subtitleColor,
-            fontWeight: FontWeight.w500,
-          ),
+            fontWeight: FontWeight.w500
+),
         ),
         const Spacer(),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 13,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
             fontWeight: FontWeight.w600,
-            color: titleColor,
-          ),
+            color: titleColor
+),
         ),
       ],
     );
@@ -363,20 +365,20 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
               color: subtitleColor,
-              fontWeight: FontWeight.w500,
-            ),
+              fontWeight: FontWeight.w500
+),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 12,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
               fontWeight: FontWeight.bold,
-              color: titleColor,
-            ),
+              color: titleColor
+),
           ),
         ],
       ),

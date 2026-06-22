@@ -539,7 +539,9 @@ class _StepPersonalState extends State<StepPersonal> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+fontWeight: FontWeight.bold
+),
         ),
         const SizedBox(height: 8),
         child,
@@ -596,13 +598,13 @@ class _StepPersonalState extends State<StepPersonal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'I. PERSONAL DATA',
-            style: TextStyle(
-              fontSize: 18,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
               fontWeight: FontWeight.bold,
-              color: Colors.brown,
-            ),
+              color: Colors.brown
+),
           ),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 20),
@@ -772,7 +774,7 @@ class _StepPersonalState extends State<StepPersonal> {
               label: 'Religion *',
               child: DropdownButtonFormField<String>(
                 initialValue: selectedReligion,
-                hint: const Text('Select religion'),
+                hint: Text('Select religion'),
                 decoration: _dec('Religion').copyWith(
                   errorText: _requiredError(widget.data.religion, 'Religion'),
                 ),
@@ -799,13 +801,13 @@ class _StepPersonalState extends State<StepPersonal> {
             ),
           ]),
           const SizedBox(height: 32),
-          const Text(
+          Text(
             'PERMANENT ADDRESS',
-            style: TextStyle(
-              fontSize: 16,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
               fontWeight: FontWeight.bold,
-              color: Colors.brown,
-            ),
+              color: Colors.brown
+),
           ),
           const SizedBox(height: 20),
           _row([
@@ -847,7 +849,7 @@ class _StepPersonalState extends State<StepPersonal> {
               label: 'Province',
               child: DropdownButtonFormField<String>(
                 initialValue: selectedProvince,
-                hint: const Text('Select...'),
+                hint: Text('Select...'),
                 decoration: _dec('Province'),
                 items: locationData.keys
                     .map(
@@ -880,7 +882,7 @@ class _StepPersonalState extends State<StepPersonal> {
               label: 'City / Municipality',
               child: DropdownButtonFormField<String>(
                 initialValue: selectedCity,
-                hint: const Text('Select...'),
+                hint: Text('Select...'),
                 decoration: _dec('City / Municipality'),
                 items:
                     (selectedProvince != null
@@ -915,7 +917,7 @@ class _StepPersonalState extends State<StepPersonal> {
               label: 'Barangay',
               child: DropdownButtonFormField<String>(
                 initialValue: selectedBarangay,
-                hint: const Text('Select...'),
+                hint: Text('Select...'),
                 decoration: _dec('Barangay'),
                 items:
                     (selectedProvince != null && selectedCity != null
@@ -950,13 +952,13 @@ class _StepPersonalState extends State<StepPersonal> {
             ),
           ]),
           const SizedBox(height: 32),
-          const Text(
+          Text(
             'CONTACT INFORMATION',
-            style: TextStyle(
-              fontSize: 16,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
               fontWeight: FontWeight.bold,
-              color: Colors.brown,
-            ),
+              color: Colors.brown
+),
           ),
           const SizedBox(height: 20),
           _row([

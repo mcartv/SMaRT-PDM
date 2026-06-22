@@ -190,7 +190,7 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Renewal Documents'),
+        title: Text('Renewal Documents'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
         elevation: 0,
@@ -228,20 +228,20 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                           children: [
                             Text(
                               'Renewal Progress',
-                              style: TextStyle(
-                                fontSize: 17,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                                 fontWeight: FontWeight.bold,
-                                color: titleColor,
-                              ),
+                                color: titleColor
+),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Submit all required documents to maintain your scholarship for the next release cycle.',
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                                 color: subtitleColor,
-                                height: 1.4,
-                              ),
+                                height: 1.4
+),
                             ),
                           ],
                         ),
@@ -249,11 +249,11 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                       const SizedBox(width: 12),
                       Text(
                         '$_uploadedCount/${_requirements.length}',
-                        style: TextStyle(
-                          fontSize: 22,
+                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
+
                           fontWeight: FontWeight.w900,
-                          color: accentColor,
-                        ),
+                          color: accentColor
+),
                       ),
                     ],
                   ),
@@ -280,11 +280,11 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                       const SizedBox(width: 6),
                       Text(
                         'Renewal deadline: April 30, 2026',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                           color: Colors.orange.shade800,
-                          fontWeight: FontWeight.w600,
-                        ),
+                          fontWeight: FontWeight.w600
+),
                       ),
                     ],
                   ),
@@ -294,16 +294,18 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
             const SizedBox(height: 20),
             Text(
               'Required Documents',
-              style: TextStyle(
-                fontSize: 16,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
                 fontWeight: FontWeight.bold,
-                color: titleColor,
-              ),
+                color: titleColor
+),
             ),
             const SizedBox(height: 8),
             Text(
               'Upload each document below. Allowed files: PDF, JPG, and PNG. You can replace files before final submission.',
-              style: TextStyle(fontSize: 12, color: subtitleColor),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
             ),
             const SizedBox(height: 14),
             ..._sortedRequirements.map(_buildDocumentRow),
@@ -316,8 +318,8 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                         showDialog<void>(
                           context: context,
                           builder: (context) => AlertDialog(
-                            title: const Text('Renewal Submitted'),
-                            content: const Text(
+                            title: Text('Renewal Submitted'),
+                            content: Text(
                               'Your renewal requirements have been submitted for review.',
                             ),
                             actions: [
@@ -329,7 +331,7 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                                     AppRoutes.payouts,
                                   );
                                 },
-                                child: const Text('OK'),
+                                child: Text('OK'),
                               ),
                             ],
                           ),
@@ -337,7 +339,7 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                       }
                     : null,
                 icon: const Icon(Icons.send),
-                label: const Text('Submit Renewal Requirements'),
+                label: Text('Submit Renewal Requirements'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
@@ -387,47 +389,48 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
               children: [
                 Text(
                   document.title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: titleColor,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.bold,
+                    color: titleColor
+),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   document.description,
-                  style: TextStyle(fontSize: 12, color: subtitleColor),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
                 ),
                 if (hasFile || document.updatedAt != null) ...[
                   const SizedBox(height: 6),
                   if (hasFile)
                     Text(
                       'Submitted file',
-                      style: TextStyle(
-                        fontSize: 10,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         color: isDark ? Colors.white60 : Colors.grey.shade600,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                      ),
+                        letterSpacing: 0.3
+),
                     ),
                   if (hasFile) ...[
                     const SizedBox(height: 2),
                     Text(
                       document.fileName!,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         color: isDark ? Colors.white70 : Colors.grey.shade700,
-                        fontWeight: FontWeight.w600,
-                      ),
+                        fontWeight: FontWeight.w600
+),
                     ),
                   ],
                   if (document.updatedAt != null)
                     Text(
                       document.updatedAt!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white54 : Colors.black45,
-                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                        color: isDark ? Colors.white54 : Colors.black45
+),
                     ),
                 ],
                 _buildDocumentActions(document),
@@ -446,11 +449,10 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
                 ),
                 child: Text(
                   _statusLabel(document.status),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: statusColor,
+                    fontWeight: FontWeight.w700
+),
                 ),
               ),
             ],
@@ -492,7 +494,7 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
             TextButton.icon(
               onPressed: () => _viewSubmittedFile(document),
               icon: const Icon(Icons.visibility_outlined, size: 16),
-              label: const Text('View file'),
+              label: Text('View file'),
               style: TextButton.styleFrom(
                 foregroundColor: isDark ? accentColor : AppColors.darkBrown,
               ),

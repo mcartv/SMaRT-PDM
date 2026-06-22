@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build:frontend": "npm --prefix ../frontend install && npm --prefix ../frontend run build",
+    "backfill:intake": "node scripts/backfillStudentIntake.js",
     "start": "node server/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

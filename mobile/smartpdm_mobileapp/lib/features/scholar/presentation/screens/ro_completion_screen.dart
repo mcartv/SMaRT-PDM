@@ -126,8 +126,8 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Success'),
-            content: const Text(
+            title: Text('Success'),
+            content: Text(
               'Your RO completion report has been submitted successfully. Your supervisor will review it shortly.',
             ),
             actions: [
@@ -136,7 +136,7 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                   Navigator.pop(context);
                   Navigator.pop(context);
                 },
-                child: const Text('OK'),
+                child: Text('OK'),
               ),
             ],
           ),
@@ -173,7 +173,7 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Submit RO Completion'),
+        title: Text('Submit RO Completion'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
@@ -202,16 +202,17 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                     children: [
                       Text(
                         assignment['title'] ?? 'RO Assignment',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: titleColor,
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.bold,
+                          color: titleColor
+),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Supervisor: ${assignment['supervisor'] ?? 'N/A'}',
-                        style: TextStyle(fontSize: 12, color: subtitleColor),
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
                       ),
                     ],
                   ),
@@ -223,11 +224,11 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
             // Form Title
             Text(
               'Completion Report',
-              style: TextStyle(
-                fontSize: 18,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                 fontWeight: FontWeight.bold,
-                color: titleColor,
-              ),
+                color: titleColor
+),
             ),
             const SizedBox(height: 20),
 
@@ -404,19 +405,18 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                         children: [
                           Text(
                             'Verification QR Code',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: titleColor,
-                            ),
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+fontWeight: FontWeight.bold,
+                              color: titleColor
+),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Scan this QR code to verify completion',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: subtitleColor,
-                            ),
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                              color: subtitleColor
+),
                           ),
                           const SizedBox(height: 16),
                           Container(
@@ -434,11 +434,11 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                           const SizedBox(height: 8),
                           Text(
                             'ID: ${_qrCodeData.split(':')[1]}',
-                            style: TextStyle(
-                              fontSize: 10,
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                               color: subtitleColor,
-                              fontFamily: 'monospace',
-                            ),
+                              fontFamily: 'monospace'
+),
                           ),
                         ],
                       ),
@@ -498,11 +498,10 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                             : 'Submit Completion Report',
                         maxLines: 1,
                         overflow: TextOverflow.visible,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 13,
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.bold,
+                          color: Colors.white
+),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryColor,
@@ -526,7 +525,7 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                           vertical: 14,
                         ),
                       ),
-                      child: const Text('Cancel'),
+                      child: Text('Cancel'),
                     ),
                   ),
                 ],
@@ -559,11 +558,11 @@ class _ROCompletionScreenState extends State<ROCompletionScreen> {
                     const SizedBox(height: 8),
                     Text(
                       'Please ensure your supervisor has approved your work before submitting. All information must be accurate and complete.',
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         height: 1.5,
-                        color: isDark ? Colors.white70 : AppColors.darkBrown,
-                      ),
+                        color: isDark ? Colors.white70 : AppColors.darkBrown
+),
                     ),
                   ],
                 ),

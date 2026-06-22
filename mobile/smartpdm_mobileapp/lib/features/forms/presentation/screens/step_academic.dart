@@ -96,7 +96,9 @@ class _StepAcademicState extends State<StepAcademic> {
     children: [
       Text(
         label,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ fontWeight: FontWeight.w600
+),
       ),
       const SizedBox(height: 8),
       child,
@@ -402,7 +404,10 @@ class _StepAcademicState extends State<StepAcademic> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('III. ACADEMIC INFORMATION', style: sectionTitle),
+          Text('III. ACADEMIC INFORMATION', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 24),
           _section(
@@ -438,7 +443,10 @@ class _StepAcademicState extends State<StepAcademic> {
             elementaryYearController,
           ),
           const SizedBox(height: 8),
-          const Text('CURRENT ENROLLMENT', style: sectionTitle),
+          Text('CURRENT ENROLLMENT', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
           const SizedBox(height: 16),
           _row([
             _field(
@@ -506,7 +514,10 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
           ]),
           const SizedBox(height: 24),
-          const Text('FINANCIAL SUPPORT', style: sectionTitle),
+          Text('FINANCIAL SUPPORT', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
           const SizedBox(height: 8),
           ...supportOptions.map(
             (option) => CheckboxListTile(
@@ -547,7 +558,10 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
           ],
           const SizedBox(height: 24),
-          const Text('SCHOLARSHIP HISTORY', style: sectionTitle),
+          Text('SCHOLARSHIP HISTORY', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
           buildBooleanRow('Have you ever been a scholar?', scholarshipHistory, (
             val,
           ) {
@@ -636,7 +650,10 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
           ],
           const SizedBox(height: 24),
-          const Text('DISCIPLINARY ACTION', style: sectionTitle),
+          Text('DISCIPLINARY ACTION', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
           const SizedBox(height: 16),
           buildBooleanRow(
             'Have you ever been subject to disciplinary action from any school or institution attended?',
@@ -676,7 +693,9 @@ class _StepAcademicState extends State<StepAcademic> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+fontWeight: FontWeight.w600
+),
         ),
         Row(
           children: [
@@ -686,7 +705,7 @@ class _StepAcademicState extends State<StepAcademic> {
               onChanged: (v) => onChanged(v ?? false),
             ),
             const SizedBox(width: 4),
-            const Text('Yes'),
+            Text('Yes'),
             const SizedBox(width: 16),
             Radio<bool>(
               value: false,
@@ -694,7 +713,7 @@ class _StepAcademicState extends State<StepAcademic> {
               onChanged: (v) => onChanged(v ?? false),
             ),
             const SizedBox(width: 4),
-            const Text('No'),
+            Text('No'),
           ],
         ),
       ],
@@ -722,7 +741,10 @@ class _StepAcademicState extends State<StepAcademic> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: sectionTitle),
+        Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+  fontWeight: FontWeight.bold,
+  color: Colors.brown,
+)),
         const SizedBox(height: 16),
         _row([
           _field(
@@ -762,8 +784,3 @@ class _StepAcademicState extends State<StepAcademic> {
   }
 }
 
-const TextStyle sectionTitle = TextStyle(
-  fontSize: 15,
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-);

@@ -211,11 +211,10 @@ class _MessagingFab extends StatelessWidget {
               child: Text(
                 unreadCount > 99 ? '99+' : '$unreadCount',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: Colors.white,
+                  fontWeight: FontWeight.w700
+),
               ),
             ),
           ),

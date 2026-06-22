@@ -53,12 +53,16 @@ class _StepEssayState extends State<StepEssay> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('IV. PERSONAL STATEMENT', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown)),
+          Text('IV. PERSONAL STATEMENT', style: Theme.of(context).textTheme.titleLarge?.copyWith(
+ fontWeight: FontWeight.bold, color: Colors.brown
+)),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 24),
 
-          const Text('1. Write a short essay describing yourself. (200-300 words)',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          Text('1. Write a short essay describing yourself. (200-300 words)',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.w600
+)),
           const SizedBox(height: 16),
           TextFormField(
             controller: describeYourselfController,
@@ -67,8 +71,10 @@ class _StepEssayState extends State<StepEssay> {
           ),
           const SizedBox(height: 24),
 
-          const Text('2. State briefly your aims and ambition after graduation (include plans for hometown or province). (200-300 words)',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          Text('2. State briefly your aims and ambition after graduation (include plans for hometown or province). (200-300 words)',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.w600
+)),
           const SizedBox(height: 16),
           TextFormField(
             controller: aimsAndAmbitionController,
@@ -77,14 +83,18 @@ class _StepEssayState extends State<StepEssay> {
           ),
           const SizedBox(height: 32),
 
-          const Text('Tips:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+          Text('Tips:', style: Theme.of(context).textTheme.labelMedium?.copyWith(
+fontWeight: FontWeight.bold, color: Colors.grey
+)),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '• Be honest and genuine in your responses\n'
             '• Proofread for grammar and spelling\n'
             '• Stay within the word limit\n'
             '• Use clear and concise language',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: Colors.grey
+),
           ),
         ],
       ),

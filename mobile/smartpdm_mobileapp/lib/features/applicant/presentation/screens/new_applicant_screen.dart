@@ -798,22 +798,22 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Choose an opening first',
-                                      style: TextStyle(
-                                        fontSize: 18,
+                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                                         fontWeight: FontWeight.w800,
-                                        color: AppColors.darkBrown,
-                                      ),
+                                        color: AppColors.darkBrown
+),
                                     ),
                                     const SizedBox(height: 8),
-                                    const Text(
+                                    Text(
                                       'This application form is now tied to one admin-posted scholarship opening. Select the opening you want to apply for before continuing.',
-                                      style: TextStyle(
-                                        fontSize: 14,
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                                         height: 1.45,
-                                        color: AppColors.brown,
-                                      ),
+                                        color: AppColors.brown
+),
                                     ),
                                     const SizedBox(height: 16),
                                     SizedBox(
@@ -848,24 +848,24 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
+                                        Text(
                                           'Selected Opening',
-                                          style: TextStyle(
-                                            fontSize: 12,
+                                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                                             fontWeight: FontWeight.w700,
-                                            color: AppColors.brown,
-                                          ),
+                                            color: AppColors.brown
+),
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
                                           _data.openingTitle.isNotEmpty
                                               ? _data.openingTitle
                                               : 'Scholarship Opening',
-                                          style: const TextStyle(
-                                            fontSize: 18,
+                                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                                             fontWeight: FontWeight.w800,
-                                            color: AppColors.darkBrown,
-                                          ),
+                                            color: AppColors.darkBrown
+),
                                         ),
                                         if (_data.openingProgramName.isNotEmpty)
                                           Padding(
@@ -874,11 +874,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                             ),
                                             child: Text(
                                               _data.openingProgramName,
-                                              style: const TextStyle(
-                                                fontSize: 13,
+                                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                                                 fontWeight: FontWeight.w700,
-                                                color: AppColors.brown,
-                                              ),
+                                                color: AppColors.brown
+),
                                             ),
                                           ),
                                         const SizedBox(height: 10),
@@ -910,10 +910,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                                       : _autosaveError == null
                                                       ? 'Draft autosaves as you complete the form.'
                                                       : _autosaveError!,
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: AppColors.brown,
-                                                  ),
+                                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                                                    color: AppColors.brown
+),
                                                 ),
                                               ),
                                             ],

@@ -18,22 +18,22 @@ class _ScholarshipListScreenState extends State<ScholarshipListScreen> {
       selectedIndex: 1,
       child: Column(
         children: [
-          const Text(
+          Text(
             'Available Scholarships',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
+              fontWeight: FontWeight.w900
+),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'ACADEMIC YEAR 2025-2026',
-            style: TextStyle(
-              fontSize: 11,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
               color: Colors.grey,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-            ),
+              letterSpacing: 0.4
+),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -165,11 +165,10 @@ class ScholarshipCard extends StatelessWidget {
                       ),
                       child: Text(
                         badgeText!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: Colors.white,
+                          fontWeight: FontWeight.w900
+),
                       ),
                     ),
                   const Spacer(),
@@ -184,11 +183,11 @@ class ScholarshipCard extends StatelessWidget {
                     ),
                     child: Text(
                       'EST. VALUE',
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         fontWeight: FontWeight.w900,
-                        color: Colors.grey.shade600,
-                      ),
+                        color: Colors.grey.shade600
+),
                     ),
                   ),
                 ],
@@ -196,30 +195,29 @@ class ScholarshipCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
+                  fontWeight: FontWeight.w900
+),
               ),
               const SizedBox(height: 4),
               Text(
                 provider,
-                style: TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700,
-                ),
+                  color: Colors.grey.shade700
+),
               ),
               const SizedBox(height: 14),
               Row(
                 children: [
                   Text(
                     amount,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                      color: primaryColor,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.w900,
+                      color: primaryColor
+),
                   ),
                   const Spacer(),
                   Row(
@@ -228,11 +226,11 @@ class ScholarshipCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         'DEADLINE: $deadline',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                           fontWeight: FontWeight.w900,
-                          color: Colors.orange.shade900,
-                        ),
+                          color: Colors.orange.shade900
+),
                       ),
                     ],
                   ),

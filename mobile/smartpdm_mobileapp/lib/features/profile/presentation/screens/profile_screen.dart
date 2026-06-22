@@ -408,8 +408,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Confirm Logout'),
-          content: const Text(
+          title: Text('Confirm Logout'),
+          content: Text(
             'Are you sure you want to terminate your session?',
           ),
           shape: RoundedRectangleBorder(
@@ -418,14 +418,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('CANCEL'),
+              child: Text('CANCEL'),
             ),
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 _handleLogout(context);
               },
-              child: const Text(
+              child: Text(
                 'LOG OUT',
                 style: TextStyle(
                   color: Colors.red,
@@ -445,7 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text('Profile'),
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: isDark ? Colors.white : textColor,
@@ -607,22 +607,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Text(
                       _userName,
-                      style: TextStyle(
-                        fontSize: 20,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                         fontWeight: FontWeight.w800,
-                        color: titleColor,
-                      ),
+                        color: titleColor
+),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       hasScholarAccess
                           ? 'Approved Scholar'
                           : 'Pending Applicant',
-                      style: TextStyle(
-                        fontSize: 13,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
                         color: subtitleColor,
-                        fontWeight: FontWeight.w600,
-                      ),
+                        fontWeight: FontWeight.w600
+),
                     ),
                     const SizedBox(height: 10),
                     Container(
@@ -638,11 +638,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _studentIdController.text.isNotEmpty
                             ? _studentIdController.text
                             : 'Scholar account',
-                        style: const TextStyle(
-                          fontSize: 12,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                           fontWeight: FontWeight.w700,
-                          color: textColor,
-                        ),
+                          color: textColor
+),
                       ),
                     ),
                   ],
@@ -686,23 +686,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Text(
             label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
               letterSpacing: 1,
               color: isDark ? Colors.white60 : Colors.black54,
-              fontWeight: FontWeight.w700,
-            ),
+              fontWeight: FontWeight.w700
+),
           ),
           const SizedBox(height: 6),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
               color: isDark ? Colors.white : textColor,
-              fontWeight: FontWeight.w600,
-            ),
+              fontWeight: FontWeight.w600
+),
           ),
         ],
       ),
@@ -716,12 +716,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
           letterSpacing: 1.2,
           color: isDark ? Colors.white60 : Colors.black54,
-          fontWeight: FontWeight.w700,
-        ),
+          fontWeight: FontWeight.w700
+),
       ),
     );
   }
@@ -767,11 +767,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _isProfileIncomplete
                 ? 'Complete Your Profile'
                 : 'Edit Profile Information',
-            style: TextStyle(
-              fontSize: 16,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : textColor,
-            ),
+              color: isDark ? Colors.white : textColor
+),
           ),
           const SizedBox(height: 16),
           Row(
@@ -893,7 +893,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     setState(() => _isEditing = false);
                   },
                   icon: const Icon(Icons.close),
-                  label: const Text('Cancel'),
+                  label: Text('Cancel'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: textColor,
                     side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
@@ -1007,11 +1007,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         title: Text(
           title,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            color: titleColor,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.w700,
+            color: titleColor
+),
         ),
         subtitle: subtitle == null
             ? null
@@ -1019,7 +1018,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   subtitle,
-                  style: TextStyle(fontSize: 12, color: subtitleColor),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
                 ),
               ),
         trailing: Icon(

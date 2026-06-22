@@ -332,11 +332,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 18),
-                      const Text(
+                      Text(
                         'Complete Your Profile',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 28,
+                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -344,8 +343,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       Text(
                         'Set up your basic profile before continuing to the applicant dashboard.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade600,
                           height: 1.4,
                         ),
@@ -415,8 +413,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                                   _isLoadingCourses
                                       ? 'LOADING COURSES...'
                                       : 'SAVE PROFILE',
-                                  style: const TextStyle(
-                                    fontSize: 15,
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 0.3,
                                   ),

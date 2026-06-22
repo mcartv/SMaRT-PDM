@@ -6,6 +6,8 @@ class AppRoutes {
   static const register = '/register';
   static const otp = '/otp';
   static const forgotPassword = '/forgot-password';
+  static const resetPasswordOtp = '/reset-password-otp';
+  static const resetPassword = '/reset-password';
   static const changeEmail = '/change-email';
 
   // Top-level dashboard routes

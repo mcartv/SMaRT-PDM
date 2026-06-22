@@ -1,7 +1,18 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const routes = require('./routes');
+
+const forgotPasswordLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Too many password reset requests. Please try again later.',
+    },
+});
 
 function createApp() {
     const app = express();
@@ -20,9 +31,16 @@ function createApp() {
         res.status(200).send('SMaRT-PDM backend is running.');
     });
 
+    app.use('/api/auth/forgot-password', forgotPasswordLimiter);
     app.use(routes);
 
+
+
+
+
+
     app.use((req, res) => {
+
         res.status(404).json({
             error: `Route not found: ${req.method} ${req.originalUrl}`,
         });

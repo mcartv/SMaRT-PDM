@@ -296,7 +296,7 @@ export default function ProgramsPanel() {
     const fetchPrograms = async () => {
         const res = await fetch(buildApiUrl('/api/scholarship-program'), {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                 'Content-Type': 'application/json',
             },
         });
@@ -313,7 +313,7 @@ export default function ProgramsPanel() {
     const fetchBenefactors = async () => {
         const res = await fetch(buildApiUrl('/api/benefactors'), {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                 'Content-Type': 'application/json',
             },
         });
@@ -429,7 +429,7 @@ export default function ProgramsPanel() {
             const res = await fetch(url, {
                 method,
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(payload),
@@ -460,7 +460,7 @@ export default function ProgramsPanel() {
                 {
                     method: 'PATCH',
                     headers: {
-                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({

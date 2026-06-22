@@ -726,7 +726,7 @@ function RenewalModal({ open, scholar, onClose }) {
         setDecision('');
         setSavingAction('');
 
-        const token = localStorage.getItem('adminToken');
+        const token = sessionStorage.getItem('adminToken');
         const res = await fetch(buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-documents`), {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -801,7 +801,7 @@ function RenewalModal({ open, scholar, onClose }) {
     try {
       setSavingAction('verify');
 
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
 
       await fetch(
         buildApiUrl(`/api/scholars/${scholar.scholar_id}/renewal-documents/${selectedDoc.id}/verify`),
@@ -852,7 +852,7 @@ function RenewalModal({ open, scholar, onClose }) {
     try {
       setSavingAction(finalDecision);
 
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
 
       const payload = {
         decision: finalDecision,
@@ -1470,13 +1470,13 @@ export default function ScholarMonitoring() {
         const [scholarsRes, statsRes] = await Promise.all([
           fetch(buildApiUrl('/api/scholars'), {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
             },
           }),
           fetch(buildApiUrl('/api/scholars/stats'), {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
             },
           }),
@@ -1512,13 +1512,13 @@ export default function ScholarMonitoring() {
         const [scholarsRes, statsRes] = await Promise.all([
           fetch(buildApiUrl('/api/scholars'), {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
             },
           }),
           fetch(buildApiUrl('/api/scholars/stats'), {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
             },
           }),
@@ -1551,13 +1551,13 @@ export default function ScholarMonitoring() {
         const [scholarsRes, statsRes] = await Promise.all([
           fetch(buildApiUrl('/api/scholars'), {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
             },
           }),
           fetch(buildApiUrl('/api/scholars/stats'), {
             headers: {
-              Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+              Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
               'Content-Type': 'application/json',
             },
           }),
@@ -1595,7 +1595,7 @@ export default function ScholarMonitoring() {
         {
           method: 'PATCH',
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload),
@@ -1647,7 +1647,7 @@ export default function ScholarMonitoring() {
 
       const res = await fetch(buildApiUrl(`/api/scholars/${scholarId}`), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
         },
       });
@@ -1674,7 +1674,7 @@ export default function ScholarMonitoring() {
     try {
       const res = await fetch(buildApiUrl(`/api/scholars/${scholar.scholar_id}`), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
         },
       });

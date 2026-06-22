@@ -119,7 +119,7 @@ export default function RenewalDocumentVerification() {
 
       const response = await fetch(`${API_BASE}/renewals/${id}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
         },
       });
@@ -200,7 +200,7 @@ export default function RenewalDocumentVerification() {
       const response = await fetch(`${API_BASE}/renewals/${id}/review`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),

@@ -115,7 +115,7 @@ function StatCard({ label, value, icon: Icon, tone = 'green' }) {
 // ─────────────────────────────────────────────────────────────
 export default function SDOProfile() {
   const [profile] = useState(() => {
-    const saved = localStorage.getItem('sdoProfile');
+    const saved = sessionStorage.getItem('sdoProfile');
     try {
       return saved ? JSON.parse(saved) : null;
     } catch {

@@ -21,7 +21,7 @@ export const initializeSocket = () => {
 
   globalSocket.on('connect', () => {
     console.log('[Socket] Connected:', globalSocket.id);
-    const token = localStorage.getItem('adminToken');
+    const token = sessionStorage.getItem('adminToken');
     if (token) {
       globalSocket.emit('user-join', { token });
     }

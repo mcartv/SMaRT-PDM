@@ -25,7 +25,7 @@ const C = {
 };
 
 function getSdoToken() {
-  return localStorage.getItem('sdoToken');
+  return sessionStorage.getItem('sdoToken');
 }
 
 function getDisciplinaryTone(level) {

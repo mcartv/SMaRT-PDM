@@ -45,7 +45,7 @@ function formatDate(value) {
 }
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('adminToken') || localStorage.getItem('sdoToken');
+  const token = sessionStorage.getItem('adminToken') || sessionStorage.getItem('sdoToken');
   return {
     Authorization: `Bearer ${token || ''}`,
     'Content-Type': 'application/json',

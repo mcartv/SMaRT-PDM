@@ -59,10 +59,10 @@ export default function AdminLogin() {
         throw new Error(data.message || 'Login failed');
       }
 
-      localStorage.setItem('adminToken', data.token);
+      sessionStorage.setItem('adminToken', data.token);
 
       if (data.user) {
-        localStorage.setItem('adminProfile', JSON.stringify(data.user));
+        sessionStorage.setItem('adminProfile', JSON.stringify(data.user));
       }
 
       navigate('/admin/dashboard');

@@ -27,7 +27,7 @@ const C = {
 };
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   return {
     Authorization: `Bearer ${token}`,
   };

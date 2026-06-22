@@ -48,13 +48,13 @@ export default function SDOLayout() {
   const [notifs, setNotifs] = useState([]);
 
   useEffect(() => {
-    const token = localStorage.getItem('sdoToken');
+    const token = sessionStorage.getItem('sdoToken');
     if (!token) {
       navigate('/sdo/login');
       return;
     }
 
-    const savedProfile = localStorage.getItem('sdoProfile');
+    const savedProfile = sessionStorage.getItem('sdoProfile');
     if (savedProfile) {
       try {
         setProfile(JSON.parse(savedProfile));
@@ -63,7 +63,7 @@ export default function SDOLayout() {
       }
     }
 
-    const savedNotifs = localStorage.getItem('sdoNotifications');
+    const savedNotifs = sessionStorage.getItem('sdoNotifications');
     if (savedNotifs) {
       try {
         const parsed = JSON.parse(savedNotifs);
@@ -93,8 +93,8 @@ export default function SDOLayout() {
   }, [notifOpen]);
 
   const handleLogout = () => {
-    localStorage.removeItem('sdoToken');
-    localStorage.removeItem('sdoProfile');
+    sessionStorage.removeItem('sdoToken');
+    sessionStorage.removeItem('sdoProfile');
     navigate('/sdo/login');
   };
 

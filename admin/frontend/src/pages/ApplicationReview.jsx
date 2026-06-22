@@ -680,7 +680,7 @@ export default function ApplicationReview() {
         setError('');
       }
 
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
 
       const [applicationsRes, openingsRes] = await Promise.all([
         fetch(buildApiUrl('/api/applications'), {

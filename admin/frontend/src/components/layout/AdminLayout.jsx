@@ -64,18 +64,18 @@ export default function AdminLayout() {
 
   useEffect(() => {
     const initializeLayout = () => {
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
       if (!token) {
         navigate('/admin/login', { replace: true });
         return;
       }
 
-      const savedProfile = localStorage.getItem('adminProfile');
+      const savedProfile = sessionStorage.getItem('adminProfile');
       if (savedProfile) {
         try {
           setAdminData(JSON.parse(savedProfile));
         } catch (err) {
-          console.error('Failed to parse adminProfile from localStorage:', err);
+          console.error('Failed to parse adminProfile from sessionStorage:', err);
           setAdminData(null);
         }
       }
@@ -87,8 +87,8 @@ export default function AdminLayout() {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminProfile');
+    sessionStorage.removeItem('adminToken');
+    sessionStorage.removeItem('adminProfile');
     navigate('/admin/login', { replace: true });
   };
 

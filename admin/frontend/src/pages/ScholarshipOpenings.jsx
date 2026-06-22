@@ -960,19 +960,19 @@ export default function ScholarshipOpenings() {
             const [templatesRes, openingsRes, academicYearsRes] = await Promise.all([
                 fetch(buildApiUrl('/api/scholarship-program'), {
                     headers: {
-                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
                     },
                 }),
                 fetch(buildApiUrl('/api/program-openings'), {
                     headers: {
-                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
                     },
                 }),
                 fetch(buildApiUrl('/api/academic-years'), {
                     headers: {
-                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
                     },
                 }),
@@ -1264,7 +1264,7 @@ export default function ScholarshipOpenings() {
             const res = await fetch(url, {
                 method,
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(payload),
@@ -1308,7 +1308,7 @@ export default function ScholarshipOpenings() {
             const res = await fetch(buildApiUrl(`/api/program-openings/${openingId}`), {
                 method: 'PATCH',
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({

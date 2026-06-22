@@ -271,7 +271,7 @@ export default function BenefactorsPanel() {
 
             const res = await fetch(buildApiUrl('/api/benefactors'), {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -383,7 +383,7 @@ export default function BenefactorsPanel() {
             const res = await fetch(url, {
                 method,
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(payload),
@@ -414,7 +414,7 @@ export default function BenefactorsPanel() {
                 {
                     method: 'PATCH',
                     headers: {
-                        Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({

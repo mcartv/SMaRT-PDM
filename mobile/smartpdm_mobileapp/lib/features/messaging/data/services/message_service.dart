@@ -29,12 +29,17 @@ class ChatRoom {
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
     return ChatRoom(
-      roomId: json['roomId']?.toString() ?? '',
-      roomName: json['roomName']?.toString() ?? 'Unknown Group',
+      roomId:
+          json['roomId']?.toString() ??
+          json['room_id']?.toString() ??
+          '',
+      roomName:
+          json['roomName']?.toString() ??
+          json['room_name']?.toString() ??
+          'Unknown Group',
     );
   }
 }
-
 
 class MessageService {
   MessageService({ApiClient? apiClient})
@@ -43,56 +48,149 @@ class MessageService {
   final ApiClient _apiClient;
 
   Future<MessageThreadResult> fetchThread() async {
-    final response = await _apiClient.getObject('/api/messages/thread');
-    return MessageThreadResult(
-      counterpartyId: response['counterpartyId']?.toString() ?? '',
-      items: _parseItems(response['items']),
-    );
+    try {
+      final response = await _apiClient.getObject('/api/messages/thread');
+      return MessageThreadResult(
+        counterpartyId: response['counterpartyId']?.toString() ?? '',
+        items: _parseItems(response['items']),
+      );
+    } catch (_) {
+      final conversations = await _fetchConversationList();
+      if (conversations.isEmpty) {
+        return const MessageThreadResult(counterpartyId: '', items: []);
+      }
+
+      final preferred = _pickPreferredConversation(conversations);
+      final counterpartyId =
+          preferred['counterparty_id']?.toString().trim() ?? '';
+
+      if (counterpartyId.isEmpty) {
+        return const MessageThreadResult(counterpartyId: '', items: []);
+      }
+
+      final response = await _apiClient.getObject(
+        '/api/messages/conversations/$counterpartyId',
+      );
+
+      return MessageThreadResult(
+        counterpartyId: counterpartyId,
+        items: _parseItems(response['items']),
+      );
+    }
   }
 
   Future<ChatMessage> sendThreadMessage(String messageBody) async {
-    final response = await _apiClient.postJson(
-      '/api/messages/thread',
-      body: {'messageBody': messageBody},
-    );
+    try {
+      final response = await _apiClient.postJson(
+        '/api/messages/thread',
+        body: {'messageBody': messageBody},
+      );
 
-    return ChatMessage.fromJson(response);
+      return ChatMessage.fromJson(response);
+    } catch (_) {
+      final conversations = await _fetchConversationList();
+      if (conversations.isEmpty) {
+        rethrow;
+      }
+
+      final preferred = _pickPreferredConversation(conversations);
+      final counterpartyId =
+          preferred['counterparty_id']?.toString().trim() ?? '';
+      if (counterpartyId.isEmpty) {
+        rethrow;
+      }
+
+      final response = await _apiClient.postJson(
+        '/api/messages/conversations/$counterpartyId',
+        body: {'messageBody': messageBody},
+      );
+
+      return ChatMessage.fromJson(response);
+    }
   }
 
-  Future<MessageReadResult> markThreadRead() async {
-    final response = await _apiClient.patchJson('/api/messages/thread/read');
-    return MessageReadResult(
-      updatedCount: (response['updatedCount'] as num?)?.toInt() ?? 0,
-      messageIds: ((response['messageIds'] as List<dynamic>?) ?? const [])
+  Future<MessageReadResult> markThreadRead({String? counterpartyId}) async {
+    try {
+      final response = await _apiClient.patchJson('/api/messages/thread/read');
+      return MessageReadResult(
+        updatedCount: (response['updatedCount'] as num?)?.toInt() ?? 0,
+        messageIds: ((response['messageIds'] as List<dynamic>?) ?? const [])
+            .map((item) => item.toString())
+            .where((item) => item.isNotEmpty)
+            .toList(),
+      );
+    } catch (_) {
+      final candidateId = (counterpartyId ?? '').trim();
+      final targetCounterpartyId = candidateId.isNotEmpty
+          ? candidateId
+          : _lastConversationCounterpartyId;
+
+      if (targetCounterpartyId.isEmpty) {
+        return const MessageReadResult(updatedCount: 0, messageIds: []);
+      }
+
+      final response = await _apiClient.patchJson(
+        '/api/messages/conversations/$targetCounterpartyId/read',
+      );
+
+      final ids = ((response['messageIds'] as List<dynamic>?) ?? const [])
           .map((item) => item.toString())
           .where((item) => item.isNotEmpty)
-          .toList(),
-    );
+          .toList();
+
+      return MessageReadResult(updatedCount: ids.length, messageIds: ids);
+    }
   }
 
   Future<int> fetchUnreadCount() async {
-    final response = await _apiClient.getObject('/api/messages/unread-count');
-    return (response['unreadCount'] as num?)?.toInt() ?? 0;
+    try {
+      final response = await _apiClient.getObject('/api/messages/unread-count');
+      return (response['unreadCount'] as num?)?.toInt() ?? 0;
+    } catch (_) {
+      final conversations = await _fetchConversationList();
+      int total = 0;
+      for (final conversation in conversations) {
+        total += (conversation['unread_count'] as num?)?.toInt() ?? 0;
+      }
+      return total;
+    }
   }
 
   Future<List<ChatRoom>> fetchGroups() async {
-    final items = await _apiClient.getList('/api/messages/rooms');
+    final items = await _getItems('/api/messages/rooms');
     return items
-        .map((e) => ChatRoom.fromJson(Map<String, dynamic>.from(e)))
+        .map((item) => ChatRoom.fromJson(Map<String, dynamic>.from(item)))
         .toList();
   }
 
   Future<List<ChatMessage>> fetchRoomThread(String roomId) async {
-    final response = await _apiClient.getObject('/api/messages/rooms/$roomId/thread');
-    return _parseItems(response['items']);
+    try {
+      final response = await _apiClient.getObject(
+        '/api/messages/rooms/$roomId/thread',
+      );
+      return _parseItems(response['items']);
+    } catch (_) {
+      final response = await _apiClient.getObject(
+        '/api/messages/rooms/$roomId/messages',
+      );
+      return _parseItems(response['items']);
+    }
   }
 
   Future<ChatMessage> sendRoomMessage(String roomId, String messageBody) async {
-    final response = await _apiClient.postJson(
-      '/api/messages/rooms/$roomId/send',
-      body: {'messageBody': messageBody},
-    );
-    return ChatMessage.fromJson(response);
+    try {
+      final response = await _apiClient.postJson(
+        '/api/messages/rooms/$roomId/send',
+        body: {'messageBody': messageBody},
+      );
+      return ChatMessage.fromJson(response);
+    } catch (_) {
+      final response = await _apiClient.postJson(
+        '/api/messages/rooms/$roomId/messages',
+        body: {'messageBody': messageBody},
+      );
+      return ChatMessage.fromJson(response);
+    }
   }
 
   Future<void> markRoomThreadRead(String roomId) async {
@@ -119,5 +217,41 @@ class MessageService {
     }
 
     return parsedItems.where((item) => item.messageId.isNotEmpty).toList();
+  }
+
+  String _lastConversationCounterpartyId = '';
+
+  Future<List<Map<String, dynamic>>> _fetchConversationList() async {
+    final response = await _apiClient.getObject('/api/messages/conversations');
+    final items = response['items'] as List<dynamic>? ?? const [];
+
+    return items
+        .where((item) => item is Map)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Map<String, dynamic> _pickPreferredConversation(
+    List<Map<String, dynamic>> items,
+  ) {
+    final adminConversation = items.firstWhere(
+      (item) =>
+          (item['role']?.toString().toLowerCase() ?? '').contains('admin'),
+      orElse: () => items.first,
+    );
+
+    _lastConversationCounterpartyId =
+        adminConversation['counterparty_id']?.toString().trim() ?? '';
+    return adminConversation;
+  }
+
+  Future<List<dynamic>> _getItems(String path) async {
+    try {
+      return await _apiClient.getList(path);
+    } catch (_) {
+      final response = await _apiClient.getObject(path);
+      final items = response['items'] as List<dynamic>?;
+      return items ?? const [];
+    }
   }
 }

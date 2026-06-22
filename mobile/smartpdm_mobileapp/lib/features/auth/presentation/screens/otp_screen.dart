@@ -185,8 +185,7 @@ class _OtpScreenState extends State<OtpScreen> {
           LengthLimitingTextInputFormatter(6),
           FilteringTextInputFormatter.digitsOnly,
         ],
-        style: const TextStyle(
-          fontSize: 22,
+        style: Theme.of(context).textTheme.displayLarge?.copyWith(
           fontWeight: FontWeight.w700,
         ),
         decoration: InputDecoration(
@@ -298,11 +297,10 @@ class _OtpScreenState extends State<OtpScreen> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        const Text(
+                        Text(
                           'Verify Your Account',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 28,
+                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -312,8 +310,7 @@ class _OtpScreenState extends State<OtpScreen> {
                               ? 'Enter the 6-digit OTP sent to your email address.'
                               : 'Enter the 6-digit OTP sent to $email',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Colors.grey.shade600,
                             height: 1.4,
                           ),
@@ -330,8 +327,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         Text(
                           'The code must be exactly 6 digits.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12.5,
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
                             color: Colors.grey.shade600,
                           ),
                         ),
@@ -360,10 +356,9 @@ class _OtpScreenState extends State<OtpScreen> {
                                       strokeWidth: 2.2,
                                     ),
                                   )
-                                : const Text(
+                                : Text(
                                     'VERIFY',
-                                    style: TextStyle(
-                                      fontSize: 15,
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                       fontWeight: FontWeight.bold,
                                       letterSpacing: 0.3,
                                     ),

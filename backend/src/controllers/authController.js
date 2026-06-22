@@ -1,4 +1,5 @@
 const authService = require('../services/authService');
+const passwordResetService = require('../services/passwordResetService');
 
 async function checkStudentId(req, res) {
     try {
@@ -48,9 +49,48 @@ async function login(req, res) {
     }
 }
 
+async function forgotPassword(req, res) {
+    try {
+        const result = await passwordResetService.forgotPassword(req.body || {}, req);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('FORGOT PASSWORD ERROR:', error.message);
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to process password reset request',
+        });
+    }
+}
+
+async function verifyResetOtp(req, res) {
+    try {
+        const result = await passwordResetService.verifyResetOtp(req.body || {}, req);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('VERIFY RESET OTP ERROR:', error.message);
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to verify reset code',
+        });
+    }
+}
+
+async function resetPassword(req, res) {
+    try {
+        const result = await passwordResetService.resetPassword(req.body || {}, req);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('RESET PASSWORD ERROR:', error.message);
+        return res.status(error.statusCode || 500).json({
+            error: error.message || 'Failed to reset password',
+        });
+    }
+}
+
 module.exports = {
     checkStudentId,
     register,
     verifyOtp,
     login,
+    forgotPassword,
+    verifyResetOtp,
+    resetPassword,
 };

@@ -24,7 +24,11 @@ import Maintenance from './pages/maintenance/Maintenance';
 import AdminMessages from './pages/AdminMessages';
 import SupportTickets from './pages/SupportTickets';
 
+// --- LANDING ---
+import SmartPDMLanding from './pages/SmartPDMLanding';
+
 // --- SDO PAGES ---
+
 import SDOLogin from './pages/SDOLogin';
 import SDODashboard from './pages/SDODashboard';
 import SDOScholarList from './pages/SDOScholarList';
@@ -49,9 +53,14 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/" element={<Navigate to="/landing" replace />} />
+
+        {/* Public Landing Page */}
+        <Route path="/landing" element={<SmartPDMLanding />} />
 
         {/* Public Routes */}
+
+
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/forgot-password" element={<ForgotPassword />} />
         <Route path="/sdo/login" element={<SDOLogin />} />

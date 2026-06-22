@@ -30,7 +30,7 @@ class AboutPdmScreen extends StatelessWidget {
     ];
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('About PDM/OSFA')),
+      appBar: AppBar(title: Text('About PDM/OSFA')),
       selectedIndex: 0,
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
@@ -46,10 +46,10 @@ class AboutPdmScreen extends StatelessWidget {
                 children: [
                   Text(
                     section.title,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
+                      fontWeight: FontWeight.w800
+),
                   ),
                   const SizedBox(height: 8),
                   Text(

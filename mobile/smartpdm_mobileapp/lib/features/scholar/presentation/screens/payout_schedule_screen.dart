@@ -118,7 +118,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Payout Schedule'),
+        title: Text('Payout Schedule'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : textColor,
         elevation: 0,
@@ -164,11 +164,11 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
               const SizedBox(height: 20),
               Text(
                 'Payment Schedule',
-                style: TextStyle(
-                  fontSize: 18,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                   fontWeight: FontWeight.bold,
-                  color: titleColor,
-                ),
+                  color: titleColor
+),
               ),
               const SizedBox(height: 12),
 
@@ -197,12 +197,14 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                         Text(
                           _error!,
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: subtitleColor),
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton(
                           onPressed: _loadPayouts,
-                          child: const Text('Retry'),
+                          child: Text('Retry'),
                         ),
                       ],
                     ),
@@ -258,29 +260,28 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                     children: [
                                       Text(
                                         payout.title,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: titleColor,
-                                        ),
+                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+fontWeight: FontWeight.bold,
+                                          color: titleColor
+),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         payout.programName,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: subtitleColor,
-                                        ),
+                                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                                          color: subtitleColor
+),
                                       ),
                                       if ((payout.benefactorName ?? '')
                                           .isNotEmpty) ...[
                                         const SizedBox(height: 2),
                                         Text(
                                           payout.benefactorName!,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: subtitleColor,
-                                          ),
+                                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                                            color: subtitleColor
+),
                                         ),
                                       ],
                                     ],
@@ -291,11 +292,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                   children: [
                                     Text(
                                       _formatAmount(payout.amount),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: titleColor,
-                                      ),
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+fontWeight: FontWeight.bold,
+                                        color: titleColor
+),
                                     ),
                                     const SizedBox(height: 4),
                                     Container(
@@ -311,11 +311,10 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                                       ),
                                       child: Text(
                                         payout.status,
-                                        style: TextStyle(
-                                          color: _getStatusColor(payout.status),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12,
-                                        ),
+                                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: _getStatusColor(payout.status),
+                                          fontWeight: FontWeight.w600
+),
                                       ),
                                     ),
                                   ],
@@ -385,15 +384,17 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
             width: 110,
             child: Text(
               '$label:',
-              style: TextStyle(
-                fontSize: 12,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                 fontWeight: FontWeight.w600,
-                color: color,
-              ),
+                color: color
+),
             ),
           ),
           Expanded(
-            child: Text(value, style: TextStyle(fontSize: 12, color: color)),
+            child: Text(value, style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: color
+)),
           ),
         ],
       ),

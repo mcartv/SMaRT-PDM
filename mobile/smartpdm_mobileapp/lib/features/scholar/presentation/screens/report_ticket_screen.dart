@@ -101,7 +101,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
       showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Ticket Submitted'),
+          title: Text('Ticket Submitted'),
           content: Text(
             'Your support ticket has been submitted successfully.\n\n'
             'Ticket ID: ${createdTicket.ticketId}\n\n'
@@ -110,7 +110,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: Text('OK'),
             ),
           ],
         ),
@@ -173,7 +173,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Support Ticket'),
+        title: Text('Support Ticket'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -186,16 +186,16 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
           children: [
             Card(
               color: Colors.blue[50],
-              child: const Padding(
-                padding: EdgeInsets.all(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    Icon(Icons.support_agent, color: Colors.blue),
-                    SizedBox(width: 12),
+                    const Icon(Icons.support_agent, color: Colors.blue),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Submit concerns directly to OSFA. Ticket status and handling will follow the live support_tickets table.',
-                        style: TextStyle(fontSize: 12),
+                        style: Theme.of(context).textTheme.labelMedium,
                       ),
                     ),
                   ],
@@ -211,12 +211,12 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Create a Ticket',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
+                          fontWeight: FontWeight.bold
+),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
@@ -301,14 +301,16 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'My Tickets',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+ fontWeight: FontWeight.bold
+),
                 ),
                 TextButton.icon(
                   onPressed: _isLoadingTickets ? null : _loadTickets,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
+                  label: Text('Refresh'),
                 ),
               ],
             ),
@@ -327,7 +329,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Failed to load tickets',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
@@ -380,18 +382,16 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                   children: [
                                     Text(
                                       ticket.issueCategory,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+fontWeight: FontWeight.bold
+),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       ticket.ticketId,
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 12,
-                                      ),
+                                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: Colors.grey
+),
                                     ),
                                   ],
                                 ),
@@ -407,11 +407,10 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                 ),
                                 child: Text(
                                   ticket.status,
-                                  style: TextStyle(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
+                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: statusColor,
+                                    fontWeight: FontWeight.bold
+),
                                 ),
                               ),
                             ],
@@ -471,7 +470,7 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: Colors.grey.shade700),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 12)),
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
         ],
       ),
     );

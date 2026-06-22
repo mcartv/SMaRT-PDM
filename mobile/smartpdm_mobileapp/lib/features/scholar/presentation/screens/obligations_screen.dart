@@ -32,9 +32,11 @@ class _ObligationsScreenState extends State<ObligationsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'My Obligations',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+ fontWeight: FontWeight.w900
+),
           ),
           const SizedBox(height: 12),
           Container(
@@ -188,7 +190,9 @@ class ObligationCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+fontWeight: FontWeight.bold
+),
             ),
             const SizedBox(height: 4),
             if (hours.isNotEmpty) Text(hours),
@@ -202,11 +206,10 @@ class ObligationCard extends StatelessWidget {
               ),
               child: Text(
                 status,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: statusColor,
+                  fontWeight: FontWeight.bold
+),
               ),
             ),
             if (progress > 0) ...[

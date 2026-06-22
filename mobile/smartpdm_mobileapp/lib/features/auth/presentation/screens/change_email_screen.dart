@@ -79,14 +79,18 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              const Text(
+              Text(
                 'Change Email',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Enter your email and we\'ll send you a link to change your email.',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey,
+                ),
               ),
               const SizedBox(height: 32),
               if (_successMessage != null) ...[
@@ -153,10 +157,9 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
                             ),
                           ),
                         )
-                      : const Text(
+                      : Text(
                           'Send Change Email Link',
-                          style: TextStyle(
-                            fontSize: 16,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),

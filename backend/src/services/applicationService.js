@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { ensureStudentForUser } = require('./studentAccountService');
 
 const APPLICATION_DRAFT_TABLE = 'application_form_drafts';
 
@@ -65,6 +66,85 @@ function mapFamilyMember(row = {}, fallbackRelation = '') {
             row.company_name_address || row.company_name_and_address
         ),
     };
+}
+
+function parseIsoDate(value) {
+    const text = safeText(value);
+    if (!text) return null;
+
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    return parsed;
+}
+
+function calculateAgeFromDate(value) {
+    const parsed = parseIsoDate(value);
+    if (!parsed) return '';
+
+    const today = new Date();
+    let years = today.getFullYear() - parsed.getFullYear();
+    const hadBirthday =
+        today.getMonth() > parsed.getMonth() ||
+        (
+            today.getMonth() === parsed.getMonth() &&
+            today.getDate() >= parsed.getDate()
+        );
+
+    if (!hadBirthday) {
+        years -= 1;
+    }
+
+    return years >= 0 ? String(years) : '';
+}
+
+function educationRowByLevel(rows = [], level = '') {
+    const normalizedLevel = safeText(level).toLowerCase();
+
+    return (
+        rows.find(
+            (row) => safeText(row.education_level).toLowerCase() === normalizedLevel
+        ) || {}
+    );
+}
+
+function familyNativeStatusFromRows(rows = []) {
+    const father = rows.find(
+        (row) => normalizeFamilyRelation(row.relation) === 'Father'
+    );
+    const mother = rows.find(
+        (row) => normalizeFamilyRelation(row.relation) === 'Mother'
+    );
+
+    const fatherNative = father?.is_marilao_native;
+    const motherNative = mother?.is_marilao_native;
+
+    if (fatherNative === true && motherNative === true) {
+        return 'Yes, both parents';
+    }
+
+    if (fatherNative === true && motherNative !== true) {
+        return 'Yes, father only';
+    }
+
+    if (motherNative === true && fatherNative !== true) {
+        return 'Yes, mother only';
+    }
+
+    if (fatherNative === false && motherNative === false) {
+        return 'No';
+    }
+
+    return '';
+}
+
+function firstNonEmptyFamilyValue(rows = [], field) {
+    for (const row of rows) {
+        const text = safeText(row?.[field]);
+        if (text) return text;
+    }
+
+    return '';
 }
 
 async function getUser(userId) {
@@ -158,6 +238,12 @@ async function getStudentProfile(studentId) {
       province,
       zip_code,
       landline_number,
+      current_section,
+      parent_guardian_address,
+      same_address_as_applicant,
+      father_present,
+      mother_present,
+      guardian_only,
       financial_support_type,
       financial_support_other,
       has_prior_scholarship,
@@ -357,8 +443,13 @@ async function getMyFormData(userId) {
     const guardian =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Guardian') ||
         {};
-
-    const latestEducation = educationRows[0] || {};
+    const collegeEducation = educationRowByLevel(educationRows, 'College');
+    const highSchoolEducation = educationRowByLevel(educationRows, 'High School');
+    const seniorHighEducation = educationRowByLevel(
+        educationRows,
+        'Senior High School'
+    );
+    const elementaryEducation = educationRowByLevel(educationRows, 'Elementary');
 
     const firstName = firstNonEmpty(master?.first_name, student.first_name);
     const middleName = firstNonEmpty(master?.middle_name, student.middle_name);
@@ -405,7 +496,7 @@ async function getMyFormData(userId) {
             middle_name: middleName,
             last_name: lastName,
             maiden_name: safeText(profile?.maiden_name),
-            age: '',
+            age: calculateAgeFromDate(profile?.date_of_birth),
             date_of_birth: profile?.date_of_birth || '',
             sex: firstNonEmpty(student.sex_at_birth, master?.sex_at_birth),
             place_of_birth: safeText(profile?.place_of_birth),
@@ -435,24 +526,73 @@ async function getMyFormData(userId) {
 
         family: {
             parent_guardian_address:
-                draftPayload.family?.parent_guardian_address || '',
+                firstNonEmpty(
+                    draftPayload.family?.parent_guardian_address,
+                    profile?.parent_guardian_address,
+                    guardian?.address,
+                    father?.address,
+                    mother?.address
+                ),
 
             same_address_as_applicant:
-                draftPayload.family?.same_address_as_applicant === true,
+                draftPayload.family?.same_address_as_applicant === true
+                    ? true
+                    : draftPayload.family?.same_address_as_applicant === false
+                        ? false
+                        : profile?.same_address_as_applicant === true,
 
             father_present:
-                draftPayload.family?.father_present !== false, // default true
+                draftPayload.family?.father_present === false
+                    ? false
+                    : draftPayload.family?.father_present === true
+                        ? true
+                        : profile?.father_present === false
+                            ? false
+                            : profile?.father_present === true
+                                ? true
+                                : Boolean(
+                                    safeText(father?.first_name) ||
+                                    safeText(father?.last_name)
+                                ),
 
             mother_present:
-                draftPayload.family?.mother_present !== false, // default true
+                draftPayload.family?.mother_present === false
+                    ? false
+                    : draftPayload.family?.mother_present === true
+                        ? true
+                        : profile?.mother_present === false
+                            ? false
+                            : profile?.mother_present === true
+                                ? true
+                                : Boolean(
+                                    safeText(mother?.first_name) ||
+                                    safeText(mother?.last_name)
+                                ),
 
             guardian_only:
-                draftPayload.family?.guardian_only === true,
+                draftPayload.family?.guardian_only === true
+                    ? true
+                    : draftPayload.family?.guardian_only === false
+                        ? false
+                        : profile?.guardian_only === true,
 
             father: mapFamilyMember(father, 'Father'),
             mother: mapFamilyMember(mother, 'Mother'),
             sibling: mapFamilyMember(sibling, 'Sibling'),
             guardian: mapFamilyMember(guardian, 'Guardian'),
+
+            parent_native_status: firstNonEmpty(
+                draftPayload.family?.parent_native_status,
+                familyNativeStatusFromRows(familyRows)
+            ),
+            parent_marilao_residency_duration: firstNonEmpty(
+                draftPayload.family?.parent_marilao_residency_duration,
+                firstNonEmptyFamilyValue(familyRows, 'years_as_resident')
+            ),
+            parent_previous_town_province: firstNonEmpty(
+                draftPayload.family?.parent_previous_town_province,
+                firstNonEmptyFamilyValue(familyRows, 'origin_province')
+            ),
         },
         academic: {
             current_course: safeText(course?.course_code),
@@ -469,33 +609,33 @@ async function getMyFormData(userId) {
                 student.gwa === null || student.gwa === undefined
                     ? ''
                     : String(student.gwa),
-            college_school: safeText(latestEducation.college_school),
-            college_address: safeText(latestEducation.college_address),
-            college_honors: safeText(latestEducation.college_honors),
-            college_club: safeText(latestEducation.college_club),
-            college_year_graduated: safeText(latestEducation.college_year_graduated),
-            high_school_school: safeText(latestEducation.high_school_school),
-            high_school_address: safeText(latestEducation.high_school_address),
-            high_school_honors: safeText(latestEducation.high_school_honors),
-            high_school_club: safeText(latestEducation.high_school_club),
+            college_school: safeText(collegeEducation.school_name),
+            college_address: safeText(collegeEducation.school_address),
+            college_honors: safeText(collegeEducation.honors_awards),
+            college_club: safeText(collegeEducation.club_organization),
+            college_year_graduated: safeText(collegeEducation.year_graduated),
+            high_school_school: safeText(highSchoolEducation.school_name),
+            high_school_address: safeText(highSchoolEducation.school_address),
+            high_school_honors: safeText(highSchoolEducation.honors_awards),
+            high_school_club: safeText(highSchoolEducation.club_organization),
             high_school_year_graduated: safeText(
-                latestEducation.high_school_year_graduated
+                highSchoolEducation.year_graduated
             ),
-            senior_high_school: safeText(latestEducation.senior_high_school),
-            senior_high_address: safeText(latestEducation.senior_high_address),
-            senior_high_honors: safeText(latestEducation.senior_high_honors),
-            senior_high_club: safeText(latestEducation.senior_high_club),
+            senior_high_school: safeText(seniorHighEducation.school_name),
+            senior_high_address: safeText(seniorHighEducation.school_address),
+            senior_high_honors: safeText(seniorHighEducation.honors_awards),
+            senior_high_club: safeText(seniorHighEducation.club_organization),
             senior_high_year_graduated: safeText(
-                latestEducation.senior_high_year_graduated
+                seniorHighEducation.year_graduated
             ),
-            elementary_school: safeText(latestEducation.elementary_school),
-            elementary_address: safeText(latestEducation.elementary_address),
-            elementary_honors: safeText(latestEducation.elementary_honors),
-            elementary_club: safeText(latestEducation.elementary_club),
+            elementary_school: safeText(elementaryEducation.school_name),
+            elementary_address: safeText(elementaryEducation.school_address),
+            elementary_honors: safeText(elementaryEducation.honors_awards),
+            elementary_club: safeText(elementaryEducation.club_organization),
             elementary_year_graduated: safeText(
-                latestEducation.elementary_year_graduated
+                elementaryEducation.year_graduated
             ),
-            current_section: safeText(latestEducation.current_section),
+            current_section: safeText(profile?.current_section),
         },
 
         support: {
@@ -558,6 +698,22 @@ async function getMyFormData(userId) {
         family: {
             ...basePayload.family,
             ...(draftPayload.family || {}),
+            father: {
+                ...(basePayload.family?.father || {}),
+                ...(draftPayload.family?.father || {}),
+            },
+            mother: {
+                ...(basePayload.family?.mother || {}),
+                ...(draftPayload.family?.mother || {}),
+            },
+            sibling: {
+                ...(basePayload.family?.sibling || {}),
+                ...(draftPayload.family?.sibling || {}),
+            },
+            guardian: {
+                ...(basePayload.family?.guardian || {}),
+                ...(draftPayload.family?.guardian || {}),
+            },
         },
         academic: {
             ...basePayload.academic,
@@ -1033,7 +1189,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
         throw createHttpError(401, 'Authentication required.');
     }
 
-    const student = await getStudent(userId);
+    const student = await ensureStudentForUser(userId);
 
     if (!student?.student_id) {
         throw createHttpError(400, 'Student profile is required.');

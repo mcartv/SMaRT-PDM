@@ -140,8 +140,8 @@ class _ScholarRenewalRequirementsScreenState
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Renewal Submitted'),
-          content: const Text(
+          title: Text('Renewal Submitted'),
+          content: Text(
             'Your renewal requirements have been submitted for admin review.',
           ),
           actions: [
@@ -150,7 +150,7 @@ class _ScholarRenewalRequirementsScreenState
                 Navigator.pop(context);
                 AppNavigator.goToTopLevel(context, AppRoutes.payouts);
               },
-              child: const Text('OK'),
+              child: Text('OK'),
             ),
           ],
         ),
@@ -261,7 +261,7 @@ class _ScholarRenewalRequirementsScreenState
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Renewal Documents'),
+        title: Text('Renewal Documents'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
         elevation: 0,
@@ -298,16 +298,18 @@ class _ScholarRenewalRequirementsScreenState
               const SizedBox(height: 20),
               Text(
                 'Required Documents',
-                style: TextStyle(
-                  fontSize: 16,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
                   fontWeight: FontWeight.bold,
-                  color: titleColor,
-                ),
+                  color: titleColor
+),
               ),
               const SizedBox(height: 8),
               Text(
                 'Upload your Certificate of Registration and latest Grade Form / Transcript. Allowed files: PDF, JPG, and PNG.',
-                style: TextStyle(fontSize: 12, color: subtitleColor),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
               ),
               const SizedBox(height: 14),
               ...documents.map(
@@ -416,20 +418,20 @@ class _ScholarRenewalRequirementsScreenState
                   children: [
                     Text(
                       'Renewal Progress',
-                      style: TextStyle(
-                        fontSize: 17,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                         fontWeight: FontWeight.bold,
-                        color: titleColor,
-                      ),
+                        color: titleColor
+),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _renewalSummary(package),
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         color: subtitleColor,
-                        height: 1.4,
-                      ),
+                        height: 1.4
+),
                     ),
                   ],
                 ),
@@ -437,11 +439,11 @@ class _ScholarRenewalRequirementsScreenState
               const SizedBox(width: 12),
               Text(
                 '${package.documents.where((doc) => doc.hasFile).length}/${package.documents.length}',
-                style: TextStyle(
-                  fontSize: 22,
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+
                   fontWeight: FontWeight.w900,
-                  color: accentColor,
-                ),
+                  color: accentColor
+),
               ),
             ],
           ),
@@ -531,49 +533,50 @@ class _ScholarRenewalRequirementsScreenState
               children: [
                 Text(
                   document.documentType,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: titleColor,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+fontWeight: FontWeight.bold,
+                    color: titleColor
+),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   document.documentType == 'Certificate of Registration'
                       ? 'Official COR from the registrar for the current term.'
                       : 'Latest semester grades or transcript for renewal validation.',
-                  style: TextStyle(fontSize: 12, color: subtitleColor),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
                 ),
                 if (document.hasFile || document.submittedAt != null) ...[
                   const SizedBox(height: 6),
                   if (document.hasFile)
                     Text(
                       'Submitted file available',
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         color: isDark ? Colors.white60 : Colors.grey.shade700,
-                        fontWeight: FontWeight.w600,
-                      ),
+                        fontWeight: FontWeight.w600
+),
                     ),
                   if (document.submittedAt != null)
                     Text(
                       document.submittedAt!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white54 : Colors.black45,
-                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
+                        color: isDark ? Colors.white54 : Colors.black45
+),
                     ),
                   if (document.adminComment.trim().isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
                       document.adminComment,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                         height: 1.35,
                         color: isDark
                             ? Colors.orange.shade200
-                            : Colors.orange.shade900,
-                      ),
+                            : Colors.orange.shade900
+),
                     ),
                   ],
                 ],
@@ -622,7 +625,7 @@ class _ScholarRenewalRequirementsScreenState
                         TextButton.icon(
                           onPressed: () => _openFile(document),
                           icon: const Icon(Icons.visibility_outlined, size: 16),
-                          label: const Text('View file'),
+                          label: Text('View file'),
                           style: TextButton.styleFrom(
                             foregroundColor: isDark
                                 ? accentColor
@@ -644,11 +647,10 @@ class _ScholarRenewalRequirementsScreenState
             ),
             child: Text(
               _statusLabel(document),
-              style: TextStyle(
-                color: statusColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-              ),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: statusColor,
+                fontWeight: FontWeight.w700
+),
             ),
           ),
         ],
@@ -679,11 +681,11 @@ class _InfoChip extends StatelessWidget {
           Flexible(
             child: Text(
               label,
-              style: const TextStyle(
-                fontSize: 11,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
                 fontWeight: FontWeight.w600,
-                color: AppColors.darkBrown,
-              ),
+                color: AppColors.darkBrown
+),
             ),
           ),
         ],
@@ -710,7 +712,7 @@ class _RenewalErrorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Unable to load renewal package',
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
@@ -720,7 +722,7 @@ class _RenewalErrorCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
+            label: Text('Retry'),
           ),
         ],
       ),
@@ -739,7 +741,7 @@ class _RenewalEmptyState extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Text(
+      child: Text(
         'No active renewal package is available for your scholar account yet.',
       ),
     );

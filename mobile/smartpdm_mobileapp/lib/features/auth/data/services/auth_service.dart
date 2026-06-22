@@ -153,6 +153,49 @@ class AuthService {
         .toList();
   }
 
+  Future<void> setupProfile({
+    required String firstName,
+    required String middleName,
+    required String lastName,
+    required String courseCode,
+    required int yearLevel,
+    required String barangay,
+    required String phoneNumber,
+  }) async {
+    final response = await _apiClient.postJson(
+      '/api/profile/setup',
+      body: {
+        'first_name': firstName.trim(),
+        'middle_name': middleName.trim().isEmpty ? null : middleName.trim(),
+        'last_name': lastName.trim(),
+        'course_code': courseCode.trim(),
+        'year_level': yearLevel,
+        'phone_number': phoneNumber.trim(),
+        if (barangay.trim().isNotEmpty) 'barangay': barangay.trim(),
+      },
+    );
+
+    final profile = response['profile'];
+    if (profile is Map<String, dynamic>) {
+      await _sessionService.saveProfileCache(
+        firstName: profile['first_name']?.toString() ?? firstName,
+        lastName: profile['last_name']?.toString() ?? lastName,
+        phone: profile['phone_number']?.toString() ?? phoneNumber,
+        course: profile['course_name']?.toString() ??
+            profile['course_code']?.toString(),
+        address: profile['barangay']?.toString() ?? barangay,
+      );
+      return;
+    }
+
+    await _sessionService.saveProfileCache(
+      firstName: firstName,
+      lastName: lastName,
+      phone: phoneNumber,
+      address: barangay,
+    );
+  }
+
   Future<AuthResult> _saveAndBuildAuthResult(
     Map<String, dynamic> response,
   ) async {

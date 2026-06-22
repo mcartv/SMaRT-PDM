@@ -87,7 +87,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text('Notifications'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : textColor,
         elevation: 0,
@@ -274,7 +274,9 @@ class _NotificationTile extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               _formatTimestamp(notification.createdAt),
-              style: TextStyle(fontSize: 11, color: subtitleColor),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
             ),
           ],
         ),
@@ -345,15 +347,17 @@ class _NotificationDetailSheet extends StatelessWidget {
                       children: [
                         Text(
                           notification.title,
-                          style: TextStyle(
-                            fontSize: 18,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                             fontWeight: FontWeight.bold,
-                            color: titleColor,
-                          ),
+                            color: titleColor
+),
                         ),
                         Text(
                           _formatTimestamp(notification.createdAt),
-                          style: TextStyle(color: subtitleColor, fontSize: 12),
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: subtitleColor
+),
                         ),
                       ],
                     ),
@@ -363,7 +367,9 @@ class _NotificationDetailSheet extends StatelessWidget {
               const SizedBox(height: 20),
               Text(
                 notification.message,
-                style: TextStyle(fontSize: 14, height: 1.6, color: titleColor),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ height: 1.6, color: titleColor
+),
               ),
               if ((notification.referenceType ?? '').isNotEmpty ||
                   (notification.referenceId ?? '').isNotEmpty) ...[
@@ -371,7 +377,9 @@ class _NotificationDetailSheet extends StatelessWidget {
                 Text(
                   'Reference: ${notification.referenceType ?? 'notification'} ${notification.referenceId ?? ''}'
                       .trim(),
-                  style: TextStyle(fontSize: 12, color: subtitleColor),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+ color: subtitleColor
+),
                 ),
               ],
               const SizedBox(height: 20),
@@ -379,7 +387,7 @@ class _NotificationDetailSheet extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
+                  child: Text('Close'),
                 ),
               ),
             ],
@@ -412,11 +420,11 @@ class _NotificationsEmptyState extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 18,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                 color: isDark ? Colors.white70 : Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
+                fontWeight: FontWeight.w500
+),
             ),
           ],
         ),
@@ -456,7 +464,7 @@ class _NotificationsErrorState extends StatelessWidget {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: onRetry,
-                child: const Text('Try again'),
+                child: Text('Try again'),
               ),
             ],
           ),

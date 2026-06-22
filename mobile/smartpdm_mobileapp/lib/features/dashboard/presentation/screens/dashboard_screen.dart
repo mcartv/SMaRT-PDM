@@ -23,7 +23,7 @@ class DashboardScreen extends StatelessWidget {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'SMaRT-PDM',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
@@ -254,11 +254,10 @@ class _DashboardContentState extends State<DashboardContent> {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
-                color: _primaryText,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+color: _primaryText,
+                fontWeight: FontWeight.w900
+),
             ),
           ),
           if (actionLabel != null && onTap != null)
@@ -318,20 +317,18 @@ class _DashboardContentState extends State<DashboardContent> {
                       _hasScholarAccess
                           ? 'Welcome back, Scholar'
                           : 'Welcome, Applicant',
-                      style: TextStyle(
-                        color: _primaryText,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: _primaryText,
+                        fontWeight: FontWeight.w700
+),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       _studentId,
-                      style: TextStyle(
-                        color: _primaryText,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+color: _primaryText,
+                        fontWeight: FontWeight.w900
+),
                     ),
                   ],
                 ),
@@ -345,24 +342,22 @@ class _DashboardContentState extends State<DashboardContent> {
           const SizedBox(height: 20),
           Text(
             'Scholarship Monitoring & Reporting Tool',
-            style: TextStyle(
-              color: _primaryText,
-              fontSize: 25,
+            style: Theme.of(context).textTheme.displayLarge?.copyWith(
+color: _primaryText,
               height: 1.1,
-              fontWeight: FontWeight.w900,
-            ),
+              fontWeight: FontWeight.w900
+),
           ),
           const SizedBox(height: 8),
           Text(
             _hasScholarAccess
                 ? 'Track renewals, return obligations, payouts, and updates.'
                 : 'Apply for scholarships, upload requirements, and monitor your application.',
-            style: TextStyle(
-              color: _secondaryText,
-              fontSize: 13.5,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+color: _secondaryText,
               height: 1.45,
-              fontWeight: FontWeight.w500,
-            ),
+              fontWeight: FontWeight.w500
+),
           ),
         ],
       ),
@@ -465,11 +460,10 @@ class _DashboardContentState extends State<DashboardContent> {
         ),
         child: Text(
           'No scholarship openings are available right now.',
-          style: TextStyle(
-            color: _secondaryText,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+color: _secondaryText,
+            fontWeight: FontWeight.w600
+),
         ),
       );
     }
@@ -517,11 +511,10 @@ class _DashboardContentState extends State<DashboardContent> {
               openingTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: _primaryText,
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+color: _primaryText,
+                fontWeight: FontWeight.w900
+),
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -529,7 +522,9 @@ class _DashboardContentState extends State<DashboardContent> {
                 programName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: _secondaryText, fontSize: 12),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: _secondaryText
+),
               ),
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
@@ -701,11 +696,10 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          color: isDark ? Colors.white : textColor,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: isDark ? Colors.white : textColor,
+          fontWeight: FontWeight.w900
+),
       ),
     );
   }
@@ -771,22 +765,20 @@ class _QuickActionCard extends StatelessWidget {
                       action.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: title,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+color: title,
+                        fontWeight: FontWeight.w900
+),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       action.subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: subtitle,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: subtitle,
+                        fontWeight: FontWeight.w500
+),
                     ),
                   ],
                 ),
@@ -850,23 +842,21 @@ class _OfficeUpdateCard extends StatelessWidget {
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: titleColor,
-                  fontSize: 18,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+color: titleColor,
                   height: 1.2,
-                  fontWeight: FontWeight.w900,
-                ),
+                  fontWeight: FontWeight.w900
+),
               ),
               const SizedBox(height: 8),
               Text(
                 preview,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: bodyColor,
-                  fontSize: 13.5,
-                  height: 1.45,
-                ),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+color: bodyColor,
+                  height: 1.45
+),
               ),
               const SizedBox(height: 16),
               Row(
@@ -882,7 +872,7 @@ class _OfficeUpdateCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(15),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Read update',
                         style: TextStyle(fontWeight: FontWeight.w900),
                       ),
@@ -905,7 +895,7 @@ class _OfficeUpdateCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(15),
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Apply',
                           style: TextStyle(fontWeight: FontWeight.w900),
                         ),
@@ -950,11 +940,10 @@ class _ChipLabel extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          color: isDark ? Colors.white : textColor,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: isDark ? Colors.white : textColor,
+          fontWeight: FontWeight.w800
+),
       ),
     );
   }
@@ -1030,20 +1019,18 @@ class _MenuAction {
       ),
       title: Text(
         title,
-        style: TextStyle(
-          color: isDark ? Colors.white : textColor,
-          fontWeight: FontWeight.w900,
-          fontSize: 14,
-        ),
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+color: isDark ? Colors.white : textColor,
+          fontWeight: FontWeight.w900
+),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(
           subtitle,
-          style: TextStyle(
-            color: isDark ? Colors.white60 : Colors.black54,
-            fontSize: 12,
-          ),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: isDark ? Colors.white60 : Colors.black54
+),
         ),
       ),
       trailing: Icon(

@@ -90,6 +90,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     }).toList();
 
     filtered.sort((a, b) {
+      if (a.isSubmitted != b.isSubmitted) {
+        return a.isSubmitted ? 1 : -1;
+      }
+
       final orderA = _documentOrder(a.documentType);
       final orderB = _documentOrder(b.documentType);
       return orderA.compareTo(orderB);
@@ -246,7 +250,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: const Text('Scholarship Documents'),
+        title: Text('Scholarship Documents'),
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
       ),
@@ -305,11 +309,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
             else if (package != null) ...[
               Text(
                 'Required Documents',
-                style: TextStyle(
-                  fontSize: 18,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
                   fontWeight: FontWeight.w900,
-                  color: titleColor,
-                ),
+                  color: titleColor
+),
               ),
               const SizedBox(height: 6),
               Text(
@@ -396,25 +400,27 @@ class _HeaderCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
-              fontSize: 20,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+
               fontWeight: FontWeight.w900,
-              color: titleColor,
-            ),
+              color: titleColor
+),
           ),
           const SizedBox(height: 6),
           Text(
             programName,
-            style: TextStyle(
-              fontSize: 14,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+
               fontWeight: FontWeight.w800,
-              color: accentColor,
-            ),
+              color: accentColor
+),
           ),
           const SizedBox(height: 12),
           Text(
             description,
-            style: TextStyle(fontSize: 14, height: 1.45, color: subtitleColor),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ height: 1.45, color: subtitleColor
+),
           ),
           if (package != null) ...[
             const SizedBox(height: 16),
@@ -463,7 +469,7 @@ class _ActionPanel extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: onBackToApplication,
             icon: const Icon(Icons.edit_document),
-            label: const Text('Back to Application Form'),
+            label: Text('Back to Application Form'),
           ),
         ),
         const SizedBox(width: 10),
@@ -471,7 +477,7 @@ class _ActionPanel extends StatelessWidget {
           child: ElevatedButton.icon(
             onPressed: onBackToDashboard,
             icon: const Icon(Icons.dashboard_outlined),
-            label: const Text('Back to Dashboard'),
+            label: Text('Back to Dashboard'),
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryColor,
               foregroundColor: Colors.white,
@@ -551,7 +557,9 @@ class _SimpleCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+ fontWeight: FontWeight.w900
+),
           ),
           const SizedBox(height: 8),
           Text(message, style: const TextStyle(height: 1.45)),
@@ -621,11 +629,11 @@ class _DocumentCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   document.documentType,
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+
                     fontWeight: FontWeight.w900,
-                    color: titleColor,
-                  ),
+                    color: titleColor
+),
                 ),
               ),
               _StatusPill(label: statusLabel, color: statusColor),
@@ -671,7 +679,7 @@ class _DocumentCard extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: onOpen,
                   icon: const Icon(Icons.open_in_new),
-                  label: const Text('View File'),
+                  label: Text('View File'),
                 ),
             ],
           ),
@@ -710,11 +718,10 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
-        ),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+color: color,
+          fontWeight: FontWeight.w800
+),
       ),
     );
   }
@@ -744,16 +751,18 @@ class _InfoChip extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+
               fontWeight: FontWeight.w700,
-              color: accentColor,
-            ),
+              color: accentColor
+),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+ fontWeight: FontWeight.w800
+),
           ),
         ],
       ),

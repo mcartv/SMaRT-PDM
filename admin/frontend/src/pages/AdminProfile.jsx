@@ -93,7 +93,7 @@ function InfoRow({ icon: Icon, label, value }) {
 
 export default function AdminProfile() {
     const [savedProfile] = useState(() => {
-        const saved = localStorage.getItem('adminProfile');
+        const saved = sessionStorage.getItem('adminProfile');
         try {
             return saved ? JSON.parse(saved) : null;
         } catch {

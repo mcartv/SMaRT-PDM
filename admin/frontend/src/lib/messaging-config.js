@@ -15,7 +15,7 @@ export const MESSAGING_SOCKET_BASE = trimTrailingSlash(
 )
 
 export function getAdminMessagingToken() {
-  return localStorage.getItem('adminToken') || ''
+  return sessionStorage.getItem('adminToken') || ''
 }
 
 export function buildMessagingHeaders(token, { json = false } = {}) {

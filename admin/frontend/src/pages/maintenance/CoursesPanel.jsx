@@ -232,7 +232,7 @@ export default function CoursesPanel() {
     const fetchCourses = async () => {
         const res = await fetch(buildApiUrl('/api/courses'), {
             headers: {
-                Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                 'Content-Type': 'application/json',
             },
         });
@@ -343,7 +343,7 @@ export default function CoursesPanel() {
             const res = await fetch(url, {
                 method,
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(payload),
@@ -372,7 +372,7 @@ export default function CoursesPanel() {
             const res = await fetch(buildApiUrl(`/api/courses/${course.course_id}`), {
                 method: 'PATCH',
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({

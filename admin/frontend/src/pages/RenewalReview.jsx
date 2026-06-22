@@ -48,7 +48,7 @@ export default function RenewalReview() {
 
       const response = await fetch(`${API_BASE}/renewals`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
         },
       });

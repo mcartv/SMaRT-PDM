@@ -40,7 +40,7 @@ import SDOMaintenance from './pages/SDOMaintenance';
  * Prevents access to protected pages without the proper token.
  */
 const ProtectedRoute = ({ children, storageKey, redirectTo }) => {
-  const token = localStorage.getItem(storageKey);
+  const token = sessionStorage.getItem(storageKey);
 
   if (!token) {
     return <Navigate to={redirectTo} replace />;

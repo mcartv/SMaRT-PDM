@@ -50,6 +50,7 @@ export default function SmartPDMLanding() {
 
         <div className="hidden items-center gap-3 sm:flex">
           <SecondaryButton href="/admin/login">Admin Portal</SecondaryButton>
+          <SecondaryButton href="/sdo/login">SDO Portal</SecondaryButton>
         </div>
       </header>
 

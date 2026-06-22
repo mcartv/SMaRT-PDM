@@ -17,7 +17,7 @@ export const getSupabase = () => {
                 persistSession: true,
                 autoRefreshToken: true,
                 detectSessionInUrl: true,
-                storage: window.localStorage, // Standard JS storage
+                storage: window.sessionStorage, // Standard JS storage
             },
         });
     }

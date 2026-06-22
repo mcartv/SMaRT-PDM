@@ -23,7 +23,7 @@ const C = {
 };
 
 function getAuthHeaders(json = true) {
-    const token = localStorage.getItem('adminToken');
+    const token = sessionStorage.getItem('adminToken');
 
     return {
         ...(json ? { 'Content-Type': 'application/json' } : {}),

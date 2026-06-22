@@ -70,7 +70,7 @@ const STATUS_OPTIONS = [
 ];
 
 function getToken() {
-  return localStorage.getItem('sdoToken');
+  return sessionStorage.getItem('sdoToken');
 }
 
 function getInitials(name = '') {

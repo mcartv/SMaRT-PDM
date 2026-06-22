@@ -529,7 +529,7 @@ export default function OpeningApplications() {
                 setError(null);
             }
 
-            const token = localStorage.getItem('adminToken');
+            const token = sessionStorage.getItem('adminToken');
 
             const [openingRes, applicationsRes] = await Promise.all([
                 fetch(buildApiUrl(`/api/program-openings/${openingId}`), {
@@ -668,7 +668,7 @@ export default function OpeningApplications() {
             const res = await fetch(buildApiUrl(`/api/applications/${id}/disqualify`), {
                 method: 'PATCH',
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -712,7 +712,7 @@ export default function OpeningApplications() {
             const res = await fetch(buildApiUrl(`/api/applications/${id}/approve`), {
                 method: 'PATCH',
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
             });
@@ -758,7 +758,7 @@ export default function OpeningApplications() {
             const res = await fetch(buildApiUrl(`/api/applications/${remarksModal.id}/remarks`), {
                 method: 'PATCH',
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ remarks: remarksText }),

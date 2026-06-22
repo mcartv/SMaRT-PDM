@@ -100,7 +100,7 @@ const EXCEL_HEADERS_FALLBACK = [
 ];
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

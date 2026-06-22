@@ -38,8 +38,8 @@ export default function SDOLogin() {
         throw new Error(data.message || 'Login failed');
       }
 
-      localStorage.setItem('sdoToken', data.token);
-      localStorage.setItem('sdoProfile', JSON.stringify(data.user));
+      sessionStorage.setItem('sdoToken', data.token);
+      sessionStorage.setItem('sdoProfile', JSON.stringify(data.user));
       navigate('/sdo/dashboard');
     } catch (err) {
       setError(err.message || 'Unable to sign in to the SDO panel.');

@@ -370,7 +370,7 @@ export default function ROAdmin() {
   const [createLoading, setCreateLoading] = useState(false);
   const [activeROSetting, setActiveROSetting] = useState(null);
 
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
 
   const initials = (name = '') =>
     name

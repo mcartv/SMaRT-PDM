@@ -699,7 +699,7 @@ export default function AnnouncementsManagement() {
     try {
       setLoading(true);
 
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
 
       const [activeRes, archivedRes] = await Promise.all([
         fetch(buildApiUrl('/api/announcements'), {
@@ -907,7 +907,7 @@ export default function AnnouncementsManagement() {
   };
 
   const saveAnnouncementRequest = async ({ forceDraft = false }) => {
-    const token = localStorage.getItem('adminToken');
+    const token = sessionStorage.getItem('adminToken');
     const isEditing = !!editingAnnouncementId;
 
     const url = isEditing
@@ -1004,7 +1004,7 @@ export default function AnnouncementsManagement() {
     try {
       setDeletingId(id);
 
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
 
       const res = await fetch(buildApiUrl(`/api/announcements/${id}/archive`), {
         method: 'PATCH',
@@ -1044,7 +1044,7 @@ export default function AnnouncementsManagement() {
     try {
       setRestoringId(id);
 
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
 
       const res = await fetch(buildApiUrl(`/api/announcements/${id}`), {
         method: 'PATCH',
@@ -1090,7 +1090,7 @@ export default function AnnouncementsManagement() {
     try {
       setPublishingId(id);
 
-      const token = localStorage.getItem('adminToken');
+      const token = sessionStorage.getItem('adminToken');
 
       const res = await fetch(buildApiUrl(`/api/announcements/${id}/publish`), {
         method: 'PATCH',

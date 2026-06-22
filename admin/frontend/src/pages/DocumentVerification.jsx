@@ -1330,7 +1330,7 @@ export default function DocumentVerification() {
 
         const res = await fetch(`${API_BASE}/api/applications/${id}/documents`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
           },
         });
@@ -1528,7 +1528,7 @@ export default function DocumentVerification() {
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
           },
         }
@@ -1577,7 +1577,7 @@ export default function DocumentVerification() {
         {
           method: 'POST', // FIXED
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+            Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -1631,7 +1631,7 @@ export default function DocumentVerification() {
       const res = await fetch(`${API_BASE}/api/applications/${id}/verify`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),

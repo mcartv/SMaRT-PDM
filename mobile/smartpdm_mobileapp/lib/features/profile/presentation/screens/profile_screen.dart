@@ -718,15 +718,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Text(
-        label.toUpperCase(),
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-          letterSpacing: 1.2,
-          color: isDark ? Colors.white60 : Colors.black54,
-          fontWeight: FontWeight.w700
-),
+        label,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : AppColors.darkBrown,
+        ),
       ),
     );
   }
@@ -997,26 +995,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     VoidCallback? onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : textColor;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
-    final iconAccent = isDark ? const Color(0xFFFFD54F) : textColor;
+    final iconAccent = isDark ? const Color(0xFFFFD54F) : primaryColor;
+    final tileColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final borderColor = isDark ? Colors.white12 : AppColors.lightGray;
+    final trailingColor = isDark ? Colors.white70 : AppColors.brown;
+    final iconBackgroundColor = isDark
+        ? const Color(0xFF4A2F1C)
+        : AppColors.gold.withOpacity(0.12);
 
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: AppColors.gold.withOpacity(0.16)),
-        ),
+        color: tileColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
       ),
+      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
           width: 42,
           height: 42,
           decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF3A2718)
-                : AppColors.gold.withOpacity(0.12),
+            color: iconBackgroundColor,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(icon, color: iconAccent),
@@ -1024,7 +1027,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: Text(
           title,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             color: titleColor
 ),
         ),
@@ -1035,13 +1038,14 @@ fontWeight: FontWeight.w700,
                 child: Text(
                   subtitle,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: subtitleColor
-),
+                    color: subtitleColor,
+                    height: 1.35,
+                  ),
                 ),
               ),
         trailing: Icon(
           Icons.chevron_right,
-          color: isDark ? Colors.white54 : Colors.black45,
+          color: trailingColor,
         ),
       ),
     );

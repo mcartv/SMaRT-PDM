@@ -5,6 +5,7 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 
 class SmartPdmBottomNav extends StatelessWidget {
   static const Color _selectedIconColor = Color(0xFFF6B60C);
+  static const Color _lightInactiveColor = Color(0xFF5F5A52);
 
   final int selectedIndex;
   final int unreadNotifications;
@@ -41,11 +42,12 @@ class SmartPdmBottomNav extends StatelessWidget {
     final navTheme = theme.bottomNavigationBarTheme;
     final backgroundColor =
         navTheme.backgroundColor ?? theme.colorScheme.surface;
-    final selectedLabelColor =
-        isDark ? Colors.white : theme.colorScheme.onSurface;
+    final selectedLabelColor = isDark
+        ? Colors.white
+        : theme.colorScheme.onSurface;
     final unselectedItemColor =
         navTheme.unselectedItemColor ??
-        (isDark ? Colors.white70 : const Color(0xFFA8A39B));
+        (isDark ? Colors.white70 : _lightInactiveColor);
 
     return Theme(
       data: theme.copyWith(
@@ -58,21 +60,22 @@ class SmartPdmBottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         currentIndex: safeIndex,
         enableFeedback: false,
+        elevation: 0,
         backgroundColor: backgroundColor,
         selectedItemColor: selectedLabelColor,
         unselectedItemColor: unselectedItemColor,
         showSelectedLabels: true,
         showUnselectedLabels: true,
         selectedLabelStyle: TextStyle(
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w900,
           color: selectedLabelColor,
-          fontSize: 12,
+          fontSize: 11,
           height: 1,
         ),
         unselectedLabelStyle: TextStyle(
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w800,
           color: unselectedItemColor,
-          fontSize: 12,
+          fontSize: 11,
           height: 1,
         ),
         onTap: (index) {
@@ -110,19 +113,19 @@ class SmartPdmBottomNav extends StatelessWidget {
     required bool showBadge,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final unselectedItemColor = isDark ? Colors.white70 : const Color(0xFFA8A39B);
+    final unselectedItemColor = isDark ? Colors.white70 : _lightInactiveColor;
     final selectedIconBackground = isDark
-        ? AppColors.gold.withOpacity(0.16)
-        : const Color(0xFFF1EFEB);
+        ? AppColors.gold.withOpacity(0.20)
+        : AppColors.gold.withOpacity(0.18);
     final iconWidget = Icon(
       icon,
       color: isSelected ? _selectedIconColor : unselectedItemColor,
-      size: 24,
+      size: 22,
     );
 
     final content = isSelected
         ? Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
             decoration: BoxDecoration(
               color: selectedIconBackground,
               borderRadius: const BorderRadius.all(Radius.circular(999)),
@@ -134,13 +137,7 @@ class SmartPdmBottomNav extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        SizedBox(
-          width: 56,
-          height: 38,
-          child: Center(
-            child: content,
-          ),
-        ),
+        SizedBox(width: 56, height: 34, child: Center(child: content)),
         if (showBadge)
           Positioned(
             right: isSelected ? 12 : -4,

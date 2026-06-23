@@ -25,19 +25,72 @@ class AppNotification {
     required this.createdAt,
   });
 
+  static String _pickString(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value == null) {
+        continue;
+      }
+      final text = value.toString();
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+    return '';
+  }
+
+  static String? _pickNullableString(
+    Map<String, dynamic> json,
+    List<String> keys,
+  ) {
+    final value = _pickString(json, keys);
+    return value.isEmpty ? null : value;
+  }
+
+  static bool _pickBool(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is bool) {
+        return value;
+      }
+      if (value is num) {
+        return value != 0;
+      }
+      if (value is String) {
+        final normalized = value.trim().toLowerCase();
+        if (normalized == 'true' || normalized == '1') {
+          return true;
+        }
+        if (normalized == 'false' || normalized == '0') {
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
   factory AppNotification.fromJson(Map<String, dynamic> json) {
     return AppNotification(
-      notificationId: json['notificationId']?.toString() ?? '',
-      userId: json['userId']?.toString() ?? '',
-      type: json['type']?.toString() ?? 'Notification',
-      title: json['title']?.toString() ?? 'Notification',
-      message: json['message']?.toString() ?? '',
-      referenceId: json['referenceId']?.toString(),
-      referenceType: json['referenceType']?.toString(),
-      isRead: json['isRead'] == true,
-      pushSent: json['pushSent'] == true,
+      notificationId: _pickString(json, ['notificationId', 'notification_id']),
+      userId: _pickString(json, ['userId', 'user_id']),
+      type: _pickString(json, ['type']).isEmpty
+          ? 'Notification'
+          : _pickString(json, ['type']),
+      title: _pickString(json, ['title']).isEmpty
+          ? 'Notification'
+          : _pickString(json, ['title']),
+      message: _pickString(json, ['message']),
+      referenceId: _pickNullableString(json, ['referenceId', 'reference_id']),
+      referenceType: _pickNullableString(json, [
+        'referenceType',
+        'reference_type',
+      ]),
+      isRead: _pickBool(json, ['isRead', 'is_read']),
+      pushSent: _pickBool(json, ['pushSent', 'push_sent']),
       createdAt:
-          DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.tryParse(
+            _pickString(json, ['createdAt', 'created_at']),
+          ) ??
           DateTime.now(),
     );
   }
@@ -103,6 +156,13 @@ class AppNotification {
     final normalizedReference = (referenceType ?? '').toLowerCase();
     return normalizedReference == 'program_opening' ||
         normalizedType == 'opening';
+  }
+
+  bool get isAnnouncementNotification {
+    final normalizedType = type.toLowerCase();
+    final normalizedReference = (referenceType ?? '').toLowerCase();
+    return normalizedReference == 'announcement' ||
+        normalizedType == 'announcement';
   }
 
   bool get isPayoutNotification {

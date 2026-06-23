@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 const API_BASE = buildApiUrl('/api');const PAGE_SIZE = 10;
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -367,6 +368,18 @@ export default function SDOScholarList() {
 
   useEffect(() => {
     loadScholars();
+  }, []);
+
+  useSocketEvent('scholar:updated', () => {
+    loadScholars({ soft: true });
+  }, []);
+
+  useSocketEvent('scholar:created', () => {
+    loadScholars({ soft: true });
+  }, []);
+
+  useSocketEvent('renewal:approved', () => {
+    loadScholars({ soft: true });
   }, []);
 
   const programOptions = useMemo(() => {

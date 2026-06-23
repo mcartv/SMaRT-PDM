@@ -99,6 +99,25 @@ exports.updateScholarStatus = async (req, res) => {
             next_status: nextStatus,
         });
 
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('payout:updated', {
+                payout_batch_id: updated.payout_batch_id,
+                payout_entry_id: updated.payout_entry_id,
+                release_status: updated.release_status,
+                updated_at: updated.updated_at || new Date().toISOString(),
+            });
+
+            if (String(updated.release_status || '').toLowerCase() === 'released') {
+                io.emit('scholar:released', {
+                    payout_batch_id: updated.payout_batch_id,
+                    payout_entry_id: updated.payout_entry_id,
+                    student_id: updated.student_id,
+                    release_status: updated.release_status,
+                });
+            }
+        }
+
         return res.status(200).json({
             message: 'Payout status updated successfully',
             data: updated,

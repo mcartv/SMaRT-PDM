@@ -225,18 +225,67 @@ async function markThreadRead({ readerId, senderId }) {
 
 async function getUnreadCount(userId) {
   const supabase = getSupabase();
-  const { count, error } = await supabase
+  const [{ count: privateCount, error: privateError }, { count: groupCount, error: groupError }] =
+    await Promise.all([
+      supabase
+        .from('messages')
+        .select('message_id', { count: 'exact', head: true })
+        .eq('receiver_id', userId)
+        .eq('is_read', false),
+      supabase
+        .from('messages')
+        .select('message_id', { count: 'exact', head: true })
+        .not('room_id', 'is', null)
+        .neq('sender_id', userId)
+        .eq('is_read', false),
+    ]);
+
+  if (privateError) {
+    console.error('MESSAGE UNREAD COUNT ERROR:', privateError);
+    throw new Error(privateError.message);
+  }
+
+  if (groupError) {
+    console.error('GROUP MESSAGE UNREAD COUNT ERROR:', groupError);
+    throw new Error(groupError.message);
+  }
+
+  return (privateCount || 0) + (groupCount || 0);
+}
+
+async function fetchRoomUnreadCounts(userId, roomIds = []) {
+  if (!roomIds.length) {
+    return new Map();
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
     .from('messages')
-    .select('message_id', { count: 'exact', head: true })
-    .eq('receiver_id', userId)
+    .select('room_id')
+    .in('room_id', roomIds)
+    .neq('sender_id', userId)
     .eq('is_read', false);
 
   if (error) {
-    console.error('MESSAGE UNREAD COUNT ERROR:', error);
+    console.error('ROOM MESSAGE UNREAD COUNT ERROR:', error);
     throw new Error(error.message);
   }
 
-  return count || 0;
+  const unreadCounts = new Map();
+  for (const roomId of roomIds) {
+    unreadCounts.set(roomId, 0);
+  }
+
+  for (const row of data || []) {
+    const roomId = row.room_id;
+    if (!roomId) {
+      continue;
+    }
+
+    unreadCounts.set(roomId, (unreadCounts.get(roomId) || 0) + 1);
+  }
+
+  return unreadCounts;
 }
 
 async function listFixedThread(userId) {
@@ -500,10 +549,20 @@ async function listRoomsForUser(userId) {
     .eq('user_id', userId);
 
   if (error) throw new Error(error.message);
-  return data.map(item => ({
+  const rooms = data.map(item => ({
     roomId: item.room_id,
     roomName: item.chat_rooms?.room_name,
     createdAt: item.chat_rooms?.created_at
+  }));
+
+  const unreadCounts = await fetchRoomUnreadCounts(
+    userId,
+    rooms.map((room) => room.roomId).filter(Boolean)
+  );
+
+  return rooms.map((room) => ({
+    ...room,
+    unreadCount: unreadCounts.get(room.roomId) || 0,
   }));
 }
 

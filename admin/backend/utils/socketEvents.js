@@ -50,6 +50,13 @@ const socketEvents = {
     renewalUpdated: (io, data) => emitEvent(io, 'renewal:updated', data),
     renewalApproved: (io, data) => emitEvent(io, 'renewal:approved', data),
 
+    // RO Events
+    roUpdated: (io, data) => emitEvent(io, 'ro:updated', data),
+
+    // Maintenance / Report Events
+    maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
+    reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
+
     // Notification Events
     notificationCreated: (io, userId, data) => emitToUser(io, userId, 'notification:created', data),
 

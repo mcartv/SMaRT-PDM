@@ -1,4 +1,5 @@
 const courseService = require('../services/courseService');
+const socketEvents = require('../utils/socketEvents');
 
 const getCourses = async (req, res) => {
     try {
@@ -26,6 +27,13 @@ const createCourse = async (req, res) => {
             is_archived,
         });
 
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'courses',
+            action: 'create',
+            id: createdCourse?.course_id ?? createdCourse?.id ?? null,
+            updated_at: new Date().toISOString(),
+        });
         res.status(201).json(createdCourse);
     } catch (error) {
         console.error('CREATE COURSE CONTROLLER ERROR:', error);
@@ -71,6 +79,13 @@ const updateCourse = async (req, res) => {
             });
         }
 
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'courses',
+            action: 'update',
+            id,
+            updated_at: new Date().toISOString(),
+        });
         res.status(200).json(updatedCourse);
     } catch (error) {
         console.error('UPDATE COURSE CONTROLLER ERROR:', error);

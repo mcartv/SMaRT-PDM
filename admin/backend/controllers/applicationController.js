@@ -161,6 +161,15 @@ exports.saveApplicationVerification = async (req, res) => {
             req.user
         );
 
+        const io = req.app.get('io');
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            status: data?.status ?? data?.application_status ?? null,
+            verification_status: data?.verification_status ?? req.body?.verification_status ?? null,
+            updated_at: new Date().toISOString(),
+            source: 'verification',
+        });
+
         res.status(200).json({
             message: 'Verification saved successfully',
             data,
@@ -182,6 +191,13 @@ exports.assignApplicationProgram = async (req, res) => {
 
     try {
         const data = await applicationService.assignApplicationProgram(id, program_id);
+        const io = req.app.get('io');
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            program_id: data?.program_id ?? program_id ?? null,
+            updated_at: new Date().toISOString(),
+            source: 'program_assignment',
+        });
         res.status(200).json({
             message: 'Application program assigned successfully',
             data,
@@ -197,6 +213,13 @@ exports.markApplicationReviewed = async (req, res) => {
 
     try {
         const data = await applicationService.markApplicationReviewed(id);
+        const io = req.app.get('io');
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            status: data?.status ?? data?.application_status ?? 'review',
+            updated_at: new Date().toISOString(),
+            source: 'review',
+        });
         res.status(200).json({
             message: 'Application moved to review successfully',
             data,
@@ -213,6 +236,14 @@ exports.saveApplicationRemarks = async (req, res) => {
 
     try {
         const data = await applicationService.saveApplicationRemarks(id, remarks);
+
+        const io = req.app.get('io');
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            remarks: data?.remarks ?? remarks ?? null,
+            updated_at: new Date().toISOString(),
+            source: 'remarks',
+        });
 
         res.status(200).json({
             message: 'Application remarks saved successfully',
@@ -236,6 +267,19 @@ exports.approveApplication = async (req, res) => {
             status: 'approved',
             updated_at: new Date().toISOString()
         });
+        if (updated?.scholar) {
+            socketEvents.scholarCreated(io, {
+                scholar_id:
+                    updated.scholar.scholar_id?.toString?.() ||
+                    updated.scholar.student_id?.toString?.() ||
+                    id,
+                student_id:
+                    updated.scholar.student_id?.toString?.() ||
+                    updated.scholar.scholar_id?.toString?.() ||
+                    id,
+                updated_at: new Date().toISOString(),
+            });
+        }
 
         res.status(200).json({
             message: 'Application approved successfully',

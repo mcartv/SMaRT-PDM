@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/models/support_ticket.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/support_ticket_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
@@ -27,6 +29,8 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final SupportTicketService _ticketService = SupportTicketService();
+  NotificationProvider? _notificationProvider;
+  int _lastTicketRevision = 0;
 
   String _selectedCategory = _categories.first;
   bool _isSubmitting = false;
@@ -41,7 +45,22 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleRealtimeTickets);
+    _notificationProvider = provider;
+    _lastTicketRevision = provider.ticketRevision;
+    _notificationProvider?.addListener(_handleRealtimeTickets);
+  }
+
+  @override
   void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimeTickets);
     _descriptionController.dispose();
     super.dispose();
   }
@@ -74,6 +93,23 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
       setState(() {
         _isLoadingTickets = false;
       });
+    }
+  }
+
+  void _handleRealtimeTickets() {
+    final provider = _notificationProvider;
+    if (provider == null) {
+      return;
+    }
+
+    if (provider.ticketRevision == _lastTicketRevision) {
+      return;
+    }
+
+    _lastTicketRevision = provider.ticketRevision;
+
+    if (mounted) {
+      _loadTickets();
     }
   }
 

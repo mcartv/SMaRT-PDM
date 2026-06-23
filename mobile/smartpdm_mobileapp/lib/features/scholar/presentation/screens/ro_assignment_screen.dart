@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/features/scholar/data/services/ro_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
+import 'package:smartpdm_mobileapp/shared/models/ro_assignment.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ROAssignmentScreen extends StatefulWidget {
   const ROAssignmentScreen({super.key});
@@ -13,32 +19,66 @@ class ROAssignmentScreen extends StatefulWidget {
 }
 
 class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
-  final List<Map<String, dynamic>> assignments = [
-    {
-      'id': 'RO-2025-001',
-      'title': 'Student Support Services',
-      'department': 'Office of Student Affairs',
-      'supervisor': 'Ms. Rachel Johnson',
-      'startDate': 'January 15, 2025',
-      'endDate': 'April 30, 2025',
-      'hoursPerWeek': 10,
-      'status': 'Active',
-      'description':
-          'Assist in organizing student events and support programs. Handle administrative tasks and student inquiries.',
-    },
-    {
-      'id': 'RO-2025-002',
-      'title': 'Library Research Assistant',
-      'department': 'University Library',
-      'supervisor': 'Mr. Mark Torres',
-      'startDate': 'Pending Assignment',
-      'endDate': 'Pending',
-      'hoursPerWeek': 8,
-      'status': 'Assigned',
-      'description':
-          'Assist in library cataloging and research support. Help students locate academic resources.',
-    },
-  ];
+  final RoService _roService = RoService();
+  NotificationProvider? _notificationProvider;
+  int _lastRoRevision = 0;
+
+  RoAssignmentsPackage? _package;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssignments();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleRealtimeRo);
+    _notificationProvider = provider;
+    _lastRoRevision = provider.roRevision;
+    _notificationProvider?.addListener(_handleRealtimeRo);
+  }
+
+  void _handleRealtimeRo() {
+    final provider = _notificationProvider;
+    if (provider == null) return;
+    if (provider.roRevision == _lastRoRevision) return;
+
+    _lastRoRevision = provider.roRevision;
+    if (mounted) {
+      _loadAssignments();
+    }
+  }
+
+  Future<void> _loadAssignments() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await _roService.fetchMyAssignments();
+      if (!mounted) return;
+      setState(() => _package = result);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   void _handleScholarChipTap(String label) {
     switch (label) {
@@ -56,332 +96,244 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
     }
   }
 
+  Future<void> _openProof(String proofUrl) async {
+    final uri = Uri.tryParse(proofUrl);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimeRo);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final innerCardColor = isDark ? const Color(0xFF2D1E12) : Colors.grey[100]!;
     final titleColor = isDark ? Colors.white : AppColors.darkBrown;
     final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+    final items = _package?.items ?? const <RoAssignment>[];
+    final setting = _package?.setting;
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: Text('RO Assignment'),
+        title: const Text('RO Assignment'),
         backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 1,
       showDrawer: false,
-      child: SingleChildScrollView(
+      onRefresh: _loadAssignments,
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ScholarNavChips(
-              selectedLabel: 'RO Assignment',
-              onTap: _handleScholarChipTap,
+        children: [
+          ScholarNavChips(
+            selectedLabel: 'RO Assignment',
+            onTap: _handleScholarChipTap,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Research Opportunity Assignments',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: titleColor,
             ),
-            const SizedBox(height: 20),
-            // Header
-            Text(
-              'Research Opportunity Assignments',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                fontWeight: FontWeight.bold,
-                color: titleColor
-),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            setting?.termLabel ??
+                'Track your current RO assignments and submit completion when done.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: subtitleColor,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'As a scholar, you are required to complete research opportunities',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-color: subtitleColor
-),
-            ),
-            const SizedBox(height: 20),
-
-            // Assignments
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: assignments.length,
-              itemBuilder: (context, index) {
-                final assignment = assignments[index];
-                final isActive = assignment['status'] == 'Active';
-
-                return Card(
-                  color: cardColor,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title and Status
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    assignment['title'],
-                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
-                                      fontWeight: FontWeight.bold,
-                                      color: titleColor
-),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    assignment['id'],
-                                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                      color: subtitleColor
-),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isActive
-                                    ? Colors.green.withOpacity(0.1)
-                                    : Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                assignment['status'],
-                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                  fontWeight: FontWeight.bold,
-                                  color: isActive ? Colors.green : Colors.blue
-),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Department and Supervisor
-                        _buildInfoRow(
-                          icon: Icons.business,
-                          label: 'Department',
-                          value: assignment['department'],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInfoRow(
-                          icon: Icons.person,
-                          label: 'Supervisor',
-                          value: assignment['supervisor'],
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Duration
-                        if (isActive)
-                          Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildDurationBox(
-                                      'Start Date',
-                                      assignment['startDate'],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildDurationBox(
-                                      'End Date',
-                                      assignment['endDate'],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                          ),
-
-                        // Hours per week
-                        _buildInfoRow(
-                          icon: Icons.schedule,
-                          label: 'Hours/Week',
-                          value: '${assignment['hoursPerWeek']} hours',
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Description
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: innerCardColor,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Description',
-                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                  fontWeight: FontWeight.bold,
-                                  color: subtitleColor
-),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                assignment['description'],
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                                  height: 1.5,
-                                  color: titleColor
-),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Action Button
-                        if (isActive)
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/ro-completion',
-                                  arguments: assignment,
-                                );
-                              },
-                              icon: const Icon(Icons.done_all),
-                              label: Text(
-                                'Submit Completion',
-                                maxLines: 1,
-                                overflow: TextOverflow.visible,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primaryColor,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'You will be notified when assigned to this RO',
-                                    ),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.info),
-                              label: Text(
-                                'Awaiting Confirmation',
-                                maxLines: 1,
-                                overflow: TextOverflow.visible,
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+          ),
+          if (setting != null) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                title: Text('Required Hours: ${setting.requiredHours}'),
+                subtitle: Text(
+                  setting.allowCarryOver
+                      ? 'Carry-over is allowed for this term.'
+                      : 'Carry-over is not allowed for this term.',
+                ),
+              ),
             ),
           ],
-        ),
-      ),
-    );
-  }
+          const SizedBox(height: 12),
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.only(top: 48),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_errorMessage != null)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Unable to load RO assignments',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(_errorMessage!),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _loadAssignments,
+                      child: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (items.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  'No RO assignments yet. OSFA will post your assignment here once available.',
+                ),
+              ),
+            )
+          else
+            ...items.map((assignment) {
+              final status = assignment.status.toLowerCase();
+              final statusColor =
+                  status == 'verified'
+                      ? Colors.green
+                      : status == 'rejected'
+                      ? Colors.red
+                      : status == 'overdue'
+                      ? Colors.orange
+                      : Colors.blue;
 
-  Widget _buildInfoRow({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
-
-    return Row(
-      children: [
-        Icon(icon, color: accentColor, size: 18),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-            color: subtitleColor,
-            fontWeight: FontWeight.w500
-),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-            fontWeight: FontWeight.w600,
-            color: titleColor
-),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDurationBox(String label, String value) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2D1E12) : Colors.grey[100],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-              color: subtitleColor,
-              fontWeight: FontWeight.w500
-),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-              fontWeight: FontWeight.bold,
-              color: titleColor
-),
-          ),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 14),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  assignment.title,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  assignment.department,
+                                  style: TextStyle(color: subtitleColor),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Chip(
+                            label: Text(assignment.status),
+                            backgroundColor: statusColor.withOpacity(0.12),
+                            labelStyle: TextStyle(color: statusColor),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(assignment.description),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          _MetaPill(
+                            label: 'Hours',
+                            value:
+                                '${assignment.hoursLogged}/${assignment.requiredHours}',
+                          ),
+                          _MetaPill(
+                            label: 'Due',
+                            value: _formatDate(assignment.endDate),
+                          ),
+                          _MetaPill(
+                            label: 'Supervisor',
+                            value: assignment.supervisor,
+                          ),
+                        ],
+                      ),
+                      if (assignment.rejectionReason.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Rejection reason: ${assignment.rejectionReason}',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      if (assignment.hasProof) ...[
+                        const SizedBox(height: 12),
+                        TextButton.icon(
+                          onPressed: () => _openProof(assignment.proofUrl),
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('View Submitted Proof'),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              assignment.isVerified
+                                  ? null
+                                  : () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.roCompletion,
+                                    arguments: assignment.toRouteArgs(),
+                                  ),
+                          icon: const Icon(Icons.done_all),
+                          label: Text(
+                            assignment.hasProof
+                                ? 'Update Completion Submission'
+                                : 'Submit Completion',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
         ],
       ),
+    );
+  }
+
+  String _formatDate(String value) {
+    if (value.trim().isEmpty) return 'Not set';
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+    return DateFormat.yMMMd().format(parsed);
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text('$label: $value'),
     );
   }
 }

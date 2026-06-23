@@ -14,6 +14,27 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
+  Widget _buildUnreadBadge(BuildContext context, int count) {
+    if (count <= 0) {
+      return const Icon(Icons.chevron_right);
+    }
+
+    final label = count > 99 ? '99+' : '$count';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: const BoxDecoration(
+        color: Colors.red,
+        borderRadius: BorderRadius.all(Radius.circular(999)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(color: Colors.white),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -64,18 +85,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             title: Text('OSFA Support Admin', style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text('Direct messaging'),
             onTap: _openAdminThread,
-            trailing: provider.unreadCount > 0 
-              ? Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                  child: Text(
-                    '${provider.unreadCount}', 
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: Colors.white
-)
-                  )
-                ) 
-              : const Icon(Icons.chevron_right),
+            trailing: _buildUnreadBadge(context, provider.privateUnreadCount),
           ),
           const Divider(),
           if (provider.isLoading)
@@ -95,7 +105,7 @@ color: Colors.white
                       child: const Icon(Icons.group, color: Colors.white),
                     ),
                     title: Text(group.roomName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: _buildUnreadBadge(context, group.unreadCount),
                     onTap: () => _openGroupThread(group.roomId, group.roomName),
                   );
                 },

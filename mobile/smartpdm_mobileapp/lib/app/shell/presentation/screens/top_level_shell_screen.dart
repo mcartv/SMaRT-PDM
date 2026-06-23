@@ -129,14 +129,11 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
         unreadCount: messagingProvider.unreadCount,
         onPressed: () => Navigator.of(context).pushNamed(AppRoutes.messaging),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: SmartPdmBottomNav(
-          selectedIndex: _currentIndex,
-          isVerifiedScholar: hasScholarAccess,
-          unreadNotifications: notificationProvider.unreadCount,
-          unreadPayoutNotifications: notificationProvider.unreadPayoutCount,
-        ),
+      bottomNavigationBar: SmartPdmBottomNav(
+        selectedIndex: _currentIndex,
+        isVerifiedScholar: hasScholarAccess,
+        unreadNotifications: notificationProvider.unreadCount,
+        unreadPayoutNotifications: notificationProvider.unreadPayoutCount,
       ),
       body: PageView(
         controller: _pageController,

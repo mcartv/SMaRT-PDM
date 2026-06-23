@@ -407,10 +407,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
+        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+        final bodyColor = isDark ? Colors.white70 : Colors.black87;
+        final cancelColor = isDark ? Colors.white70 : AppColors.brown;
+        final confirmColor = isDark ? const Color(0xFFFF8A80) : Colors.red;
+
         return AlertDialog(
-          title: Text('Confirm Logout'),
+          title: Text(
+            'Confirm Logout',
+            style: TextStyle(color: titleColor),
+          ),
           content: Text(
             'Are you sure you want to terminate your session?',
+            style: TextStyle(color: bodyColor),
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
@@ -418,7 +428,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text('CANCEL'),
+              child: Text('CANCEL', style: TextStyle(color: cancelColor)),
             ),
             TextButton(
               onPressed: () {
@@ -428,7 +438,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Text(
                 'LOG OUT',
                 style: TextStyle(
-                  color: Colors.red,
+                  color: confirmColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -490,12 +500,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle: 'View common scholarship questions',
                     onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
                   ),
-                  _profileRowCard(
-                    icon: Icons.logout,
-                    title: 'Log out',
-                    subtitle: 'End your current session on this device',
-                    onTap: () => _confirmLogout(context),
-                  ),
                   const SizedBox(height: 8),
                 ],
               ),
@@ -511,6 +515,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final titleColor = isDark ? Colors.white : textColor;
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
+    final badgeTextColor = isDark ? Colors.white : textColor;
 
     return Container(
       padding: const EdgeInsets.only(bottom: 20),
@@ -641,7 +646,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: Theme.of(context).textTheme.labelMedium?.copyWith(
 
                           fontWeight: FontWeight.w700,
-                          color: textColor
+                          color: badgeTextColor
 ),
                       ),
                     ),
@@ -743,6 +748,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildEditSection() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final outlinedButtonColor = isDark ? Colors.white : textColor;
+    final shadowColor = isDark
+        ? Colors.black.withOpacity(0.18)
+        : AppColors.darkBrown.withOpacity(0.06);
+    final dropdownTextColor = isDark ? Colors.white : textColor;
+    final dropdownSurfaceColor = isDark ? const Color(0xFF2D1E12) : Colors.white;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -754,7 +765,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         border: Border.all(color: AppColors.gold.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.darkBrown.withOpacity(0.06),
+            color: shadowColor,
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -833,6 +844,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
+                  dropdownColor: dropdownSurfaceColor,
+                  style: TextStyle(color: dropdownTextColor),
                   initialValue: _courseOptions.contains(_courseController.text)
                       ? _courseController.text
                       : null,
@@ -840,7 +853,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       .map(
                         (course) => DropdownMenuItem<String>(
                           value: course,
-                          child: Text(course),
+                          child: Text(
+                            course,
+                            style: TextStyle(color: dropdownTextColor),
+                          ),
                         ),
                       )
                       .toList(),
@@ -895,7 +911,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: const Icon(Icons.close),
                   label: Text('Cancel'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: textColor,
+                    foregroundColor: outlinedButtonColor,
                     side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),

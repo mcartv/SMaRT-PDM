@@ -22,6 +22,16 @@ class ScholarNavChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sectionLabelColor = isDark ? Colors.white70 : Colors.grey.shade600;
+    final unselectedBackgroundColor = isDark
+        ? const Color(0xFF332216)
+        : Colors.white;
+    final unselectedBorderColor = isDark
+        ? Colors.white12
+        : primaryColor.withOpacity(0.25);
+    final unselectedTextColor = isDark ? Colors.white : Colors.black87;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -32,7 +42,7 @@ class ScholarNavChips extends StatelessWidget {
             'Quick Actions',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+              color: sectionLabelColor,
               letterSpacing: 0.3,
             ),
           ),
@@ -62,12 +72,10 @@ class ScholarNavChips extends StatelessWidget {
                 curve: Curves.easeOut,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? primaryColor : Colors.white,
+                  color: isSelected ? primaryColor : unselectedBackgroundColor,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isSelected
-                        ? primaryColor
-                        : primaryColor.withOpacity(0.25),
+                    color: isSelected ? primaryColor : unselectedBorderColor,
                   ),
                   boxShadow: isSelected
                       ? [
@@ -95,7 +103,7 @@ class ScholarNavChips extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.labelMedium?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: isSelected ? Colors.white : Colors.black87,
+                          color: isSelected ? Colors.white : unselectedTextColor,
                         ),
                       ),
                     ),

@@ -42,13 +42,15 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
   }
 
   Widget _buildSectionTitle(String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 8),
       child: Text(
         title,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           fontWeight: FontWeight.w700,
-          color: AppColors.darkBrown,
+          color: isDark ? Colors.white : AppColors.darkBrown,
         ),
       ),
     );
@@ -60,12 +62,18 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final borderColor = isDark ? Colors.white12 : AppColors.lightGray;
+    final textColor = isDark ? Colors.white : AppColors.darkBrown;
+    final iconColor = isDark ? accentColor : primaryColor;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: tileColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.lightGray),
+        border: Border.all(color: borderColor),
       ),
       child: SwitchListTile(
         value: value,
@@ -73,12 +81,12 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
         activeThumbColor: accentColor,
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: AppColors.darkBrown,
+            color: textColor,
           ),
         ),
-        secondary: Icon(icon, color: primaryColor),
+        secondary: Icon(icon, color: iconColor),
       ),
     );
   }
@@ -88,24 +96,31 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     required String title,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final borderColor = isDark ? Colors.white12 : AppColors.lightGray;
+    final textColor = isDark ? Colors.white : AppColors.darkBrown;
+    final iconColor = isDark ? accentColor : primaryColor;
+    final trailingColor = isDark ? Colors.white70 : AppColors.brown;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: tileColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.lightGray),
+        border: Border.all(color: borderColor),
       ),
       child: ListTile(
         onTap: onTap,
-        leading: Icon(icon, color: primaryColor),
+        leading: Icon(icon, color: iconColor),
         title: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: AppColors.darkBrown,
+            color: textColor,
           ),
         ),
-        trailing: const Icon(Icons.chevron_right, color: AppColors.brown),
+        trailing: Icon(Icons.chevron_right, color: trailingColor),
       ),
     );
   }
@@ -113,6 +128,10 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetColor = isDark ? const Color(0xFF24180F) : backgroundColor;
+    final handleColor = isDark ? Colors.white24 : AppColors.lightGray;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.78,
@@ -121,9 +140,9 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
       expand: false,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: sheetColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
             children: [
@@ -132,7 +151,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                 width: 52,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: AppColors.lightGray,
+                  color: handleColor,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -146,7 +165,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                         'App Settings',
                         style: Theme.of(context).textTheme.displayLarge?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.darkBrown,
+                          color: titleColor,
                         ),
                       ),
                     ),

@@ -23,9 +23,10 @@ class DashboardScreen extends StatelessWidget {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        title: Text(
-          'SMaRT-PDM',
-          style: TextStyle(fontWeight: FontWeight.w800),
+        title: Image.asset(
+          'assets/images/school_logo.png',
+          height: 44,
+          fit: BoxFit.contain,
         ),
         centerTitle: false,
         automaticallyImplyLeading: false,
@@ -74,6 +75,7 @@ class _DashboardContentState extends State<DashboardContent> {
   final ProgramOpeningService _openingService = ProgramOpeningService();
 
   String _studentId = 'Student';
+  String _userName = 'Scholar';
   bool _cachedScholarAccess = false;
 
   bool _isLoadingOpenings = true;
@@ -95,6 +97,11 @@ class _DashboardContentState extends State<DashboardContent> {
 
   Color get _secondaryText => _isDark ? Colors.white70 : Colors.black54;
 
+  String get _scholarGreetingName {
+    final displayName = _userName.trim();
+    return displayName.isEmpty ? 'Scholar' : displayName;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -107,11 +114,18 @@ class _DashboardContentState extends State<DashboardContent> {
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
+    final firstName = prefs.getString('user_first_name') ?? '';
+    final lastName = prefs.getString('user_last_name') ?? '';
+    final fullName = [
+      firstName.trim(),
+      lastName.trim(),
+    ].where((value) => value.isNotEmpty).join(' ');
 
     if (!mounted) return;
 
     setState(() {
       _studentId = prefs.getString('user_student_id') ?? 'Student';
+      _userName = fullName.isEmpty ? 'Scholar' : fullName;
       _cachedScholarAccess = prefs.getBool('user_has_scholar_access') ?? false;
     });
   }
@@ -255,9 +269,9 @@ class _DashboardContentState extends State<DashboardContent> {
             child: Text(
               title,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-color: _primaryText,
-                fontWeight: FontWeight.w900
-),
+                color: _primaryText,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           if (actionLabel != null && onTap != null)
@@ -298,37 +312,26 @@ color: _primaryText,
         children: [
           Row(
             children: [
-              Container(
-                width: 54,
-                height: 54,
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Image.asset('assets/images/school_logo.png'),
-              ),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       _hasScholarAccess
-                          ? 'Welcome back, Scholar'
+                          ? 'Welcome back, $_scholarGreetingName'
                           : 'Welcome, Applicant',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: _primaryText,
-                        fontWeight: FontWeight.w700
-),
+                        color: _primaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       _studentId,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-color: _primaryText,
-                        fontWeight: FontWeight.w900
-),
+                        color: _primaryText,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ],
                 ),
@@ -343,10 +346,10 @@ color: _primaryText,
           Text(
             'Scholarship Monitoring & Reporting Tool',
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-color: _primaryText,
+              color: _primaryText,
               height: 1.1,
-              fontWeight: FontWeight.w900
-),
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -354,10 +357,10 @@ color: _primaryText,
                 ? 'Track renewals, return obligations, payouts, and updates.'
                 : 'Apply for scholarships, upload requirements, and monitor your application.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-color: _secondaryText,
+              color: _secondaryText,
               height: 1.45,
-              fontWeight: FontWeight.w500
-),
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -381,8 +384,8 @@ color: _secondaryText,
               onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
             ),
             _QuickAction(
-              icon: Icons.notifications_none_rounded,
-              title: 'Updates',
+              icon: Icons.school_rounded,
+              title: 'Downloads',
               subtitle: 'View notices',
               onTap: () =>
                   Navigator.pushNamed(context, AppRoutes.notifications),
@@ -461,9 +464,9 @@ color: _secondaryText,
         child: Text(
           'No scholarship openings are available right now.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-color: _secondaryText,
-            fontWeight: FontWeight.w600
-),
+            color: _secondaryText,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       );
     }
@@ -512,9 +515,9 @@ color: _secondaryText,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-color: _primaryText,
-                fontWeight: FontWeight.w900
-),
+                color: _primaryText,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -522,9 +525,9 @@ color: _primaryText,
                 programName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: _secondaryText
-),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: _secondaryText),
               ),
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
@@ -697,9 +700,9 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: isDark ? Colors.white : textColor,
-          fontWeight: FontWeight.w900
-),
+          color: isDark ? Colors.white : textColor,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -766,9 +769,9 @@ class _QuickActionCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-color: title,
-                        fontWeight: FontWeight.w900
-),
+                        color: title,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -776,9 +779,9 @@ color: title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: subtitle,
-                        fontWeight: FontWeight.w500
-),
+                        color: subtitle,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -843,10 +846,10 @@ class _OfficeUpdateCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-color: titleColor,
+                  color: titleColor,
                   height: 1.2,
-                  fontWeight: FontWeight.w900
-),
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -854,9 +857,9 @@ color: titleColor,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-color: bodyColor,
-                  height: 1.45
-),
+                  color: bodyColor,
+                  height: 1.45,
+                ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -941,9 +944,9 @@ class _ChipLabel extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: isDark ? Colors.white : textColor,
-          fontWeight: FontWeight.w800
-),
+          color: isDark ? Colors.white : textColor,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -1020,17 +1023,17 @@ class _MenuAction {
       title: Text(
         title,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-color: isDark ? Colors.white : textColor,
-          fontWeight: FontWeight.w900
-),
+          color: isDark ? Colors.white : textColor,
+          fontWeight: FontWeight.w900,
+        ),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(
           subtitle,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: isDark ? Colors.white60 : Colors.black54
-),
+            color: isDark ? Colors.white60 : Colors.black54,
+          ),
         ),
       ),
       trailing: Icon(

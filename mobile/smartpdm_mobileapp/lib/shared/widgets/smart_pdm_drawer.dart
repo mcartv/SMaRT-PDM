@@ -28,6 +28,10 @@ class SmartPdmDrawer extends StatelessWidget {
     final titleColor = isDark ? Colors.white : textColor;
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
     final sectionColor = isDark ? Colors.white70 : Colors.black54;
+    final logoutButtonColor = isDark ? const Color(0xFF8B2E2E) : Colors.red;
+    final logoutButtonTextColor = Colors.white;
+    final logoutDialogCancelColor = isDark ? Colors.white70 : AppColors.brown;
+    final logoutDialogConfirmColor = isDark ? const Color(0xFFFF8A80) : Colors.red;
 
     return Drawer(
       backgroundColor: drawerBackground,
@@ -194,30 +198,51 @@ class SmartPdmDrawer extends StatelessWidget {
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Logout'),
-                    content: const Text('Are you sure you want to logout?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                  builder: (dialogContext) {
+                    final dialogIsDark =
+                        Theme.of(dialogContext).brightness == Brightness.dark;
+                    final dialogTitleColor =
+                        dialogIsDark ? Colors.white : AppColors.darkBrown;
+                    final dialogBodyColor =
+                        dialogIsDark ? Colors.white70 : Colors.black87;
+
+                    return AlertDialog(
+                      title: Text(
+                        'Logout',
+                        style: TextStyle(color: dialogTitleColor),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          AppNavigator.goToTopLevel(context, AppRoutes.login);
-                        },
-                        child: const Text('Logout'),
+                      content: Text(
+                        'Are you sure you want to logout?',
+                        style: TextStyle(color: dialogBodyColor),
                       ),
-                    ],
-                  ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(color: logoutDialogCancelColor),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            AppNavigator.goToTopLevel(context, AppRoutes.login);
+                          },
+                          child: Text(
+                            'Logout',
+                            style: TextStyle(color: logoutDialogConfirmColor),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
               icon: const Icon(Icons.exit_to_app),
               label: const Text('Logout'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
+                backgroundColor: logoutButtonColor,
+                foregroundColor: logoutButtonTextColor,
               ),
             ),
           ),

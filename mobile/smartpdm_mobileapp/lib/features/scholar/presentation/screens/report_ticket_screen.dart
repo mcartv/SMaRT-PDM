@@ -207,11 +207,17 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF332216) : Colors.white;
+    final surfaceMutedColor = isDark ? const Color(0xFF2D1E12) : Colors.blue[50]!;
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+
     return SmartPdmPageScaffold(
       appBar: AppBar(
         title: Text('Support Ticket'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
       ),
       selectedIndex: 0,
       showDrawer: false,
@@ -221,17 +227,19 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             Card(
-              color: Colors.blue[50],
+              color: surfaceMutedColor,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    const Icon(Icons.support_agent, color: Colors.blue),
+                    Icon(Icons.support_agent, color: isDark ? accentColor : Colors.blue),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Submit concerns directly to OSFA. Ticket status and handling will follow the live support_tickets table.',
-                        style: Theme.of(context).textTheme.labelMedium,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: titleColor,
+                        ),
                       ),
                     ),
                   ],
@@ -240,6 +248,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
             ),
             const SizedBox(height: 20),
             Card(
+              color: surfaceColor,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Form(
@@ -250,9 +259,9 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                       Text(
                         'Create a Ticket',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
-                          fontWeight: FontWeight.bold
-),
+                          fontWeight: FontWeight.bold,
+                          color: titleColor,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
@@ -340,8 +349,9 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                 Text(
                   'My Tickets',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
- fontWeight: FontWeight.bold
-),
+                    fontWeight: FontWeight.bold,
+                    color: titleColor,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _isLoadingTickets ? null : _loadTickets,
@@ -360,6 +370,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
               )
             else if (_loadError.isNotEmpty)
               Card(
+                color: surfaceColor,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -367,31 +378,38 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                     children: [
                       Text(
                         'Failed to load tickets',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: titleColor,
+                        ),
                       ),
                       const SizedBox(height: 6),
-                      Text(_loadError),
+                      Text(_loadError, style: TextStyle(color: subtitleColor)),
                     ],
                   ),
                 ),
               )
             else if (_tickets.isEmpty)
               Card(
+                color: surfaceColor,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    children: const [
-                      Icon(Icons.inbox_outlined, size: 36, color: Colors.grey),
-                      SizedBox(height: 12),
+                    children: [
+                      Icon(Icons.inbox_outlined, size: 36, color: subtitleColor),
+                      const SizedBox(height: 12),
                       Text(
                         'No support tickets yet.',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: titleColor,
+                        ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
                         'Submit a ticket above if you need help from OSFA.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: subtitleColor),
                       ),
                     ],
                   ),
@@ -404,6 +422,7 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Card(
+                    color: surfaceColor,
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -419,15 +438,16 @@ class _ReportTicketScreenState extends State<ReportTicketScreen> {
                                     Text(
                                       ticket.issueCategory,
                                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-fontWeight: FontWeight.bold
-),
+                                        fontWeight: FontWeight.bold,
+                                        color: titleColor,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       ticket.ticketId,
                                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: Colors.grey
-),
+                                        color: subtitleColor,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -454,7 +474,7 @@ color: statusColor,
                           const SizedBox(height: 12),
                           Text(
                             ticket.description,
-                            style: const TextStyle(height: 1.4),
+                            style: TextStyle(height: 1.4, color: titleColor),
                           ),
                           const SizedBox(height: 12),
                           Wrap(
@@ -495,16 +515,20 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chipColor = isDark ? const Color(0xFF2D1E12) : Colors.grey.shade100;
+    final chipIconColor = isDark ? Colors.white70 : Colors.grey.shade700;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: chipColor,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: Colors.grey.shade700),
+          Icon(icon, size: 16, color: chipIconColor),
           const SizedBox(width: 6),
           Text(label, style: Theme.of(context).textTheme.labelMedium),
         ],

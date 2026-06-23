@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+const Color _messagingAccentColor = Color(0xFFF6B60C);
 
 class MessagingScreen extends StatefulWidget {
   final String? roomId;
@@ -73,7 +74,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        backgroundColor: _messagingAccentColor,
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -99,11 +100,6 @@ class _MessagingScreenState extends State<MessagingScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(icon: const Icon(Icons.videocam), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.call), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.info), onPressed: () {}),
-        ],
       ),
       selectedIndex: 0,
       showBottomNav: false,
@@ -197,7 +193,7 @@ color: Colors.grey.shade500,
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: isMe ? primaryColor : Colors.grey.shade200,
+                    color: isMe ? _messagingAccentColor : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(20).copyWith(
                       bottomRight: isMe ? const Radius.circular(0) : null,
                       bottomLeft: !isMe ? const Radius.circular(0) : null,
@@ -224,7 +220,7 @@ color: isMe ? Colors.white : Colors.black87
                 child: Icon(
                   Icons.check_circle,
                   size: 14,
-                  color: primaryColor,
+                  color: _messagingAccentColor,
                 ),
               ),
             ),
@@ -240,45 +236,7 @@ color: isMe ? Colors.white : Colors.black87
         children: [
           Divider(height: 1, color: Colors.grey.shade300),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.format_size),
-                  color: Colors.grey.shade600,
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.image),
-                  color: Colors.grey.shade600,
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.camera_alt),
-                  color: Colors.grey.shade600,
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.sentiment_satisfied_alt),
-                  color: Colors.grey.shade600,
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.mic),
-                  color: Colors.grey.shade600,
-                  onPressed: () {},
-                ),
-                IconButton(
-                  icon: const Icon(Icons.attach_file),
-                  color: Colors.grey.shade600,
-                  onPressed: () {},
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 16.0, right: 8.0, bottom: 8.0),
+            padding: const EdgeInsets.only(left: 16.0, right: 8.0, top: 8.0, bottom: 8.0),
             child: Row(
               children: [
                 Expanded(
@@ -298,7 +256,7 @@ color: isMe ? Colors.white : Colors.black87
                         ? Icons.thumb_up
                         : Icons.send,
                   ),
-                  color: primaryColor,
+                  color: _messagingAccentColor,
                   onPressed: () {
                     if (_messageController.text.trim().isEmpty) {
                       // Handle thumb up behavior

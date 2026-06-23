@@ -159,12 +159,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: isDark ? const Color(0xFF24180F) : backgroundColor,
       appBar: AppBar(
-        backgroundColor: backgroundColor,
+        backgroundColor: isDark ? const Color(0xFF24180F) : backgroundColor,
         elevation: 0,
-        foregroundColor: textColor,
+        foregroundColor: isDark ? Colors.white : textColor,
         title: const Text('New Password'),
       ),
       body: SafeArea(

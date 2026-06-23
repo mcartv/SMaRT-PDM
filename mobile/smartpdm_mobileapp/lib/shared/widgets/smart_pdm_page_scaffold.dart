@@ -170,17 +170,14 @@ class _SmartPdmPageScaffoldState extends State<SmartPdmPageScaffold>
               )
             : null,
         bottomNavigationBar: widget.showBottomNav
-            ? SafeArea(
-                top: false,
-                child: SmartPdmBottomNav(
-                  selectedIndex: widget.selectedIndex,
-                  isVerifiedScholar: hasScholarAccess,
-                  unreadNotifications: widget.unreadNotifications > 0
-                      ? widget.unreadNotifications
-                      : notificationProvider.unreadCount,
-                  unreadPayoutNotifications:
-                      notificationProvider.unreadPayoutCount,
-                ),
+            ? SmartPdmBottomNav(
+                selectedIndex: widget.selectedIndex,
+                isVerifiedScholar: hasScholarAccess,
+                unreadNotifications: widget.unreadNotifications > 0
+                    ? widget.unreadNotifications
+                    : notificationProvider.unreadCount,
+                unreadPayoutNotifications:
+                    notificationProvider.unreadPayoutCount,
               )
             : null,
         body: SafeArea(

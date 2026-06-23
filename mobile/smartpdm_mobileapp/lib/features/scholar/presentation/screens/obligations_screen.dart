@@ -27,6 +27,13 @@ class _ObligationsScreenState extends State<ObligationsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : null;
+    final tabSurfaceColor = isDark
+        ? const Color(0xFF332216)
+        : Colors.grey.withOpacity(0.12);
+    final unselectedTabColor = isDark ? Colors.white70 : Colors.grey.shade700;
+
     return SmartPdmPageScaffold(
       selectedIndex: 1,
       child: Column(
@@ -35,14 +42,15 @@ class _ObligationsScreenState extends State<ObligationsScreen>
           Text(
             'My Obligations',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
- fontWeight: FontWeight.w900
-),
+              fontWeight: FontWeight.w900,
+              color: titleColor,
+            ),
           ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(4.0),
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.12),
+              color: tabSurfaceColor,
               borderRadius: BorderRadius.circular(borderRadius),
             ),
             child: TabBar(
@@ -57,7 +65,7 @@ class _ObligationsScreenState extends State<ObligationsScreen>
                 Tab(text: 'Completed'),
               ],
               labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey.shade700,
+              unselectedLabelColor: unselectedTabColor,
             ),
           ),
           const SizedBox(height: 12),
@@ -166,6 +174,11 @@ class ObligationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : null;
+    final subtitleColor = isDark ? Colors.white70 : null;
+    final progressTrackColor = isDark ? Colors.white12 : Colors.grey[300];
+
     Color statusColor;
     switch (status) {
       case 'IN PROGRESS':
@@ -191,12 +204,13 @@ class ObligationCard extends StatelessWidget {
             Text(
               title,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-fontWeight: FontWeight.bold
-),
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
             ),
             const SizedBox(height: 4),
-            if (hours.isNotEmpty) Text(hours),
-            Text(deadline),
+            if (hours.isNotEmpty) Text(hours, style: TextStyle(color: subtitleColor)),
+            Text(deadline, style: TextStyle(color: subtitleColor)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -216,11 +230,11 @@ color: statusColor,
               const SizedBox(height: 8),
               LinearProgressIndicator(
                 value: progress,
-                backgroundColor: Colors.grey[300],
+                backgroundColor: progressTrackColor,
                 valueColor: AlwaysStoppedAnimation<Color>(statusColor),
               ),
               const SizedBox(height: 4),
-              Text(progressText),
+              Text(progressText, style: TextStyle(color: subtitleColor)),
             ],
             const SizedBox(height: 12),
             SizedBox(

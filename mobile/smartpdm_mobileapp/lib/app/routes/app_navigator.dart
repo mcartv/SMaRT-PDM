@@ -33,7 +33,7 @@ class AppNavigator {
     final targetIndex = _topLevelIndexForRoute(route);
 
     if (shellState != null && targetIndex != null) {
-      shellState.switchToIndex(targetIndex);
+      shellState.switchToIndex(targetIndex, animated: false);
       return;
     }
 

@@ -28,6 +28,7 @@ import {
 import * as XLSX from 'xlsx';
 
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const API_BASE = buildApiUrl('/api');
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
@@ -396,6 +397,10 @@ export default function StudentRegistryPanel() {
   };
 
   useEffect(() => {
+    loadRegistry();
+  }, []);
+
+  useSocketEvent('maintenance:updated', () => {
     loadRegistry();
   }, []);
 

@@ -1,4 +1,5 @@
 const academicYearService = require('../services/academicYearService');
+const socketEvents = require('../utils/socketEvents');
 
 function sendError(res, err, fallbackMessage) {
     const message = err?.message || fallbackMessage || 'Unknown backend error';
@@ -34,6 +35,13 @@ exports.getAcademicYears = async (req, res) => {
 exports.createAcademicYear = async (req, res) => {
     try {
         const created = await academicYearService.createAcademicYear(req.body);
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'academic_years',
+            action: 'create',
+            id: created?.academic_year_id ?? created?.id ?? null,
+            updated_at: new Date().toISOString(),
+        });
         res.status(201).json(created);
     } catch (err) {
         console.error('CREATE ACADEMIC YEAR ERROR:', err);
@@ -55,6 +63,13 @@ exports.updateAcademicYear = async (req, res) => {
             });
         }
 
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'academic_years',
+            action: 'update',
+            id: req.params.id,
+            updated_at: new Date().toISOString(),
+        });
         res.status(200).json(updated);
     } catch (err) {
         console.error('UPDATE ACADEMIC YEAR ERROR:', err);
@@ -73,6 +88,13 @@ exports.activateAcademicYear = async (req, res) => {
             });
         }
 
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'academic_years',
+            action: 'activate',
+            id: req.params.id,
+            updated_at: new Date().toISOString(),
+        });
         res.status(200).json(updated);
     } catch (err) {
         console.error('ACTIVATE ACADEMIC YEAR ERROR:', err);

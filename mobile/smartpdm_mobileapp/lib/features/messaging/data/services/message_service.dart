@@ -24,8 +24,13 @@ class MessageReadResult {
 class ChatRoom {
   final String roomId;
   final String roomName;
+  final int unreadCount;
 
-  const ChatRoom({required this.roomId, required this.roomName});
+  const ChatRoom({
+    required this.roomId,
+    required this.roomName,
+    this.unreadCount = 0,
+  });
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
     return ChatRoom(
@@ -37,6 +42,10 @@ class ChatRoom {
           json['roomName']?.toString() ??
           json['room_name']?.toString() ??
           'Unknown Group',
+      unreadCount:
+          (json['unreadCount'] as num?)?.toInt() ??
+          (json['unread_count'] as num?)?.toInt() ??
+          0,
     );
   }
 }

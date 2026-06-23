@@ -1,10 +1,12 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/models/scholar_renewal.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/renewal_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_nav_chips.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -21,6 +23,8 @@ class ScholarRenewalRequirementsScreen extends StatefulWidget {
 class _ScholarRenewalRequirementsScreenState
     extends State<ScholarRenewalRequirementsScreen> {
   final RenewalService _renewalService = RenewalService();
+  NotificationProvider? _notificationProvider;
+  int _lastRenewalRevision = 0;
 
   ScholarRenewalPackage? _renewalPackage;
   bool _isLoading = true;
@@ -32,6 +36,20 @@ class _ScholarRenewalRequirementsScreenState
   void initState() {
     super.initState();
     _loadRenewal();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleRealtimeRenewals);
+    _notificationProvider = provider;
+    _lastRenewalRevision = provider.renewalRevision;
+    _notificationProvider?.addListener(_handleRealtimeRenewals);
   }
 
   Future<void> _loadRenewal() async {
@@ -54,6 +72,29 @@ class _ScholarRenewalRequirementsScreenState
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _handleRealtimeRenewals() {
+    final provider = _notificationProvider;
+    if (provider == null) {
+      return;
+    }
+
+    if (provider.renewalRevision == _lastRenewalRevision) {
+      return;
+    }
+
+    _lastRenewalRevision = provider.renewalRevision;
+
+    if (mounted) {
+      _loadRenewal();
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimeRenewals);
+    super.dispose();
   }
 
   void _handleScholarChipTap(String label) {

@@ -1360,12 +1360,53 @@ export default function AdminMessages() {
   }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
 
   // Realtime updates for messages
-  useSocketEvent('message:created', (data) => {
+  useSocketEvent('message:created', async (data) => {
     console.log('[Realtime] Message created:', data);
-    if (isOpen) {
-      fetchConversations()
+    if (!isOpen) return
+
+    await Promise.all([fetchConversations(), fetchRooms()])
+
+    const senderId = data?.sender_id?.toString?.() || ''
+    const receiverId = data?.receiver_id?.toString?.() || ''
+    const roomId = data?.room_id?.toString?.() || ''
+
+    if (roomId && activeType === 'group' && activeRoomId === roomId) {
+      await fetchRoomMessages(activeRoomId)
+      return
     }
-  }, [isOpen, fetchConversations]);
+
+    const isActivePrivateThread =
+      activeType === 'private' &&
+      activeConversationId &&
+      [senderId, receiverId].includes(currentUserId) &&
+      [senderId, receiverId].includes(activeConversationId)
+
+    if (isActivePrivateThread) {
+      await fetchConversationMessages(activeConversationId)
+      await markConversationRead(activeConversationId)
+    }
+  }, [
+    isOpen,
+    activeType,
+    activeRoomId,
+    activeConversationId,
+    currentUserId,
+    fetchConversations,
+    fetchRooms,
+    fetchConversationMessages,
+    fetchRoomMessages,
+    markConversationRead,
+  ]);
+
+  useSocketEvent('message:read', (data) => {
+    const messageIds = (data?.message_ids || data?.messageIds || []).map((item) =>
+      item?.toString?.() || ''
+    ).filter(Boolean)
+
+    if (!messageIds.length) return
+
+    setMessages((current) => markMessagesRead(current, messageIds))
+  }, []);
 
   useEffect(() => {
     if (isOpen) {

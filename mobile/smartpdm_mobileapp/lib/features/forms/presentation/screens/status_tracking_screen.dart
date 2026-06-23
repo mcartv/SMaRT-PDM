@@ -22,6 +22,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   String? _errorMessage;
   NotificationProvider? _notificationProvider;
   int _lastScholarAccessRevision = 0;
+  int _lastApplicationRevision = 0;
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
     _notificationProvider?.removeListener(_handleNotificationProviderChange);
     _notificationProvider = provider;
     _lastScholarAccessRevision = provider.scholarAccessRevision;
+    _lastApplicationRevision = provider.applicationRevision;
     _notificationProvider?.addListener(_handleNotificationProviderChange);
   }
 
@@ -50,13 +52,15 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
       return;
     }
 
-    if (provider.scholarAccessRevision == _lastScholarAccessRevision) {
+    if (provider.scholarAccessRevision == _lastScholarAccessRevision &&
+        provider.applicationRevision == _lastApplicationRevision) {
       return;
     }
 
     _lastScholarAccessRevision = provider.scholarAccessRevision;
+    _lastApplicationRevision = provider.applicationRevision;
 
-    if (provider.hasScholarAccess && mounted) {
+    if (mounted) {
       _loadStatus();
     }
   }

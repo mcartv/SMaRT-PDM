@@ -118,6 +118,20 @@ exports.verifyScholarRenewalDocument = async (req, res) => {
             req.user
         );
 
+        const io = req.app.get('io');
+        socketEvents.renewalUpdated(io, {
+            scholar_id: scholarId,
+            student_id: scholarId,
+            renewal_document_id: renewalDocumentId,
+            verification_status:
+                data?.verification_status ??
+                data?.status ??
+                req.body?.verification_status ??
+                null,
+            updated_at: new Date().toISOString(),
+            source: 'document_verification',
+        });
+
         res.status(200).json({
             message: 'Renewal document verified successfully',
             data,
@@ -146,6 +160,14 @@ exports.saveScholarRenewalReview = async (req, res) => {
             student_id: scholarId,
             renewal_status: data.renewal_status,
             updated_at: new Date().toISOString(),
+        });
+        socketEvents.scholarUpdated(io, {
+            scholar_id: scholarId,
+            student_id: scholarId,
+            scholar_status: data?.scholar_status ?? null,
+            renewal_status: data?.renewal_status ?? null,
+            updated_at: new Date().toISOString(),
+            source: 'renewal_review',
         });
 
         res.status(200).json({

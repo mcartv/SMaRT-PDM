@@ -17,6 +17,7 @@ class MessagingProvider extends ChangeNotifier {
 
   List<ChatMessage> _messages = [];
   int _unreadCount = 0;
+  int _privateUnreadCount = 0;
   bool _isLoading = false;
   bool _isInitialized = false;
   bool _isViewingThread = false;
@@ -29,12 +30,26 @@ class MessagingProvider extends ChangeNotifier {
 
   List<ChatMessage> get messages => _messages;
   int get unreadCount => _unreadCount;
+  int get privateUnreadCount => _privateUnreadCount;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get currentUserId => _currentUserId;
   String get counterpartyId => _counterpartyId;
   String? get activeGroupId => _activeGroupId;
   List<ChatRoom> get rooms => _rooms;
+  int groupUnreadCount(String roomId) {
+    if (roomId.isEmpty) {
+      return 0;
+    }
+
+    for (final room in _rooms) {
+      if (room.roomId == roomId) {
+        return room.unreadCount;
+      }
+    }
+
+    return 0;
+  }
 
   Future<void> initializeChat() async {
     if (_isInitialized) {
@@ -73,6 +88,7 @@ class MessagingProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _rooms = await _messageService.fetchGroups();
+      _syncTotalUnreadCount();
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -97,7 +113,16 @@ class MessagingProvider extends ChangeNotifier {
 
   Future<void> refreshUnreadCount({bool notify = true}) async {
     try {
-      _unreadCount = await _messageService.fetchUnreadCount();
+      final totalUnread = await _messageService.fetchUnreadCount();
+      final groupUnread = _rooms.fold<int>(
+        0,
+        (sum, room) => sum + room.unreadCount,
+      );
+      _privateUnreadCount = totalUnread - groupUnread;
+      if (_privateUnreadCount < 0) {
+        _privateUnreadCount = 0;
+      }
+      _syncTotalUnreadCount();
       if (notify) {
         notifyListeners();
       }
@@ -134,6 +159,7 @@ class MessagingProvider extends ChangeNotifier {
       if (_activeGroupId != null) {
         await _messageService.markRoomThreadRead(_activeGroupId!);
         _markMessagesRead(_messages.map((e) => e.messageId).toList());
+        _setGroupUnreadCount(_activeGroupId!, 0);
         await refreshUnreadCount(notify: false);
         notifyListeners();
         return;
@@ -164,6 +190,7 @@ class MessagingProvider extends ChangeNotifier {
     try {
       if (_activeGroupId != null) {
         _messages = await _messageService.fetchRoomThread(_activeGroupId!);
+        _setGroupUnreadCount(_activeGroupId!, 0);
         await refreshUnreadCount(notify: false);
       } else {
         final result = await _messageService.fetchThread();
@@ -206,12 +233,40 @@ class MessagingProvider extends ChangeNotifier {
       }
 
       final message = ChatMessage.fromJson(payload);
-      _upsertMessage(message);
-      _recalculateUnreadCount();
-      notifyListeners();
+      final isGroupMessage = message.roomId.isNotEmpty;
+      final isActiveGroupMessage =
+          isGroupMessage && _activeGroupId == message.roomId;
+      final isActivePrivateMessage =
+          !isGroupMessage &&
+          _activeGroupId == null &&
+          _counterpartyId.isNotEmpty &&
+          {
+            message.senderId,
+            message.receiverId,
+          }.contains(_currentUserId) &&
+          {
+            message.senderId,
+            message.receiverId,
+          }.contains(_counterpartyId);
+
+      if (isActiveGroupMessage || isActivePrivateMessage) {
+        _upsertMessage(message);
+        if (isActiveGroupMessage) {
+          _setGroupUnreadCount(message.roomId, 0);
+        } else {
+          _recalculateUnreadCount();
+        }
+        notifyListeners();
+      } else if (isGroupMessage) {
+        _incrementGroupUnreadCount(message.roomId);
+        notifyListeners();
+      } else {
+        refreshUnreadCount(notify: false);
+      }
 
       final shouldAutoRead =
           _isViewingThread &&
+          !isGroupMessage &&
           message.senderId == _counterpartyId &&
           message.receiverId == _currentUserId &&
           !message.isRead;
@@ -233,6 +288,17 @@ class MessagingProvider extends ChangeNotifier {
           .toList();
 
       if (messageIds.isEmpty) {
+        return;
+      }
+
+      if (_activeGroupId != null) {
+        final roomId =
+            payload['roomId']?.toString() ?? payload['room_id']?.toString() ?? '';
+        if (roomId == _activeGroupId) {
+          _markMessagesRead(messageIds);
+          _setGroupUnreadCount(roomId, 0);
+          notifyListeners();
+        }
         return;
       }
 
@@ -268,11 +334,59 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   void _recalculateUnreadCount() {
-    _unreadCount = _messages
+    _privateUnreadCount = _messages
         .where(
           (message) => message.receiverId == _currentUserId && !message.isRead,
         )
         .length;
+    _syncTotalUnreadCount();
+  }
+
+  void _incrementGroupUnreadCount(String roomId) {
+    if (roomId.isEmpty) {
+      return;
+    }
+
+    final index = _rooms.indexWhere((room) => room.roomId == roomId);
+    if (index < 0) {
+      return;
+    }
+
+    final room = _rooms[index];
+    _rooms[index] = ChatRoom(
+      roomId: room.roomId,
+      roomName: room.roomName,
+      unreadCount: room.unreadCount + 1,
+    );
+    _syncTotalUnreadCount();
+  }
+
+  void _setGroupUnreadCount(String roomId, int count) {
+    if (roomId.isEmpty) {
+      return;
+    }
+
+    final index = _rooms.indexWhere((room) => room.roomId == roomId);
+    if (index < 0) {
+      return;
+    }
+
+    final room = _rooms[index];
+    _rooms[index] = ChatRoom(
+      roomId: room.roomId,
+      roomName: room.roomName,
+      unreadCount: count < 0 ? 0 : count,
+    );
+    _syncTotalUnreadCount();
+  }
+
+  void _syncTotalUnreadCount() {
+    final groupUnread = _rooms.fold<int>(
+      0,
+      (sum, room) => sum + room.unreadCount,
+    );
+
+    _unreadCount = _privateUnreadCount + groupUnread;
   }
 
   Map<String, dynamic>? _castMap(dynamic value) {

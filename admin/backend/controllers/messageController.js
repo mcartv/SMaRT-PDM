@@ -50,6 +50,14 @@ exports.markConversationRead = async (req, res) => {
     }
 
     const messageIds = await messageService.markConversationRead(currentUserId, counterpartyId);
+    const io = req.app.get('io');
+    if (io && messageIds.length) {
+      io.emit('message:read', {
+        reader_id: currentUserId,
+        counterparty_id: counterpartyId,
+        message_ids: messageIds,
+      });
+    }
     res.json({ messageIds });
   } catch (err) {
     console.error('MARK CONVERSATION READ ERROR:', err.message);
@@ -87,6 +95,10 @@ exports.sendMessage = async (req, res) => {
       message_id: message.message_id,
       sender_id: senderId,
       receiver_id: counterpartyId,
+      room_id: null,
+      message_body: message.message_body,
+      sent_at: message.sent_at,
+      is_read: message.is_read,
       created_at: new Date().toISOString()
     });
 
@@ -186,6 +198,18 @@ exports.sendRoomMessage = async (req, res) => {
       attachmentUrl: attachmentUrl || null,
     });
 
+    const io = req.app.get('io');
+    socketEvents.messageCreated(io, {
+      message_id: message.message_id,
+      sender_id: senderId,
+      receiver_id: null,
+      room_id: roomId,
+      message_body: message.message_body,
+      sent_at: message.sent_at,
+      is_read: message.is_read,
+      created_at: new Date().toISOString(),
+    });
+
     res.status(201).json(message);
   } catch (err) {
     console.error('SEND ROOM MESSAGE ERROR:', err.message);
@@ -232,6 +256,14 @@ exports.markRoomMessagesRead = async (req, res) => {
     }
 
     const messageIds = await messageService.markRoomMessagesRead(currentUserId, roomId);
+    const io = req.app.get('io');
+    if (io && messageIds.length) {
+      io.emit('message:read', {
+        reader_id: currentUserId,
+        room_id: roomId,
+        message_ids: messageIds,
+      });
+    }
     res.json({ messageIds });
   } catch (err) {
     console.error('MARK ROOM MESSAGES READ ERROR:', err.message);

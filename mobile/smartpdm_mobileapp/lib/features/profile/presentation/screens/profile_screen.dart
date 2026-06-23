@@ -403,8 +403,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _confirmLogout(BuildContext context) async {
-    showDialog(
+  Future<void> _confirmLogout(BuildContext context) {
+    return showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
@@ -499,6 +499,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'FAQs',
                     subtitle: 'View common scholarship questions',
                     onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
+                  ),
+                  _profileRowCard(
+                    icon: Icons.logout_rounded,
+                    title: 'Log Out',
+                    subtitle: 'End your current session on this device',
+                    onTap: () => _confirmLogout(context),
                   ),
                   const SizedBox(height: 8),
                 ],

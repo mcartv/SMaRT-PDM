@@ -245,15 +245,16 @@ class _OtpScreenState extends State<OtpScreen> {
   @override
   Widget build(BuildContext context) {
     final email = _getEmail();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return WillPopScope(
       onWillPop: _handleBackPress,
       child: Scaffold(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.grey.shade50,
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.black,
+          foregroundColor: isDark ? Colors.white : Colors.black,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {

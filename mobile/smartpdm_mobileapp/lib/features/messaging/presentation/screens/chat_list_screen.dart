@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+const Color _messagingAccentColor = Color(0xFFF6B60C);
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -41,7 +42,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        backgroundColor: _messagingAccentColor,
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -58,7 +59,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         children: [
           ListTile(
             leading: CircleAvatar(
-              backgroundColor: primaryColor,
+              backgroundColor: _messagingAccentColor,
               child: const Icon(Icons.support_agent, color: Colors.white),
             ),
             title: Text('OSFA Support Admin', style: TextStyle(fontWeight: FontWeight.bold)),

@@ -398,7 +398,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _handleLogout(BuildContext context) async {
     await _sessionService.clearSession();
 
-    if (context.mounted) {
+    if (mounted) {
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
@@ -844,7 +844,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   isExpanded: true,
                   dropdownColor: dropdownSurfaceColor,
                   style: TextStyle(color: dropdownTextColor),
-                  initialValue: _courseOptions.contains(_courseController.text)
+                  value: _courseOptions.contains(_courseController.text)
                       ? _courseController.text
                       : null,
                   items: _courseOptions

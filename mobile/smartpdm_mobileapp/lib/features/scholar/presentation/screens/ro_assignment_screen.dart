@@ -124,7 +124,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen> {
       ),
       selectedIndex: 1,
       showDrawer: false,
-      onRefresh: _loadAssignments,
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -330,7 +329,9 @@ class _MetaPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF332216)
+            : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text('$label: $value'),

@@ -233,9 +233,10 @@ class MessagingProvider extends ChangeNotifier {
       }
 
       final message = ChatMessage.fromJson(payload);
-      final isGroupMessage = message.roomId.isNotEmpty;
+      final roomId = message.roomId ?? '';
+      final isGroupMessage = roomId.isNotEmpty;
       final isActiveGroupMessage =
-          isGroupMessage && _activeGroupId == message.roomId;
+          isGroupMessage && _activeGroupId == roomId;
       final isActivePrivateMessage =
           !isGroupMessage &&
           _activeGroupId == null &&
@@ -252,13 +253,13 @@ class MessagingProvider extends ChangeNotifier {
       if (isActiveGroupMessage || isActivePrivateMessage) {
         _upsertMessage(message);
         if (isActiveGroupMessage) {
-          _setGroupUnreadCount(message.roomId, 0);
+          _setGroupUnreadCount(roomId, 0);
         } else {
           _recalculateUnreadCount();
         }
         notifyListeners();
       } else if (isGroupMessage) {
-        _incrementGroupUnreadCount(message.roomId);
+        _incrementGroupUnreadCount(roomId);
         notifyListeners();
       } else {
         refreshUnreadCount(notify: false);

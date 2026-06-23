@@ -249,13 +249,14 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   @override
   Widget build(BuildContext context) {
     final studentId = _getStudentId();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: isDark ? const Color(0xFF24180F) : Colors.grey.shade50,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black,
+        foregroundColor: isDark ? Colors.white : Colors.black,
         title: const Text('Verify Code'),
       ),
       body: SafeArea(

@@ -61,6 +61,10 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backTextColor = isDark ? Colors.white : primaryColor;
+    final subtitleColor = isDark ? Colors.white70 : Colors.grey;
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -70,11 +74,11 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
             children: [
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.arrow_back, color: primaryColor),
-                    SizedBox(width: 8),
-                    Text('Back', style: TextStyle(color: primaryColor)),
+                    Icon(Icons.arrow_back, color: backTextColor),
+                    const SizedBox(width: 8),
+                    Text('Back', style: TextStyle(color: backTextColor)),
                   ],
                 ),
               ),
@@ -89,7 +93,7 @@ class _ChangeEmailScreenState extends State<ChangeEmailScreen> {
               Text(
                 'Enter your email and we\'ll send you a link to change your email.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey,
+                  color: subtitleColor,
                 ),
               ),
               const SizedBox(height: 32),

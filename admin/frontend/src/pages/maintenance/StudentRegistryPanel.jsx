@@ -25,12 +25,11 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 import { buildApiUrl } from '@/api';
 
 const API_BASE = buildApiUrl('/api');
-const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+const ACCEPTED_EXTENSIONS = ['.xlsx', '.csv'];
 const PAGE_SIZE = 50;
 
 const EXCEL_HEADERS_FALLBACK = [
@@ -120,6 +119,77 @@ function normalizeHeaderKey(header) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+function parseCsvLine(line) {
+  const values = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      values.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values.map((value) => value.trim());
+}
+
+function parseCsvRows(text) {
+  const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    const nextChar = normalized[index + 1];
+
+    if (char === '"') {
+      current += char;
+      if (inQuotes && nextChar === '"') {
+        current += nextChar;
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === '\n' && !inQuotes) {
+      if (current.trim() !== '') {
+        rows.push(parseCsvLine(current));
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim() !== '') {
+    rows.push(parseCsvLine(current));
+  }
+
+  return rows;
 }
 
 function FilterModal({
@@ -400,24 +470,22 @@ export default function StudentRegistryPanel() {
   }, []);
 
   const parseWorkbookPreview = async (selectedFile) => {
-    const buffer = await selectedFile.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[firstSheetName];
+    const lowerName = selectedFile.name.toLowerCase();
 
-    if (!sheet) {
-      throw new Error('No worksheet found in the uploaded file.');
+    if (lowerName.endsWith('.xlsx')) {
+      setExcelSheetName(selectedFile.name);
+      setExcelHeaders(EXCEL_HEADERS_FALLBACK);
+      setExcelRows([]);
+      setTableMode('imported');
+      setPage(1);
+      return;
     }
 
-    const rows = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      defval: '',
-      raw: false,
-      blankrows: false,
-    });
+    const text = await selectedFile.text();
+    const rows = parseCsvRows(text);
 
     if (!rows.length) {
-      throw new Error('The uploaded sheet is empty.');
+      throw new Error('The uploaded CSV file is empty.');
     }
 
     const headers = rows[0]
@@ -435,7 +503,7 @@ export default function StudentRegistryPanel() {
         return obj;
       });
 
-    setExcelSheetName(firstSheetName);
+    setExcelSheetName(selectedFile.name);
     setExcelHeaders(headers.length ? headers : EXCEL_HEADERS_FALLBACK);
     setExcelRows(body);
     setTableMode('excel');
@@ -450,7 +518,7 @@ export default function StudentRegistryPanel() {
     );
 
     if (!valid) {
-      setError('Only .xlsx, .xls, and .csv files are allowed.');
+      setError('Only .xlsx and .csv files are allowed.');
       return;
     }
 
@@ -459,7 +527,7 @@ export default function StudentRegistryPanel() {
       setFile(selectedFile);
       await parseWorkbookPreview(selectedFile);
     } catch (err) {
-      setError(err.message || 'Failed to read the uploaded workbook.');
+      setError(err.message || 'Failed to read the uploaded file.');
     }
   };
 
@@ -690,7 +758,7 @@ export default function StudentRegistryPanel() {
             <input
               ref={inputRef}
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".xlsx,.csv"
               className="hidden"
               onChange={(e) => handleFileSelect(e.target.files?.[0])}
             />
@@ -760,7 +828,7 @@ export default function StudentRegistryPanel() {
             </Button>
 
             <Button asChild variant="outline" className="h-9 border-stone-200">
-              <a href="/templates/student-registry-import-template.xlsx" download>
+              <a href="/templates/student-registry-import-template.csv" download>
                 <Download className="mr-1.5 h-4 w-4" />
                 Template
               </a>
@@ -771,7 +839,7 @@ export default function StudentRegistryPanel() {
             <div className="flex items-start gap-2">
               <FileUp className="mt-0.5 h-4 w-4 text-stone-400" />
               <p className="text-xs leading-6 text-stone-500">
-                The table preview follows the actual Excel sheet columns. Large files are shown in pages so the table stays smooth and fits the screen cleanly.
+                CSV uploads show a full pre-import preview. `.xlsx` files can still be imported, but preview is skipped in the browser so the vulnerable spreadsheet parser is no longer bundled.
               </p>
             </div>
           </div>
@@ -806,7 +874,7 @@ export default function StudentRegistryPanel() {
                     disabled={excelRows.length === 0}
                   >
                     <Table2 className="h-3.5 w-3.5" />
-                    Excel
+                    Preview
                   </button>
 
                   <button

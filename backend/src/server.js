@@ -7,6 +7,7 @@ const supabase = require('./config/supabase');
 
 const notificationService = require('./services/notificationService');
 const messageService = require('./services/messageService');
+const { configureRealtimeBridge } = require('./services/realtimeBridgeService');
 
 const PORT = process.env.PORT || 5000;
 
@@ -21,6 +22,11 @@ notificationService.configureNotificationService({
 });
 
 messageService.configureMessageService({
+    io,
+    supabase,
+});
+
+configureRealtimeBridge({
     io,
     supabase,
 });

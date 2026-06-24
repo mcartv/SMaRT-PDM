@@ -1,4 +1,5 @@
 const studentRegistryService = require('../services/studentRegistryService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getRegistry = async (req, res) => {
   try {
@@ -25,6 +26,14 @@ exports.importRegistry = async (req, res) => {
     const result = await studentRegistryService.importStudentRegistryFile({
       file: req.file,
       adminId: req.user?.admin_id || req.user?.adminId || null,
+    });
+
+    const io = req.app.get('io');
+    socketEvents.maintenanceUpdated(io, {
+      module: 'student_registry',
+      action: 'import',
+      updated_at: new Date().toISOString(),
+      imported_count: result?.insertedCount ?? result?.updatedCount ?? null,
     });
 
     res.status(200).json({

@@ -398,13 +398,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _handleLogout(BuildContext context) async {
     await _sessionService.clearSession();
 
-    if (context.mounted) {
+    if (mounted) {
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
 
-  Future<void> _confirmLogout(BuildContext context) async {
-    showDialog(
+  Future<void> _confirmLogout(BuildContext context) {
+    return showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
@@ -499,6 +499,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'FAQs',
                     subtitle: 'View common scholarship questions',
                     onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
+                  ),
+                  _profileRowCard(
+                    icon: Icons.logout_rounded,
+                    title: 'Log Out',
+                    subtitle: 'End your current session on this device',
+                    onTap: () => _confirmLogout(context),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -844,7 +850,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   isExpanded: true,
                   dropdownColor: dropdownSurfaceColor,
                   style: TextStyle(color: dropdownTextColor),
-                  initialValue: _courseOptions.contains(_courseController.text)
+                  value: _courseOptions.contains(_courseController.text)
                       ? _courseController.text
                       : null,
                   items: _courseOptions

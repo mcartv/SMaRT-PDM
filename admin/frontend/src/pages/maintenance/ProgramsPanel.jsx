@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 function ProgramModal({
     open,
@@ -340,6 +341,10 @@ export default function ProgramsPanel() {
     };
 
     useEffect(() => {
+        loadAll();
+    }, []);
+
+    useSocketEvent('maintenance:updated', () => {
         loadAll();
     }, []);
 

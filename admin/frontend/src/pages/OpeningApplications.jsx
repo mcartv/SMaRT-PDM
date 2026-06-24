@@ -22,6 +22,7 @@ import {
     CircleOff,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const C = {
     green: '#16a34a',
@@ -572,6 +573,18 @@ export default function OpeningApplications() {
 
     useEffect(() => {
         reloadApplications();
+    }, [openingId]);
+
+    useSocketEvent('application:updated', () => {
+        reloadApplications({ soft: true });
+    }, [openingId]);
+
+    useSocketEvent('application:approved', () => {
+        reloadApplications({ soft: true });
+    }, [openingId]);
+
+    useSocketEvent('application:rejected', () => {
+        reloadApplications({ soft: true });
     }, [openingId]);
 
     const approvedCount = useMemo(

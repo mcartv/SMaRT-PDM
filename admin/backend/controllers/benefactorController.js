@@ -1,4 +1,5 @@
 const benefactorService = require('../services/benefactorService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getBenefactors = async (req, res) => {
     try {
@@ -18,6 +19,13 @@ exports.getBenefactors = async (req, res) => {
 exports.createBenefactor = async (req, res) => {
     try {
         const created = await benefactorService.createBenefactor(req.body);
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'benefactors',
+            action: 'create',
+            id: created?.benefactor_id ?? created?.id ?? null,
+            updated_at: new Date().toISOString(),
+        });
 
         res.status(201).json(created);
     } catch (err) {
@@ -42,6 +50,13 @@ exports.updateBenefactor = async (req, res) => {
             });
         }
 
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'benefactors',
+            action: 'update',
+            id: benefactorId,
+            updated_at: new Date().toISOString(),
+        });
         res.status(200).json(updated);
     } catch (err) {
         console.error('UPDATE BENEFACTOR CONTROLLER ERROR:', err);

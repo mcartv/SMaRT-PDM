@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 function BenefactorOnlyModal({
     open,
@@ -292,6 +293,10 @@ export default function BenefactorsPanel() {
     };
 
     useEffect(() => {
+        fetchBenefactors();
+    }, []);
+
+    useSocketEvent('maintenance:updated', () => {
         fetchBenefactors();
     }, []);
 

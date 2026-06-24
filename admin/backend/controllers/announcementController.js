@@ -26,11 +26,13 @@ exports.createAnnouncement = async (req, res) => {
         const created = await announcementService.createAnnouncement(req.body, req.user);
         
         const io = req.app.get('io');
-        socketEvents.announcementCreated(io, {
-            announcement_id: created.announcement_id,
-            title: created.title,
-            created_at: new Date().toISOString()
-        });
+        if (io && created.status === 'Published') {
+            socketEvents.announcementCreated(io, {
+                announcement_id: created.id,
+                title: created.title,
+                created_at: created.date || new Date().toISOString()
+            });
+        }
         
         res.status(201).json({
             message: 'Announcement created successfully',
@@ -38,14 +40,6 @@ exports.createAnnouncement = async (req, res) => {
         });
     } catch (err) {
         console.error('CREATE ANNOUNCEMENT CONTROLLER ERROR:', err.message);
-        
-        const io = req.app.get('io');
-        socketEvents.announcementUpdated(io, {
-            announcement_id: updated.announcement_id,
-            title: updated.title,
-            updated_at: new Date().toISOString()
-        });
-        
         res.status(500).json({ error: err.message });
     }
 };
@@ -54,6 +48,14 @@ exports.updateAnnouncement = async (req, res) => {
     try {
         const { id } = req.params;
         const updated = await announcementService.updateAnnouncement(id, req.body, req.user);
+        const io = req.app.get('io');
+        if (io) {
+            socketEvents.announcementUpdated(io, {
+                announcement_id: updated.id,
+                title: updated.title,
+                updated_at: updated.date || new Date().toISOString()
+            });
+        }
         res.status(200).json({
             message: 'Announcement updated successfully',
             data: updated,
@@ -68,6 +70,14 @@ exports.publishAnnouncement = async (req, res) => {
     try {
         const { id } = req.params;
         const published = await announcementService.publishAnnouncement(id);
+        const io = req.app.get('io');
+        if (io) {
+            socketEvents.announcementCreated(io, {
+                announcement_id: published.id,
+                title: published.title,
+                created_at: published.date || new Date().toISOString()
+            });
+        }
         res.status(200).json({
             message: 'Announcement published successfully',
             data: published,
@@ -82,6 +92,13 @@ exports.archiveAnnouncement = async (req, res) => {
     try {
         const { id } = req.params;
         const archived = await announcementService.archiveAnnouncement(id);
+        const io = req.app.get('io');
+        if (io) {
+            socketEvents.announcementDeleted(io, {
+                announcement_id: archived.id,
+                updated_at: archived.date || new Date().toISOString()
+            });
+        }
         res.status(200).json({
             message: 'Announcement archived successfully',
             data: archived,
@@ -96,6 +113,14 @@ exports.restoreAnnouncement = async (req, res) => {
     try {
         const { id } = req.params;
         const restored = await announcementService.restoreAnnouncement(id);
+        const io = req.app.get('io');
+        if (io) {
+            socketEvents.announcementUpdated(io, {
+                announcement_id: restored.id,
+                title: restored.title,
+                updated_at: restored.date || new Date().toISOString()
+            });
+        }
         res.status(200).json({
             message: 'Announcement restored successfully',
             data: restored,

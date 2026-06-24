@@ -18,6 +18,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const API_BASE = buildApiUrl('/api');
 
@@ -110,6 +111,14 @@ export default function ReportGeneration() {
   const [hasPreviewed, setHasPreviewed] = useState(false);
 
   useEffect(() => {
+    loadMetadata();
+  }, []);
+
+  useSocketEvent('maintenance:updated', () => {
+    loadMetadata();
+  }, []);
+
+  useSocketEvent('report:updated', () => {
     loadMetadata();
   }, []);
 

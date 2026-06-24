@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 function CourseModal({
     open,
@@ -258,6 +259,10 @@ export default function CoursesPanel() {
     };
 
     useEffect(() => {
+        loadAll();
+    }, []);
+
+    useSocketEvent('maintenance:updated', () => {
         loadAll();
     }, []);
 

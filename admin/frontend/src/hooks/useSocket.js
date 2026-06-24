@@ -6,6 +6,23 @@ const SOCKET_URL = buildApiUrl('');
 
 let globalSocket = null;
 
+function getSocketUserId() {
+  try {
+    const token = sessionStorage.getItem('adminToken') || '';
+    const payload = token.split('.')[1];
+    if (!payload) return '';
+    const decoded = JSON.parse(atob(payload));
+    return (
+      decoded?.userId?.toString?.() ||
+      decoded?.user_id?.toString?.() ||
+      decoded?.sub?.toString?.() ||
+      ''
+    );
+  } catch {
+    return '';
+  }
+}
+
 export const initializeSocket = () => {
   if (globalSocket && globalSocket.connected) {
     return globalSocket;
@@ -21,9 +38,9 @@ export const initializeSocket = () => {
 
   globalSocket.on('connect', () => {
     console.log('[Socket] Connected:', globalSocket.id);
-    const token = sessionStorage.getItem('adminToken');
-    if (token) {
-      globalSocket.emit('user-join', { token });
+    const userId = getSocketUserId();
+    if (userId) {
+      globalSocket.emit('user-join', { userId });
     }
   });
 

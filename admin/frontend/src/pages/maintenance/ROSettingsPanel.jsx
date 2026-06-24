@@ -11,6 +11,7 @@ import {
     Plus,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 import {
     GroupCard,
     FieldLabel,
@@ -52,6 +53,10 @@ export default function ROSettingsPanel() {
     });
 
     useEffect(() => {
+        loadAll();
+    }, []);
+
+    useSocketEvent('ro:updated', () => {
         loadAll();
     }, []);
 

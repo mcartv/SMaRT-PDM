@@ -14,6 +14,7 @@ import {
     Search,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const C = {
     brownMid: '#7c4a2e',
@@ -235,6 +236,10 @@ export default function AcademicYearsPanel() {
     };
 
     useEffect(() => {
+        fetchAcademicYears();
+    }, []);
+
+    useSocketEvent('maintenance:updated', () => {
         fetchAcademicYears();
     }, []);
 

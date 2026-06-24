@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const API_BASE = buildApiUrl('/api');
 const ACCEPTED_EXTENSIONS = ['.xlsx', '.csv'];
@@ -466,6 +467,10 @@ export default function StudentRegistryPanel() {
   };
 
   useEffect(() => {
+    loadRegistry();
+  }, []);
+
+  useSocketEvent('maintenance:updated', () => {
     loadRegistry();
   }, []);
 

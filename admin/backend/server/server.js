@@ -273,7 +273,16 @@ app.set('io', io);
 io.on('connection', (socket) => {
   console.log(`[Socket] User connected: ${socket.id}`);
 
-  socket.on('user-join', (userId) => {
+  socket.on('user-join', (payload) => {
+    const userId =
+      (typeof payload === 'string' ? payload : payload?.userId || payload?.user_id || '')
+        .toString()
+        .trim();
+
+    if (!userId) {
+      return;
+    }
+
     socket.join(`user:${userId}`);
     console.log(`[Socket] User ${userId} joined their room`);
   });
@@ -299,7 +308,7 @@ if (!global._announcementSchedulerRunning) {
 
   setInterval(async () => {
     try {
-      await runAnnouncementScheduler();
+      await runAnnouncementScheduler(io);
     } catch (err) {
       console.error('Scheduler Error:', err.message);
     }

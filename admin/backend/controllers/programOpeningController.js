@@ -88,6 +88,15 @@ const getApplicationsByOpeningId = async (req, res) => {
 const createProgramOpening = async (req, res) => {
     try {
         const created = await programOpeningService.createProgramOpening(req.body);
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('opening:created', {
+                opening_id: created.opening_id,
+                posting_status: created.posting_status,
+                is_archived: created.is_archived,
+                updated_at: created.updated_at || created.created_at,
+            });
+        }
         res.status(201).json(created);
     } catch (err) {
         console.error('CREATE PROGRAM OPENING CONTROLLER ERROR:', err);
@@ -107,6 +116,28 @@ const updateProgramOpening = async (req, res) => {
             });
         }
 
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('opening:updated', {
+                opening_id: updated.opening_id,
+                posting_status: updated.posting_status,
+                is_archived: updated.is_archived,
+                updated_at: updated.updated_at || new Date().toISOString(),
+            });
+
+            if (
+                String(updated.posting_status || '').toLowerCase() === 'closed' ||
+                updated.is_archived === true
+            ) {
+                io.emit('opening:closed', {
+                    opening_id: updated.opening_id,
+                    posting_status: updated.posting_status,
+                    is_archived: updated.is_archived,
+                    updated_at: updated.updated_at || new Date().toISOString(),
+                });
+            }
+        }
+
         res.status(200).json(updated);
     } catch (err) {
         console.error('UPDATE PROGRAM OPENING CONTROLLER ERROR:', err);
@@ -123,6 +154,22 @@ const closeProgramOpening = async (req, res) => {
             return res.status(404).json({
                 message: 'Program opening not found',
                 error: 'Program opening not found',
+            });
+        }
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('opening:closed', {
+                opening_id: updated.opening_id,
+                posting_status: updated.posting_status,
+                is_archived: updated.is_archived,
+                updated_at: updated.updated_at || new Date().toISOString(),
+            });
+            io.emit('opening:updated', {
+                opening_id: updated.opening_id,
+                posting_status: updated.posting_status,
+                is_archived: updated.is_archived,
+                updated_at: updated.updated_at || new Date().toISOString(),
             });
         }
 

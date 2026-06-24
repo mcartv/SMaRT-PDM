@@ -1,4 +1,5 @@
 const scholarshipProgramService = require('../services/scholarshipProgramService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getScholarshipPrograms = async (req, res) => {
     try {
@@ -16,6 +17,13 @@ exports.getScholarshipPrograms = async (req, res) => {
 exports.createScholarshipProgram = async (req, res) => {
     try {
         const created = await scholarshipProgramService.createScholarshipProgram(req.body);
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'programs',
+            action: 'create',
+            id: created?.program_id ?? created?.id ?? null,
+            updated_at: new Date().toISOString(),
+        });
         res.status(201).json(created);
     } catch (err) {
         console.error('CREATE SCHOLARSHIP PROGRAM ERROR:', err);
@@ -37,6 +45,13 @@ exports.updateScholarshipProgram = async (req, res) => {
             return res.status(404).json({ message: 'Scholarship program not found' });
         }
 
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            module: 'programs',
+            action: 'update',
+            id: req.params.id,
+            updated_at: new Date().toISOString(),
+        });
         res.status(200).json(updated);
     } catch (err) {
         console.error('UPDATE SCHOLARSHIP PROGRAM ERROR:', err);

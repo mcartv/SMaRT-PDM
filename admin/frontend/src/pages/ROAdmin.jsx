@@ -444,6 +444,14 @@ export default function ROAdmin() {
     []
   );
 
+  useSocketEvent(
+    'ro:updated',
+    () => {
+      loadROData(tab);
+    },
+    [tab]
+  );
+
   const handleApprove = async (id) => {
     try {
       setActionLoading(id);

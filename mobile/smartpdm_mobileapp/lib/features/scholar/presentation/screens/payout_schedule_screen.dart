@@ -24,12 +24,46 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
   bool _loading = true;
   String? _error;
   List<MobilePayoutItem> _payouts = [];
+  NotificationProvider? _notificationProvider;
+  int _lastPayoutRevision = 0;
 
   @override
   void initState() {
     super.initState();
     _loadPayouts();
     _markPayoutNotificationsAsRead();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleRealtimePayouts);
+    _notificationProvider = provider;
+    _lastPayoutRevision = provider.payoutRevision;
+    _notificationProvider?.addListener(_handleRealtimePayouts);
+  }
+
+  void _handleRealtimePayouts() {
+    final provider = _notificationProvider;
+    if (provider == null) {
+      return;
+    }
+
+    if (provider.payoutRevision == _lastPayoutRevision) {
+      return;
+    }
+
+    _lastPayoutRevision = provider.payoutRevision;
+
+    if (mounted) {
+      _loadPayouts();
+    }
   }
 
   Future<void> _markPayoutNotificationsAsRead() async {
@@ -399,5 +433,11 @@ color: _getStatusColor(payout.status),
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimePayouts);
+    super.dispose();
   }
 }

@@ -2,11 +2,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -28,6 +30,8 @@ class ApplicantDocumentsScreen extends StatefulWidget {
 
 class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   final ApplicantDocumentsService _service = ApplicantDocumentsService();
+  NotificationProvider? _notificationProvider;
+  int _lastApplicationRevision = 0;
 
   ApplicantDocumentsPackage? _package;
   bool _isLoading = true;
@@ -50,6 +54,20 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   void initState() {
     super.initState();
     _loadPackage();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleRealtimeUpdates);
+    _notificationProvider = provider;
+    _lastApplicationRevision = provider.applicationRevision;
+    _notificationProvider?.addListener(_handleRealtimeUpdates);
   }
 
   Future<void> _loadPackage() async {
@@ -79,6 +97,29 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _handleRealtimeUpdates() {
+    final provider = _notificationProvider;
+    if (provider == null) {
+      return;
+    }
+
+    if (provider.applicationRevision == _lastApplicationRevision) {
+      return;
+    }
+
+    _lastApplicationRevision = provider.applicationRevision;
+
+    if (mounted) {
+      _loadPackage();
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimeUpdates);
+    super.dispose();
   }
 
   List<ApplicantRequirementDocument> _visibleDocuments(

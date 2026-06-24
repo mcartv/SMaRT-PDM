@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
+import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ScholarshipOpeningsScreen extends StatefulWidget {
@@ -22,11 +24,45 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
   ProgramOpeningsResult? _result;
   String? _error;
   List<ProgramOpening> _openings = const [];
+  NotificationProvider? _notificationProvider;
+  int _lastOpeningRevision = 0;
 
   @override
   void initState() {
     super.initState();
     _loadOpenings();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleRealtimeOpenings);
+    _notificationProvider = provider;
+    _lastOpeningRevision = provider.openingRevision;
+    _notificationProvider?.addListener(_handleRealtimeOpenings);
+  }
+
+  void _handleRealtimeOpenings() {
+    final provider = _notificationProvider;
+    if (provider == null) {
+      return;
+    }
+
+    if (provider.openingRevision == _lastOpeningRevision) {
+      return;
+    }
+
+    _lastOpeningRevision = provider.openingRevision;
+
+    if (mounted) {
+      _loadOpenings();
+    }
   }
 
   Future<void> _loadOpenings() async {
@@ -463,5 +499,11 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimeOpenings);
+    super.dispose();
   }
 }

@@ -32,6 +32,14 @@ class NotificationProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool _hasScholarAccess = false;
   int _scholarAccessRevision = 0;
+  int _applicationRevision = 0;
+  int _announcementRevision = 0;
+  int _openingRevision = 0;
+  int _payoutRevision = 0;
+  int _renewalRevision = 0;
+  int _scholarRevision = 0;
+  int _ticketRevision = 0;
+  int _roRevision = 0;
   String _initializedUserId = '';
   io.Socket? _socket;
 
@@ -49,6 +57,14 @@ class NotificationProvider extends ChangeNotifier {
       .length;
   bool get hasScholarAccess => _hasScholarAccess;
   int get scholarAccessRevision => _scholarAccessRevision;
+  int get applicationRevision => _applicationRevision;
+  int get announcementRevision => _announcementRevision;
+  int get openingRevision => _openingRevision;
+  int get payoutRevision => _payoutRevision;
+  int get renewalRevision => _renewalRevision;
+  int get scholarRevision => _scholarRevision;
+  int get ticketRevision => _ticketRevision;
+  int get roRevision => _roRevision;
 
   Future<void> initialize() async {
     final session = await _sessionService.getCurrentUser();
@@ -227,6 +243,18 @@ class NotificationProvider extends ChangeNotifier {
         await _applyScholarAccess(true);
       }
 
+      if (notification.isAnnouncementNotification) {
+        _announcementRevision += 1;
+      }
+
+      if (notification.isOpeningUpdate) {
+        _openingRevision += 1;
+      }
+
+      if (notification.isPayoutNotification) {
+        _payoutRevision += 1;
+      }
+
       _notifications = [
         notification,
         ..._notifications.where(
@@ -242,6 +270,18 @@ class NotificationProvider extends ChangeNotifier {
       if (payload == null) return;
 
       final updated = AppNotification.fromJson(payload);
+      if (updated.isAnnouncementNotification) {
+        _announcementRevision += 1;
+      }
+
+      if (updated.isOpeningUpdate) {
+        _openingRevision += 1;
+      }
+
+      if (updated.isPayoutNotification) {
+        _payoutRevision += 1;
+      }
+
       _notifications = _notifications.map((notification) {
         return notification.notificationId == updated.notificationId
             ? updated
@@ -264,6 +304,113 @@ class NotificationProvider extends ChangeNotifier {
           )
           .toList();
       _recalculateUnreadCount();
+      notifyListeners();
+    });
+
+    _socket!.on('announcement:created', (_) {
+      _announcementRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('announcement:updated', (_) {
+      _announcementRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('announcement:deleted', (_) {
+      _announcementRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('opening:created', (_) {
+      _openingRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('opening:updated', (_) {
+      _openingRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('opening:closed', (_) {
+      _openingRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('payout:created', (_) {
+      _payoutRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('payout:updated', (_) {
+      _payoutRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('payout:deleted', (_) {
+      _payoutRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('scholar:released', (_) {
+      _payoutRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('application:updated', (_) {
+      _applicationRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('application:approved', (_) async {
+      _applicationRevision += 1;
+      await _refreshScholarAccessFromProfile();
+      notifyListeners();
+    });
+
+    _socket!.on('application:rejected', (_) {
+      _applicationRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('renewal:updated', (_) {
+      _renewalRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('renewal:approved', (_) {
+      _renewalRevision += 1;
+      _scholarRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('scholar:updated', (_) {
+      _scholarRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('scholar:created', (_) {
+      _scholarRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('ticket:created', (_) {
+      _ticketRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('ticket:updated', (_) {
+      _ticketRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('ticket:resolved', (_) {
+      _ticketRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('ro:updated', (_) {
+      _roRevision += 1;
       notifyListeners();
     });
   }
@@ -353,6 +500,14 @@ class NotificationProvider extends ChangeNotifier {
     _isInitialized = false;
     _hasScholarAccess = false;
     _scholarAccessRevision = 0;
+    _applicationRevision = 0;
+    _announcementRevision = 0;
+    _openingRevision = 0;
+    _payoutRevision = 0;
+    _renewalRevision = 0;
+    _scholarRevision = 0;
+    _ticketRevision = 0;
+    _roRevision = 0;
     _initializedUserId = '';
 
     if (notify) {

@@ -643,11 +643,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       if (yearLevel == null) {
         return 'Year level must be a valid number.';
       }
-      if (yearLevel < 1) {
-        return 'Year level must be at least 1.';
-      }
-      if (yearLevel > 6) {
-        return 'Year level cannot be above 6.';
+      if (yearLevel < 1 || yearLevel > 4) {
+        return 'Year level must be 1, 2, 3, or 4.';
       }
 
       if (_data.currentSection.trim().isEmpty) {

@@ -238,7 +238,6 @@ async function getStudentProfile(studentId) {
       province,
       zip_code,
       landline_number,
-      current_section,
       parent_guardian_address,
       same_address_as_applicant,
       father_present,
@@ -635,7 +634,7 @@ async function getMyFormData(userId) {
             elementary_year_graduated: safeText(
                 elementaryEducation.year_graduated
             ),
-            current_section: safeText(profile?.current_section),
+            current_section: '',
         },
 
         support: {

@@ -3,6 +3,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
 const routes = require('./routes');
+const { getSafeStatusCode } = require('./utils/httpStatus');
 
 const forgotPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -48,7 +49,7 @@ function createApp() {
 
     app.use((error, _req, res, _next) => {
         console.error('APP ERROR:', error);
-        res.status(error.statusCode || 500).json({
+        res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Internal server error',
         });
     });

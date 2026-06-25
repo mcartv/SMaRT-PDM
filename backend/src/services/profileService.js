@@ -1,4 +1,9 @@
 const supabase = require('../config/supabase');
+const {
+  AVATAR_BUCKET,
+  ensureAvatarBucketExists,
+  resolveAvatarUrl,
+} = require('./avatarService');
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -258,7 +263,7 @@ async function getMyProfile(userId) {
         user.phone_number
       ),
 
-      avatar_url: student.profile_photo_url || null,
+      avatar_url: await resolveAvatarUrl(student.profile_photo_url || null),
 
       date_of_birth: profile.date_of_birth || null,
       place_of_birth: profile.place_of_birth || '',
@@ -403,7 +408,60 @@ async function updateMyProfile(userId, payload = {}) {
   return getMyProfile(userId);
 }
 
+async function uploadAvatar(userId, file) {
+  if (!userId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  if (!file) {
+    throw createHttpError(400, 'An avatar image is required.');
+  }
+
+  const { data: student, error: studentError } = await supabase
+    .from('students')
+    .select('student_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (studentError) throw studentError;
+
+  if (!student?.student_id) {
+    throw createHttpError(404, 'No student profile is linked to this account.');
+  }
+
+  const sanitizedFileName = (file.originalname || 'avatar')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const storagePath = `${userId}/avatar/${Date.now()}-${sanitizedFileName}`;
+
+  await ensureAvatarBucketExists();
+
+  const { error: storageError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(storagePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true,
+    });
+
+  if (storageError) throw storageError;
+
+  const { error: studentUpdateError } = await supabase
+    .from('students')
+    .update({
+      profile_photo_url: storagePath,
+    })
+    .eq('student_id', student.student_id);
+
+  if (studentUpdateError) throw studentUpdateError;
+
+  return {
+    message: 'Avatar uploaded successfully.',
+    avatarUrl: await resolveAvatarUrl(storagePath),
+    ...(await getMyProfile(userId)),
+  };
+}
+
 module.exports = {
   getMyProfile,
   updateMyProfile,
+  uploadAvatar,
 };

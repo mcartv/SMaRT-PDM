@@ -41,6 +41,9 @@ function resolveProfileImage(profile) {
 
 const navItems = [
   { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/admin/endorsements/pd', icon: FileText, label: 'PD Queue', roles: ['pd', 'admin'] },
+  { path: '/admin/endorsements/guidance', icon: FileText, label: 'Guidance Queue', roles: ['guidance', 'admin'] },
+  { path: '/admin/endorsements/sdo', icon: FileText, label: 'SDO Queue', roles: ['sdo', 'admin'] },
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/scholars', icon: Users, label: 'Scholars' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
@@ -111,6 +114,11 @@ export default function AdminLayout() {
   };
 
   const profileImage = resolveProfileImage(adminData);
+  const role = adminData?.role || 'admin';
+  const visibleNavItems =
+    role === 'admin'
+      ? navItems.filter((item) => !item.roles || item.roles.includes('admin'))
+      : navItems.filter((item) => item.roles?.includes(role));
 
   const handleProfileClick = () => {
     navigate('/admin/adminprofile');
@@ -160,11 +168,15 @@ export default function AdminLayout() {
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1.5">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === '/admin/applications' || item.path === '/admin/openings'}
+              end={
+                item.path === '/admin/applications' ||
+                item.path === '/admin/openings' ||
+                item.path.startsWith('/admin/endorsements/')
+              }
               className={({ isActive }) =>
                 `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'

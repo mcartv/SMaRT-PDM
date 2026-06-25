@@ -1,32 +1,39 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 import pdmLogo from '../assets/pdm-logo.png';
 
 const APP_DOWNLOAD_URL = 'https://www.mediafire.com/file/8157hvb8nuqiprf/SMaRT_PDM.apk/file';
 
-function PrimaryButton({ href, children }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center justify-center rounded-xl bg-[#7c4a2e] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7c4a2e]/20 transition active:scale-[0.99] hover:bg-[#6a3a25]"
-    >
-      {children}
-    </a>
-  );
-}
+function ActionButton({
+  href,
+  children,
+  variant = 'primary',
+  external = false,
+  fullWidth = false,
+}) {
+  const className = [
+    'inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold transition active:scale-[0.99]',
+    fullWidth ? 'w-full' : '',
+    variant === 'primary'
+      ? 'bg-[#7c4a2e] text-white shadow-lg shadow-[#7c4a2e]/20 hover:bg-[#6a3a25]'
+      : 'border border-stone-200 bg-white/70 text-stone-800 shadow-sm hover:bg-white',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-function SecondaryButton({ href, children }) {
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className={className}>
+        {children}
+      </a>
+    );
+  }
+
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center justify-center rounded-xl border border-stone-200 bg-white/70 px-5 py-3 text-sm font-semibold text-stone-800 shadow-sm transition active:scale-[0.99] hover:bg-white"
-    >
+    <Link to={href} className={className}>
       {children}
-    </a>
+    </Link>
   );
 }
 
@@ -49,8 +56,10 @@ export default function SmartPDMLanding() {
         </div>
 
         <div className="hidden items-center gap-3 sm:flex">
-          <SecondaryButton href="/admin/login">Admin Portal</SecondaryButton>
-          <SecondaryButton href="/sdo/login">SDO Portal</SecondaryButton>
+          <ActionButton href="/admin/login" variant="secondary">Admin Portal</ActionButton>
+          <ActionButton href="/pd/login" variant="secondary">PD Portal</ActionButton>
+          <ActionButton href="/guidance/login" variant="secondary">Guidance Portal</ActionButton>
+          <ActionButton href="/sdo/login" variant="secondary">SDO Portal</ActionButton>
         </div>
       </header>
 
@@ -60,22 +69,25 @@ export default function SmartPDMLanding() {
           <section className="text-white">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold ring-1 ring-white/20">
               <span className="h-2 w-2 rounded-full bg-[#d4a98a]" />
-              OSFA / PDM Applicants & Scholars
+              OSFA / PDM Applicants, Scholars, and Departments
             </div>
 
             <h1 className="mt-5 text-4xl font-bold leading-tight sm:text-5xl">
               Get updates. Track applications.
               <br />
-              Monitor your scholarship progress.
+              Open the right portal faster.
             </h1>
 
             <p className="mt-4 max-w-xl text-sm leading-6 text-white/80">
               SmartPDM is your mobile companion for scholarship applications and monitoring—fast, secure, and easy to use.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <PrimaryButton href={APP_DOWNLOAD_URL}>Download the app</PrimaryButton>
-              <SecondaryButton href="/admin/login">Login to portal</SecondaryButton>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <ActionButton href={APP_DOWNLOAD_URL} external>Download the app</ActionButton>
+              <ActionButton href="/pd/login" variant="secondary">PD Portal</ActionButton>
+              <ActionButton href="/guidance/login" variant="secondary">Guidance Portal</ActionButton>
+              <ActionButton href="/sdo/login" variant="secondary">SDO Portal</ActionButton>
+              <ActionButton href="/admin/login" variant="secondary">Admin Portal</ActionButton>
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-4 text-xs text-white/70">
@@ -84,8 +96,8 @@ export default function SmartPDMLanding() {
                 <p className="mt-1">JWT-protected workflows</p>
               </div>
               <div className="rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/20">
-                <p className="font-semibold text-white">Mobile-friendly</p>
-                <p className="mt-1">Built for quick tracking</p>
+                <p className="font-semibold text-white">Department-ready</p>
+                <p className="mt-1">Direct SDO portal entry from landing</p>
               </div>
             </div>
           </section>
@@ -93,6 +105,20 @@ export default function SmartPDMLanding() {
           {/* Feature cards */}
           <section className="rounded-3xl bg-white/90 p-6 shadow-xl ring-1 ring-black/5 backdrop-blur">
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-[#e9dcc8] bg-[#f7f1e9] p-5 shadow-sm">
+                <p className="text-xs font-bold uppercase tracking-widest text-[#92500f]">
+                  Quick access
+                </p>
+                <p className="mt-2 text-sm font-semibold text-stone-900">Department Portal</p>
+                <p className="mt-1 text-sm text-stone-600">
+                  Send department users straight to their role-specific portal.
+                </p>
+                <div className="mt-4 space-y-2">
+                  <ActionButton href="/pd/login" fullWidth>PD Login</ActionButton>
+                  <ActionButton href="/guidance/login" fullWidth variant="secondary">Guidance Login</ActionButton>
+                  <ActionButton href="/sdo/login" fullWidth variant="secondary">SDO Login</ActionButton>
+                </div>
+              </div>
               <div className="rounded-2xl bg-white p-5 ring-1 ring-stone-100">
                 <p className="text-sm font-semibold text-stone-900">Application Review</p>
                 <p className="mt-1 text-sm text-stone-600">
@@ -130,14 +156,7 @@ export default function SmartPDMLanding() {
                 Tap “Download the app” to install on your phone.
               </p>
               <div className="mt-4 flex gap-3">
-                <a
-                  href={APP_DOWNLOAD_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex w-full items-center justify-center rounded-xl bg-[#7c4a2e] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#7c4a2e]/20 transition hover:bg-[#6a3a25]"
-                >
-                  Download APK
-                </a>
+                <ActionButton href={APP_DOWNLOAD_URL} external fullWidth>Download APK</ActionButton>
               </div>
             </div>
           </section>
@@ -162,6 +181,22 @@ export default function SmartPDMLanding() {
             <p className="mt-2 text-sm text-stone-600">
               Admin portal tools for review, verification, and reporting.
             </p>
+          </div>
+          <div className="rounded-3xl bg-[#f7f1e9] p-6 shadow-sm ring-1 ring-[#e9dcc8] lg:col-span-3">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-stone-900">Department access</p>
+                <p className="mt-2 max-w-2xl text-sm text-stone-600">
+                  Department users can open the PD, Guidance, or SDO portal directly from the landing page without going through the admin login first.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <ActionButton href="/pd/login">PD Login</ActionButton>
+                <ActionButton href="/guidance/login" variant="secondary">Guidance Login</ActionButton>
+                <ActionButton href="/sdo/login" variant="secondary">SDO Login</ActionButton>
+                <ActionButton href="/admin/login" variant="secondary">Admin Login</ActionButton>
+              </div>
+            </div>
           </div>
         </section>
 

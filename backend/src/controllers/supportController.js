@@ -1,4 +1,5 @@
 const supportService = require('../services/supportService');
+const { getSafeStatusCode } = require('../utils/httpStatus');
 
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -24,7 +25,7 @@ async function getSupportTickets(req, res) {
         return res.status(200).json({ items });
     } catch (error) {
         console.error('SUPPORT TICKET LIST ROUTE ERROR:', error);
-        return res.status(error.statusCode || 500).json({
+        return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to load support tickets.',
         });
     }
@@ -63,7 +64,7 @@ async function createSupportTicket(req, res) {
         });
     } catch (error) {
         console.error('SUPPORT TICKET CREATE ROUTE ERROR:', error);
-        return res.status(error.statusCode || 500).json({
+        return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to create support ticket.',
         });
     }

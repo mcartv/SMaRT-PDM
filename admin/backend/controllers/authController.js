@@ -1,8 +1,7 @@
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
-const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
+const { resolveStaffRole } = require('../utils/staffRoles');
 
 const ADMIN_USER_QUERY = `
     SELECT
@@ -25,20 +24,6 @@ const ADMIN_USER_QUERY = `
 
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
-}
-
-function isSdoProfile(profile) {
-    const department = String(profile?.department || '').toLowerCase();
-    const position = String(profile?.position || '').toLowerCase();
-
-    return (
-        department.includes('disciplinary') ||
-        department.includes('student discipline') ||
-        department.includes('sdo') ||
-        position.includes('disciplinary') ||
-        position.includes('student discipline') ||
-        position.includes('sdo')
-    );
 }
 
 function buildToken(profile, role) {
@@ -74,12 +59,6 @@ async function loginWithRole(req, res, role) {
             return res.status(400).json({ message: 'Email and password are required' });
         }
 
-        if (role === 'admin' && normalizedEmail !== ALLOWED_ADMIN_EMAIL) {
-            return res.status(403).json({
-                message: 'Only admin@pdm.edu.ph is authorized for the admin portal',
-            });
-        }
-
         const result = await db.query(ADMIN_USER_QUERY, [normalizedEmail]);
         const user = result.rows[0];
 
@@ -92,45 +71,45 @@ async function loginWithRole(req, res, role) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+        const resolvedRole = resolveStaffRole(user);
+
         if (role === 'admin') {
-            if (!user.admin_id) {
+            if (!resolvedRole || !['admin', 'pd', 'guidance', 'sdo'].includes(resolvedRole)) {
                 return res.status(403).json({
                     message: 'This account is not authorized for the admin portal',
                 });
             }
-
-            if (normalizeEmail(user.email) !== ALLOWED_ADMIN_EMAIL) {
-                return res.status(403).json({
-                    message: 'Only admin@pdm.edu.ph is authorized for the admin portal',
-                });
-            }
         }
 
-        if (role === 'sdo') {
-            const userRole = String(user.user_role || '').trim().toLowerCase();
+        const departmentPortalLabels = {
+            pd: 'PD',
+            guidance: 'Guidance',
+            sdo: 'SDO',
+        };
 
-            if (!(userRole === 'sdo' || isSdoProfile(user))) {
-                return res.status(403).json({
-                    message: 'This account is not authorized for the SDO portal',
-                });
-            }
+        if (departmentPortalLabels[role] && resolvedRole !== role) {
+            return res.status(403).json({
+                message: `This account is not authorized for the ${departmentPortalLabels[role]} portal`,
+            });
         }
 
-        const token = buildToken(user, role);
+        const tokenRole = departmentPortalLabels[role] ? role : resolvedRole;
+        const token = buildToken(user, tokenRole);
         const displayName =
             [user.first_name, user.last_name].filter(Boolean).join(' ') ||
             user.username ||
             user.email;
+        const portalTitle = departmentPortalLabels[role];
 
         return res.json({
             token,
-            message: role === 'sdo' ? 'Welcome to the SDO panel' : 'Welcome back',
+            message: portalTitle ? `Welcome to the ${portalTitle} panel` : 'Welcome back',
             user: {
                 name: displayName,
                 email: user.email,
-                position: user.position || (role === 'sdo' ? 'SDO Officer' : 'Staff'),
-                department: user.department || (role === 'sdo' ? 'Student Disciplinary Office' : null),
-                role,
+                position: user.position || (tokenRole === 'sdo' ? 'SDO Officer' : 'Staff'),
+                department: user.department || (tokenRole === 'sdo' ? 'Student Disciplinary Office' : null),
+                role: tokenRole,
             },
         });
     } catch (err) {
@@ -140,4 +119,6 @@ async function loginWithRole(req, res, role) {
 }
 
 exports.adminLogin = async (req, res) => loginWithRole(req, res, 'admin');
+exports.pdLogin = async (req, res) => loginWithRole(req, res, 'pd');
+exports.guidanceLogin = async (req, res) => loginWithRole(req, res, 'guidance');
 exports.sdoLogin = async (req, res) => loginWithRole(req, res, 'sdo');

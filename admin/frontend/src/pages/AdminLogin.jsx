@@ -14,7 +14,6 @@ import { buildApiUrl } from '@/api';
 const SB_BASE = '#7c4a2e';
 const SB_TEXT = '#f0d9c8';
 const SB_SUB = '#d4a98a';
-const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
 const LOGIN_URL = buildApiUrl('/api/auth/login');
 
 const FEATURES = [
@@ -40,12 +39,6 @@ export default function AdminLogin() {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (normalizedEmail !== ALLOWED_ADMIN_EMAIL) {
-      setError('Only admin@pdm.edu.ph can log in to the admin portal.');
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const response = await fetch(LOGIN_URL, {
         method: 'POST',
@@ -65,7 +58,11 @@ export default function AdminLogin() {
         sessionStorage.setItem('adminProfile', JSON.stringify(data.user));
       }
 
-      navigate('/admin/dashboard');
+      const nextRole = data?.user?.role;
+      if (nextRole === 'pd') navigate('/admin/endorsements/pd');
+      else if (nextRole === 'guidance') navigate('/admin/endorsements/guidance');
+      else if (nextRole === 'sdo') navigate('/admin/endorsements/sdo');
+      else navigate('/admin/dashboard');
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -150,7 +147,7 @@ export default function AdminLogin() {
 
             <h1 className="text-3xl font-bold text-stone-900">Welcome back</h1>
             <p className="text-stone-500 text-sm mt-1">
-              Sign in to manage PDM scholarship systems
+              Sign in to manage scholarship endorsements and OSFA systems
             </p>
           </div>
 
@@ -169,7 +166,7 @@ export default function AdminLogin() {
                 type="email"
                 required
                 autoComplete="email"
-                placeholder="admin@pdm.edu.ph"
+                placeholder="staff@pdm.edu.ph"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full h-11 px-4 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all"

@@ -25,12 +25,12 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 import { buildApiUrl } from '@/api';
 
 const API_BASE = buildApiUrl('/api');
-const ACCEPTED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+const ACCEPTED_EXTENSIONS = ['.xlsx', '.csv'];
 const PAGE_SIZE = 50;
 
 const EXCEL_HEADERS_FALLBACK = [
@@ -120,6 +120,77 @@ function normalizeHeaderKey(header) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+}
+
+function parseCsvLine(line) {
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(current);
+  return cells;
+}
+
+function parseCsvRows(text) {
+  const normalized = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const rows = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < normalized.length; i += 1) {
+    const char = normalized[i];
+    const next = normalized[i + 1];
+
+    if (char === '"') {
+      current += char;
+      if (inQuotes && next === '"') {
+        current += next;
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === '\n' && !inQuotes) {
+      if (current.trim() !== '') {
+        rows.push(parseCsvLine(current));
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim() !== '') {
+    rows.push(parseCsvLine(current));
+  }
+
+  return rows;
 }
 
 function FilterModal({
@@ -400,21 +471,30 @@ export default function StudentRegistryPanel() {
   }, []);
 
   const parseWorkbookPreview = async (selectedFile) => {
-    const buffer = await selectedFile.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[firstSheetName];
+    const lowerName = selectedFile.name.toLowerCase();
+    let rows = [];
+    let firstSheetName = 'CSV Preview';
 
-    if (!sheet) {
-      throw new Error('No worksheet found in the uploaded file.');
+    if (lowerName.endsWith('.csv')) {
+      const text = await selectedFile.text();
+      rows = parseCsvRows(text);
+    } else if (lowerName.endsWith('.xlsx')) {
+      const buffer = await selectedFile.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        throw new Error('No worksheet found in the uploaded file.');
+      }
+
+      firstSheetName = worksheet.name || firstSheetName;
+      worksheet.eachRow({ includeEmpty: false }, (row) => {
+        rows.push(row.values.slice(1).map((value) => (value == null ? '' : String(value))));
+      });
+    } else {
+      throw new Error('Only .xlsx and .csv files are allowed.');
     }
-
-    const rows = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      defval: '',
-      raw: false,
-      blankrows: false,
-    });
 
     if (!rows.length) {
       throw new Error('The uploaded sheet is empty.');
@@ -450,7 +530,7 @@ export default function StudentRegistryPanel() {
     );
 
     if (!valid) {
-      setError('Only .xlsx, .xls, and .csv files are allowed.');
+      setError('Only .xlsx and .csv files are allowed.');
       return;
     }
 
@@ -690,7 +770,7 @@ export default function StudentRegistryPanel() {
             <input
               ref={inputRef}
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".xlsx,.csv"
               className="hidden"
               onChange={(e) => handleFileSelect(e.target.files?.[0])}
             />

@@ -27,6 +27,7 @@ const supportTicketRoutes = require('../routes/supportTicketRoutes');
 const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
+const adminProfilePhotoRoutes = require('../../../backend/src/routes/adminProfilePhotoRoutes');
 
 const ocrRoutes = require('../routes/ocrRoutes');
 const reportRoutes = require('../routes/reportRoutes');
@@ -182,6 +183,7 @@ app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
+app.use('/api/admin/profile-photos', adminProfilePhotoRoutes);
 
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/pi/iot-ocr', piIotOcrRoutes);

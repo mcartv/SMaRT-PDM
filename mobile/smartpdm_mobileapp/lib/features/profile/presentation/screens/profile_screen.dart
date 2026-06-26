@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -37,6 +38,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _userName = 'Institutional Scholar';
   String? _imagePath;
+  String? _avatarReviewStatus;
+  String _avatarRejectionReason = '';
   bool _cachedScholarAccess = false;
 
   bool _isProfileLoading = true;
@@ -104,6 +107,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String studentId,
     required String? imagePath,
     required bool hasScholarAccess,
+    String? avatarReviewStatus,
+    String avatarRejectionReason = '',
   }) {
     final isIncomplete = _computeProfileIncomplete(
       firstName: firstName,
@@ -114,6 +119,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     setState(() {
       _imagePath = imagePath != null && imagePath.isNotEmpty ? imagePath : null;
+      _avatarReviewStatus =
+          avatarReviewStatus != null && avatarReviewStatus.isNotEmpty
+          ? avatarReviewStatus
+          : null;
+      _avatarRejectionReason = avatarRejectionReason;
       _firstNameController.text = firstName;
       _lastNameController.text = lastName;
       _emailController.text = email;
@@ -170,6 +180,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       studentId: studentId,
       imagePath: imagePath,
       hasScholarAccess: hasScholarAccess,
+      avatarReviewStatus: null,
+      avatarRejectionReason: '',
     );
 
     if (!refreshRemote) {
@@ -202,6 +214,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         studentId: profile['student_id']?.toString() ?? studentId,
         imagePath: profile['avatar_url']?.toString(),
         hasScholarAccess: latestScholarAccess,
+        avatarReviewStatus: profile['avatar_review_status']?.toString(),
+        avatarRejectionReason:
+            profile['avatar_rejection_reason']?.toString() ?? '',
       );
     } catch (_) {
       // keep cached values
@@ -251,11 +266,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
             profile['student_id']?.toString() ?? _studentIdController.text,
         imagePath: profile['avatar_url']?.toString(),
         hasScholarAccess: hasScholarAccess,
+        avatarReviewStatus: profile['avatar_review_status']?.toString(),
+        avatarRejectionReason:
+            profile['avatar_rejection_reason']?.toString() ?? '',
       );
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Profile photo updated!')));
+      ).showSnackBar(
+        const SnackBar(content: Text('Profile photo submitted for review.')),
+      );
+    } on ApiException catch (e) {
+      debugPrint('Avatar upload/profile refresh error: $e');
+      if (!mounted) return;
+      final isPendingConflict =
+          e.statusCode == 409 ||
+          e.message.toLowerCase().contains('pending review');
+      final message = isPendingConflict
+          ? 'You already have a profile picture pending review.'
+          : e.message;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       debugPrint('Avatar upload/profile refresh error: $e');
       if (!mounted) return;
@@ -343,6 +375,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             profile['student_id']?.toString() ?? _studentIdController.text,
         imagePath: profile['avatar_url']?.toString() ?? _imagePath,
         hasScholarAccess: prefs.getBool('user_has_scholar_access') ?? false,
+        avatarReviewStatus: profile['avatar_review_status']?.toString(),
+        avatarRejectionReason:
+            profile['avatar_rejection_reason']?.toString() ?? '',
       );
 
       setState(() => _isEditing = false);
@@ -656,6 +691,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 ),
                       ),
                     ),
+                    if (_avatarReviewStatus == 'pending' ||
+                        _avatarReviewStatus == 'rejected') ...[
+                      const SizedBox(height: 8),
+                      _buildAvatarReviewNotice(),
+                    ],
                   ],
                 ),
               ),
@@ -680,6 +720,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       : 'Not set',
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarReviewNotice() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isRejected = _avatarReviewStatus == 'rejected';
+    final backgroundColor = isRejected
+        ? Colors.red.withOpacity(isDark ? 0.18 : 0.08)
+        : AppColors.gold.withOpacity(isDark ? 0.22 : 0.14);
+    final foregroundColor = isRejected
+        ? (isDark ? const Color(0xFFFFCDD2) : Colors.red.shade700)
+        : (isDark ? const Color(0xFFFFE082) : AppColors.darkBrown);
+    final message = isRejected
+        ? (_avatarRejectionReason.isNotEmpty
+              ? 'Photo rejected: $_avatarRejectionReason'
+              : 'Profile photo was rejected.')
+        : 'New photo is pending review.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isRejected ? Icons.error_outline : Icons.hourglass_top_rounded,
+            size: 16,
+            color: foregroundColor,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: foregroundColor,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

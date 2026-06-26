@@ -315,7 +315,7 @@ class ApiClient {
           if (message is String && message.trim().isNotEmpty) {
             return ApiException.fromDynamicStatus(
               message,
-              decoded['statusCode'],
+              decoded['statusCode'] ?? response.statusCode,
             );
           }
         }

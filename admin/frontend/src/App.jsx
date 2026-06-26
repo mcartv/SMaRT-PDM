@@ -23,6 +23,7 @@ import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/maintenance/Maintenance';
 import AdminMessages from './pages/AdminMessages';
 import SupportTickets from './pages/SupportTickets';
+import ProfilePhotoQueue from './pages/ProfilePhotoQueue';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
@@ -103,6 +104,8 @@ export default function App() {
           <Route path="messages" element={<AdminMessages />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
           <Route path="support-tickets" element={<SupportTickets />} />
+          <Route path="profile-photos" element={<ProfilePhotoQueue />} />
+          <Route path="profile-photos/:reviewId" element={<ProfilePhotoQueue />} />
           <Route path="adminprofile" element={<AdminProfile />} />
           <Route path="maintenance" element={<Maintenance />} />
         </Route>

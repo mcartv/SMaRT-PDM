@@ -128,10 +128,9 @@ class _StepSubmitState extends State<StepSubmit> {
         child: Text(
           'Review your information before submitting.',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
             color: Colors.green,
-            fontWeight: FontWeight.w700
-),
+            fontWeight: FontWeight.w700,
+          ),
         ),
       );
     }
@@ -151,18 +150,17 @@ class _StepSubmitState extends State<StepSubmit> {
           Text(
             'Review required fields:',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
               color: Colors.red,
-              fontWeight: FontWeight.w900
-),
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: 8),
           ...missing.map(
             (field) => Text(
               '• $field',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: Colors.red
-),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: Colors.red),
             ),
           ),
         ],
@@ -183,10 +181,13 @@ class _StepSubmitState extends State<StepSubmit> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const SizedBox(height: 8),
           const Divider(height: 1, color: Colors.orange),
           const SizedBox(height: 10),
@@ -209,10 +210,9 @@ class _StepSubmitState extends State<StepSubmit> {
             child: Text(
               required ? '$label *' : label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF5A3A1A)
-),
+                color: Color(0xFF5A3A1A),
+              ),
             ),
           ),
           Expanded(
@@ -220,10 +220,9 @@ class _StepSubmitState extends State<StepSubmit> {
             child: Text(
               isMissing ? 'Missing' : _clean(value),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                 color: isMissing ? Colors.red : Colors.black87,
-                fontWeight: isMissing ? FontWeight.w800 : FontWeight.normal
-),
+                fontWeight: isMissing ? FontWeight.w800 : FontWeight.normal,
+              ),
             ),
           ),
         ],
@@ -238,10 +237,9 @@ class _StepSubmitState extends State<StepSubmit> {
         Text(
           'V. REVIEW APPLICATION',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
             fontWeight: FontWeight.bold,
-            color: Colors.brown
-),
+            color: Colors.brown,
+          ),
         ),
         const Divider(color: Colors.orange, thickness: 2),
         const SizedBox(height: 16),
@@ -358,10 +356,9 @@ class _StepSubmitState extends State<StepSubmit> {
         Text(
           'VI. CERTIFICATION & SUBMISSION',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
             fontWeight: FontWeight.bold,
-            color: Colors.brown
-),
+            color: Colors.brown,
+          ),
         ),
         const Divider(color: Colors.orange, thickness: 2),
         const SizedBox(height: 24),
@@ -375,10 +372,9 @@ class _StepSubmitState extends State<StepSubmit> {
           child: Text(
             'Submitting this form will create your scholarship application for the selected opening. After submission, upload the required documents from Documents to continue the review process.',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
               color: Color(0xFF7A5C2E),
-              height: 1.5
-),
+              height: 1.5,
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -425,9 +421,9 @@ class _StepSubmitState extends State<StepSubmit> {
           child: Text(
             'Certification: I certify that all answers given above are true and correct to the best of my knowledge. I understand that any false information will disqualify my application.',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-fontWeight: FontWeight.w600,
-              color: Color(0xFF8B4513)
-),
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF8B4513),
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -450,10 +446,9 @@ fontWeight: FontWeight.w600,
                 child: Text(
                   'I certify that all information I provided is truthful, accurate, and complete to the best of my knowledge.',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                     color: Colors.grey[700],
-                    height: 1.4
-),
+                    height: 1.4,
+                  ),
                 ),
               ),
             ),
@@ -464,9 +459,9 @@ fontWeight: FontWeight.w600,
             padding: const EdgeInsets.only(left: 12, top: 4),
             child: Text(
               'You must confirm the certification statement.',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: Colors.red,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: Colors.red),
             ),
           ),
         const SizedBox(height: 20),
@@ -489,10 +484,9 @@ fontWeight: FontWeight.w600,
                 child: RichText(
                   text: TextSpan(
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                       color: Colors.grey[700],
-                      height: 1.4
-),
+                      height: 1.4,
+                    ),
                     children: [
                       TextSpan(text: 'By continuing, I agree to the '),
                       TextSpan(
@@ -521,7 +515,7 @@ fontWeight: FontWeight.w600,
                       ),
                       TextSpan(
                         text:
-                            '. I understand SMaRT-PDM may send account-related emails.',
+                            '. I understand SMaRT-PDM may send account-related emails, and that using an account that is not mine may make my scholarship application or grant invalid, disqualified, or removed.',
                       ),
                     ],
                   ),
@@ -535,9 +529,9 @@ fontWeight: FontWeight.w600,
             padding: const EdgeInsets.only(left: 12, top: 4),
             child: Text(
               'You must agree to the legal terms and privacy statement.',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: Colors.red,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: Colors.red),
             ),
           ),
       ],
@@ -559,4 +553,3 @@ fontWeight: FontWeight.w600,
     );
   }
 }
-

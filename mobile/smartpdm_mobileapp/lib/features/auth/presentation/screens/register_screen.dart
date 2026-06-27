@@ -36,6 +36,7 @@ Welcome to SMaRT-PDM.
 By creating and using a SMaRT-PDM account, you agree to provide truthful, complete, and updated information for scholarship-related purposes. You are responsible for protecting your login credentials and for all activity performed under your account.
 
 You agree not to:
+• create, access, or use an account that does not belong to you
 • submit false, altered, or misleading information
 • impersonate another student or user
 • upload fraudulent, incomplete, or unrelated documents
@@ -43,6 +44,8 @@ You agree not to:
 • attempt unauthorized access to other accounts, records, or restricted system functions
 
 SMaRT-PDM may restrict, suspend, or terminate access if submitted information is found to be fraudulent, abusive, misleading, or in violation of school, scholarship, or system-use policies.
+
+If you create, access, or use an account that is not yours, any scholarship application or scholarship grant connected to that misuse may be declared invalid, disqualified, or removed.
 
 Using SMaRT-PDM does not guarantee scholarship approval. All scholarship decisions remain subject to verification, screening, availability of slots, compliance with requirements, and official approval by the proper offices or benefactors.
 
@@ -197,10 +200,11 @@ By creating an account, you acknowledge that your information may be stored, rev
                           controller: controller,
                           child: Text(
                             content,
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey.shade800,
-                              height: 1.6,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Colors.grey.shade800,
+                                  height: 1.6,
+                                ),
                           ),
                         ),
                       ),
@@ -330,26 +334,26 @@ By creating an account, you acknowledge that your information may be stored, rev
           if (fullName.isNotEmpty)
             Text(
               'Name: $fullName',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade800,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade800),
             ),
           if (courseCode.isNotEmpty || courseName.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               'Course: ${[courseCode, courseName].where((e) => e.isNotEmpty).join(' • ')}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade800,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade800),
             ),
           ],
           if (yearLevel.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               'Year Level: $yearLevel',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade800,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade800),
             ),
           ],
         ],
@@ -520,18 +524,18 @@ By creating an account, you acknowledge that your information may be stored, rev
                         const SizedBox(height: 16),
                         Text(
                           'Create an Account',
-                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.darkBrown,
-                          ),
+                          style: Theme.of(context).textTheme.displayLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkBrown,
+                              ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Sign up to apply for and manage your SMaRT-PDM scholarships.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey.shade700,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: Colors.grey.shade700),
                           textAlign: TextAlign.center,
                         ),
                         if (hasRegistryRecord) ...[
@@ -584,8 +588,6 @@ By creating an account, you acknowledge that your information may be stored, rev
                           decoration: InputDecoration(
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
-                            helperText:
-                                'Use 15+ chars, or 8+ with a number and lowercase letter.',
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword
@@ -599,6 +601,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                               },
                             ),
                           ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           validator: _validatePassword,
                         ),
                         const SizedBox(height: 16),
@@ -655,14 +658,27 @@ By creating an account, you acknowledge that your information may be stored, rev
                                 ),
                         ),
                         const SizedBox(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 4,
+                          runSpacing: 2,
                           children: [
                             Text(
-                              'Already have an account? ',
+                              'Already have an account?',
+                              textAlign: TextAlign.center,
                               style: TextStyle(color: Colors.grey.shade700),
                             ),
                             TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
                               onPressed: () => Navigator.pushReplacementNamed(
                                 context,
                                 AppRoutes.studentLookup,
@@ -670,6 +686,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                               ),
                               child: const Text(
                                 'Check Student ID',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
                             ),

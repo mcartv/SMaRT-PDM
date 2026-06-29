@@ -37,8 +37,6 @@ exports.runAnnouncementScheduler = async (io = null) => {
         isRunning = false;
     }
 };
-<<<<<<< HEAD
-=======
 
 exports.runDepartmentDigestScheduler = async () => {
     if (isRunning) {
@@ -70,4 +68,3 @@ exports.runDepartmentDigestScheduler = async () => {
         isRunning = false;
     }
 };
->>>>>>> department

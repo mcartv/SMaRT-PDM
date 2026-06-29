@@ -189,12 +189,8 @@ app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
-<<<<<<< HEAD
-app.use('/api/admin/profile-photos', adminProfilePhotoRoutes);
-=======
 app.use('/api/endorsement-slips', endorsementSlipRoutes);
 app.use('/api/accounts', accountRoutes);
->>>>>>> department
 
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/pi/iot-ocr', piIotOcrRoutes);
@@ -287,12 +283,10 @@ io.on('connection', (socket) => {
   console.log(`[Socket] User connected: ${socket.id}`);
 
   socket.on('user-join', (payload) => {
-<<<<<<< HEAD
     const userId =
       (typeof payload === 'string' ? payload : payload?.userId || payload?.user_id || '')
         .toString()
         .trim();
-=======
     let userId = null;
 
     if (typeof payload === 'string') {
@@ -307,7 +301,6 @@ io.on('connection', (socket) => {
     } else if (payload && typeof payload === 'object') {
       userId = payload.userId || payload.user_id || null;
     }
->>>>>>> department
 
     if (!userId) {
       return;
@@ -338,12 +331,8 @@ if (!global._announcementSchedulerRunning) {
 
   setInterval(async () => {
     try {
-<<<<<<< HEAD
-      await runAnnouncementScheduler(io);
-=======
       await runAnnouncementScheduler();
       await runDepartmentDigestScheduler();
->>>>>>> department
     } catch (err) {
       console.error('Scheduler Error:', err.message);
     }

@@ -231,6 +231,8 @@ async function getStudentProfile(studentId) {
       maiden_name,
       religion,
       citizenship,
+      unit_bldg_no,
+      house_lot_block_no,
       street_address,
       subdivision,
       barangay,
@@ -238,7 +240,6 @@ async function getStudentProfile(studentId) {
       province,
       zip_code,
       landline_number,
-      current_section,
       parent_guardian_address,
       same_address_as_applicant,
       father_present,
@@ -510,6 +511,8 @@ async function getMyFormData(userId) {
         },
 
         address: {
+            unit_bldg_no: safeText(profile?.unit_bldg_no),
+            house_lot_block_no: safeText(profile?.house_lot_block_no),
             street: safeText(profile?.street_address),
             subdivision: safeText(profile?.subdivision),
             barangay: safeText(profile?.barangay),
@@ -635,7 +638,7 @@ async function getMyFormData(userId) {
             elementary_year_graduated: safeText(
                 elementaryEducation.year_graduated
             ),
-            current_section: safeText(profile?.current_section),
+            current_section: safeText(draftPayload.academic?.current_section),
         },
 
         support: {

@@ -99,8 +99,6 @@ class _DashboardContentState extends State<DashboardContent> {
   final TextEditingController _searchController = TextEditingController();
   final ApplicantDocumentsService _documentsService = ApplicantDocumentsService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
-  final PrintableApplicationService _printableApplicationService =
-      PrintableApplicationService();
 
   String _studentId = 'Student';
   String _userName = 'Scholar';
@@ -387,12 +385,14 @@ class _DashboardContentState extends State<DashboardContent> {
               subtitle: 'Upload documents',
               onTap: () =>
                   Navigator.pushNamed(context, AppRoutes.renewalDocuments),
+              isLoading: false,
             ),
             _QuickAction(
               icon: Icons.assignment_turned_in_rounded,
               title: 'RO',
               subtitle: 'Submit progress',
               onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
+              isLoading: false,
             ),
             _QuickAction(
               icon: Icons.school_rounded,
@@ -400,6 +400,7 @@ class _DashboardContentState extends State<DashboardContent> {
               subtitle: 'View notices',
               onTap: () =>
                   Navigator.pushNamed(context, AppRoutes.notifications),
+              isLoading: false,
             ),
           ]
         : [
@@ -409,18 +410,21 @@ class _DashboardContentState extends State<DashboardContent> {
               subtitle: 'Open scholarships',
               onTap: () =>
                   Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
+              isLoading: false,
             ),
             _QuickAction(
               icon: Icons.upload_file_rounded,
               title: 'Documents',
               subtitle: 'Requirements',
               onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
+              isLoading: false,
             ),
             _QuickAction(
               icon: Icons.fact_check_rounded,
               title: 'Status',
               subtitle: 'Track progress',
               onTap: () => Navigator.pushNamed(context, AppRoutes.status),
+              isLoading: false,
             ),
           ];
   }
@@ -511,32 +515,6 @@ class _DashboardContentState extends State<DashboardContent> {
     setState(() => _selectedSection = section);
   }
 
-  Future<void> _downloadApplicationPdf() async {
-    if (_isGeneratingPdf) return;
-
-    setState(() => _isGeneratingPdf = true);
-
-    try {
-      await _printableApplicationService.generateOpenFromMySavedFormData();
-    } catch (error) {
-      if (!mounted) return;
-      final message = error.toString().replaceFirst('Exception: ', '').trim();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            message.isEmpty
-                ? 'Failed to generate application form PDF.'
-                : message,
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isGeneratingPdf = false);
-      }
-    }
-  }
-
   List<String> _officeUpdateTags(AppNotification notification) {
     final text =
         '${_safeText(notification.title)} ${_safeText(notification.message)}'
@@ -561,8 +539,13 @@ class _DashboardContentState extends State<DashboardContent> {
       tags.add('Private Grants');
     }
 
-    if (tags.isEmpty && _isOpeningUpdate(notification)) {
-      tags.addAll(const ['Openings', 'Scholarship']);
+    if (_isOpeningUpdate(notification)) {
+      if (!tags.contains('Openings')) {
+        tags.add('Openings');
+      }
+      if (!tags.contains('Scholarship')) {
+        tags.add('Scholarship');
+      }
     }
 
     if (tags.isEmpty) {
@@ -832,53 +815,7 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
-  Widget _buildQuickActions() {
-    final actions = _hasScholarAccess
-        ? [
-            _QuickAction(
-              icon: Icons.upload_file_rounded,
-              title: 'Renewal',
-              subtitle: 'Upload documents',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.renewalDocuments),
-            ),
-            _QuickAction(
-              icon: Icons.assignment_turned_in_rounded,
-              title: 'RO',
-              subtitle: 'Submit progress',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
-            ),
-            _QuickAction(
-              icon: Icons.download_rounded,
-              title: 'Downloads',
-              subtitle: _isGeneratingPdf ? 'Generating PDF' : 'Application PDF',
-              onTap: _downloadApplicationPdf,
-              isLoading: _isGeneratingPdf,
-            ),
-          ]
-        : [
-            _QuickAction(
-              icon: Icons.school_rounded,
-              title: 'Apply',
-              subtitle: 'Open scholarships',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
-            ),
-            _QuickAction(
-              icon: Icons.upload_file_rounded,
-              title: 'Documents',
-              subtitle: 'Requirements',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
-            ),
-            _QuickAction(
-              icon: Icons.download_rounded,
-              title: 'Downloads',
-              subtitle: _isGeneratingPdf ? 'Generating PDF' : 'Application PDF',
-              onTap: _downloadApplicationPdf,
-              isLoading: _isGeneratingPdf,
-            ),
-          ];
-
+  Widget _buildQuickActions(List<_QuickAction> actions) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 390;

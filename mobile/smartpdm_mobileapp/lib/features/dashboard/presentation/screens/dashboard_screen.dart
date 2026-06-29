@@ -6,6 +6,7 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
@@ -91,12 +92,15 @@ class DashboardContent extends StatefulWidget {
 
 class _DashboardContentState extends State<DashboardContent> {
   final ProgramOpeningService _openingService = ProgramOpeningService();
+  final PrintableApplicationService _printableApplicationService =
+      PrintableApplicationService();
 
   String _studentId = 'Student';
   String _userName = 'Scholar';
   bool _cachedScholarAccess = false;
 
   bool _isLoadingOpenings = true;
+  bool _isGeneratingPdf = false;
   List<ProgramOpening> _latestOpenings = [];
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
@@ -222,6 +226,32 @@ class _DashboardContentState extends State<DashboardContent> {
 
   void _openScholarshipOpenings(BuildContext context) {
     Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
+  }
+
+  Future<void> _downloadApplicationPdf() async {
+    if (_isGeneratingPdf) return;
+
+    setState(() => _isGeneratingPdf = true);
+
+    try {
+      await _printableApplicationService.generateOpenFromMySavedFormData();
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty
+                ? 'Failed to generate application form PDF.'
+                : message,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingPdf = false);
+      }
+    }
   }
 
   List<String> _officeUpdateTags(AppNotification notification) {
@@ -511,11 +541,11 @@ class _DashboardContentState extends State<DashboardContent> {
               onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
             ),
             _QuickAction(
-              icon: Icons.school_rounded,
+              icon: Icons.download_rounded,
               title: 'Downloads',
-              subtitle: 'View notices',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.notifications),
+              subtitle: _isGeneratingPdf ? 'Generating PDF' : 'Application PDF',
+              onTap: _downloadApplicationPdf,
+              isLoading: _isGeneratingPdf,
             ),
           ]
         : [
@@ -533,10 +563,11 @@ class _DashboardContentState extends State<DashboardContent> {
               onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
             ),
             _QuickAction(
-              icon: Icons.fact_check_rounded,
-              title: 'Status',
-              subtitle: 'Track progress',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.status),
+              icon: Icons.download_rounded,
+              title: 'Downloads',
+              subtitle: _isGeneratingPdf ? 'Generating PDF' : 'Application PDF',
+              onTap: _downloadApplicationPdf,
+              isLoading: _isGeneratingPdf,
             ),
           ];
 
@@ -978,12 +1009,14 @@ class _QuickAction {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.isLoading = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool isLoading;
 }
 
 class _QuickActionCard extends StatelessWidget {
@@ -1002,7 +1035,7 @@ class _QuickActionCard extends StatelessWidget {
       color: surface,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        onTap: action.onTap,
+        onTap: action.isLoading ? null : action.onTap,
         borderRadius: BorderRadius.circular(18),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -1022,11 +1055,23 @@ class _QuickActionCard extends StatelessWidget {
                     color: AppColors.gold.withOpacity(isDark ? 0.22 : 0.18),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(
-                    action.icon,
-                    color: isDark ? const Color(0xFFFFD54F) : primaryColor,
-                    size: 21,
-                  ),
+                  child: action.isLoading
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: isDark
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
+                          ),
+                        )
+                      : Icon(
+                          action.icon,
+                          color: isDark
+                              ? const Color(0xFFFFD54F)
+                              : primaryColor,
+                          size: 21,
+                        ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(

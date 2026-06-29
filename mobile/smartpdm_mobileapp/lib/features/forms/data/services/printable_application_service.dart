@@ -14,6 +14,17 @@ class PrintableApplicationService {
   final ApplicationService _applicationService;
   final ScholarshipFormPdfService _pdfService;
 
+  Future<File> generateFromMySavedFormData() async {
+    final payload = await _applicationService.fetchMySavedFormData();
+    final model = SavedApplicationPrintModel.fromSavedFormData(payload);
+    return _pdfService.generateFromSavedApplication(model);
+  }
+
+  Future<void> generateOpenFromMySavedFormData() async {
+    final file = await generateFromMySavedFormData();
+    await _pdfService.openGeneratedPdf(file);
+  }
+
   Future<File> generateFromApplicationId(String applicationId) async {
     final payload = await _applicationService.fetchApplicationDetails(
       applicationId,

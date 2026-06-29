@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import ExcelJS from 'exceljs';
 
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -123,18 +124,18 @@ function normalizeHeaderKey(header) {
 }
 
 function parseCsvLine(line) {
-  const values = [];
+  const cells = [];
   let current = '';
   let inQuotes = false;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const nextChar = line[index + 1];
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
 
     if (char === '"') {
-      if (inQuotes && nextChar === '"') {
+      if (inQuotes && next === '"') {
         current += '"';
-        index += 1;
+        i += 1;
       } else {
         inQuotes = !inQuotes;
       }
@@ -142,7 +143,7 @@ function parseCsvLine(line) {
     }
 
     if (char === ',' && !inQuotes) {
-      values.push(current);
+      cells.push(current);
       current = '';
       continue;
     }
@@ -150,8 +151,8 @@ function parseCsvLine(line) {
     current += char;
   }
 
-  values.push(current);
-  return values.map((value) => value.trim());
+  cells.push(current);
+  return cells;
 }
 
 function parseCsvRows(text) {
@@ -160,15 +161,15 @@ function parseCsvRows(text) {
   let current = '';
   let inQuotes = false;
 
-  for (let index = 0; index < normalized.length; index += 1) {
-    const char = normalized[index];
-    const nextChar = normalized[index + 1];
+  for (let i = 0; i < normalized.length; i += 1) {
+    const char = normalized[i];
+    const next = normalized[i + 1];
 
     if (char === '"') {
       current += char;
-      if (inQuotes && nextChar === '"') {
-        current += nextChar;
-        index += 1;
+      if (inQuotes && next === '"') {
+        current += next;
+        i += 1;
       } else {
         inQuotes = !inQuotes;
       }
@@ -476,18 +477,29 @@ export default function StudentRegistryPanel() {
 
   const parseWorkbookPreview = async (selectedFile) => {
     const lowerName = selectedFile.name.toLowerCase();
+    let rows = [];
+    let firstSheetName = 'CSV Preview';
 
-    if (lowerName.endsWith('.xlsx')) {
-      setExcelSheetName(selectedFile.name);
-      setExcelHeaders(EXCEL_HEADERS_FALLBACK);
-      setExcelRows([]);
-      setTableMode('imported');
-      setPage(1);
-      return;
+    if (lowerName.endsWith('.csv')) {
+      const text = await selectedFile.text();
+      rows = parseCsvRows(text);
+    } else if (lowerName.endsWith('.xlsx')) {
+      const buffer = await selectedFile.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        throw new Error('No worksheet found in the uploaded file.');
+      }
+
+      firstSheetName = worksheet.name || firstSheetName;
+      worksheet.eachRow({ includeEmpty: false }, (row) => {
+        rows.push(row.values.slice(1).map((value) => (value == null ? '' : String(value))));
+      });
+    } else {
+      throw new Error('Only .xlsx and .csv files are allowed.');
     }
-
-    const text = await selectedFile.text();
-    const rows = parseCsvRows(text);
 
     if (!rows.length) {
       throw new Error('The uploaded CSV file is empty.');

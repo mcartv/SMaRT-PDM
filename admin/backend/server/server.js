@@ -283,10 +283,6 @@ io.on('connection', (socket) => {
   console.log(`[Socket] User connected: ${socket.id}`);
 
   socket.on('user-join', (payload) => {
-    const userId =
-      (typeof payload === 'string' ? payload : payload?.userId || payload?.user_id || '')
-        .toString()
-        .trim();
     let userId = null;
 
     if (typeof payload === 'string') {
@@ -301,6 +297,8 @@ io.on('connection', (socket) => {
     } else if (payload && typeof payload === 'object') {
       userId = payload.userId || payload.user_id || null;
     }
+
+    userId = userId?.toString().trim();
 
     if (!userId) {
       return;

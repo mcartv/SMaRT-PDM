@@ -167,7 +167,10 @@ export default function AdminLayout() {
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === '/admin/applications' || item.path === '/admin/openings'}
+              end={
+                item.path === '/admin/applications' ||
+                item.path === '/admin/openings'
+              }
               className={({ isActive }) =>
                 `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'

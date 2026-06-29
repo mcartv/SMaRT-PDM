@@ -235,7 +235,7 @@ class MessageService {
     final items = response['items'] as List<dynamic>? ?? const [];
 
     return items
-        .where((item) => item is Map)
+        .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
   }

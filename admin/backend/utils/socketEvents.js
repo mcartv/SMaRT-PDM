@@ -41,6 +41,7 @@ const socketEvents = {
     applicationUpdated: (io, data) => emitEvent(io, 'application:updated', data),
     applicationApproved: (io, data) => emitEvent(io, 'application:approved', data),
     applicationRejected: (io, data) => emitEvent(io, 'application:rejected', data),
+    endorsementUpdated: (io, data) => emitEvent(io, 'endorsement:updated', data),
 
     // Scholar Events
     scholarUpdated: (io, data) => emitEvent(io, 'scholar:updated', data),

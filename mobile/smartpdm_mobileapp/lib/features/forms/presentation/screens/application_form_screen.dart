@@ -288,8 +288,9 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                   validator: (value) {
                     final text = value?.trim() ?? '';
                     if (text.isEmpty) return 'Please enter your email.';
-                    if (!text.contains('@'))
+                    if (!text.contains('@')) {
                       return 'Please enter a valid email.';
+                    }
                     return null;
                   },
                 ),

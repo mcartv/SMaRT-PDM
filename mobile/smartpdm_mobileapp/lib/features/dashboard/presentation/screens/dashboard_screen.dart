@@ -8,6 +8,7 @@ import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
@@ -98,6 +99,8 @@ class _DashboardContentState extends State<DashboardContent> {
   final TextEditingController _searchController = TextEditingController();
   final ApplicantDocumentsService _documentsService = ApplicantDocumentsService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
+  final PrintableApplicationService _printableApplicationService =
+      PrintableApplicationService();
 
   String _studentId = 'Student';
   String _userName = 'Scholar';
@@ -107,6 +110,7 @@ class _DashboardContentState extends State<DashboardContent> {
 
   bool _isLoadingOpenings = true;
   bool _isLoadingRequirements = true;
+  bool _isGeneratingPdf = false;
   List<ProgramOpening> _latestOpenings = [];
   ApplicantDocumentsPackage? _requirementsPackage;
   bool _needsBaseApplication = false;
@@ -507,6 +511,32 @@ class _DashboardContentState extends State<DashboardContent> {
     setState(() => _selectedSection = section);
   }
 
+  Future<void> _downloadApplicationPdf() async {
+    if (_isGeneratingPdf) return;
+
+    setState(() => _isGeneratingPdf = true);
+
+    try {
+      await _printableApplicationService.generateOpenFromMySavedFormData();
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty
+                ? 'Failed to generate application form PDF.'
+                : message,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingPdf = false);
+      }
+    }
+  }
+
   List<String> _officeUpdateTags(AppNotification notification) {
     final text =
         '${_safeText(notification.title)} ${_safeText(notification.message)}'
@@ -802,7 +832,53 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
-  Widget _buildQuickActions(List<_QuickAction> actions) {
+  Widget _buildQuickActions() {
+    final actions = _hasScholarAccess
+        ? [
+            _QuickAction(
+              icon: Icons.upload_file_rounded,
+              title: 'Renewal',
+              subtitle: 'Upload documents',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.renewalDocuments),
+            ),
+            _QuickAction(
+              icon: Icons.assignment_turned_in_rounded,
+              title: 'RO',
+              subtitle: 'Submit progress',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
+            ),
+            _QuickAction(
+              icon: Icons.download_rounded,
+              title: 'Downloads',
+              subtitle: _isGeneratingPdf ? 'Generating PDF' : 'Application PDF',
+              onTap: _downloadApplicationPdf,
+              isLoading: _isGeneratingPdf,
+            ),
+          ]
+        : [
+            _QuickAction(
+              icon: Icons.school_rounded,
+              title: 'Apply',
+              subtitle: 'Open scholarships',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
+            ),
+            _QuickAction(
+              icon: Icons.upload_file_rounded,
+              title: 'Documents',
+              subtitle: 'Requirements',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
+            ),
+            _QuickAction(
+              icon: Icons.download_rounded,
+              title: 'Downloads',
+              subtitle: _isGeneratingPdf ? 'Generating PDF' : 'Application PDF',
+              onTap: _downloadApplicationPdf,
+              isLoading: _isGeneratingPdf,
+            ),
+          ];
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 390;
@@ -1293,12 +1369,14 @@ class _QuickAction {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.isLoading = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool isLoading;
 }
 
 class _QuickActionCard extends StatelessWidget {
@@ -1317,7 +1395,7 @@ class _QuickActionCard extends StatelessWidget {
       color: surface,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        onTap: action.onTap,
+        onTap: action.isLoading ? null : action.onTap,
         borderRadius: BorderRadius.circular(18),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -1337,11 +1415,23 @@ class _QuickActionCard extends StatelessWidget {
                     color: AppColors.gold.withOpacity(isDark ? 0.22 : 0.18),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(
-                    action.icon,
-                    color: isDark ? const Color(0xFFFFD54F) : primaryColor,
-                    size: 21,
-                  ),
+                  child: action.isLoading
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: isDark
+                                ? const Color(0xFFFFD54F)
+                                : primaryColor,
+                          ),
+                        )
+                      : Icon(
+                          action.icon,
+                          color: isDark
+                              ? const Color(0xFFFFD54F)
+                              : primaryColor,
+                          size: 21,
+                        ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(

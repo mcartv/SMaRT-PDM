@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const socketIO = require('socket.io');
+const jwt = require('jsonwebtoken');
 
 require('dotenv').config({
   path: path.resolve(__dirname, '../.env'),
@@ -28,6 +29,8 @@ const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
 const adminProfilePhotoRoutes = require('../../../backend/src/routes/adminProfilePhotoRoutes');
+const endorsementSlipRoutes = require('../routes/endorsementSlipRoutes');
+const accountRoutes = require('../routes/accountRoutes');
 
 const ocrRoutes = require('../routes/ocrRoutes');
 const reportRoutes = require('../routes/reportRoutes');
@@ -37,7 +40,10 @@ const piRoutes = require('../routes/piRoutes');
 const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
 
 // Services
-const { runAnnouncementScheduler } = require('../services/schedulerService');
+const {
+  runAnnouncementScheduler,
+  runDepartmentDigestScheduler,
+} = require('../services/schedulerService');
 
 const app = express();
 
@@ -183,7 +189,12 @@ app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
+<<<<<<< HEAD
 app.use('/api/admin/profile-photos', adminProfilePhotoRoutes);
+=======
+app.use('/api/endorsement-slips', endorsementSlipRoutes);
+app.use('/api/accounts', accountRoutes);
+>>>>>>> department
 
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/pi/iot-ocr', piIotOcrRoutes);
@@ -276,10 +287,27 @@ io.on('connection', (socket) => {
   console.log(`[Socket] User connected: ${socket.id}`);
 
   socket.on('user-join', (payload) => {
+<<<<<<< HEAD
     const userId =
       (typeof payload === 'string' ? payload : payload?.userId || payload?.user_id || '')
         .toString()
         .trim();
+=======
+    let userId = null;
+
+    if (typeof payload === 'string') {
+      userId = payload;
+    } else if (payload && typeof payload === 'object' && payload.token) {
+      try {
+        const decoded = jwt.verify(payload.token, process.env.JWT_SECRET);
+        userId = decoded.userId || decoded.user_id || decoded.sub || null;
+      } catch (error) {
+        console.error('[Socket] Failed to decode join token:', error.message);
+      }
+    } else if (payload && typeof payload === 'object') {
+      userId = payload.userId || payload.user_id || null;
+    }
+>>>>>>> department
 
     if (!userId) {
       return;
@@ -310,7 +338,12 @@ if (!global._announcementSchedulerRunning) {
 
   setInterval(async () => {
     try {
+<<<<<<< HEAD
       await runAnnouncementScheduler(io);
+=======
+      await runAnnouncementScheduler();
+      await runDepartmentDigestScheduler();
+>>>>>>> department
     } catch (err) {
       console.error('Scheduler Error:', err.message);
     }

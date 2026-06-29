@@ -29,6 +29,7 @@ const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
 const endorsementSlipRoutes = require('../routes/endorsementSlipRoutes');
+const accountRoutes = require('../routes/accountRoutes');
 
 const ocrRoutes = require('../routes/ocrRoutes');
 const reportRoutes = require('../routes/reportRoutes');
@@ -188,6 +189,7 @@ app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/endorsement-slips', endorsementSlipRoutes);
+app.use('/api/accounts', accountRoutes);
 
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/pi/iot-ocr', piIotOcrRoutes);

@@ -11,8 +11,7 @@ function resolveStaffRole(profile = {}) {
     const department = safeText(profile.department).toLowerCase();
     const position = safeText(profile.position).toLowerCase();
 
-    if (explicitUserRole === 'admin') return 'admin';
-    if (explicitUserRole === 'pd' || includesAny(department, ['program department', 'pd']) || includesAny(position, ['program chair', 'department chair', 'pd reviewer'])) {
+    if (explicitUserRole === 'pd' || includesAny(department, ['program department', 'pd']) || includesAny(position, ['program director', 'program chair', 'department chair', 'pd reviewer'])) {
         return 'pd';
     }
     if (explicitUserRole === 'guidance' || includesAny(department, ['guidance']) || includesAny(position, ['guidance'])) {
@@ -21,6 +20,7 @@ function resolveStaffRole(profile = {}) {
     if (explicitUserRole === 'sdo' || includesAny(department, ['disciplinary', 'student discipline', 'sdo']) || includesAny(position, ['disciplinary', 'student discipline', 'sdo'])) {
         return 'sdo';
     }
+    if (explicitUserRole === 'admin') return 'admin';
 
     return profile.admin_id ? 'admin' : explicitUserRole || null;
 }

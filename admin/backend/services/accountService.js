@@ -1,0 +1,210 @@
+const bcrypt = require('bcryptjs');
+const { z } = require('zod');
+const db = require('../config/db');
+const { resolveStaffRole } = require('../utils/staffRoles');
+
+const ROLE_CONFIG = {
+    admin: {
+        dbRole: 'Admin',
+        department: 'OSFA',
+        position: 'OSFA Administrator',
+    },
+    pd: {
+        dbRole: 'Admin',
+        department: 'Program Department',
+        position: 'Program Director',
+    },
+    guidance: {
+        dbRole: 'Admin',
+        department: 'Guidance Office',
+        position: 'Guidance Staff',
+    },
+    sdo: {
+        dbRole: 'SDO',
+        department: 'Student Disciplinary Office',
+        position: 'SDO Officer',
+    },
+};
+
+const staffAccountSchema = z
+    .object({
+        first_name: z.string().trim().min(1, 'First name is required.'),
+        last_name: z.string().trim().min(1, 'Last name is required.'),
+        email: z.string().trim().toLowerCase().email('A valid email address is required.'),
+        phone_number: z.string().trim().optional().default(''),
+        role: z.enum(['admin', 'pd', 'guidance', 'sdo'], {
+            error: 'Invalid role selected.',
+        }),
+        department: z.string().trim().optional().default(''),
+        position: z.string().trim().optional().default(''),
+        password: z
+            .string()
+            .min(8, 'Password must be at least 8 characters.')
+            .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+            .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+            .regex(/[0-9]/, 'Password must contain at least one number.'),
+        confirm_password: z.string(),
+    })
+    .refine((data) => data.password === data.confirm_password, {
+        path: ['confirm_password'],
+        message: 'Passwords do not match.',
+    });
+
+function createHttpError(statusCode, message) {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+}
+
+function safeText(value) {
+    return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function mapStaffAccount(row) {
+    const role = resolveStaffRole(row);
+    const name = [row.first_name, row.last_name].filter(Boolean).join(' ');
+
+    return {
+        user_id: row.user_id,
+        admin_id: row.admin_id,
+        name,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        email: row.email,
+        username: row.username,
+        phone_number: row.phone_number || '',
+        department: row.department || '',
+        position: row.position || '',
+        role,
+        db_role: row.user_role,
+        created_at: row.created_at,
+    };
+}
+
+async function buildUniqueUsername(client, email) {
+    const localPart = email.split('@')[0] || 'staff';
+    const base = localPart
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]/g, '')
+        .replace(/^[._-]+|[._-]+$/g, '') || 'staff';
+
+    for (let index = 0; index < 100; index += 1) {
+        const candidate = index === 0 ? base : `${base}${index + 1}`;
+        const existing = await client.query(
+            'SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1',
+            [candidate]
+        );
+
+        if (!existing.rows.length) {
+            return candidate;
+        }
+    }
+
+    throw createHttpError(500, 'Unable to generate a unique username.');
+}
+
+async function listStaffAccounts() {
+    const result = await db.query(`
+        SELECT
+            u.user_id,
+            u.email,
+            u.username,
+            u.phone_number,
+            u.role AS user_role,
+            u.created_at,
+            a.admin_id,
+            a.first_name,
+            a.last_name,
+            a.department,
+            a.position
+        FROM users u
+        INNER JOIN admin_profiles a ON a.user_id = u.user_id
+        WHERE COALESCE(a.is_archived, false) = false
+        ORDER BY u.created_at DESC
+    `);
+
+    return result.rows
+        .map(mapStaffAccount)
+        .filter((account) => ['admin', 'pd', 'guidance', 'sdo'].includes(account.role));
+}
+
+async function createStaffAccount(payload) {
+    const parsed = staffAccountSchema.safeParse(payload);
+
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        throw createHttpError(400, firstIssue?.message || 'Invalid staff account details.');
+    }
+
+    const {
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone_number: phoneNumberInput,
+        role,
+        password,
+    } = parsed.data;
+
+    const config = ROLE_CONFIG[role];
+    const phoneNumber = safeText(phoneNumberInput) || null;
+    const department = safeText(payload.department) || config.department;
+    const position = safeText(payload.position) || config.position;
+    const passwordHash = await bcrypt.hash(password, 12);
+    const client = await db.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const duplicateEmail = await client.query(
+            'SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [email]
+        );
+
+        if (duplicateEmail.rows.length) {
+            throw createHttpError(400, 'An account with this email already exists.');
+        }
+
+        const username = await buildUniqueUsername(client, email);
+
+        const userResult = await client.query(
+            `
+                INSERT INTO users (role, username, password_hash, email, phone_number, is_otp_verified)
+                VALUES ($1, $2, $3, $4, $5, true)
+                RETURNING user_id, email, username, phone_number, role AS user_role, created_at
+            `,
+            [config.dbRole, username, passwordHash, email, phoneNumber]
+        );
+
+        const user = userResult.rows[0];
+        const profileResult = await client.query(
+            `
+                INSERT INTO admin_profiles (user_id, first_name, last_name, department, position, is_archived)
+                VALUES ($1, $2, $3, $4, $5, false)
+                RETURNING admin_id, first_name, last_name, department, position
+            `,
+            [user.user_id, firstName, lastName, department, position]
+        );
+
+        await client.query('COMMIT');
+
+        return mapStaffAccount({
+            ...user,
+            ...profileResult.rows[0],
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+
+        if (error.code === '23505') {
+            throw createHttpError(400, 'An account with this email or username already exists.');
+        }
+
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+module.exports = {
+    createStaffAccount,
+    listStaffAccounts,
+};

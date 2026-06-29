@@ -22,6 +22,28 @@ const FEATURES = [
   { icon: Award, label: 'Financial Assistance' },
 ];
 
+const ROLE_PORTALS = {
+  pd: {
+    tokenStorageKey: 'pdToken',
+    profileStorageKey: 'pdProfile',
+    redirectPath: '/pd/dashboard',
+  },
+  guidance: {
+    tokenStorageKey: 'guidanceToken',
+    profileStorageKey: 'guidanceProfile',
+    redirectPath: '/guidance/dashboard',
+  },
+  sdo: {
+    tokenStorageKey: 'sdoToken',
+    profileStorageKey: 'sdoProfile',
+    redirectPath: '/sdo/dashboard',
+  },
+};
+
+function clearSessionKeys(keys) {
+  keys.forEach((key) => sessionStorage.removeItem(key));
+}
+
 export default function AdminLogin() {
   const navigate = useNavigate();
 
@@ -52,17 +74,36 @@ export default function AdminLogin() {
         throw new Error(data.message || 'Login failed');
       }
 
+      const nextRole = data?.user?.role;
+      const rolePortal = ROLE_PORTALS[nextRole];
+
+      clearSessionKeys([
+        'adminToken',
+        'adminProfile',
+        'pdToken',
+        'pdProfile',
+        'guidanceToken',
+        'guidanceProfile',
+        'sdoToken',
+        'sdoProfile',
+      ]);
+
+      if (rolePortal) {
+        sessionStorage.setItem(rolePortal.tokenStorageKey, data.token);
+        if (data.user) {
+          sessionStorage.setItem(rolePortal.profileStorageKey, JSON.stringify(data.user));
+        }
+        navigate(rolePortal.redirectPath);
+        return;
+      }
+
       sessionStorage.setItem('adminToken', data.token);
 
       if (data.user) {
         sessionStorage.setItem('adminProfile', JSON.stringify(data.user));
       }
 
-      const nextRole = data?.user?.role;
-      if (nextRole === 'pd') navigate('/admin/endorsements/pd');
-      else if (nextRole === 'guidance') navigate('/admin/endorsements/guidance');
-      else if (nextRole === 'sdo') navigate('/admin/endorsements/sdo');
-      else navigate('/admin/dashboard');
+      navigate('/admin/dashboard');
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

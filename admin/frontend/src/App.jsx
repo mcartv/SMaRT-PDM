@@ -25,7 +25,6 @@ import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/maintenance/Maintenance';
 import AdminMessages from './pages/AdminMessages';
 import SupportTickets from './pages/SupportTickets';
-import EndorsementQueue from './pages/EndorsementQueue';
 import EndorsementSlipDetail from './pages/EndorsementSlipDetail';
 import EndorsementVerification from './pages/EndorsementVerification';
 import PDLogin from './pages/PDLogin';
@@ -59,15 +58,6 @@ const ProtectedRoute = ({ children, storageKey, redirectTo }) => {
 };
 
 const RoleHome = () => {
-  try {
-    const profile = JSON.parse(sessionStorage.getItem('adminProfile') || '{}');
-    if (profile.role === 'pd') return <Navigate to="/admin/endorsements/pd" replace />;
-    if (profile.role === 'guidance') return <Navigate to="/admin/endorsements/guidance" replace />;
-    if (profile.role === 'sdo') return <Navigate to="/admin/endorsements/sdo" replace />;
-  } catch {
-    // fall through
-  }
-
   return <Navigate to="/admin/dashboard" replace />;
 };
 
@@ -102,10 +92,6 @@ export default function App() {
           <Route index element={<RoleHome />} />
 
           <Route path="dashboard" element={<AdminDashboard />} />
-          <Route path="endorsements/pd" element={<EndorsementQueue queueKey="pd" />} />
-          <Route path="endorsements/guidance" element={<EndorsementQueue queueKey="guidance" />} />
-          <Route path="endorsements/sdo" element={<EndorsementQueue queueKey="sdo" />} />
-          <Route path="endorsements/:slipId" element={<EndorsementSlipDetail />} />
 
           {/* Applications */}
           <Route path="applications" element={<ApplicationReview />} />

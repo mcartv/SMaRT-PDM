@@ -91,6 +91,7 @@ class AuthService {
         'password': password,
         'student_id': studentId.trim().toUpperCase(),
       },
+      timeout: const Duration(seconds: 45),
     );
 
     final user = (response['user'] as Map<String, dynamic>?) ?? {};

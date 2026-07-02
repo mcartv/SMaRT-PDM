@@ -74,7 +74,9 @@ async function sendOTPEmail(email, otp) {
         return;
     }
 
-    if (!process.env.GMAIL_APP_PASSWORD) {
+    const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+
+    if (!gmailAppPassword) {
         throw createHttpError(500, 'GMAIL_APP_PASSWORD is not configured');
     }
 

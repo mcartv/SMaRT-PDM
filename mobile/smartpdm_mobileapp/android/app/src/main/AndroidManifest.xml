@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="smartpdm_mobileapp"
+        android:label="SMaRTPDM Beta"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

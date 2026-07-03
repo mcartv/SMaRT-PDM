@@ -28,7 +28,7 @@ const supportTicketRoutes = require('../routes/supportTicketRoutes');
 const payoutRoutes = require('../routes/payoutRoutes');
 const studentRegistryRoutes = require('../routes/studentRegistryRoutes');
 const academicYearRoutes = require('../routes/academicYearRoutes');
-const adminProfilePhotoRoutes = require('../../../backend/src/routes/adminProfilePhotoRoutes');
+const adminProfilePhotoRoutes = require('../routes/adminProfilePhotoRoutes');
 const endorsementSlipRoutes = require('../routes/endorsementSlipRoutes');
 const accountRoutes = require('../routes/accountRoutes');
 
@@ -189,6 +189,7 @@ app.use('/api/support-tickets', supportTicketRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/student-registry', studentRegistryRoutes);
 app.use('/api/academic-years', academicYearRoutes);
+app.use('/api/admin/profile-photos', adminProfilePhotoRoutes);
 app.use('/api/endorsement-slips', endorsementSlipRoutes);
 app.use('/api/accounts', accountRoutes);
 

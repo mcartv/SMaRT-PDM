@@ -236,7 +236,7 @@ class MessageService {
 
     return items
         .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item as Map))
+        .map((item) => Map<String, dynamic>.from(item))
         .toList();
   }
 

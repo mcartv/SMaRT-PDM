@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 const bcrypt = require('bcrypt');
-const { transporter } = require('../config/mailer');
+const { mailFrom, transporter } = require('../config/mailer');
 const { buildAuthToken } = require('../middleware/authMiddleware');
 const {
     normalizeStudentNumber,
@@ -82,7 +82,7 @@ async function sendOTPEmail(email, otp) {
 
     try {
         await transporter.sendMail({
-            from: process.env.GMAIL_USER || 'pelimavenice.pdm@gmail.com',
+            from: mailFrom,
             to: email,
             subject: 'SMaRT-PDM Account Verification OTP',
             html: `

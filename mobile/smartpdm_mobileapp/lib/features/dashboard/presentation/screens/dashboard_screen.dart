@@ -8,7 +8,6 @@ import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
-import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
@@ -108,7 +107,7 @@ class _DashboardContentState extends State<DashboardContent> {
 
   bool _isLoadingOpenings = true;
   bool _isLoadingRequirements = true;
-  bool _isGeneratingPdf = false;
+  final bool _isGeneratingPdf = false;
   List<ProgramOpening> _latestOpenings = [];
   ApplicantDocumentsPackage? _requirementsPackage;
   bool _needsBaseApplication = false;

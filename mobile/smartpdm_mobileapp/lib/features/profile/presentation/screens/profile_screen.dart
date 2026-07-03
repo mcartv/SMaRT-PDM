@@ -935,7 +935,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   isExpanded: true,
                   dropdownColor: dropdownSurfaceColor,
                   style: TextStyle(color: dropdownTextColor),
-                  value: _courseOptions.contains(_courseController.text)
+                  initialValue: _courseOptions.contains(_courseController.text)
                       ? _courseController.text
                       : null,
                   items: _courseOptions

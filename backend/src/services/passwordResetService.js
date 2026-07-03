@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const supabase = require('../config/supabase');
-const { transporter } = require('../config/mailer');
+const { mailFrom, transporter } = require('../config/mailer');
 
 const OTP_TABLE = 'password_reset_otps';
 const ACTIVITY_TABLE = 'password_reset_activity_log';
@@ -112,7 +112,7 @@ async function sendPasswordResetEmail(email, otp, displayName) {
     }
 
     await transporter.sendMail({
-        from: process.env.GMAIL_USER || 'pelimavenice.pdm@gmail.com',
+        from: mailFrom,
         to: email,
         subject: 'SMaRT-PDM Password Reset Code',
         html: `

@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
 import {
   Select,
   SelectContent,
@@ -27,22 +28,22 @@ import {
 
 const QUEUE_META = {
   pd: {
-    title: 'PD Dashboard',
-    subtitle: 'Review grade endorsements and move qualified students to Guidance.',
+    title: 'Program Director Queue',
+    subtitle: 'Finalize applicants already cleared by SDO and Guidance.',
     endpoint: '/api/endorsement-slips/pd',
     actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/pd-action`,
     allowedRoles: ['pd', 'admin'],
   },
   guidance: {
-    title: 'Guidance Dashboard',
-    subtitle: 'Clear or hold PD-approved students for moral standing review.',
+    title: 'Guidance Queue',
+    subtitle: 'Review applicants already cleared by SDO before they proceed to Program Director.',
     endpoint: '/api/endorsement-slips/guidance',
     actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/guidance-action`,
     allowedRoles: ['guidance', 'admin'],
   },
   sdo: {
-    title: 'SDO Dashboard',
-    subtitle: 'Complete the final discipline review for Guidance-cleared students.',
+    title: 'SDO Queue',
+    subtitle: 'Start the endorsement flow and clear or disqualify incoming applicants.',
     endpoint: '/api/endorsement-slips/sdo',
     actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/sdo-action`,
     allowedRoles: ['sdo', 'admin'],
@@ -474,6 +475,9 @@ export default function EndorsementQueue({
                       <p>Grade file: {row.grade_document?.url ? 'Uploaded' : 'Missing'}</p>
                     </div>
                   ) : null}
+                  <div className="rounded-2xl bg-stone-50 p-3">
+                    <EndorsementProgressTracker tracker={row.tracker} compact />
+                  </div>
                 </div>
 
                 <div className="space-y-2">

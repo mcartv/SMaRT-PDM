@@ -1,6 +1,17 @@
 const endorsementSlipService = require('../services/endorsementSlipService');
 const socketEvents = require('../utils/socketEvents');
 
+exports.getAllSlips = async (req, res) => {
+    try {
+        const rows = await endorsementSlipService.fetchAllSlips(req.user);
+        res.status(200).json(rows);
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            message: error.message || 'Failed to load endorsement tracker.',
+        });
+    }
+};
+
 exports.getPdQueue = async (req, res) => {
     try {
         const rows = await endorsementSlipService.fetchQueue('pd', req.user);
@@ -103,6 +114,10 @@ exports.postSdoAction = async (req, res) => {
             overall_status: result.slip.overall_status,
             queue: 'sdo',
             action: result.action,
+        });
+
+        (result.notifications || []).forEach((notification) => {
+            socketEvents.notificationCreated(io, notification.target_user_id, notification);
         });
 
         res.status(200).json(result);

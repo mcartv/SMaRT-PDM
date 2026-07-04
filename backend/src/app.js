@@ -3,6 +3,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
 const routes = require('./routes');
+const { getSafeStatusCode } = require('./utils/httpStatus');
 
 const forgotPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -14,8 +15,30 @@ const forgotPasswordLimiter = rateLimit({
     },
 });
 
+const registrationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Too many registration attempts. Please try again later.',
+    },
+});
+
+const otpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Too many OTP attempts. Please try again later.',
+    },
+});
+
 function createApp() {
     const app = express();
+
+    app.set('trust proxy', 1);
 
     app.use(
         cors({
@@ -32,6 +55,8 @@ function createApp() {
     });
 
     app.use('/api/auth/forgot-password', forgotPasswordLimiter);
+    app.use('/api/auth/register', registrationLimiter);
+    app.use('/api/auth/verify-otp', otpLimiter);
     app.use(routes);
 
 
@@ -48,7 +73,7 @@ function createApp() {
 
     app.use((error, _req, res, _next) => {
         console.error('APP ERROR:', error);
-        res.status(error.statusCode || 500).json({
+        res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Internal server error',
         });
     });

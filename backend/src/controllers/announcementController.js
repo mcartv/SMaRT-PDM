@@ -1,4 +1,5 @@
 const announcementService = require('../services/announcementService');
+const { getSafeStatusCode } = require('../utils/httpStatus');
 
 function getRequestUserId(req) {
   return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -12,7 +13,7 @@ async function getAnnouncements(req, res) {
     return res.status(200).json({ items });
   } catch (error) {
     console.error('GET MOBILE ANNOUNCEMENTS ERROR:', error);
-    return res.status(error.statusCode || 500).json({
+    return res.status(getSafeStatusCode(error)).json({
       error: error.message || 'Failed to load announcements.',
     });
   }

@@ -1,4 +1,5 @@
 const openingService = require('../services/openingService');
+const { getSafeStatusCode } = require('../utils/httpStatus');
 
 function getRequestUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
@@ -12,7 +13,7 @@ async function getOpenings(req, res) {
         return res.status(200).json(result);
     } catch (error) {
         console.error('MOBILE OPENINGS ROUTE ERROR:', error);
-        return res.status(error.statusCode || 500).json({
+        return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to load openings.',
         });
     }
@@ -26,7 +27,7 @@ async function getLatestOpening(req, res) {
         return res.status(200).json({ item });
     } catch (error) {
         console.error('LATEST OPENING ROUTE ERROR:', error);
-        return res.status(error.statusCode || 500).json({
+        return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to load latest opening.',
         });
     }
@@ -46,7 +47,7 @@ async function applyToOpening(req, res) {
         return res.status(201).json(result);
     } catch (error) {
         console.error('APPLY TO OPENING ROUTE ERROR:', error);
-        return res.status(error.statusCode || 500).json({
+        return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to submit application.',
         });
     }

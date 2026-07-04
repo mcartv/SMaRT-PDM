@@ -1,4 +1,9 @@
 const supabase = require('../config/supabase');
+const {
+  AVATAR_BUCKET,
+  ensureAvatarBucketExists,
+  resolveAvatarUrl,
+} = require('./avatarService');
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -16,6 +21,44 @@ function firstNonEmpty(...values) {
     if (text) return text;
   }
   return '';
+}
+
+async function getLatestAvatarReview(studentId) {
+  if (!studentId) return null;
+
+  const { data, error } = await supabase
+    .from('profile_photo_reviews')
+    .select(`
+      review_id,
+      storage_path,
+      status,
+      submitted_at,
+      reviewed_at,
+      rejection_reason,
+      remarks
+    `)
+    .eq('student_id', studentId)
+    .order('submitted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+async function buildAvatarReviewFields(review) {
+  const status = review?.status || null;
+
+  return {
+    avatar_review_id: review?.review_id || null,
+    avatar_review_status: status,
+    avatar_pending_url:
+      status === 'pending' ? await resolveAvatarUrl(review.storage_path) : null,
+    avatar_rejection_reason:
+      status === 'rejected' ? review.rejection_reason || '' : '',
+    avatar_reviewed_at: review?.reviewed_at || null,
+    avatar_submitted_at: review?.submitted_at || null,
+  };
 }
 
 async function getMyProfile(userId) {
@@ -93,6 +136,12 @@ async function getMyProfile(userId) {
         province: '',
         zip_code: '',
         avatar_url: null,
+        avatar_review_id: null,
+        avatar_review_status: null,
+        avatar_pending_url: null,
+        avatar_rejection_reason: '',
+        avatar_reviewed_at: null,
+        avatar_submitted_at: null,
         account_status: '',
         sdo_status: '',
         is_profile_complete: false,
@@ -201,6 +250,10 @@ async function getMyProfile(userId) {
     student.is_active_scholar === true ||
     String(student.scholarship_status || '').toLowerCase() === 'active';
 
+  const avatarReviewFields = await buildAvatarReviewFields(
+    await getLatestAvatarReview(student.student_id)
+  );
+
   return {
     profile: {
       user_id: user.user_id,
@@ -258,7 +311,8 @@ async function getMyProfile(userId) {
         user.phone_number
       ),
 
-      avatar_url: student.profile_photo_url || null,
+      avatar_url: await resolveAvatarUrl(student.profile_photo_url || null),
+      ...avatarReviewFields,
 
       date_of_birth: profile.date_of_birth || null,
       place_of_birth: profile.place_of_birth || '',
@@ -403,7 +457,93 @@ async function updateMyProfile(userId, payload = {}) {
   return getMyProfile(userId);
 }
 
+async function uploadAvatar(userId, file) {
+  if (!userId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  if (!file) {
+    throw createHttpError(400, 'An avatar image is required.');
+  }
+
+  const { data: student, error: studentError } = await supabase
+    .from('students')
+    .select('student_id, user_id, profile_photo_url')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (studentError) throw studentError;
+
+  if (!student?.student_id) {
+    throw createHttpError(404, 'No student profile is linked to this account.');
+  }
+
+  const { data: pendingReview, error: pendingReviewError } = await supabase
+    .from('profile_photo_reviews')
+    .select('review_id')
+    .eq('student_id', student.student_id)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (pendingReviewError) throw pendingReviewError;
+
+  if (pendingReview?.review_id) {
+    throw createHttpError(409, 'You already have a profile picture pending review.');
+  }
+
+  const sanitizedFileName = (file.originalname || 'avatar')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const storagePath = `${userId}/avatar/${Date.now()}-${sanitizedFileName}`;
+
+  await ensureAvatarBucketExists();
+
+  const { error: storageError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(storagePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true,
+    });
+
+  if (storageError) throw storageError;
+
+  const { data: review, error: reviewError } = await supabase
+    .from('profile_photo_reviews')
+    .insert([
+      {
+        student_id: student.student_id,
+        user_id: student.user_id || userId,
+        storage_path: storagePath,
+        status: 'pending',
+      },
+    ])
+    .select(`
+      review_id,
+      storage_path,
+      status,
+      submitted_at,
+      reviewed_at,
+      rejection_reason,
+      remarks
+    `)
+    .single();
+
+  if (reviewError) throw reviewError;
+
+  return {
+    message: 'Profile photo submitted for review.',
+    review: {
+      review_id: review.review_id,
+      status: review.status,
+      submitted_at: review.submitted_at,
+      pending_url: await resolveAvatarUrl(review.storage_path),
+    },
+    pendingAvatarUrl: await resolveAvatarUrl(storagePath),
+    ...(await getMyProfile(userId)),
+  };
+}
+
 module.exports = {
   getMyProfile,
   updateMyProfile,
+  uploadAvatar,
 };

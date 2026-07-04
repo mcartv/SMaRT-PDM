@@ -34,6 +34,7 @@ function createAccountRecoveryService({
   resolveAvatarUrl,
   createHttpError,
   transporter,
+  mailFrom = '"SMaRT-PDM Admin" <pelimavenice.pdm@gmail.com>',
 }) {
   if (!supabase) {
     throw new Error('Account recovery service requires a Supabase client.');
@@ -394,7 +395,7 @@ function createAccountRecoveryService({
 
   async function sendRecoveryEmail(email, code, displayName) {
     const mailOptions = {
-      from: '"SMaRT-PDM Admin" <pelimavenice.pdm@gmail.com>',
+      from: mailFrom,
       to: email,
       subject: 'Your SMaRT-PDM Password Recovery Code',
       html: `

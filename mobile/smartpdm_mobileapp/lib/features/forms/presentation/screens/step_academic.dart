@@ -41,7 +41,6 @@ class _StepAcademicState extends State<StepAcademic> {
   late final TextEditingController elementaryClubController;
   late final TextEditingController elementaryYearController;
 
-  late final TextEditingController currentYearLevelController;
   late final TextEditingController studentNumberController;
 
   final List<String> supportOptions = [
@@ -68,9 +67,11 @@ class _StepAcademicState extends State<StepAcademic> {
     'F',
     'G',
   ];
+  static const List<String> _yearLevelOptions = ['1', '2', '3', '4'];
 
   String selectedFinancialSupport = 'Parents';
   String? selectedCourse;
+  String? selectedYearLevel;
   late final List<String> sectionOptions;
   String? selectedSection;
 
@@ -96,9 +97,9 @@ class _StepAcademicState extends State<StepAcademic> {
     children: [
       Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
- fontWeight: FontWeight.w600
-),
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
       ),
       const SizedBox(height: 8),
       child,
@@ -155,12 +156,11 @@ class _StepAcademicState extends State<StepAcademic> {
 
   String? _yearLevelError() {
     if (!widget.showErrors) return null;
-    final value = currentYearLevelController.text.trim();
+    final value = (selectedYearLevel ?? '').trim();
     if (value.isEmpty) return 'Year level is required.';
-    final parsed = int.tryParse(value);
-    if (parsed == null) return 'Year level must be a valid number.';
-    if (parsed < 1) return 'Year level must be at least 1.';
-    if (parsed > 6) return 'Year level cannot be above 6.';
+    if (!_yearLevelOptions.contains(value)) {
+      return 'Year level must be 1, 2, 3, or 4.';
+    }
     return null;
   }
 
@@ -266,9 +266,6 @@ class _StepAcademicState extends State<StepAcademic> {
       text: widget.data.elementaryYearGraduated,
     );
 
-    currentYearLevelController = TextEditingController(
-      text: widget.data.currentYearLevel,
-    );
     studentNumberController = TextEditingController(
       text: widget.data.studentNumber.isNotEmpty
           ? widget.data.studentNumber
@@ -277,6 +274,10 @@ class _StepAcademicState extends State<StepAcademic> {
 
     selectedCourse = courseOptions.contains(widget.data.currentCourse)
         ? widget.data.currentCourse
+        : null;
+    final normalizedYearLevel = widget.data.currentYearLevel.trim();
+    selectedYearLevel = _yearLevelOptions.contains(normalizedYearLevel)
+        ? normalizedYearLevel
         : null;
     final normalizedCurrentSection = widget.data.currentSection.trim();
     final uniqueSections = <String>{
@@ -349,7 +350,6 @@ class _StepAcademicState extends State<StepAcademic> {
       (v) => widget.data.elementaryYearGraduated = v,
     );
 
-    _bind(currentYearLevelController, (v) => widget.data.currentYearLevel = v);
     _bind(studentNumberController, (v) => widget.data.studentNumber = v);
     _bind(
       scholarshipDetailsController,
@@ -387,7 +387,6 @@ class _StepAcademicState extends State<StepAcademic> {
     elementaryHonorsController.dispose();
     elementaryClubController.dispose();
     elementaryYearController.dispose();
-    currentYearLevelController.dispose();
     studentNumberController.dispose();
     scholarshipDetailsController.dispose();
     scholarshipOthersSpecifyController.dispose();
@@ -404,10 +403,13 @@ class _StepAcademicState extends State<StepAcademic> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('III. ACADEMIC INFORMATION', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            'III. ACADEMIC INFORMATION',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 24),
           _section(
@@ -443,10 +445,13 @@ class _StepAcademicState extends State<StepAcademic> {
             elementaryYearController,
           ),
           const SizedBox(height: 8),
-          Text('CURRENT ENROLLMENT', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            'CURRENT ENROLLMENT',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const SizedBox(height: 16),
           _row([
             _field(
@@ -471,19 +476,33 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
             _field(
               'Year Level',
-              TextFormField(
-                controller: currentYearLevelController,
-                keyboardType: TextInputType.number,
+              DropdownButtonFormField<String>(
+                initialValue: selectedYearLevel,
                 decoration: _dec(
                   'Year Level',
                 ).copyWith(errorText: _yearLevelError()),
+                items: _yearLevelOptions
+                    .map(
+                      (yearLevel) => DropdownMenuItem<String>(
+                        value: yearLevel,
+                        child: Text(yearLevel),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => selectedYearLevel = value);
+                  widget.data.currentYearLevel = value ?? '';
+                  widget.onChanged();
+                },
               ),
             ),
             _field(
               'Section',
               DropdownButtonFormField<String>(
                 initialValue: selectedSection,
-                decoration: _dec('Section').copyWith(errorText: _sectionError()),
+                decoration: _dec(
+                  'Section',
+                ).copyWith(errorText: _sectionError()),
                 items: sectionOptions
                     .map(
                       (section) => DropdownMenuItem<String>(
@@ -514,10 +533,13 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
           ]),
           const SizedBox(height: 24),
-          Text('FINANCIAL SUPPORT', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            'FINANCIAL SUPPORT',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const SizedBox(height: 8),
           ...supportOptions.map(
             (option) => CheckboxListTile(
@@ -558,10 +580,13 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
           ],
           const SizedBox(height: 24),
-          Text('SCHOLARSHIP HISTORY', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            'SCHOLARSHIP HISTORY',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           buildBooleanRow('Have you ever been a scholar?', scholarshipHistory, (
             val,
           ) {
@@ -650,10 +675,13 @@ class _StepAcademicState extends State<StepAcademic> {
             ),
           ],
           const SizedBox(height: 24),
-          Text('DISCIPLINARY ACTION', style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+          Text(
+            'DISCIPLINARY ACTION',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const SizedBox(height: 16),
           buildBooleanRow(
             'Have you ever been subject to disciplinary action from any school or institution attended?',
@@ -693,9 +721,9 @@ class _StepAcademicState extends State<StepAcademic> {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-fontWeight: FontWeight.w600
-),
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         Row(
           children: [
@@ -741,10 +769,13 @@ fontWeight: FontWeight.w600
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-  fontWeight: FontWeight.bold,
-  color: Colors.brown,
-)),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.brown,
+          ),
+        ),
         const SizedBox(height: 16),
         _row([
           _field(
@@ -783,4 +814,3 @@ fontWeight: FontWeight.w600
     );
   }
 }
-

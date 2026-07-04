@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
@@ -77,6 +78,12 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           );
+        }
+      } on ApiException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(e.message)));
         }
       } catch (e) {
         if (mounted) {

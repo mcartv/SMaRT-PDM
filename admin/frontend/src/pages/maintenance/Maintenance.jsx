@@ -10,6 +10,7 @@ import {
   GraduationCap,
   CalendarRange,
   Clock3,
+  UsersRound,
 } from 'lucide-react';
 
 import GeneralPanel from './GeneralPanel';
@@ -21,6 +22,7 @@ import ROSettingsPanel from './ROSettingsPanel';
 import SystemPanel from './SystemPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
+import AccountsPanel from './AccountsPanel';
 
 const C = {
   bg: '#faf7f2',
@@ -28,6 +30,7 @@ const C = {
 
 const TABS = [
   { key: 'general', label: 'General', icon: Settings },
+  { key: 'accounts', label: 'Accounts', icon: UsersRound },
   { key: 'benefactors', label: 'Benefactors', icon: Building2 },
   { key: 'programs', label: 'Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
@@ -77,6 +80,8 @@ export default function Maintenance() {
     switch (tab) {
       case 'general':
         return <GeneralPanel />;
+      case 'accounts':
+        return <AccountsPanel />;
       case 'benefactors':
         return <BenefactorsPanel />;
       case 'programs':

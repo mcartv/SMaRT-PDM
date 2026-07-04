@@ -30,7 +30,7 @@ class ProfileService {
     return profile;
   }
 
-  Future<String> uploadAvatar({
+  Future<Map<String, dynamic>> uploadAvatar({
     String? filePath,
     Uint8List? bytes,
     String? fileName,
@@ -48,12 +48,12 @@ class ProfileService {
             filePath: filePath ?? '',
           );
 
-    final avatarUrl = response['avatarUrl']?.toString() ?? '';
-    if (avatarUrl.isNotEmpty) {
-      await _sessionService.saveProfileImage(avatarUrl);
+    final rawProfile = response['profile'];
+    if (rawProfile is Map<String, dynamic>) {
+      await _cacheProfile(rawProfile);
     }
 
-    return avatarUrl;
+    return response;
   }
 
   Map<String, dynamic> _extractProfile(Map<String, dynamic> response) {

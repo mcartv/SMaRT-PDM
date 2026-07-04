@@ -15,6 +15,7 @@ import {
   Wallet,
   Briefcase,
   LifeBuoy,
+  Image,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
@@ -48,6 +49,7 @@ const navItems = [
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
+  { path: '/admin/profile-photos', icon: Image, label: 'Profile Photos' },
   { path: '/admin/support-tickets', icon: LifeBuoy, label: 'Support Tickets' },
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
 ];
@@ -129,7 +131,8 @@ export default function AdminLayout() {
     /^\/admin\/renewals\/[^/]+$/.test(location.pathname) ||
     /^\/admin\/maintenance$/.test(location.pathname) ||
     /^\/admin\/scholars$/.test(location.pathname) ||
-    /^\/admin\/payout$/.test(location.pathname);
+    /^\/admin\/payout$/.test(location.pathname) ||
+    /^\/admin\/profile-photos(\/[^/]+)?$/.test(location.pathname);
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-[#faf7f2]">
@@ -164,7 +167,10 @@ export default function AdminLayout() {
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === '/admin/applications' || item.path === '/admin/openings'}
+              end={
+                item.path === '/admin/applications' ||
+                item.path === '/admin/openings'
+              }
               className={({ isActive }) =>
                 `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'

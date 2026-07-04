@@ -196,6 +196,12 @@ class SavedApplicationPrintModel {
   final String printedDate;
 
   factory SavedApplicationPrintModel.fromApi(Map<String, dynamic> payload) {
+    if (payload.containsKey('personal') ||
+        payload.containsKey('family') ||
+        payload.containsKey('academic')) {
+      return SavedApplicationPrintModel.fromSavedFormData(payload);
+    }
+
     final student = _map(payload['student']);
     final profile = _map(payload['student_profile']);
     final familyMembers = _mapList(payload['family_members']);
@@ -362,6 +368,239 @@ class SavedApplicationPrintModel {
     );
   }
 
+  factory SavedApplicationPrintModel.fromSavedFormData(
+    Map<String, dynamic> payload,
+  ) {
+    final account = _map(payload['account']);
+    final personal = _map(payload['personal']);
+    final address = _map(payload['address']);
+    final contact = _map(payload['contact']);
+    final family = _map(payload['family']);
+    final academic = _map(payload['academic']);
+    final support = _map(payload['support']);
+    final discipline = _map(payload['discipline']);
+    final essays = _map(payload['essays']);
+
+    final father = _map(family['father']);
+    final mother = _map(family['mother']);
+    final sibling = _map(family['sibling']);
+    final guardian = _map(family['guardian']);
+
+    final nativeStatus = _string(family['parent_native_status']).toLowerCase();
+    final financialSupport = _firstNonEmpty([
+      _string(support['financial_support']),
+      _string(support['financial_support_type']),
+    ]);
+    final hasPriorScholarship = _boolValue(
+      support['scholarship_history'],
+      fallback: _boolValue(support['has_prior_scholarship']),
+    );
+    final hasDisciplinaryRecord = _boolValue(
+      discipline['disciplinary_action'],
+      fallback: _boolValue(discipline['has_disciplinary_record']),
+    );
+    final dateOfBirthRaw = _string(personal['date_of_birth']);
+
+    return SavedApplicationPrintModel(
+      lastName: _string(personal['last_name']),
+      firstName: _string(personal['first_name']),
+      middleName: _string(personal['middle_name']),
+      maidenName: _string(personal['maiden_name']),
+      age: _firstNonEmpty([
+        _string(personal['age']),
+        _calculateAge(DateTime.tryParse(dateOfBirthRaw)),
+      ]),
+      dateOfBirth: _formatDate(dateOfBirthRaw),
+      placeOfBirth: _string(personal['place_of_birth']),
+      citizenship: _string(personal['citizenship']),
+      religion: _string(personal['religion']),
+      civilStatus: _string(personal['civil_status']),
+      sex: _string(personal['sex']),
+      houseLotBlockNo: _string(address['house_lot_block_no']),
+      phase: _string(address['phase']),
+      street: _firstNonEmpty([
+        _string(address['street']),
+        _string(address['street_address']),
+      ]),
+      subdivision: _string(address['subdivision']),
+      barangay: _string(address['barangay']),
+      city: _firstNonEmpty([
+        _string(address['city_municipality']),
+        _string(address['city']),
+      ]),
+      province: _string(address['province']),
+      zipCode: _firstNonEmpty([
+        _string(address['zip_code']),
+        _string(address['zipCode']),
+      ]),
+      landlineNumber: _firstNonEmpty([
+        _string(contact['landline']),
+        _string(contact['landline_number']),
+      ]),
+      mobileNumber: _firstNonEmpty([
+        _string(contact['mobile_number']),
+        _string(account['mobile_number']),
+      ]),
+      email: _firstNonEmpty([
+        _string(contact['email']),
+        _string(account['email']),
+      ]),
+      parentGuardianAddress: _string(family['parent_guardian_address']),
+      fatherLastName: _string(father['last_name']),
+      fatherFirstName: _string(father['first_name']),
+      fatherMiddleName: _string(father['middle_name']),
+      fatherMobile: _firstNonEmpty([
+        _string(father['mobile']),
+        _string(father['mobile_number']),
+      ]),
+      fatherEducationalAttainment: _firstNonEmpty([
+        _string(father['educational_attainment']),
+        _string(father['highest_educational_attainment']),
+      ]),
+      fatherOccupation: _string(father['occupation']),
+      fatherCompanyNameAddress: _firstNonEmpty([
+        _string(father['company_name_and_address']),
+        _string(father['company_name_address']),
+      ]),
+      motherLastName: _string(mother['last_name']),
+      motherFirstName: _string(mother['first_name']),
+      motherMiddleName: _string(mother['middle_name']),
+      motherMobile: _firstNonEmpty([
+        _string(mother['mobile']),
+        _string(mother['mobile_number']),
+      ]),
+      motherEducationalAttainment: _firstNonEmpty([
+        _string(mother['educational_attainment']),
+        _string(mother['highest_educational_attainment']),
+      ]),
+      motherOccupation: _string(mother['occupation']),
+      motherCompanyNameAddress: _firstNonEmpty([
+        _string(mother['company_name_and_address']),
+        _string(mother['company_name_address']),
+      ]),
+      siblingLastName: _string(sibling['last_name']),
+      siblingFirstName: _string(sibling['first_name']),
+      siblingMiddleName: _string(sibling['middle_name']),
+      siblingMobile: _firstNonEmpty([
+        _string(sibling['mobile']),
+        _string(sibling['mobile_number']),
+      ]),
+      guardianLastName: _string(guardian['last_name']),
+      guardianFirstName: _string(guardian['first_name']),
+      guardianMiddleName: _string(guardian['middle_name']),
+      guardianMobile: _firstNonEmpty([
+        _string(guardian['mobile']),
+        _string(guardian['mobile_number']),
+      ]),
+      guardianEducationalAttainment: _firstNonEmpty([
+        _string(guardian['educational_attainment']),
+        _string(guardian['highest_educational_attainment']),
+      ]),
+      guardianOccupation: _string(guardian['occupation']),
+      guardianCompanyNameAddress: _firstNonEmpty([
+        _string(guardian['company_name_and_address']),
+        _string(guardian['company_name_address']),
+      ]),
+      isFatherOnlyNative:
+          nativeStatus.contains('father') && !nativeStatus.contains('mother'),
+      isMotherOnlyNative:
+          nativeStatus.contains('mother') && !nativeStatus.contains('father'),
+      isBothParentsNative: nativeStatus.contains('both'),
+      isNotNative: nativeStatus == 'no' || nativeStatus.contains('not'),
+      yearsResident: _string(family['parent_marilao_residency_duration']),
+      originProvince: _string(family['parent_previous_town_province']),
+      collegeSchool: _string(academic['college_school']),
+      collegeAddress: _string(academic['college_address']),
+      collegeHonors: _string(academic['college_honors']),
+      collegeClub: _string(academic['college_club']),
+      collegeYearGraduated: _string(academic['college_year_graduated']),
+      highSchoolSchool: _string(academic['high_school_school']),
+      highSchoolAddress: _string(academic['high_school_address']),
+      highSchoolHonors: _string(academic['high_school_honors']),
+      highSchoolClub: _string(academic['high_school_club']),
+      highSchoolYearGraduated: _string(academic['high_school_year_graduated']),
+      seniorHighSchool: _string(academic['senior_high_school']),
+      seniorHighAddress: _string(academic['senior_high_address']),
+      seniorHighHonors: _string(academic['senior_high_honors']),
+      seniorHighClub: _string(academic['senior_high_club']),
+      seniorHighYearGraduated: _string(academic['senior_high_year_graduated']),
+      elementarySchool: _string(academic['elementary_school']),
+      elementaryAddress: _string(academic['elementary_address']),
+      elementaryHonors: _string(academic['elementary_honors']),
+      elementaryClub: _string(academic['elementary_club']),
+      elementaryYearGraduated: _string(academic['elementary_year_graduated']),
+      currentYearSection: _joinUniqueNonEmpty([
+        _string(academic['current_year_level']),
+        _string(academic['year_level']),
+        _string(academic['current_section']),
+      ], separator: ' / '),
+      studentNumber: _firstNonEmpty([
+        _string(academic['student_number']),
+        _string(account['student_id']),
+      ]),
+      learnersReferenceNumber: _firstNonEmpty([
+        _string(academic['lrn']),
+        _string(academic['learners_reference_number']),
+      ]),
+      currentCourse: _firstNonEmpty([
+        _string(academic['current_course_code']),
+        _string(academic['current_course']),
+      ]),
+      financialSupport: financialSupport,
+      financialSupportOther: _firstNonEmpty([
+        _string(support['financial_support_other']),
+        _string(support['scholarship_others_specify']),
+      ]),
+      supportParents: financialSupport.toLowerCase() == 'parents',
+      supportScholarship: financialSupport.toLowerCase() == 'scholarship',
+      supportLoan: financialSupport.toLowerCase() == 'loan',
+      supportOther: financialSupport.toLowerCase() == 'other',
+      hadScholarship: hasPriorScholarship,
+      noScholarshipHistory: !hasPriorScholarship,
+      scholarshipDetails: _firstNonEmpty([
+        _string(support['scholarship_details']),
+        _string(support['prior_scholarship_details']),
+      ]),
+      hasDisciplinaryRecord: hasDisciplinaryRecord,
+      noDisciplinaryRecord: !hasDisciplinaryRecord,
+      disciplinaryDetails: _firstNonEmpty([
+        _string(discipline['disciplinary_explanation']),
+        _string(discipline['disciplinary_details']),
+      ]),
+      selfDescription: _firstNonEmpty([
+        _string(essays['describe_yourself_essay']),
+        _string(essays['self_description']),
+      ]),
+      aimsAndAmbitions: _firstNonEmpty([
+        _string(essays['aims_and_ambition_essay']),
+        _string(essays['aims_and_ambitions']),
+      ]),
+      applicantPrintedName: _joinNonEmpty([
+        _string(personal['first_name']),
+        _string(personal['middle_name']),
+        _string(personal['last_name']),
+      ]),
+      parentGuardianPrintedName: _firstNonEmpty([
+        _joinNonEmpty([
+          _string(guardian['first_name']),
+          _string(guardian['middle_name']),
+          _string(guardian['last_name']),
+        ]),
+        _joinNonEmpty([
+          _string(father['first_name']),
+          _string(father['middle_name']),
+          _string(father['last_name']),
+        ]),
+        _joinNonEmpty([
+          _string(mother['first_name']),
+          _string(mother['middle_name']),
+          _string(mother['last_name']),
+        ]),
+      ]),
+      printedDate: DateFormat('MM/dd/yyyy').format(DateTime.now()),
+    );
+  }
+
   static Map<String, dynamic> _map(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) {
@@ -380,7 +619,8 @@ class SavedApplicationPrintModel {
     String relation,
   ) {
     return records.firstWhere(
-      (record) => _string(record['relation']).toLowerCase() == relation.toLowerCase(),
+      (record) =>
+          _string(record['relation']).toLowerCase() == relation.toLowerCase(),
       orElse: () => <String, dynamic>{},
     );
   }
@@ -391,7 +631,8 @@ class SavedApplicationPrintModel {
   ) {
     return records.firstWhere(
       (record) =>
-          _string(record['education_level']).toLowerCase() == level.toLowerCase(),
+          _string(record['education_level']).toLowerCase() ==
+          level.toLowerCase(),
       orElse: () => <String, dynamic>{},
     );
   }
@@ -408,11 +649,29 @@ class SavedApplicationPrintModel {
     return '';
   }
 
-  static String _joinNonEmpty(
+  static String _joinNonEmpty(List<String> values, {String separator = ' '}) {
+    return values.where((value) => value.trim().isNotEmpty).join(separator);
+  }
+
+  static String _joinUniqueNonEmpty(
     List<String> values, {
     String separator = ' ',
   }) {
-    return values.where((value) => value.trim().isNotEmpty).join(separator);
+    final seen = <String>{};
+    final unique = <String>[];
+
+    for (final value in values) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) continue;
+
+      final normalized = trimmed.toLowerCase();
+      if (seen.contains(normalized)) continue;
+
+      seen.add(normalized);
+      unique.add(trimmed);
+    }
+
+    return unique.join(separator);
   }
 
   static String _formatDate(String raw) {
@@ -433,5 +692,18 @@ class SavedApplicationPrintModel {
       age -= 1;
     }
     return '$age';
+  }
+
+  static bool _boolValue(dynamic value, {bool fallback = false}) {
+    if (value == null) return fallback;
+    if (value is bool) return value;
+    final normalized = _string(value).toLowerCase();
+    if (normalized == 'true' || normalized == 'yes' || normalized == '1') {
+      return true;
+    }
+    if (normalized == 'false' || normalized == 'no' || normalized == '0') {
+      return false;
+    }
+    return fallback;
   }
 }

@@ -8,7 +8,7 @@ import 'package:smartpdm_mobileapp/features/auth/presentation/screens/login_scre
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_otp_screen.dart';
 
 class _FakePasswordResetService extends PasswordResetService {
-  _FakePasswordResetService({this.onForgotPassword});
+  _FakePasswordResetService();
 
   final Future<String> Function(String studentId)? onForgotPassword;
   String? lastStudentId;

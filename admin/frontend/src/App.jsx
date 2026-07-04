@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // --- LAYOUTS ---
 import AdminLayout from './components/layout/AdminLayout';
 import SDOLayout from './components/layout/SDOLayout';
+import PDLayout from './components/layout/PDLayout';
+import GuidanceLayout from './components/layout/GuidanceLayout';
 
 // --- ADMIN PAGES ---
 import AdminLogin from './pages/AdminLogin';
@@ -23,6 +25,13 @@ import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/maintenance/Maintenance';
 import AdminMessages from './pages/AdminMessages';
 import SupportTickets from './pages/SupportTickets';
+import ProfilePhotoQueue from './pages/ProfilePhotoQueue';
+import EndorsementSlipDetail from './pages/EndorsementSlipDetail';
+import EndorsementVerification from './pages/EndorsementVerification';
+import PDLogin from './pages/PDLogin';
+import GuidanceLogin from './pages/GuidanceLogin';
+import PDDashboard from './pages/PDDashboard';
+import GuidanceDashboard from './pages/GuidanceDashboard';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
@@ -49,6 +58,10 @@ const ProtectedRoute = ({ children, storageKey, redirectTo }) => {
   return children;
 };
 
+const RoleHome = () => {
+  return <Navigate to="/admin/dashboard" replace />;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -57,12 +70,15 @@ export default function App() {
 
         {/* Public Landing Page */}
         <Route path="/landing" element={<SmartPDMLanding />} />
+        <Route path="/endorsement/verify/:token" element={<EndorsementVerification />} />
 
         {/* Public Routes */}
 
 
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/forgot-password" element={<ForgotPassword />} />
+        <Route path="/pd/login" element={<PDLogin />} />
+        <Route path="/guidance/login" element={<GuidanceLogin />} />
         <Route path="/sdo/login" element={<SDOLogin />} />
 
         {/* --- PROTECTED ADMIN PANEL --- */}
@@ -74,7 +90,7 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route index element={<RoleHome />} />
 
           <Route path="dashboard" element={<AdminDashboard />} />
 
@@ -103,8 +119,44 @@ export default function App() {
           <Route path="messages" element={<AdminMessages />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
           <Route path="support-tickets" element={<SupportTickets />} />
+          <Route path="profile-photos" element={<ProfilePhotoQueue />} />
+          <Route path="profile-photos/:reviewId" element={<ProfilePhotoQueue />} />
           <Route path="adminprofile" element={<AdminProfile />} />
           <Route path="maintenance" element={<Maintenance />} />
+        </Route>
+
+        {/* --- PROTECTED PD PANEL --- */}
+        <Route
+          path="/pd"
+          element={
+            <ProtectedRoute storageKey="pdToken" redirectTo="/pd/login">
+              <PDLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<PDDashboard />} />
+          <Route
+            path="endorsements/:slipId"
+            element={<EndorsementSlipDetail tokenStorageKey="pdToken" />}
+          />
+        </Route>
+
+        {/* --- PROTECTED GUIDANCE PANEL --- */}
+        <Route
+          path="/guidance"
+          element={
+            <ProtectedRoute storageKey="guidanceToken" redirectTo="/guidance/login">
+              <GuidanceLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<GuidanceDashboard />} />
+          <Route
+            path="endorsements/:slipId"
+            element={<EndorsementSlipDetail tokenStorageKey="guidanceToken" />}
+          />
         </Route>
 
         {/* --- PROTECTED SDO PANEL --- */}

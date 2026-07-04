@@ -45,39 +45,10 @@ function ensurePasswordPolicy(password) {
     }
 }
 
-// for debugging purposes, we log the OTP instead of sending an email. In production, this should be removed or properly secured.
-// async function sendOTPEmail(email, otp) {
-//     console.log('DEV OTP:', { email, otp });
-
-//     if (process.env.SKIP_EMAIL === 'true') {
-//         return;
-//     }
-
-//     await transporter.sendMail({
-//         from: process.env.GMAIL_USER || 'pelimavenice.pdm@gmail.com',
-//         to: email,
-//         subject: 'SMaRT-PDM Account Verification OTP',
-//         html: `
-//       <div style="font-family: Arial, sans-serif;">
-//         <h2>SMaRT-PDM Verification</h2>
-//         <p>Your OTP code is:</p>
-//         <h1 style="letter-spacing: 4px;">${otp}</h1>
-//         <p>This code will expire in 10 minutes.</p>
-//       </div>
-//     `,
-//     });
-// }
-
 async function sendOTPEmail(email, otp) {
     if (process.env.SKIP_EMAIL === 'true') {
         console.log('DEV OTP:', { email, otp });
         return;
-    }
-
-    const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
-
-    if (!gmailAppPassword) {
-        throw createHttpError(500, 'GMAIL_APP_PASSWORD is not configured');
     }
 
     try {
@@ -98,7 +69,7 @@ async function sendOTPEmail(email, otp) {
         console.error('OTP EMAIL SEND ERROR:', error);
         throw createHttpError(
             502,
-            'Failed to send OTP email. Please check backend email configuration.'
+            'Failed to send OTP email. Please check backend transactional email configuration.'
         );
     }
 }

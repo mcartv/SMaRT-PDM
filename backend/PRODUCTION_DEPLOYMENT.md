@@ -12,7 +12,9 @@ Required variables:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `JWT_SECRET`
-- `GMAIL_APP_PASSWORD`
+- `BREVO_API_KEY`
+- `TRANSACTIONAL_EMAIL_FROM`
+- `TRANSACTIONAL_EMAIL_FROM_NAME`
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_PHONE`
@@ -25,11 +27,29 @@ Optional variables:
 - `JWT_EXPIRES_IN`
 - `FCM_SERVER_KEY`
 - `RECAPTCHA_MIN_SCORE`
+- `EMAIL_NOTIFICATIONS_ENABLED`
+- `GMAIL_USER`
+- `GMAIL_APP_PASSWORD`
 
 Notes:
 - `PORT` now falls back to `3000` when unset.
 - In production, use the hosting platform's secret manager instead of committing `.env`.
 - Rotate any secrets that were previously exposed.
+- Brevo is the primary transactional email provider. `GMAIL_USER` and `GMAIL_APP_PASSWORD` are fallback-only and should use the same dedicated Gmail sender account verified in Brevo.
+
+## Transactional email checklist
+1. Create or choose a dedicated Gmail sender account for SMaRT-PDM transactional email.
+2. In Brevo, verify that Gmail address as an authorized sender.
+3. Create a Brevo transactional API key.
+4. Add these Render environment variables to every backend service that sends email:
+   - `BREVO_API_KEY`
+   - `TRANSACTIONAL_EMAIL_FROM`
+   - `TRANSACTIONAL_EMAIL_FROM_NAME`
+   - `EMAIL_NOTIFICATIONS_ENABLED=true`
+5. Add fallback-only Gmail credentials only if continuity fallback is required:
+   - `GMAIL_USER`
+   - `GMAIL_APP_PASSWORD`
+6. Do not expose Brevo or Gmail credentials in Flutter, React, or any public build artifact.
 
 ## Database schema checklist
 Run the SQL files in `backend/sql` against the target Supabase project before deploying backend changes that depend on them.
@@ -229,7 +249,12 @@ Production:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `JWT_SECRET`
-   - `GMAIL_APP_PASSWORD`
+   - `BREVO_API_KEY`
+   - `TRANSACTIONAL_EMAIL_FROM`
+   - `TRANSACTIONAL_EMAIL_FROM_NAME`
+   - `EMAIL_NOTIFICATIONS_ENABLED`
+   - `GMAIL_USER` (fallback only)
+   - `GMAIL_APP_PASSWORD` (fallback only)
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`
    - `TWILIO_FROM_PHONE`
@@ -240,11 +265,14 @@ Production:
 6. Deploy and copy the public HTTPS URL.
 7. Smoke test:
    - `POST /api/auth/register`
+   - Confirm the registration OTP is delivered by Brevo.
    - `POST /api/auth/login`
    - `POST /api/auth/recovery/lookup`
    - `POST /api/auth/recovery/start`
+   - Confirm the recovery code email is delivered by Brevo.
    - `POST /api/auth/recovery/verify-code`
    - `POST /api/auth/recovery/reset-password`
+   - Create an in-app notification and confirm the persisted notification remains even if email delivery fails.
    - `GET /api/openings`
    - `PUT /api/applications/me/form-data`
    - `POST /api/openings/:openingId/apply`
@@ -274,6 +302,9 @@ flutter build appbundle --dart-define=API_BASE_URL=https://<your-backend-domain>
 ## Production smoke checks
 - Register a new user
 - Verify OTP
+- Request password reset and confirm the email contains a reset code
+- Create a notification and confirm an email copy is sent when `EMAIL_NOTIFICATIONS_ENABLED=true`
+- Temporarily test invalid Brevo credentials in a non-production environment with Gmail fallback configured
 - Login
 - Load scholarship openings
 - Save a draft payload

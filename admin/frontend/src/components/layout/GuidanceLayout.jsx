@@ -9,6 +9,7 @@ export default function GuidanceLayout() {
       officeName="Guidance Office"
       loginPath="/guidance/login"
       dashboardPath="/guidance/dashboard"
+      trackerPath="/guidance/tracker"
       tokenStorageKey="guidanceToken"
       profileStorageKey="guidanceProfile"
       colors={{

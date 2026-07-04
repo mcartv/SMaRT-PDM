@@ -75,6 +75,48 @@ async function getMyDocuments(req, res) {
     }
 }
 
+async function getMyStatusSummary(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
+
+        const result = await applicationService.getMyStatusSummary(userId);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('APPLICATION STATUS SUMMARY ROUTE ERROR:', error);
+
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to load application status.',
+        });
+    }
+}
+
+async function getApplicationPrintData(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
+
+        const result = await applicationService.getApplicationPrintData(
+            userId,
+            req.params.applicationId
+        );
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('APPLICATION PRINT DATA ROUTE ERROR:', error);
+
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to load printable application data.',
+        });
+    }
+}
+
 async function uploadMyDocument(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -130,7 +172,9 @@ async function submitMyApplicationForm(req, res) {
 module.exports = {
     getMyFormData,
     saveMyFormData,
+    getMyStatusSummary,
     getMyDocuments,
+    getApplicationPrintData,
     uploadMyDocument,
     submitMyApplicationForm,
 };

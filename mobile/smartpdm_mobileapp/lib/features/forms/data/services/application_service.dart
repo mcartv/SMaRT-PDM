@@ -41,6 +41,15 @@ class ApplicationService {
     return _apiClient.getObject('/api/applications/$applicationId');
   }
 
+  Future<Map<String, dynamic>> fetchApplicationPrintData(
+    String applicationId,
+  ) async {
+    return _apiClient.getObject(
+      '/api/applications/$applicationId/print-data',
+      timeout: const Duration(seconds: 20),
+    );
+  }
+
   Future<Map<String, dynamic>> fetchMySavedFormData() async {
     return _apiClient.getObject('/api/applications/me/form-data');
   }

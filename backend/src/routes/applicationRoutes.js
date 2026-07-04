@@ -13,8 +13,14 @@ const upload = multer({
 router.get('/me/form-data', protect, applicationController.getMyFormData);
 router.post('/me/form-data', protect, applicationController.saveMyFormData);
 router.put('/me/form-data', protect, applicationController.saveMyFormData);
+router.get('/me/status-summary', protect, applicationController.getMyStatusSummary);
 router.get('/me/documents', protect, applicationController.getMyDocuments);
 router.post('/me/submit', protect, applicationController.submitMyApplicationForm);
+router.get(
+    '/:applicationId/print-data',
+    protect,
+    applicationController.getApplicationPrintData
+);
 router.post(
     '/me/documents/:documentId/upload',
     protect,

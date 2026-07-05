@@ -15,6 +15,7 @@ import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
 
 const STAGE_META = {
   completed: 'bg-green-50 text-green-700',
@@ -182,6 +183,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
             <h2 className="text-base font-semibold text-stone-900">Workflow Tracker</h2>
           </CardHeader>
           <CardContent className="space-y-4 p-5">
+            <EndorsementProgressTracker tracker={slip.tracker} />
             {slip.stages.map((stage) => (
               <div key={stage.key} className="rounded-2xl border border-stone-200 p-4">
                 <div className="flex items-start justify-between gap-3">

@@ -4,6 +4,7 @@ const router = express.Router();
 const endorsementSlipController = require('../controllers/endorsementSlipController');
 const { protect } = require('../middleware/authMiddleware');
 
+router.get('/', protect, endorsementSlipController.getAllSlips);
 router.get('/pd', protect, endorsementSlipController.getPdQueue);
 router.get('/guidance', protect, endorsementSlipController.getGuidanceQueue);
 router.get('/sdo', protect, endorsementSlipController.getSdoQueue);

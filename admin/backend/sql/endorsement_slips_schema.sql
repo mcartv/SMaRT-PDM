@@ -5,8 +5,8 @@ create table if not exists public.endorsement_slips (
     application_id uuid not null unique references public.applications(application_id) on delete cascade,
     student_id uuid not null references public.students(student_id) on delete cascade,
     opening_id uuid null references public.program_openings(opening_id) on delete set null,
-    current_stage text not null default 'pending_pd',
-    overall_status text not null default 'pending_pd',
+    current_stage text not null default 'pending_sdo',
+    overall_status text not null default 'pending_sdo',
     grade_summary_json jsonb not null default '{}'::jsonb,
     pd_status text null,
     pd_acted_at timestamptz null,
@@ -29,9 +29,9 @@ create table if not exists public.endorsement_slips (
     constraint endorsement_slips_current_stage_check
         check (
             current_stage in (
-                'pending_pd',
-                'pending_guidance',
                 'pending_sdo',
+                'pending_guidance',
+                'pending_pd',
                 'completed',
                 'rejected',
                 'held',
@@ -42,9 +42,9 @@ create table if not exists public.endorsement_slips (
     constraint endorsement_slips_overall_status_check
         check (
             overall_status in (
-                'pending_pd',
-                'pending_guidance',
                 'pending_sdo',
+                'pending_guidance',
+                'pending_pd',
                 'completed',
                 'rejected',
                 'held',
@@ -120,8 +120,8 @@ begin
         new.application_id,
         new.student_id,
         new.opening_id,
-        'pending_pd',
-        'pending_pd'
+        'pending_sdo',
+        'pending_sdo'
     )
     on conflict (application_id) do update
     set

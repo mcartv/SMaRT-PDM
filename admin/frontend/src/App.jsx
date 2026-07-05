@@ -32,6 +32,7 @@ import PDLogin from './pages/PDLogin';
 import GuidanceLogin from './pages/GuidanceLogin';
 import PDDashboard from './pages/PDDashboard';
 import GuidanceDashboard from './pages/GuidanceDashboard';
+import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
@@ -137,6 +138,17 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<PDDashboard />} />
           <Route
+            path="tracker"
+            element={
+              <AllEndorsementsTracker
+                tokenStorageKey="pdToken"
+                detailBasePath="/pd/endorsements"
+                title="Program Director Applicant Tracker"
+                subtitle="View all applicants and confirm where each endorsement slip currently sits."
+              />
+            }
+          />
+          <Route
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="pdToken" />}
           />
@@ -154,6 +166,17 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<GuidanceDashboard />} />
           <Route
+            path="tracker"
+            element={
+              <AllEndorsementsTracker
+                tokenStorageKey="guidanceToken"
+                detailBasePath="/guidance/endorsements"
+                title="Guidance Applicant Tracker"
+                subtitle="View all applicants and identify which office currently handles each endorsement."
+              />
+            }
+          />
+          <Route
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="guidanceToken" />}
           />
@@ -170,6 +193,21 @@ export default function App() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SDODashboard />} />
+          <Route
+            path="tracker"
+            element={
+              <AllEndorsementsTracker
+                tokenStorageKey="sdoToken"
+                detailBasePath="/sdo/endorsements"
+                title="SDO Applicant Tracker"
+                subtitle="View every applicant and see how far each endorsement has progressed."
+              />
+            }
+          />
+          <Route
+            path="endorsements/:slipId"
+            element={<EndorsementSlipDetail tokenStorageKey="sdoToken" />}
+          />
           <Route path="scholars" element={<SDOScholarList />} />
           <Route path="profile" element={<SDOProfile />} />
           <Route path="maintenance" element={<SDOMaintenance />} />

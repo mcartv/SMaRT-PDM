@@ -9,6 +9,7 @@ export default function PDLayout() {
       officeName="Program Director Office"
       loginPath="/pd/login"
       dashboardPath="/pd/dashboard"
+      trackerPath="/pd/tracker"
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"
       colors={{

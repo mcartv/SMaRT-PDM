@@ -8,7 +8,12 @@ let globalSocket = null;
 
 function getSocketUserId() {
   try {
-    const token = sessionStorage.getItem('adminToken') || '';
+    const token =
+      sessionStorage.getItem('adminToken') ||
+      sessionStorage.getItem('pdToken') ||
+      sessionStorage.getItem('guidanceToken') ||
+      sessionStorage.getItem('sdoToken') ||
+      '';
     const payload = token.split('.')[1];
     if (!payload) return '';
     const decoded = JSON.parse(atob(payload));

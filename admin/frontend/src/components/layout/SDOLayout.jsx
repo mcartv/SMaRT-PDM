@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard,
+  FileText,
   ShieldAlert,
   Bell,
   ChevronLeft,
@@ -33,7 +34,8 @@ function resolveProfileImage(profile) {
 }
 
 const navItems = [
-  { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/sdo/dashboard', label: 'My Queue', icon: LayoutDashboard },
+  { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
   { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
 ];

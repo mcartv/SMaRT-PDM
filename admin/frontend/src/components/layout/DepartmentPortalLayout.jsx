@@ -42,6 +42,7 @@ export default function DepartmentPortalLayout({
   tokenStorageKey,
   profileStorageKey,
   colors,
+  trackerPath = '',
 }) {
   const navigate = useNavigate();
   const notifRef = useRef(null);
@@ -85,8 +86,8 @@ export default function DepartmentPortalLayout({
   const displayName = profile?.name || officeName;
   const displayPosition = profile?.position || title;
   const navItems = [
-    { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
-    { path: dashboardPath, label: 'Endorsements', icon: FileText },
+    { path: dashboardPath, label: 'My Queue', icon: LayoutDashboard },
+    ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
   ];
 
   return (

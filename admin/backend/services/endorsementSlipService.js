@@ -1,5 +1,6 @@
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const { transporter } = require('../config/mailer');
@@ -13,6 +14,13 @@ const FRONTEND_BASE_URL =
     (process.env.FRONTEND_PUBLIC_URL || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 const PDFKIT_MODULE = 'pdfkit';
 const QRCODE_MODULE = 'qrcode';
+const SCHOOL_LOGO_PATH = path.resolve(
+    __dirname,
+    '../../../mobile/smartpdm_mobileapp/assets/images/school_logo.png'
+);
+const INSTITUTION_NAME = 'PAMBAYANG DALUBHASAAN NG MARILAO';
+const INSTITUTION_ADDRESS = 'Abangan Norte, Marilao, Bulacan';
+const SCHOLARSHIP_OFFICE_LABEL = 'OFFICE OF SCHOLARSHIP AND FINANCIAL ASSISTANCE (OSFA)';
 
 const QUEUE_CONFIG = Object.freeze({
     sdo: {
@@ -389,7 +397,9 @@ async function loadSlipRows({ stage = null } = {}) {
             a.document_status,
             st.pdm_id,
             st.gwa,
+            st.year_level,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
+            ac.course_code,
             sp.program_name,
             po.opening_title,
             ay.label as school_year,
@@ -400,6 +410,7 @@ async function loadSlipRows({ stage = null } = {}) {
         from endorsement_slips es
         join applications a on a.application_id = es.application_id
         join students st on st.student_id = es.student_id
+        left join academic_course ac on ac.course_id = st.course_id
         left join scholarship_program sp on sp.program_id = a.program_id
         left join program_openings po on po.opening_id = a.opening_id
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
@@ -451,10 +462,12 @@ async function fetchSlipDetail(slipId, actor = null) {
             a.document_status,
             st.pdm_id,
             st.gwa,
+            st.year_level,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
             st.first_name,
             st.last_name,
             u.email as student_email,
+            ac.course_code,
             sp.program_name,
             po.opening_title,
             ay.label as school_year,
@@ -472,6 +485,7 @@ async function fetchSlipDetail(slipId, actor = null) {
         join applications a on a.application_id = es.application_id
         join students st on st.student_id = es.student_id
         left join users u on u.user_id = st.user_id
+        left join academic_course ac on ac.course_id = st.course_id
         left join scholarship_program sp on sp.program_id = a.program_id
         left join program_openings po on po.opening_id = a.opening_id
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
@@ -526,6 +540,8 @@ async function fetchSlipDetail(slipId, actor = null) {
         student_id: row.student_id,
         student_name: row.student_name || 'Unknown Student',
         pdm_id: row.pdm_id || 'N/A',
+        course_code: row.course_code || 'N/A',
+        year_level: row.year_level || null,
         student_email: row.student_email || '',
         program_name: row.program_name || 'N/A',
         opening_title: row.opening_title || 'N/A',
@@ -697,18 +713,30 @@ async function buildCompletedSlipPdf(detail) {
         const officeSignatories = detail.office_signatories || {};
         const drawCheckbox = (label, checked) => `${checked ? '[x]' : '[ ]'} ${label}`;
         const drawActor = (label, value) => `${label}: ${safeText(value) || 'N/A'}`;
+        const hasSchoolLogo = fs.existsSync(SCHOOL_LOGO_PATH);
 
         doc.on('data', (chunk) => chunks.push(chunk));
         doc.on('error', reject);
         doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-        doc.fontSize(11).fillColor('#111827').text('Office for Scholarship and Financial Assistance (OSFA)', {
+        const headerTop = doc.y;
+        if (hasSchoolLogo) {
+            doc.image(SCHOOL_LOGO_PATH, 52, headerTop, { fit: [64, 64], align: 'left' });
+        }
+        doc.fontSize(12).fillColor('#111827').text(INSTITUTION_NAME, 120, headerTop + 4, {
             align: 'center',
         });
-        doc.moveDown(0.2);
-        doc.fontSize(18).text('ENDORSEMENT SLIP', { align: 'center' });
+        doc.fontSize(10).text(INSTITUTION_ADDRESS, 120, headerTop + 20, {
+            align: 'center',
+        });
+        doc.fontSize(10).text(SCHOLARSHIP_OFFICE_LABEL, 120, headerTop + 34, {
+            align: 'center',
+        });
+        doc.moveTo(48, headerTop + 74).lineTo(doc.page.width - 48, headerTop + 74).strokeColor('#6b7280').stroke();
+        doc.y = headerTop + 82;
+        doc.fontSize(18).fillColor('#111827').text('ENDORSEMENT SLIP', { align: 'center' });
         doc.fontSize(12).text('APPLICATION FOR SCHOLARSHIP', { align: 'center' });
-        doc.moveDown(0.5);
+        doc.moveDown(0.35);
         doc.fontSize(10).fillColor('#374151').text(
             `Semester: ${detail.semester || 'N/A'}    School Year: ${detail.school_year || 'N/A'}`,
             { align: 'center' }
@@ -720,10 +748,12 @@ async function buildCompletedSlipPdf(detail) {
 
         doc.fontSize(10).text(`NAME: ${detail.student_name || 'N/A'}`);
         doc.text(
-            `COURSE/PROGRAM: ${detail.program_name || 'N/A'}    PDM ID: ${detail.pdm_id || 'N/A'}`
+            `COURSE: ${detail.course_code || 'N/A'}    YEAR: ${detail.year_level || 'N/A'}    PDM ID: ${detail.pdm_id || 'N/A'}`
         );
-        doc.text(`OPENING: ${detail.opening_title || 'N/A'}`);
         doc.moveDown(0.8);
+
+        doc.text('Respectfully endorsing the above named student under the following circumstances:');
+        doc.moveDown(0.5);
 
         doc.fontSize(11).text('BASED ON THE RECORD ON FILE', { align: 'center' });
         doc.moveDown(0.8);

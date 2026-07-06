@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   FileText,
   Download,
@@ -25,6 +26,30 @@ const API_BASE = buildApiUrl('/api');
 const C = {
   brown: '#5c2d0e',
   brownMid: '#7c4a2e',
+};
+
+const OFFICE_REPORT_FILTERS = {
+  sdo: [
+    { value: 'all', label: 'All SDO Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cleared', label: 'No Offense' },
+    { value: 'disqualified_minor', label: 'Minor Offense' },
+    { value: 'disqualified_major', label: 'Major Offense' },
+  ],
+  guidance: [
+    { value: 'all', label: 'All Guidance Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cleared', label: 'Good Moral Standing' },
+    { value: 'held', label: 'For Counseling / Hold' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
+  pd: [
+    { value: 'all', label: 'All PD Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'completed', label: 'Completed Slip' },
+  ],
 };
 
 function getAuthHeaders(tokenStorageKey = 'adminToken') {
@@ -108,6 +133,9 @@ export default function ReportGeneration({
   const [semester, setSemester] = useState('all');
   const [programId, setProgramId] = useState('all');
   const [benefactorId, setBenefactorId] = useState('all');
+  const [reviewResult, setReviewResult] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [previewRows, setPreviewRows] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
@@ -138,11 +166,21 @@ export default function ReportGeneration({
     setPreviewRows([]);
     setPreviewTotal(0);
     setHasPreviewed(false);
-  }, [selected, academicYearId, semester, programId, benefactorId]);
+  }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo]);
 
   const selectedReport = useMemo(
     () => visibleReportTypes.find((r) => r.id === selected) || visibleReportTypes[0],
     [visibleReportTypes, selected]
+  );
+
+  const officeFilterOptions = useMemo(
+    () => OFFICE_REPORT_FILTERS[selected] || [],
+    [selected]
+  );
+
+  const isOfficeEndorsementReport = useMemo(
+    () => ['sdo', 'guidance', 'pd'].includes(selected),
+    [selected]
   );
 
   const previewColumns = useMemo(() => {
@@ -166,8 +204,11 @@ export default function ReportGeneration({
       benefactors.find((item) => item.benefactor_id === benefactorId)
         ?.benefactor_name || 'All Benefactors';
 
-    return { year, term, program, benefactor };
-  }, [academicYears, semesters, programs, benefactors, academicYearId, semester, programId, benefactorId]);
+    const result =
+      officeFilterOptions.find((item) => item.value === reviewResult)?.label || 'All Results';
+
+    return { year, term, program, benefactor, result };
+  }, [academicYears, semesters, programs, benefactors, academicYearId, semester, programId, benefactorId, officeFilterOptions, reviewResult]);
 
   async function loadMetadata() {
     try {
@@ -218,6 +259,9 @@ export default function ReportGeneration({
       semester,
       programId,
       benefactorId,
+      reviewResult,
+      dateFrom,
+      dateTo,
     });
   }
 
@@ -226,6 +270,9 @@ export default function ReportGeneration({
     setSemester('all');
     setProgramId('all');
     setBenefactorId('all');
+    setReviewResult('all');
+    setDateFrom('');
+    setDateTo('');
     setPreviewRows([]);
     setPreviewTotal(0);
     setHasPreviewed(false);
@@ -426,6 +473,54 @@ export default function ReportGeneration({
                   </SelectContent>
                 </Select>
               </div>
+
+              {isOfficeEndorsementReport ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Office Result
+                  </label>
+                  <Select value={reviewResult} onValueChange={setReviewResult}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {officeFilterOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {isOfficeEndorsementReport ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Date From
+                  </label>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(event) => setDateFrom(event.target.value)}
+                    className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
+                  />
+                </div>
+              ) : null}
+
+              {isOfficeEndorsementReport ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Date To
+                  </label>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(event) => setDateTo(event.target.value)}
+                    className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
@@ -442,6 +537,9 @@ export default function ReportGeneration({
                     {selectedReport?.name || 'Report'} • {selectedLabels.year} •{' '}
                     {selectedLabels.term} • {selectedLabels.benefactor} •{' '}
                     {selectedLabels.program}
+                    {isOfficeEndorsementReport ? ` • ${selectedLabels.result}` : ''}
+                    {dateFrom ? ` • from ${dateFrom}` : ''}
+                    {dateTo ? ` • to ${dateTo}` : ''}
                   </p>
                 </div>
               </div>

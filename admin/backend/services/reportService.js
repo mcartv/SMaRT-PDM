@@ -11,6 +11,18 @@ function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+function appendDateRange(where, params, fieldExpression, dateFrom, dateTo) {
+    if (dateFrom) {
+        params.push(dateFrom);
+        where.push(`DATE(${fieldExpression}) >= $${params.length}`);
+    }
+
+    if (dateTo) {
+        params.push(dateTo);
+        where.push(`DATE(${fieldExpression}) <= $${params.length}`);
+    }
+}
+
 function normalizeReportType(value) {
     const type = safeText(value).toLowerCase();
     const allowed = ['applications', 'scholars', 'payouts', 'support', 'sdo', 'guidance', 'pd'];
@@ -294,6 +306,9 @@ async function getSupportRows() {
 async function getSdoRows({ academicYearId, semester, programId, benefactorId }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
+    const reviewResult = safeText(arguments[0]?.reviewResult || 'all').toLowerCase();
+    const dateFrom = safeText(arguments[0]?.dateFrom || '');
+    const dateTo = safeText(arguments[0]?.dateTo || '');
 
     if (academicYearId && academicYearId !== 'all') {
         params.push(academicYearId);
@@ -314,6 +329,17 @@ async function getSdoRows({ academicYearId, semester, programId, benefactorId })
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    if (reviewResult && reviewResult !== 'all') {
+        if (reviewResult === 'pending') {
+            where.push(`es.sdo_status IS NULL`);
+        } else {
+            params.push(reviewResult);
+            where.push(`es.sdo_status = $${params.length}`);
+        }
+    }
+
+    appendDateRange(where, params, `COALESCE(es.sdo_acted_at, a.submission_date)`, dateFrom, dateTo);
 
     const query = `
     SELECT
@@ -358,6 +384,9 @@ async function getSdoRows({ academicYearId, semester, programId, benefactorId })
 async function getGuidanceRows({ academicYearId, semester, programId, benefactorId }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
+    const reviewResult = safeText(arguments[0]?.reviewResult || 'all').toLowerCase();
+    const dateFrom = safeText(arguments[0]?.dateFrom || '');
+    const dateTo = safeText(arguments[0]?.dateTo || '');
 
     if (academicYearId && academicYearId !== 'all') {
         params.push(academicYearId);
@@ -378,6 +407,17 @@ async function getGuidanceRows({ academicYearId, semester, programId, benefactor
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    if (reviewResult && reviewResult !== 'all') {
+        if (reviewResult === 'pending') {
+            where.push(`es.guidance_status IS NULL`);
+        } else {
+            params.push(reviewResult);
+            where.push(`es.guidance_status = $${params.length}`);
+        }
+    }
+
+    appendDateRange(where, params, `COALESCE(es.guidance_acted_at, a.submission_date)`, dateFrom, dateTo);
 
     const query = `
     SELECT
@@ -423,6 +463,9 @@ async function getGuidanceRows({ academicYearId, semester, programId, benefactor
 async function getPdRows({ academicYearId, semester, programId, benefactorId }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
+    const reviewResult = safeText(arguments[0]?.reviewResult || 'all').toLowerCase();
+    const dateFrom = safeText(arguments[0]?.dateFrom || '');
+    const dateTo = safeText(arguments[0]?.dateTo || '');
 
     if (academicYearId && academicYearId !== 'all') {
         params.push(academicYearId);
@@ -443,6 +486,19 @@ async function getPdRows({ academicYearId, semester, programId, benefactorId }) 
         params.push(benefactorId);
         where.push(`b.benefactor_id = $${params.length}`);
     }
+
+    if (reviewResult && reviewResult !== 'all') {
+        if (reviewResult === 'pending') {
+            where.push(`es.pd_status IS NULL`);
+        } else if (reviewResult === 'completed') {
+            where.push(`es.overall_status = 'completed'`);
+        } else {
+            params.push(reviewResult);
+            where.push(`es.pd_status = $${params.length}`);
+        }
+    }
+
+    appendDateRange(where, params, `COALESCE(es.pd_acted_at, a.submission_date)`, dateFrom, dateTo);
 
     const query = `
     SELECT
@@ -495,6 +551,9 @@ async function previewReport(query = {}) {
     const semester = safeText(query.semester || 'all');
     const programId = safeText(query.programId || query.program_id || 'all');
     const benefactorId = safeText(query.benefactorId || query.benefactor_id || 'all');
+    const reviewResult = safeText(query.reviewResult || query.review_result || 'all');
+    const dateFrom = safeText(query.dateFrom || query.date_from || '');
+    const dateTo = safeText(query.dateTo || query.date_to || '');
 
     let rows = [];
 
@@ -520,15 +579,15 @@ async function previewReport(query = {}) {
     }
 
     if (reportType === 'sdo') {
-        rows = await getSdoRows({ academicYearId, semester, programId, benefactorId });
+        rows = await getSdoRows({ academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo });
     }
 
     if (reportType === 'guidance') {
-        rows = await getGuidanceRows({ academicYearId, semester, programId, benefactorId });
+        rows = await getGuidanceRows({ academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo });
     }
 
     if (reportType === 'pd') {
-        rows = await getPdRows({ academicYearId, semester, programId, benefactorId });
+        rows = await getPdRows({ academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo });
     }
 
     return {
@@ -544,6 +603,9 @@ async function generateExcelReport(query = {}) {
     const semester = safeText(query.semester || 'all');
     const programId = safeText(query.programId || query.program_id || 'all');
     const benefactorId = safeText(query.benefactorId || query.benefactor_id || 'all');
+    const reviewResult = safeText(query.reviewResult || query.review_result || 'all');
+    const dateFrom = safeText(query.dateFrom || query.date_from || '');
+    const dateTo = safeText(query.dateTo || query.date_to || '');
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'SMaRT-PDM';
@@ -656,7 +718,7 @@ async function generateExcelReport(query = {}) {
             { header: 'Reviewed At', key: 'sdo_acted_at' },
             { header: 'Submitted At', key: 'submission_date' },
         ];
-        rows = await getSdoRows({ academicYearId, semester, programId, benefactorId });
+        rows = await getSdoRows({ academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo });
         filename = 'sdo_endorsement_report.xlsx';
     }
 
@@ -685,7 +747,7 @@ async function generateExcelReport(query = {}) {
             { header: 'Reviewed At', key: 'guidance_acted_at' },
             { header: 'Submitted At', key: 'submission_date' },
         ];
-        rows = await getGuidanceRows({ academicYearId, semester, programId, benefactorId });
+        rows = await getGuidanceRows({ academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo });
         filename = 'guidance_endorsement_report.xlsx';
     }
 
@@ -714,7 +776,7 @@ async function generateExcelReport(query = {}) {
             { header: 'Final PDF URL', key: 'final_pdf_url' },
             { header: 'Submitted At', key: 'submission_date' },
         ];
-        rows = await getPdRows({ academicYearId, semester, programId, benefactorId });
+        rows = await getPdRows({ academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo });
         filename = 'pd_endorsement_report.xlsx';
     }
 

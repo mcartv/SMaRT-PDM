@@ -9,6 +9,7 @@ router.get('/pd', protect, endorsementSlipController.getPdQueue);
 router.get('/guidance', protect, endorsementSlipController.getGuidanceQueue);
 router.get('/sdo', protect, endorsementSlipController.getSdoQueue);
 router.get('/verify/:token', endorsementSlipController.verifySlip);
+router.get('/:slipId/pdf', protect, endorsementSlipController.downloadSlipPdf);
 router.get('/:slipId', protect, endorsementSlipController.getSlipDetail);
 router.post('/:slipId/pd-action', protect, endorsementSlipController.postPdAction);
 router.post('/:slipId/guidance-action', protect, endorsementSlipController.postGuidanceAction);

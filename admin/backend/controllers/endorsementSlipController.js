@@ -56,6 +56,19 @@ exports.getSlipDetail = async (req, res) => {
     }
 };
 
+exports.downloadSlipPdf = async (req, res) => {
+    try {
+        const pdf = await endorsementSlipService.buildSlipPdfDownload(req.params.slipId, req.user);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${pdf.fileName}"`);
+        res.status(200).send(pdf.buffer);
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            message: error.message || 'Failed to download endorsement slip PDF.',
+        });
+    }
+};
+
 exports.postPdAction = async (req, res) => {
     try {
         const result = await endorsementSlipService.applyStageAction('pd', req.params.slipId, req.body, req.user);

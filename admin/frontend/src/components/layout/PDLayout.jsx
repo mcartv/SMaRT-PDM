@@ -10,6 +10,7 @@ export default function PDLayout() {
       loginPath="/pd/login"
       dashboardPath="/pd/dashboard"
       trackerPath="/pd/tracker"
+      reportsPath="/pd/reports"
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"
       colors={{

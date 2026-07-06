@@ -142,6 +142,16 @@ export default function EndorsementVerification() {
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm text-stone-500">{formatDate(stage?.acted_at)}</p>
+                {stage?.acted_by_name ? (
+                  <p className="mt-2 text-sm text-stone-600">Reviewed by: {stage.acted_by_name}</p>
+                ) : null}
+                {label === 'SDO Clearance' && payload.sdo_offense_detail?.offense_type ? (
+                  <div className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
+                    <p>Offense Type: {payload.sdo_offense_detail.offense_type}</p>
+                    <p>Date of Incident: {payload.sdo_offense_detail.incident_date || 'N/A'}</p>
+                    <p>Case Note / Ref No.: {payload.sdo_offense_detail.case_reference_number || 'N/A'}</p>
+                  </div>
+                ) : null}
                 {stage?.remarks ? (
                   <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
                     {stage.remarks}

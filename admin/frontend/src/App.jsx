@@ -152,6 +152,16 @@ export default function App() {
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="pdToken" />}
           />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="pdToken"
+                allowedReportTypes={['pd']}
+                defaultReportType="pd"
+              />
+            }
+          />
         </Route>
 
         {/* --- PROTECTED GUIDANCE PANEL --- */}
@@ -180,6 +190,16 @@ export default function App() {
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="guidanceToken" />}
           />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="guidanceToken"
+                allowedReportTypes={['guidance']}
+                defaultReportType="guidance"
+              />
+            }
+          />
         </Route>
 
         {/* --- PROTECTED SDO PANEL --- */}
@@ -207,6 +227,16 @@ export default function App() {
           <Route
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="sdoToken" />}
+          />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="sdoToken"
+                allowedReportTypes={['sdo']}
+                defaultReportType="sdo"
+              />
+            }
           />
           <Route path="scholars" element={<SDOScholarList />} />
           <Route path="profile" element={<SDOProfile />} />

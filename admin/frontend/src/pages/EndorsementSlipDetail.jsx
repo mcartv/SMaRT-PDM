@@ -61,6 +61,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
   const [slip, setSlip] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -109,6 +110,36 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
       </div>
     );
   }
+
+  const handleDownloadSlip = async () => {
+    try {
+      setDownloading(true);
+      const response = await fetch(buildApiUrl(`/api/endorsement-slips/${slipId}/pdf`), {
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to download endorsement slip PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${slip.slip_code || 'endorsement-slip'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Failed to download endorsement slip PDF.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="space-y-5 py-2">
@@ -171,11 +202,19 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
               <p className="font-medium">{slip.grade_summary?.gwa ?? 'N/A'}</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                className="bg-stone-900 text-white hover:bg-stone-800"
+                onClick={handleDownloadSlip}
+                disabled={downloading}
+              >
+                {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                Download Slip PDF
+              </Button>
               {slip.final_pdf_url ? (
                 <a href={slip.final_pdf_url} target="_blank" rel="noreferrer">
-                  <Button className="bg-stone-900 text-white hover:bg-stone-800">
+                  <Button variant="outline" className="border-stone-200">
                     <Download className="mr-2 h-4 w-4" />
-                    Download Final PDF
+                    Open Stored Final PDF
                   </Button>
                 </a>
               ) : null}
@@ -232,6 +271,39 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-stone-200 shadow-none">
+        <CardHeader className="border-b border-stone-100">
+          <h2 className="text-base font-semibold text-stone-900">Office Notes</h2>
+        </CardHeader>
+        <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+          <div className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-700">
+            <p className="text-xs uppercase tracking-wide text-stone-500">SDO Result</p>
+            <p className="mt-1 font-medium text-stone-900">{slip.office_results?.sdo || 'Pending'}</p>
+            {slip.sdo_offense_detail?.offense_type ? (
+              <div className="mt-3 space-y-1 text-xs text-stone-500">
+                <p>Offense Type: {slip.sdo_offense_detail.offense_type}</p>
+                <p>Date of Incident: {slip.sdo_offense_detail.incident_date || 'N/A'}</p>
+                <p>Case Note / Ref No.: {slip.sdo_offense_detail.case_reference_number || 'N/A'}</p>
+              </div>
+            ) : null}
+          </div>
+          <div className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-700">
+            <p className="text-xs uppercase tracking-wide text-stone-500">Guidance Result</p>
+            <p className="mt-1 font-medium text-stone-900">{slip.office_results?.guidance || 'Pending'}</p>
+            <p className="mt-3 text-xs text-stone-500">
+              Guidance can now clear, hold for counseling, or reject the endorsement.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-700">
+            <p className="text-xs uppercase tracking-wide text-stone-500">PD Result</p>
+            <p className="mt-1 font-medium text-stone-900">{slip.office_results?.pd || 'Pending'}</p>
+            <p className="mt-3 text-xs text-stone-500">
+              Final scholar activation still depends on both endorsement and requirements readiness.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-stone-200 shadow-none">
         <CardHeader className="border-b border-stone-100">

@@ -41,6 +41,7 @@ const STAGE_LABELS = Object.freeze({
     pending_pd: 'Pending Program Director',
     completed: 'Completed',
     rejected: 'Rejected by Program Director',
+    guidance_rejected: 'Rejected by Guidance',
     held: 'Held by Guidance',
     disqualified_minor: 'Disqualified (Minor)',
     disqualified_major: 'Disqualified (Major)',
@@ -66,7 +67,8 @@ const CHECKBOX_LABELS = Object.freeze({
     },
     guidance: {
         cleared: 'Good Moral Standing',
-        held: 'Held for Guidance Review',
+        held: 'For Counseling / Hold',
+        rejected: 'Rejected',
     },
     pd: {
         approved_good_average: 'Good Average Scholastic Standing',
@@ -186,6 +188,13 @@ function getTrackerSummary(status) {
                 nextStage: null,
                 nextStageLabel: null,
             };
+        case 'guidance_rejected':
+            return {
+                currentOffice: 'Guidance',
+                currentLabel: 'Rejected by Guidance',
+                nextStage: null,
+                nextStageLabel: null,
+            };
         case 'rejected':
             return {
                 currentOffice: 'Program Director',
@@ -247,7 +256,7 @@ function buildProgressTracker({
         if (step.key === 'guidance') {
             decision = guidance_status || null;
 
-            if (overall_status === 'held') {
+            if (['held', 'guidance_rejected'].includes(overall_status)) {
                 state = 'stopped';
             } else if (current_stage === 'pending_guidance') {
                 state = 'active';
@@ -328,6 +337,11 @@ function mapQueueRow(row) {
         pd_decision: row.pd_status || null,
         guidance_decision: row.guidance_status || null,
         sdo_decision: row.sdo_status || null,
+        sdo_offense_detail: {
+            offense_type: row.sdo_offense_type || '',
+            incident_date: row.sdo_incident_date || null,
+            case_reference_number: row.sdo_case_reference_number || '',
+        },
         office_results: officeResults,
         per_office_statuses: tracker.per_office_statuses,
         tracker,
@@ -364,6 +378,9 @@ async function loadSlipRows({ stage = null } = {}) {
             es.sdo_status,
             es.sdo_acted_at,
             es.sdo_remarks,
+            es.sdo_offense_type,
+            es.sdo_incident_date,
+            es.sdo_case_reference_number,
             es.final_pdf_url,
             es.completed_at,
             es.created_at,
@@ -478,6 +495,14 @@ async function fetchSlipDetail(slipId, actor = null) {
     const row = rows[0];
     const tracker = buildProgressTracker(row);
     const officeResults = mapPaperOfficeResults(row);
+    const officeSignatories = {
+        sdo: [row.sdo_actor_first_name, row.sdo_actor_last_name].filter(Boolean).join(' ') || row.sdo_actor_email || '',
+        guidance:
+            [row.guidance_actor_first_name, row.guidance_actor_last_name].filter(Boolean).join(' ') ||
+            row.guidance_actor_email ||
+            '',
+        pd: [row.pd_actor_first_name, row.pd_actor_last_name].filter(Boolean).join(' ') || row.pd_actor_email || '',
+    };
     const documentRows = await pool.query(
         `
         select
@@ -524,6 +549,12 @@ async function fetchSlipDetail(slipId, actor = null) {
         completed_at: row.completed_at,
         documents: documentRows.rows,
         office_results: officeResults,
+        office_signatories: officeSignatories,
+        sdo_offense_detail: {
+            offense_type: row.sdo_offense_type || '',
+            incident_date: row.sdo_incident_date || null,
+            case_reference_number: row.sdo_case_reference_number || '',
+        },
         per_office_statuses: tracker.per_office_statuses,
         stages: [
             {
@@ -533,7 +564,7 @@ async function fetchSlipDetail(slipId, actor = null) {
                 result_label: officeResults.sdo,
                 acted_at: row.sdo_acted_at,
                 acted_by_user_id: row.sdo_acted_by_user_id,
-                acted_by_name: [row.sdo_actor_first_name, row.sdo_actor_last_name].filter(Boolean).join(' ') || row.sdo_actor_email || '',
+                acted_by_name: officeSignatories.sdo,
                 remarks: row.sdo_remarks || '',
             },
             {
@@ -543,7 +574,7 @@ async function fetchSlipDetail(slipId, actor = null) {
                 result_label: officeResults.guidance,
                 acted_at: row.guidance_acted_at,
                 acted_by_user_id: row.guidance_acted_by_user_id,
-                acted_by_name: [row.guidance_actor_first_name, row.guidance_actor_last_name].filter(Boolean).join(' ') || row.guidance_actor_email || '',
+                acted_by_name: officeSignatories.guidance,
                 remarks: row.guidance_remarks || '',
             },
             {
@@ -553,7 +584,7 @@ async function fetchSlipDetail(slipId, actor = null) {
                 result_label: officeResults.pd,
                 acted_at: row.pd_acted_at,
                 acted_by_user_id: row.pd_acted_by_user_id,
-                acted_by_name: [row.pd_actor_first_name, row.pd_actor_last_name].filter(Boolean).join(' ') || row.pd_actor_email || '',
+                acted_by_name: officeSignatories.pd,
                 remarks: row.pd_remarks || '',
             },
         ],
@@ -663,7 +694,9 @@ async function buildCompletedSlipPdf(detail) {
         const doc = new PDFDocument({ size: 'A4', margin: 48 });
         const chunks = [];
         const officeResults = detail.office_results || {};
+        const officeSignatories = detail.office_signatories || {};
         const drawCheckbox = (label, checked) => `${checked ? '[x]' : '[ ]'} ${label}`;
+        const drawActor = (label, value) => `${label}: ${safeText(value) || 'N/A'}`;
 
         doc.on('data', (chunk) => chunks.push(chunk));
         doc.on('error', reject);
@@ -698,19 +731,43 @@ async function buildCompletedSlipPdf(detail) {
         doc.fontSize(10).text('Program Director');
         doc.text(drawCheckbox('Good Average Scholastic Standing', officeResults.pd === CHECKBOX_LABELS.pd.approved_good_average));
         doc.text(drawCheckbox('Average Scholastic Standing', officeResults.pd === CHECKBOX_LABELS.pd.approved_average));
-        doc.text(`Name & Signature: ${safeText(detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name) || 'N/A'}`);
+        doc.text(drawActor('PD Name', officeSignatories.pd || detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name));
+        doc.text(drawActor('PD Signature', officeSignatories.pd || detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name));
         doc.moveDown(0.7);
 
         doc.text('Student Disciplinary Office');
         doc.text(drawCheckbox('No Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.cleared));
         doc.text(drawCheckbox('Minor Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_minor));
         doc.text(drawCheckbox('Major Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_major));
-        doc.text(`Name & Signature: ${safeText(detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name) || 'N/A'}`);
+        doc.text(drawActor('SDO Name', officeSignatories.sdo || detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name));
+        doc.text(drawActor('SDO Signature', officeSignatories.sdo || detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name));
+        if (safeText(detail.sdo_offense_detail?.offense_type)) {
+            doc.text(`Offense Type: ${safeText(detail.sdo_offense_detail?.offense_type)}`);
+        }
+        if (safeText(detail.sdo_offense_detail?.incident_date)) {
+            doc.text(`Date of Incident: ${safeText(detail.sdo_offense_detail?.incident_date)}`);
+        }
+        if (safeText(detail.sdo_offense_detail?.case_reference_number)) {
+            doc.text(`Case Note / Ref No.: ${safeText(detail.sdo_offense_detail?.case_reference_number)}`);
+        }
         doc.moveDown(0.7);
 
         doc.text('Guidance Counselor Office');
         doc.text(drawCheckbox('Good Moral Standing', officeResults.guidance === CHECKBOX_LABELS.guidance.cleared));
-        doc.text(`Name & Signature: ${safeText(detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name) || 'N/A'}`);
+        doc.text(drawCheckbox('For Counseling / Hold', officeResults.guidance === CHECKBOX_LABELS.guidance.held));
+        doc.text(drawCheckbox('Rejected', officeResults.guidance === CHECKBOX_LABELS.guidance.rejected));
+        doc.text(
+            drawActor(
+                'Guidance Name',
+                officeSignatories.guidance || detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name
+            )
+        );
+        doc.text(
+            drawActor(
+                'Guidance Signature',
+                officeSignatories.guidance || detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name
+            )
+        );
         doc.moveDown(0.8);
 
         doc.text(`Remarks: ${[
@@ -787,8 +844,19 @@ async function finalizeCompletedSlip(slipId) {
     return fetchSlipDetail(slipId);
 }
 
-function buildStageUpdate(queueKey, action, remarks, actorUserId) {
+async function buildSlipPdfDownload(slipId, actor = null) {
+    const detail = await fetchSlipDetail(slipId, actor);
+    const pdfBuffer = await buildCompletedSlipPdf(detail);
+    return {
+        fileName: `endorsement-slip-${detail.slip_code || deriveSlipCode(detail.slip_id)}.pdf`,
+        buffer: pdfBuffer,
+    };
+}
+
+function buildStageUpdate(queueKey, payload, actorUserId) {
     const now = new Date().toISOString();
+    const action = safeText(payload?.action).toLowerCase();
+    const remarks = safeText(payload?.remarks);
 
     if (queueKey === 'sdo') {
         if (!['clear', 'disqualify_minor', 'disqualify_major'].includes(action)) {
@@ -801,6 +869,16 @@ function buildStageUpdate(queueKey, action, remarks, actorUserId) {
                 : action === 'disqualify_minor'
                     ? 'disqualified_minor'
                     : 'disqualified_major';
+        const offenseType = safeText(payload?.offense_type);
+        const incidentDate = safeText(payload?.incident_date);
+        const caseReferenceNumber = safeText(payload?.case_reference_number);
+
+        if (normalizedAction !== 'cleared' && !remarks) {
+            throw createHttpError(400, 'SDO remarks are required for minor or major offense.');
+        }
+        if (normalizedAction !== 'cleared' && !offenseType) {
+            throw createHttpError(400, 'Offense type is required for minor or major offense.');
+        }
 
         return {
             sql: `
@@ -809,8 +887,11 @@ function buildStageUpdate(queueKey, action, remarks, actorUserId) {
                     sdo_acted_at = $3,
                     sdo_acted_by_user_id = $4,
                     sdo_remarks = $5,
-                    current_stage = $6,
-                    overall_status = $7,
+                    sdo_offense_type = $6,
+                    sdo_incident_date = $7,
+                    sdo_case_reference_number = $8,
+                    current_stage = $9,
+                    overall_status = $10,
                     updated_at = now()
                 where slip_id = $1
                   and current_stage = 'pending_sdo'
@@ -822,6 +903,9 @@ function buildStageUpdate(queueKey, action, remarks, actorUserId) {
                 now,
                 actorUserId,
                 remarks || SDO_STANDARD_REASONS[normalizedAction] || null,
+                normalizedAction === 'cleared' ? null : offenseType || null,
+                normalizedAction === 'cleared' ? null : incidentDate || null,
+                normalizedAction === 'cleared' ? null : caseReferenceNumber || null,
                 ['cleared', 'disqualified_minor'].includes(normalizedAction) ? 'pending_guidance' : normalizedAction,
                 ['cleared', 'disqualified_minor'].includes(normalizedAction) ? 'pending_guidance' : normalizedAction,
             ],
@@ -829,11 +913,11 @@ function buildStageUpdate(queueKey, action, remarks, actorUserId) {
     }
 
     if (queueKey === 'guidance') {
-        if (!['clear', 'hold'].includes(action)) {
-            throw createHttpError(400, 'Guidance action must be clear or hold.');
+        if (!['clear', 'hold', 'reject'].includes(action)) {
+            throw createHttpError(400, 'Guidance action must be clear, hold, or reject.');
         }
-        if (action === 'hold' && !remarks) {
-            throw createHttpError(400, 'Guidance hold requires a reason.');
+        if (['hold', 'reject'].includes(action) && !remarks) {
+            throw createHttpError(400, 'Guidance hold or rejection requires a reason.');
         }
 
         return {
@@ -852,12 +936,12 @@ function buildStageUpdate(queueKey, action, remarks, actorUserId) {
             `,
             values: [
                 null,
-                action === 'clear' ? 'cleared' : 'held',
+                action === 'clear' ? 'cleared' : action === 'hold' ? 'held' : 'rejected',
                 now,
                 actorUserId,
                 remarks || null,
-                action === 'clear' ? 'pending_pd' : 'held',
-                action === 'clear' ? 'pending_pd' : 'held',
+                action === 'clear' ? 'pending_pd' : action === 'hold' ? 'held' : 'guidance_rejected',
+                action === 'clear' ? 'pending_pd' : action === 'hold' ? 'held' : 'guidance_rejected',
             ],
         };
     }
@@ -900,7 +984,6 @@ function buildStageUpdate(queueKey, action, remarks, actorUserId) {
 async function applyStageAction(queueKey, slipId, payload, actor) {
     const config = ensureQueueAccess(queueKey, actor);
     const action = safeText(payload?.action).toLowerCase();
-    const remarks = safeText(payload?.remarks);
     const actorUserId = getActorUserId(actor);
 
     if (!actorUserId) {
@@ -931,7 +1014,7 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             throw createHttpError(409, 'This endorsement slip is no longer pending in your queue.');
         }
 
-        const mutation = buildStageUpdate(queueKey, action, remarks, actorUserId);
+        const mutation = buildStageUpdate(queueKey, payload, actorUserId);
         mutation.values[0] = slipId;
         const updated = await client.query(mutation.sql, mutation.values);
 
@@ -997,12 +1080,24 @@ async function fetchVerificationPayload(token) {
             es.sdo_status,
             es.sdo_acted_at,
             es.sdo_remarks,
+            es.sdo_offense_type,
+            es.sdo_incident_date,
+            es.sdo_case_reference_number,
             st.pdm_id,
             st.gwa,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
             sp.program_name,
             ay.label as school_year,
-            ap.term as semester
+            ap.term as semester,
+            pd_user.email as pd_actor_email,
+            pd_profile.first_name as pd_actor_first_name,
+            pd_profile.last_name as pd_actor_last_name,
+            guidance_user.email as guidance_actor_email,
+            guidance_profile.first_name as guidance_actor_first_name,
+            guidance_profile.last_name as guidance_actor_last_name,
+            sdo_user.email as sdo_actor_email,
+            sdo_profile.first_name as sdo_actor_first_name,
+            sdo_profile.last_name as sdo_actor_last_name
         from endorsement_slips es
         join students st on st.student_id = es.student_id
         left join applications a on a.application_id = es.application_id
@@ -1010,6 +1105,12 @@ async function fetchVerificationPayload(token) {
         left join program_openings po on po.opening_id = a.opening_id
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
         left join academic_period ap on ap.period_id = po.period_id
+        left join users pd_user on pd_user.user_id = es.pd_acted_by_user_id
+        left join admin_profiles pd_profile on pd_profile.user_id = es.pd_acted_by_user_id
+        left join users guidance_user on guidance_user.user_id = es.guidance_acted_by_user_id
+        left join admin_profiles guidance_profile on guidance_profile.user_id = es.guidance_acted_by_user_id
+        left join users sdo_user on sdo_user.user_id = es.sdo_acted_by_user_id
+        left join admin_profiles sdo_profile on sdo_profile.user_id = es.sdo_acted_by_user_id
         where es.verification_token = $1
         limit 1
         `,
@@ -1023,6 +1124,14 @@ async function fetchVerificationPayload(token) {
     const row = rows[0];
     const tracker = buildProgressTracker(row);
     const officeResults = mapPaperOfficeResults(row);
+    const officeSignatories = {
+        sdo: [row.sdo_actor_first_name, row.sdo_actor_last_name].filter(Boolean).join(' ') || row.sdo_actor_email || '',
+        guidance:
+            [row.guidance_actor_first_name, row.guidance_actor_last_name].filter(Boolean).join(' ') ||
+            row.guidance_actor_email ||
+            '',
+        pd: [row.pd_actor_first_name, row.pd_actor_last_name].filter(Boolean).join(' ') || row.pd_actor_email || '',
+    };
     return {
         verified: row.overall_status === 'completed',
         slip_id: row.slip_id,
@@ -1041,23 +1150,32 @@ async function fetchVerificationPayload(token) {
         completed_at: row.completed_at,
         tracker,
         office_results: officeResults,
+        office_signatories: officeSignatories,
+        sdo_offense_detail: {
+            offense_type: row.sdo_offense_type || '',
+            incident_date: row.sdo_incident_date || null,
+            case_reference_number: row.sdo_case_reference_number || '',
+        },
         stages: {
             sdo: {
                 decision: row.sdo_status,
                 result_label: officeResults.sdo,
                 acted_at: row.sdo_acted_at,
+                acted_by_name: officeSignatories.sdo,
                 remarks: row.sdo_remarks || '',
             },
             guidance: {
                 decision: row.guidance_status,
                 result_label: officeResults.guidance,
                 acted_at: row.guidance_acted_at,
+                acted_by_name: officeSignatories.guidance,
                 remarks: row.guidance_remarks || '',
             },
             pd: {
                 decision: row.pd_status,
                 result_label: officeResults.pd,
                 acted_at: row.pd_acted_at,
+                acted_by_name: officeSignatories.pd,
                 remarks: row.pd_remarks || '',
             },
         },
@@ -1162,6 +1280,7 @@ module.exports = {
     fetchSlipDetail,
     applyStageAction,
     fetchVerificationPayload,
+    buildSlipPdfDownload,
     sendPendingDigests,
     ensureSlipForApplication,
 };

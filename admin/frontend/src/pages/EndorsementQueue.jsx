@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   AlertTriangle,
+  AlertOctagon,
   CheckCircle2,
   Eye,
   FileText,
+  Hourglass,
   Loader2,
   RefreshCw,
   Search,
@@ -36,7 +38,7 @@ const QUEUE_META = {
   },
   guidance: {
     title: 'Guidance Queue',
-    subtitle: 'Review applicants already cleared by SDO before they proceed to Program Director.',
+    subtitle: 'Review applicants already cleared by SDO before they proceed to Program Director, are held for counseling, or are rejected.',
     endpoint: '/api/endorsement-slips/guidance',
     actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/guidance-action`,
     allowedRoles: ['guidance', 'admin'],
@@ -61,6 +63,34 @@ const STAGE_TONE = {
   pending_guidance: 'bg-blue-50 text-blue-700',
   pending_sdo: 'bg-orange-50 text-orange-700',
   completed: 'bg-green-50 text-green-700',
+  held: 'bg-amber-100 text-amber-800',
+  disqualified_minor: 'bg-amber-100 text-amber-800',
+  disqualified_major: 'bg-red-100 text-red-800',
+  rejected: 'bg-red-100 text-red-800',
+  guidance_rejected: 'bg-red-50 text-red-700',
+};
+
+const QUEUE_RESULT_FILTERS = {
+  sdo: [
+    { value: 'all', label: 'All SDO Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cleared', label: 'No Offense' },
+    { value: 'disqualified_minor', label: 'Minor Offense' },
+    { value: 'disqualified_major', label: 'Major Offense' },
+  ],
+  guidance: [
+    { value: 'all', label: 'All Guidance Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cleared', label: 'Good Moral Standing' },
+    { value: 'held', label: 'For Counseling / Hold' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
+  pd: [
+    { value: 'all', label: 'All PD Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
 };
 
 function authHeaders(tokenStorageKey = 'adminToken') {
@@ -83,6 +113,111 @@ function formatDate(value) {
   });
 }
 
+function getQueueDecisionValue(queueKey, row) {
+  if (queueKey === 'sdo') {
+    return row.sdo_decision || 'pending';
+  }
+  if (queueKey === 'guidance') {
+    return row.guidance_decision || 'pending';
+  }
+  return row.pd_decision || 'pending';
+}
+
+function getQueueDecisionLabel(queueKey, row) {
+  if (queueKey === 'sdo') {
+    return row.office_results?.sdo || 'Pending SDO review';
+  }
+  if (queueKey === 'guidance') {
+    return row.office_results?.guidance || 'Pending Guidance review';
+  }
+  return row.office_results?.pd || 'Pending PD review';
+}
+
+function getQueueDecisionTone(value) {
+  if (['cleared', 'approved'].includes(value)) {
+    return 'bg-green-50 text-green-700 border-green-200';
+  }
+  if (['held', 'disqualified_minor', 'pending'].includes(value)) {
+    return 'bg-amber-50 text-amber-700 border-amber-200';
+  }
+  if (['rejected', 'guidance_rejected', 'disqualified_major'].includes(value)) {
+    return 'bg-red-50 text-red-700 border-red-200';
+  }
+  return 'bg-stone-100 text-stone-700 border-stone-200';
+}
+
+function QueueSummary({ queueKey, rows }) {
+  if (queueKey === 'sdo') {
+    return (
+      <>
+        <SummaryCard icon={FileText} label="Pending Slips" value={rows.length} tone="bg-orange-50 text-orange-700" />
+        <SummaryCard
+          icon={CheckCircle2}
+          label="No Offense"
+          value={rows.filter((row) => row.sdo_decision === 'cleared').length}
+          tone="bg-green-50 text-green-700"
+        />
+        <SummaryCard
+          icon={Hourglass}
+          label="Minor Offense"
+          value={rows.filter((row) => row.sdo_decision === 'disqualified_minor').length}
+          tone="bg-amber-50 text-amber-700"
+        />
+        <SummaryCard
+          icon={AlertOctagon}
+          label="Major Offense"
+          value={rows.filter((row) => row.sdo_decision === 'disqualified_major').length}
+          tone="bg-red-50 text-red-700"
+        />
+      </>
+    );
+  }
+
+  if (queueKey === 'guidance') {
+    return (
+      <>
+        <SummaryCard icon={FileText} label="Pending Slips" value={rows.length} tone="bg-blue-50 text-blue-700" />
+        <SummaryCard
+          icon={CheckCircle2}
+          label="Good Moral"
+          value={rows.filter((row) => row.guidance_decision === 'cleared').length}
+          tone="bg-green-50 text-green-700"
+        />
+        <SummaryCard
+          icon={Hourglass}
+          label="On Hold"
+          value={rows.filter((row) => row.guidance_decision === 'held').length}
+          tone="bg-amber-50 text-amber-700"
+        />
+        <SummaryCard
+          icon={AlertOctagon}
+          label="Rejected"
+          value={rows.filter((row) => row.guidance_decision === 'rejected').length}
+          tone="bg-red-50 text-red-700"
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SummaryCard icon={FileText} label="Pending Slips" value={rows.length} tone="bg-amber-50 text-amber-700" />
+      <SummaryCard
+        icon={CheckCircle2}
+        label="With Grade File"
+        value={rows.filter((row) => row.grade_document?.url).length}
+        tone="bg-green-50 text-green-700"
+      />
+      <SummaryCard
+        icon={ShieldAlert}
+        label="Programs"
+        value={new Set(rows.map((row) => row.program_name).filter(Boolean)).size}
+        tone="bg-blue-50 text-blue-700"
+      />
+    </>
+  );
+}
+
 function SummaryCard({ icon: Icon, label, value, tone }) {
   return (
     <Card className="border-stone-200 shadow-none">
@@ -103,6 +238,9 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
   const state = actionState[row.slip_id] || {
     remarks: '',
     sdoReason: 'clear',
+    offenseType: '',
+    incidentDate: '',
+    caseReferenceNumber: '',
   };
 
   const updateState = (patch) => {
@@ -151,11 +289,14 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
   if (queueKey === 'guidance') {
     return (
       <div className="space-y-2">
+        <div className="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
+          Clear students with good moral standing, hold them for counseling, or reject them with a reason.
+        </div>
         <Textarea
           rows={2}
           value={state.remarks}
           onChange={(event) => updateState({ remarks: event.target.value })}
-          placeholder="Reason is required when holding a student"
+          placeholder="Reason is required when holding or rejecting a student"
           className="min-h-[72px]"
         />
         <div className="flex gap-2">
@@ -174,15 +315,30 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
             disabled={loading}
             onClick={() => onSubmit(row, 'hold')}
           >
-            Hold
+            For Counseling / Hold
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-red-200 text-red-700"
+            disabled={loading}
+            onClick={() => onSubmit(row, 'reject')}
+          >
+            Reject
           </Button>
         </div>
       </div>
     );
   }
 
+  const selectedReason = state.sdoReason;
+  const needsOffenseDetail = ['disqualify_minor', 'disqualify_major'].includes(selectedReason);
+
   return (
     <div className="space-y-2">
+      <div className="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
+        Minor offense still proceeds to Guidance. Major offense stops the slip in SDO.
+      </div>
       <Select
         value={state.sdoReason}
         onValueChange={(value) =>
@@ -204,11 +360,32 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           <SelectItem value="disqualify_major">Major offense</SelectItem>
         </SelectContent>
       </Select>
+      {needsOffenseDetail ? (
+        <div className="grid gap-2 md:grid-cols-2">
+          <Input
+            value={state.offenseType}
+            onChange={(event) => updateState({ offenseType: event.target.value })}
+            placeholder="Offense type"
+          />
+          <Input
+            type="date"
+            value={state.incidentDate}
+            onChange={(event) => updateState({ incidentDate: event.target.value })}
+          />
+          <div className="md:col-span-2">
+            <Input
+              value={state.caseReferenceNumber}
+              onChange={(event) => updateState({ caseReferenceNumber: event.target.value })}
+              placeholder="Case note / reference number"
+            />
+          </div>
+        </div>
+      ) : null}
       <Textarea
         rows={2}
         value={state.remarks}
         onChange={(event) => updateState({ remarks: event.target.value })}
-        placeholder="Optional remark"
+        placeholder={needsOffenseDetail ? 'Remarks are required for minor or major offense' : 'Optional remark'}
         className="min-h-[72px]"
       />
       <div className="flex flex-wrap gap-2">
@@ -265,6 +442,7 @@ export default function EndorsementQueue({
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [programFilter, setProgramFilter] = useState('all');
+  const [resultFilter, setResultFilter] = useState('all');
   const [actionState, setActionState] = useState({});
 
   const hasAccess = meta.allowedRoles.includes(profile.role);
@@ -318,9 +496,12 @@ export default function EndorsementQueue({
       const matchesProgram =
         programFilter === 'all' || row.program_name === programFilter;
 
-      return matchesSearch && matchesProgram;
+      const decisionValue = getQueueDecisionValue(queueKey, row);
+      const matchesResult = resultFilter === 'all' || decisionValue === resultFilter;
+
+      return matchesSearch && matchesProgram && matchesResult;
     });
-  }, [rows, search, programFilter]);
+  }, [rows, search, programFilter, queueKey, resultFilter]);
 
   const programs = useMemo(
     () => ['all', ...new Set(rows.map((row) => row.program_name).filter(Boolean))],
@@ -334,8 +515,18 @@ export default function EndorsementQueue({
         ? SDO_STANDARD_REASONS[action] || ''
         : state.remarks;
 
-    if (queueKey === 'guidance' && action === 'hold' && !remarks.trim()) {
-      setError('Guidance hold requires a reason.');
+    if (queueKey === 'guidance' && ['hold', 'reject'].includes(action) && !remarks.trim()) {
+      setError('Guidance hold or rejection requires a reason.');
+      return;
+    }
+
+    if (queueKey === 'sdo' && ['disqualify_minor', 'disqualify_major'].includes(action) && !remarks.trim()) {
+      setError('SDO remarks are required for minor or major offense.');
+      return;
+    }
+
+    if (queueKey === 'sdo' && ['disqualify_minor', 'disqualify_major'].includes(action) && !state.offenseType.trim()) {
+      setError('Offense type is required for minor or major offense.');
       return;
     }
 
@@ -349,6 +540,9 @@ export default function EndorsementQueue({
         body: JSON.stringify({
           action,
           remarks,
+          offense_type: queueKey === 'sdo' ? state.offenseType : undefined,
+          incident_date: queueKey === 'sdo' ? state.incidentDate : undefined,
+          case_reference_number: queueKey === 'sdo' ? state.caseReferenceNumber : undefined,
         }),
       });
       const data = await response.json();
@@ -403,20 +597,8 @@ export default function EndorsementQueue({
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <SummaryCard icon={FileText} label="Pending Slips" value={rows.length} tone="bg-blue-50 text-blue-700" />
-        <SummaryCard
-          icon={CheckCircle2}
-          label="With Grade File"
-          value={rows.filter((row) => row.grade_document?.url).length}
-          tone="bg-green-50 text-green-700"
-        />
-        <SummaryCard
-          icon={ShieldAlert}
-          label="Programs"
-          value={new Set(rows.map((row) => row.program_name).filter(Boolean)).size}
-          tone="bg-amber-50 text-amber-700"
-        />
+      <div className={`grid grid-cols-1 gap-3 ${queueKey === 'pd' ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
+        <QueueSummary queueKey={queueKey} rows={rows} />
       </div>
 
       <Card className="border-stone-200 shadow-none">
@@ -439,6 +621,18 @@ export default function EndorsementQueue({
                 {programs.map((program) => (
                   <SelectItem key={program} value={program}>
                     {program === 'all' ? 'All Programs' : program}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={resultFilter} onValueChange={setResultFilter}>
+              <SelectTrigger className="w-full lg:w-64">
+                <SelectValue placeholder="Filter by result" />
+              </SelectTrigger>
+              <SelectContent>
+                {(QUEUE_RESULT_FILTERS[queueKey] || QUEUE_RESULT_FILTERS.pd).map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -467,12 +661,47 @@ export default function EndorsementQueue({
                       {row.overall_status_label}
                     </Badge>
                   </div>
-                  <p className="text-sm text-stone-700">{row.program_name}</p>
-                  <p className="text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="border-stone-200 text-stone-700">
+                      {row.program_name}
+                    </Badge>
+                    <Badge variant="outline" className="border-stone-200 text-stone-700">
+                      {row.opening_title || 'Opening not set'}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-600">
+                      Submitted: {formatDate(row.submitted_at)}
+                    </span>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 ${getQueueDecisionTone(getQueueDecisionValue(queueKey, row))}`}
+                    >
+                      {getQueueDecisionLabel(queueKey, row)}
+                    </span>
+                  </div>
                   {queueKey === 'pd' ? (
                     <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
                       <p>GWA: {row.grade_summary?.gwa ?? 'N/A'}</p>
                       <p>Grade file: {row.grade_document?.url ? 'Uploaded' : 'Missing'}</p>
+                    </div>
+                  ) : null}
+                  {queueKey !== 'sdo' ? (
+                    <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
+                      <p className="font-medium text-stone-900">Previous SDO Review</p>
+                      <p>{row.office_results?.sdo || 'Pending SDO review'}</p>
+                      {row.sdo_offense_detail?.offense_type ? (
+                        <p className="text-xs text-stone-500">
+                          {row.sdo_offense_detail.offense_type}
+                          {row.sdo_offense_detail.incident_date ? ` • ${row.sdo_offense_detail.incident_date}` : ''}
+                          {row.sdo_offense_detail.case_reference_number ? ` • ${row.sdo_offense_detail.case_reference_number}` : ''}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {queueKey === 'pd' ? (
+                    <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
+                      <p className="font-medium text-stone-900">Guidance Review</p>
+                      <p>{row.office_results?.guidance || 'Pending Guidance review'}</p>
                     </div>
                   ) : null}
                   <div className="rounded-2xl bg-stone-50 p-3">

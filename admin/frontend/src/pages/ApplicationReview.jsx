@@ -577,7 +577,10 @@ function RegistryTable({
   navigate,
   title = 'Applicant Registry',
   subtitle = 'Current applicants and document status overview',
+  mode = 'registry',
 }) {
+  const isReadinessMode = mode === 'readiness';
+
   return (
     <section
       className="overflow-hidden rounded-2xl border bg-white"
@@ -589,28 +592,25 @@ function RegistryTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1320px]">
+        <table className="w-full min-w-[980px]">
           <thead className="bg-stone-50">
             <tr className="border-b border-stone-200">
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Applicant</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">PDM ID</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Scholarship</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Opening</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Academic Year</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Submitted</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Application</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Documents</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Requirements</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Endorsement</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Scholar Ready</th>
+              {isReadinessMode ? (
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Ready Status</th>
+              ) : null}
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">Action</th>
             </tr>
           </thead>
 
           <tbody>
             {rows.map((row) => {
-              const appStatusMeta = getApplicationStatusMeta(row);
-              const docStatusMeta = getDocumentStatusMeta(row);
               const requirementsMeta = getReadinessMeta(
                 row.requirements_complete,
                 'Complete',
@@ -646,22 +646,11 @@ function RegistryTable({
 
                   <td className="px-4 py-4 align-top text-sm text-stone-600">
                     <div className="max-w-[220px]">{row.opening_title}</div>
-                  </td>
-
-                  <td className="px-4 py-4 align-top whitespace-nowrap text-sm text-stone-600">
-                    {row.academic_year}
+                    <p className="mt-1 text-xs text-stone-400">{row.academic_year}</p>
                   </td>
 
                   <td className="px-4 py-4 align-top whitespace-nowrap text-sm text-stone-500">
                     {formatDate(row.submitted_at)}
-                  </td>
-
-                  <td className="px-4 py-4 align-top">
-                    <StatusPill meta={appStatusMeta} />
-                  </td>
-
-                  <td className="px-4 py-4 align-top">
-                    <StatusPill meta={docStatusMeta} />
                   </td>
 
                   <td className="px-4 py-4 align-top">
@@ -672,9 +661,11 @@ function RegistryTable({
                     <StatusPill meta={endorsementMeta} />
                   </td>
 
-                  <td className="px-4 py-4 align-top">
-                    <StatusPill meta={readinessMeta} />
-                  </td>
+                  {isReadinessMode ? (
+                    <td className="px-4 py-4 align-top">
+                      <StatusPill meta={readinessMeta} />
+                    </td>
+                  ) : null}
 
                   <td className="px-4 py-4 align-top text-right">
                     <Button
@@ -914,21 +905,26 @@ export default function ApplicationReview() {
     });
   }, [registryRows, search, filters]);
 
+  const pendingRegistryRows = useMemo(
+    () => filteredRegistryRows.filter((row) => !row.scholar_activation_ready),
+    [filteredRegistryRows]
+  );
+
   const readinessRows = useMemo(
-    () => filteredRegistryRows.filter((row) => row.needs_activation_attention),
+    () => filteredRegistryRows.filter((row) => row.scholar_activation_ready),
     [filteredRegistryRows]
   );
 
   const hasNeedsAttention = readinessRows.length > 0;
 
-  const tableTotalPages = Math.max(1, Math.ceil(filteredRegistryRows.length / PAGE_SIZE));
+  const tableTotalPages = Math.max(1, Math.ceil(pendingRegistryRows.length / PAGE_SIZE));
   const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
   const readinessTotalPages = Math.max(1, Math.ceil(readinessRows.length / PAGE_SIZE));
 
   const tablePageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return filteredRegistryRows.slice(start, start + PAGE_SIZE);
-  }, [filteredRegistryRows, page]);
+    return pendingRegistryRows.slice(start, start + PAGE_SIZE);
+  }, [pendingRegistryRows, page]);
 
   const cardsPageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -1017,18 +1013,19 @@ export default function ApplicationReview() {
         )
       ) : viewType === 'action' ? (
         readinessRows.length === 0 ? (
-          <Card className="rounded-2xl border-stone-200 shadow-none">
-            <CardContent className="py-16 text-center text-sm text-stone-400">
-              No applicants are waiting on readiness action.
-            </CardContent>
-          </Card>
-        ) : (
+        <Card className="rounded-2xl border-stone-200 shadow-none">
+          <CardContent className="py-16 text-center text-sm text-stone-400">
+            No applicants are ready for final scholar handling.
+          </CardContent>
+        </Card>
+      ) : (
           <>
             <RegistryTable
               rows={readinessPageData}
               navigate={navigate}
               title="Activation Readiness Queue"
-              subtitle="Applicants waiting for completed requirements or endorsement slip before scholar activation."
+              subtitle="Applicants who completed both requirements and endorsement and are ready for final scholar handling."
+              mode="readiness"
             />
 
             <Pagination
@@ -1040,7 +1037,7 @@ export default function ApplicationReview() {
             />
           </>
         )
-      ) : filteredRegistryRows.length === 0 ? (
+      ) : pendingRegistryRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">
           <CardContent className="py-16 text-center text-sm text-stone-400">
             No applicants found.
@@ -1048,12 +1045,18 @@ export default function ApplicationReview() {
         </Card>
       ) : (
         <>
-          <RegistryTable rows={tablePageData} navigate={navigate} />
+          <RegistryTable
+            rows={tablePageData}
+            navigate={navigate}
+            title="Applicant Registry"
+            subtitle="Applicants still completing requirements or endorsement before moving to readiness."
+            mode="registry"
+          />
 
           <Pagination
             page={page}
             totalPages={tableTotalPages}
-            totalItems={filteredRegistryRows.length}
+            totalItems={pendingRegistryRows.length}
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() => setPage((p) => Math.min(tableTotalPages, p + 1))}
           />

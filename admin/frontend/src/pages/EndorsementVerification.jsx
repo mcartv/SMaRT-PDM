@@ -101,8 +101,20 @@ export default function EndorsementVerification() {
               <p className="font-medium text-stone-900">{payload.pdm_id}</p>
             </div>
             <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Slip Code</p>
+              <p className="font-medium text-stone-900">{payload.slip_code || 'N/A'}</p>
+            </div>
+            <div>
               <p className="text-xs uppercase tracking-wide text-stone-500">Program</p>
               <p className="font-medium text-stone-900">{payload.program_name}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Semester</p>
+              <p className="font-medium text-stone-900">{payload.semester || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">School Year</p>
+              <p className="font-medium text-stone-900">{payload.school_year || 'N/A'}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-stone-500">Status</p>
@@ -126,7 +138,7 @@ export default function EndorsementVerification() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-stone-900">{label}</p>
                   <Badge className="bg-stone-100 text-stone-700">
-                    {stage?.decision || 'pending'}
+                    {stage?.result_label || stage?.decision || 'pending'}
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm text-stone-500">{formatDate(stage?.acted_at)}</p>

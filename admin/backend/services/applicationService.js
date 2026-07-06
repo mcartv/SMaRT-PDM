@@ -101,6 +101,21 @@ const DOCUMENT_TYPE_TO_NAME = {
     application_form: 'Application Form',
 };
 
+const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
+    'certificate_of_registration',
+    'student_grade_forms',
+    'certificate_of_indigency',
+    'letter_of_request',
+    'application_form',
+]);
+
+const REQUIRED_UPLOAD_DOCUMENT_NAMES = Object.freeze([
+    'certificate of registration',
+    'grade report',
+    'certificate of indigency',
+    'letter of request',
+]);
+
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -213,6 +228,117 @@ function normalizeLookupValue(value) {
         .replace(/[_-]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function buildReadinessFlags(row = {}) {
+    const requirementsComplete =
+        Number(row.verified_review_count || 0) >= REQUIRED_REVIEW_DOCUMENT_KEYS.length &&
+        Number(row.uploaded_required_count || 0) >= REQUIRED_UPLOAD_DOCUMENT_NAMES.length;
+    const endorsementComplete =
+        String(row.endorsement_overall_status || row.overall_status || '').trim().toLowerCase() === 'completed';
+    const scholarActivationReady = requirementsComplete && endorsementComplete;
+    const blockers = [];
+
+    if (!requirementsComplete) blockers.push('requirements_incomplete');
+    if (!endorsementComplete) blockers.push('endorsement_pending');
+
+    return {
+        requirements_complete: requirementsComplete,
+        endorsement_complete: endorsementComplete,
+        scholar_activation_ready: scholarActivationReady,
+        requirements_incomplete: !requirementsComplete,
+        endorsement_pending: !endorsementComplete,
+        needs_activation_attention: !scholarActivationReady,
+        blockers,
+        verified_review_count: Number(row.verified_review_count || 0),
+        uploaded_required_count: Number(row.uploaded_required_count || 0),
+        endorsement_status: row.endorsement_overall_status || row.overall_status || null,
+        endorsement_slip_id: row.endorsement_slip_id || row.slip_id || null,
+    };
+}
+
+async function fetchApplicationReadinessMap(applicationIds = []) {
+    const normalizedIds = [...new Set((applicationIds || []).filter(Boolean))];
+    if (!normalizedIds.length) {
+        return new Map();
+    }
+
+    const { rows } = await pool.query(
+        `
+        with review_summary as (
+            select
+                adr.application_id,
+                count(distinct case
+                    when lower(coalesce(adr.document_key, '')) = any($2::text[])
+                     and lower(coalesce(adr.review_status, '')) = 'verified'
+                    then lower(adr.document_key)
+                end) as verified_review_count
+            from application_document_reviews adr
+            where adr.application_id = any($1::uuid[])
+            group by adr.application_id
+        ),
+        upload_summary as (
+            select
+                ad.application_id,
+                count(distinct case
+                    when lower(coalesce(ad.document_type, '')) = any($3::text[])
+                     and coalesce(ad.is_submitted, false) = true
+                     and (
+                        nullif(trim(coalesce(ad.file_path, '')), '') is not null
+                        or nullif(trim(coalesce(ad.file_url, '')), '') is not null
+                     )
+                    then lower(ad.document_type)
+                end) as uploaded_required_count
+            from application_documents ad
+            where ad.application_id = any($1::uuid[])
+            group by ad.application_id
+        )
+        select
+            a.application_id,
+            es.slip_id as endorsement_slip_id,
+            es.overall_status as endorsement_overall_status,
+            coalesce(rs.verified_review_count, 0) as verified_review_count,
+            coalesce(us.uploaded_required_count, 0) as uploaded_required_count
+        from applications a
+        left join endorsement_slips es
+            on es.application_id = a.application_id
+        left join review_summary rs
+            on rs.application_id = a.application_id
+        left join upload_summary us
+            on us.application_id = a.application_id
+        where a.application_id = any($1::uuid[])
+        `,
+        [normalizedIds, REQUIRED_REVIEW_DOCUMENT_KEYS, REQUIRED_UPLOAD_DOCUMENT_NAMES]
+    );
+
+    const readinessMap = new Map();
+    rows.forEach((row) => {
+        readinessMap.set(row.application_id, buildReadinessFlags(row));
+    });
+
+    normalizedIds.forEach((applicationId) => {
+        if (!readinessMap.has(applicationId)) {
+            readinessMap.set(applicationId, buildReadinessFlags({}));
+        }
+    });
+
+    return readinessMap;
+}
+
+async function fetchApplicationReadiness(applicationId) {
+    const readinessMap = await fetchApplicationReadinessMap([applicationId]);
+    return readinessMap.get(applicationId) || buildReadinessFlags({});
+}
+
+async function decorateApplicationRecordsWithReadiness(records = []) {
+    const readinessMap = await fetchApplicationReadinessMap(
+        records.map((row) => row.application_id).filter(Boolean)
+    );
+
+    return records.map((row) => ({
+        ...row,
+        ...(readinessMap.get(row.application_id) || buildReadinessFlags({})),
+    }));
 }
 
 function buildVerificationOutcomeNotification({
@@ -871,6 +997,8 @@ async function buildApplicationDetails(applicationId) {
 
     const documents = ensureDocumentCoverage(normalizedDocuments);
 
+    const readiness = await fetchApplicationReadiness(applicationId);
+
     return {
         id: applicationRecord.application_id,
         application: {
@@ -913,6 +1041,7 @@ async function buildApplicationDetails(applicationId) {
         family_members: familyMembersResult.data || [],
         education_records: educationRecordsResult.data || [],
         documents,
+        readiness,
     };
 }
 
@@ -1055,8 +1184,7 @@ exports.fetchApplications = async () => {
         ({ rows } = await pool.query(fallbackQuery));
     }
 
-    return _.orderBy(
-        rows.map((row) => {
+    const mappedRows = rows.map((row) => {
             const firstName = row.first_name || '';
             const lastName = row.last_name || '';
             const fullName =
@@ -1103,7 +1231,12 @@ exports.fetchApplications = async () => {
                 submitted_at: row.submission_date || null,
                 is_archived: !!row.is_archived,
             };
-        }),
+        });
+
+    const readinessRows = await decorateApplicationRecordsWithReadiness(mappedRows);
+
+    return _.orderBy(
+        readinessRows,
         [(row) => new Date(row.submission_date || 0).getTime()],
         ['desc']
     );
@@ -1698,6 +1831,45 @@ exports.markApplicationDisqualified = async (id, reason) => {
     return data;
 };
 
+exports.attemptScholarActivationIfReady = async (applicationId) => {
+    const readiness = await fetchApplicationReadiness(applicationId);
+
+    if (!readiness.scholar_activation_ready) {
+        return {
+            activated: false,
+            readiness,
+            outcome: 'pending_activation',
+            application: null,
+            scholar: null,
+            notification: null,
+        };
+    }
+
+    const approvalResult = await exports.approveApplicationWithSlotCheck(applicationId);
+    let notification = null;
+
+    if (approvalResult.notificationShouldSend && approvalResult.student_user_id) {
+        notification = await deliverVerificationOutcomeNotification({
+            outcome: approvalResult.outcome,
+            applicationId,
+            userId: approvalResult.student_user_id,
+            scholarId: approvalResult.scholar?.scholar_id || null,
+        });
+    }
+
+    return {
+        activated:
+            approvalResult.outcome === 'approved' ||
+            approvalResult.outcome === 'already_approved',
+        readiness,
+        outcome: approvalResult.outcome || null,
+        application: approvalResult.application || approvalResult,
+        scholar: approvalResult.scholar || null,
+        notification,
+        opening_auto_closed: !!approvalResult.opening_auto_closed,
+    };
+};
+
 exports.saveApplicationVerification = async (applicationId, payload, user) => {
     const {
         document_reviews = [],
@@ -1816,25 +1988,14 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
     let finalizedApplication = updatedApplication;
     let scholar = null;
     let notification = null;
+    let activation = null;
 
     if (verification_status === 'verified') {
-        const approvalResult = await exports.approveApplicationWithSlotCheck(applicationId);
-
-        finalizedApplication = approvalResult.application || approvalResult;
-        scholar = approvalResult.scholar || null;
-        finalOutcome =
-            approvalResult.outcome === 'approved' || approvalResult.outcome === 'already_approved'
-                ? 'approved'
-                : 'verified';
-
-        if (approvalResult.notificationShouldSend && approvalResult.student_user_id) {
-            notification = await deliverVerificationOutcomeNotification({
-                outcome: approvalResult.outcome,
-                applicationId,
-                userId: approvalResult.student_user_id,
-                scholarId: scholar?.scholar_id || null,
-            });
-        }
+        activation = await exports.attemptScholarActivationIfReady(applicationId);
+        finalizedApplication = activation.application || updatedApplication;
+        scholar = activation.scholar || null;
+        notification = activation.notification || null;
+        finalOutcome = activation.activated ? activation.outcome || 'approved' : 'requirements_complete';
     } else if (verification_status === 'rejected') {
         if (updatedApplication?.student_id) {
             const { data: studentRow } = await supabase
@@ -1854,8 +2015,14 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         }
     }
 
+    const readiness = await fetchApplicationReadiness(applicationId);
+    const detailedApplication = await buildApplicationDetails(applicationId);
+
     return {
         application: finalizedApplication,
+        application_detail: detailedApplication,
+        readiness,
+        activation,
         verification_status,
         final_outcome: finalOutcome,
         scholar,
@@ -2141,6 +2308,10 @@ module.exports = {
     uploadStudentApplicationDocument: exports.uploadStudentApplicationDocument,
     markApplicationDisqualified: exports.markApplicationDisqualified,
     saveApplicationVerification: exports.saveApplicationVerification,
+    fetchApplicationReadiness,
+    fetchApplicationReadinessMap,
+    decorateApplicationRecordsWithReadiness,
+    attemptScholarActivationIfReady: exports.attemptScholarActivationIfReady,
     markApplicationReviewed: exports.markApplicationReviewed,
     saveApplicationRemarks: exports.saveApplicationRemarks,
     assignApplicationProgram: exports.assignApplicationProgram,

@@ -67,10 +67,29 @@ exports.postPdAction = async (req, res) => {
             queue: 'pd',
             action: result.action,
         });
+        socketEvents.applicationUpdated(io, {
+            application_id: result.slip.application_id,
+            updated_at: new Date().toISOString(),
+            source: 'endorsement',
+        });
+
+        if (result.activation?.activated) {
+            socketEvents.applicationApproved(io, {
+                application_id: result.slip.application_id,
+                status: result.activation.outcome || 'approved',
+                updated_at: new Date().toISOString(),
+                source: 'endorsement',
+            });
+        }
 
         (result.notifications || []).forEach((notification) => {
             socketEvents.notificationCreated(io, notification.target_user_id, notification);
         });
+
+        const activationNotification = result.activation?.notification?.notification;
+        if (activationNotification?.user_id) {
+            socketEvents.notificationCreated(io, activationNotification.user_id, activationNotification);
+        }
 
         res.status(200).json(result);
     } catch (error) {
@@ -90,6 +109,11 @@ exports.postGuidanceAction = async (req, res) => {
             overall_status: result.slip.overall_status,
             queue: 'guidance',
             action: result.action,
+        });
+        socketEvents.applicationUpdated(io, {
+            application_id: result.slip.application_id,
+            updated_at: new Date().toISOString(),
+            source: 'endorsement',
         });
 
         (result.notifications || []).forEach((notification) => {
@@ -114,6 +138,11 @@ exports.postSdoAction = async (req, res) => {
             overall_status: result.slip.overall_status,
             queue: 'sdo',
             action: result.action,
+        });
+        socketEvents.applicationUpdated(io, {
+            application_id: result.slip.application_id,
+            updated_at: new Date().toISOString(),
+            source: 'endorsement',
         });
 
         (result.notifications || []).forEach((notification) => {

@@ -4,6 +4,7 @@ const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const { transporter } = require('../config/mailer');
 const notificationService = require('./notificationService');
+const applicationService = require('./applicationService');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
 const STORAGE_BUCKET =
@@ -53,8 +54,25 @@ const PROGRESS_STEPS = Object.freeze([
 
 const SDO_STANDARD_REASONS = Object.freeze({
     cleared: 'No record - cleared.',
-    disqualified_minor: 'Minor offense - under review.',
+    disqualified_minor: 'Minor offense noted and forwarded to Guidance.',
     disqualified_major: 'Major offense - disqualified.',
+});
+
+const CHECKBOX_LABELS = Object.freeze({
+    sdo: {
+        cleared: 'No Offense',
+        disqualified_minor: 'Minor Offense',
+        disqualified_major: 'Major Offense',
+    },
+    guidance: {
+        cleared: 'Good Moral Standing',
+        held: 'Held for Guidance Review',
+    },
+    pd: {
+        approved_good_average: 'Good Average Scholastic Standing',
+        approved_average: 'Average Scholastic Standing',
+        rejected: 'Rejected by Program Director',
+    },
 });
 
 function createHttpError(statusCode, message) {
@@ -75,6 +93,35 @@ function parseJson(value, fallback = {}) {
     } catch {
         return fallback;
     }
+}
+
+function deriveSlipCode(slipId) {
+    const base = safeText(slipId).split('-')[0].toUpperCase();
+    return base ? `ES-${base}` : 'ES-PENDING';
+}
+
+function derivePdCheckboxResult(gwa) {
+    const numericGwa = Number(gwa);
+    if (!Number.isFinite(numericGwa)) {
+        return CHECKBOX_LABELS.pd.approved_average;
+    }
+
+    return numericGwa <= 1.75
+        ? CHECKBOX_LABELS.pd.approved_good_average
+        : CHECKBOX_LABELS.pd.approved_average;
+}
+
+function mapPaperOfficeResults(row = {}) {
+    return {
+        sdo: CHECKBOX_LABELS.sdo[row.sdo_status] || null,
+        guidance: CHECKBOX_LABELS.guidance[row.guidance_status] || null,
+        pd:
+            row.pd_status === 'approved'
+                ? derivePdCheckboxResult(row.gwa)
+                : row.pd_status === 'rejected'
+                    ? CHECKBOX_LABELS.pd.rejected
+                    : null,
+    };
 }
 
 function getActorUserId(actor = {}) {
@@ -185,11 +232,14 @@ function buildProgressTracker({
         if (step.key === 'sdo') {
             decision = sdo_status || null;
 
-            if (overall_status === 'disqualified_minor' || overall_status === 'disqualified_major') {
+            if (overall_status === 'disqualified_major') {
                 state = 'stopped';
             } else if (current_stage === 'pending_sdo') {
                 state = 'active';
-            } else if (sdo_status === 'cleared' || ['pending_guidance', 'pending_pd', 'completed', 'held', 'rejected'].includes(overall_status)) {
+            } else if (
+                ['cleared', 'disqualified_minor'].includes(sdo_status) ||
+                ['pending_guidance', 'pending_pd', 'completed', 'held', 'rejected'].includes(overall_status)
+            ) {
                 state = 'completed';
             }
         }
@@ -245,15 +295,19 @@ function buildProgressTracker({
 
 function mapQueueRow(row) {
     const tracker = buildProgressTracker(row);
+    const officeResults = mapPaperOfficeResults(row);
 
     return {
         slip_id: row.slip_id,
+        slip_code: deriveSlipCode(row.slip_id),
         application_id: row.application_id,
         student_id: row.student_id,
         student_name: row.student_name || 'Unknown Student',
         pdm_id: row.pdm_id || 'N/A',
         program_name: row.program_name || 'N/A',
         opening_title: row.opening_title || 'N/A',
+        semester: row.semester || '',
+        school_year: row.school_year || '',
         submitted_at: row.submission_date,
         application_status: row.application_status,
         document_status: row.document_status,
@@ -274,6 +328,7 @@ function mapQueueRow(row) {
         pd_decision: row.pd_status || null,
         guidance_decision: row.guidance_status || null,
         sdo_decision: row.sdo_status || null,
+        office_results: officeResults,
         per_office_statuses: tracker.per_office_statuses,
         tracker,
         final_pdf_url: row.final_pdf_url || null,
@@ -316,9 +371,12 @@ async function loadSlipRows({ stage = null } = {}) {
             a.application_status,
             a.document_status,
             st.pdm_id,
+            st.gwa,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
             sp.program_name,
             po.opening_title,
+            ay.label as school_year,
+            ap.term as semester,
             grade_doc.file_url as grade_document_url,
             grade_doc.file_name as grade_document_name,
             grade_doc.submitted_at as grade_document_submitted_at
@@ -327,6 +385,8 @@ async function loadSlipRows({ stage = null } = {}) {
         join students st on st.student_id = es.student_id
         left join scholarship_program sp on sp.program_id = a.program_id
         left join program_openings po on po.opening_id = a.opening_id
+        left join academic_years ay on ay.academic_year_id = po.academic_year_id
+        left join academic_period ap on ap.period_id = po.period_id
         left join lateral (
             select ad.file_url, ad.file_name, ad.submitted_at
             from application_documents ad
@@ -380,6 +440,8 @@ async function fetchSlipDetail(slipId, actor = null) {
             u.email as student_email,
             sp.program_name,
             po.opening_title,
+            ay.label as school_year,
+            ap.term as semester,
             pd_user.email as pd_actor_email,
             pd_profile.first_name as pd_actor_first_name,
             pd_profile.last_name as pd_actor_last_name,
@@ -395,6 +457,8 @@ async function fetchSlipDetail(slipId, actor = null) {
         left join users u on u.user_id = st.user_id
         left join scholarship_program sp on sp.program_id = a.program_id
         left join program_openings po on po.opening_id = a.opening_id
+        left join academic_years ay on ay.academic_year_id = po.academic_year_id
+        left join academic_period ap on ap.period_id = po.period_id
         left join users pd_user on pd_user.user_id = es.pd_acted_by_user_id
         left join admin_profiles pd_profile on pd_profile.user_id = es.pd_acted_by_user_id
         left join users guidance_user on guidance_user.user_id = es.guidance_acted_by_user_id
@@ -413,6 +477,7 @@ async function fetchSlipDetail(slipId, actor = null) {
 
     const row = rows[0];
     const tracker = buildProgressTracker(row);
+    const officeResults = mapPaperOfficeResults(row);
     const documentRows = await pool.query(
         `
         select
@@ -431,6 +496,7 @@ async function fetchSlipDetail(slipId, actor = null) {
 
     return {
         slip_id: row.slip_id,
+        slip_code: deriveSlipCode(row.slip_id),
         application_id: row.application_id,
         student_id: row.student_id,
         student_name: row.student_name || 'Unknown Student',
@@ -438,6 +504,8 @@ async function fetchSlipDetail(slipId, actor = null) {
         student_email: row.student_email || '',
         program_name: row.program_name || 'N/A',
         opening_title: row.opening_title || 'N/A',
+        semester: row.semester || '',
+        school_year: row.school_year || '',
         submitted_at: row.submission_date,
         application_status: row.application_status,
         document_status: row.document_status,
@@ -455,12 +523,14 @@ async function fetchSlipDetail(slipId, actor = null) {
         verification_token: row.verification_token,
         completed_at: row.completed_at,
         documents: documentRows.rows,
+        office_results: officeResults,
         per_office_statuses: tracker.per_office_statuses,
         stages: [
             {
                 key: 'sdo',
                 label: 'SDO Clearance',
                 status: row.sdo_status || (row.current_stage === 'pending_sdo' ? 'pending' : 'not_started'),
+                result_label: officeResults.sdo,
                 acted_at: row.sdo_acted_at,
                 acted_by_user_id: row.sdo_acted_by_user_id,
                 acted_by_name: [row.sdo_actor_first_name, row.sdo_actor_last_name].filter(Boolean).join(' ') || row.sdo_actor_email || '',
@@ -470,6 +540,7 @@ async function fetchSlipDetail(slipId, actor = null) {
                 key: 'guidance',
                 label: 'Guidance Clearance',
                 status: row.guidance_status || (row.current_stage === 'pending_guidance' ? 'pending' : 'not_started'),
+                result_label: officeResults.guidance,
                 acted_at: row.guidance_acted_at,
                 acted_by_user_id: row.guidance_acted_by_user_id,
                 acted_by_name: [row.guidance_actor_first_name, row.guidance_actor_last_name].filter(Boolean).join(' ') || row.guidance_actor_email || '',
@@ -479,6 +550,7 @@ async function fetchSlipDetail(slipId, actor = null) {
                 key: 'pd',
                 label: 'Program Director Approval',
                 status: row.pd_status || (row.current_stage === 'pending_pd' ? 'pending' : 'not_started'),
+                result_label: officeResults.pd,
                 acted_at: row.pd_acted_at,
                 acted_by_user_id: row.pd_acted_by_user_id,
                 acted_by_name: [row.pd_actor_first_name, row.pd_actor_last_name].filter(Boolean).join(' ') || row.pd_actor_email || '',
@@ -590,50 +662,76 @@ async function buildCompletedSlipPdf(detail) {
     return await new Promise((resolve, reject) => {
         const doc = new PDFDocument({ size: 'A4', margin: 48 });
         const chunks = [];
+        const officeResults = detail.office_results || {};
+        const drawCheckbox = (label, checked) => `${checked ? '[x]' : '[ ]'} ${label}`;
 
         doc.on('data', (chunk) => chunks.push(chunk));
         doc.on('error', reject);
         doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-        doc.fontSize(20).text('SMaRT-PDM Endorsement Slip', { align: 'center' });
+        doc.fontSize(11).fillColor('#111827').text('Office for Scholarship and Financial Assistance (OSFA)', {
+            align: 'center',
+        });
+        doc.moveDown(0.2);
+        doc.fontSize(18).text('ENDORSEMENT SLIP', { align: 'center' });
+        doc.fontSize(12).text('APPLICATION FOR SCHOLARSHIP', { align: 'center' });
         doc.moveDown(0.5);
-        doc.fontSize(10).fillColor('#57534e').text('Digital equivalent of the department endorsement slip', { align: 'center' });
+        doc.fontSize(10).fillColor('#374151').text(
+            `Semester: ${detail.semester || 'N/A'}    School Year: ${detail.school_year || 'N/A'}`,
+            { align: 'center' }
+        );
+        doc.moveDown(0.2);
+        doc.text(`Slip Code: ${detail.slip_code || deriveSlipCode(detail.slip_id)}`, { align: 'center' });
         doc.fillColor('#111827');
-        doc.moveDown(1.2);
+        doc.moveDown(1);
 
-        const metaRows = [
-            ['Student Name', detail.student_name],
-            ['PDM ID', detail.pdm_id],
-            ['Program', detail.program_name],
-            ['Application ID', detail.application_id],
-            ['Opening', detail.opening_title],
-            ['Submitted', detail.submitted_at ? new Date(detail.submitted_at).toLocaleString('en-PH') : 'N/A'],
-            ['Completed', detail.completed_at ? new Date(detail.completed_at).toLocaleString('en-PH') : 'N/A'],
-            ['Verification URL', verificationUrl],
-        ];
+        doc.fontSize(10).text(`NAME: ${detail.student_name || 'N/A'}`);
+        doc.text(
+            `COURSE/PROGRAM: ${detail.program_name || 'N/A'}    PDM ID: ${detail.pdm_id || 'N/A'}`
+        );
+        doc.text(`OPENING: ${detail.opening_title || 'N/A'}`);
+        doc.moveDown(0.8);
 
-        metaRows.forEach(([label, value]) => {
-            doc.fontSize(10).fillColor('#6b7280').text(label, { continued: true, width: 140 });
-            doc.fillColor('#111827').text(`: ${value || 'N/A'}`);
+        doc.fontSize(11).text('BASED ON THE RECORD ON FILE', { align: 'center' });
+        doc.moveDown(0.8);
+
+        doc.fontSize(10).text('Program Director');
+        doc.text(drawCheckbox('Good Average Scholastic Standing', officeResults.pd === CHECKBOX_LABELS.pd.approved_good_average));
+        doc.text(drawCheckbox('Average Scholastic Standing', officeResults.pd === CHECKBOX_LABELS.pd.approved_average));
+        doc.text(`Name & Signature: ${safeText(detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name) || 'N/A'}`);
+        doc.moveDown(0.7);
+
+        doc.text('Student Disciplinary Office');
+        doc.text(drawCheckbox('No Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.cleared));
+        doc.text(drawCheckbox('Minor Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_minor));
+        doc.text(drawCheckbox('Major Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_major));
+        doc.text(`Name & Signature: ${safeText(detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name) || 'N/A'}`);
+        doc.moveDown(0.7);
+
+        doc.text('Guidance Counselor Office');
+        doc.text(drawCheckbox('Good Moral Standing', officeResults.guidance === CHECKBOX_LABELS.guidance.cleared));
+        doc.text(`Name & Signature: ${safeText(detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name) || 'N/A'}`);
+        doc.moveDown(0.8);
+
+        doc.text(`Remarks: ${[
+            detail.stages?.find((stage) => stage.key === 'sdo')?.remarks,
+            detail.stages?.find((stage) => stage.key === 'guidance')?.remarks,
+            detail.stages?.find((stage) => stage.key === 'pd')?.remarks,
+        ].filter((value) => safeText(value)).join(' | ') || 'N/A'}`);
+        doc.text(
+            `Submitted: ${detail.submitted_at ? new Date(detail.submitted_at).toLocaleString('en-PH') : 'N/A'}`
+        );
+        doc.text(
+            `Completed: ${detail.completed_at ? new Date(detail.completed_at).toLocaleString('en-PH') : 'N/A'}`
+        );
+        doc.moveDown(0.8);
+
+        doc.fontSize(10).fillColor('#4b5563').text('Verification');
+        doc.image(qrBuffer, doc.page.width - 180, doc.y - 10, { width: 115, height: 115 });
+        doc.text(`Verification URL: ${verificationUrl}`, { width: doc.page.width - 210 });
+        doc.text('Scan the QR code or open the verification URL to confirm authenticity.', {
+            width: doc.page.width - 210,
         });
-
-        doc.moveDown();
-        doc.fontSize(12).fillColor('#111827').text('Department Actions', { underline: true });
-        doc.moveDown(0.6);
-
-        detail.stages.forEach((stage) => {
-            doc.fontSize(11).fillColor('#111827').text(stage.label);
-            doc.fontSize(10).fillColor('#374151').text(`Decision: ${safeText(stage.status) || 'Pending'}`);
-            doc.text(`Actor: ${safeText(stage.acted_by_name) || safeText(stage.acted_by_user_id) || 'N/A'}`);
-            doc.text(`Timestamp: ${stage.acted_at ? new Date(stage.acted_at).toLocaleString('en-PH') : 'N/A'}`);
-            doc.text(`Remarks: ${safeText(stage.remarks) || 'N/A'}`);
-            doc.moveDown(0.5);
-        });
-
-        doc.moveDown();
-        doc.fontSize(12).fillColor('#111827').text('QR Verification');
-        doc.image(qrBuffer, doc.page.width - 180, doc.y - 12, { width: 120, height: 120 });
-        doc.fontSize(10).fillColor('#4b5563').text('Scan the QR code or open the verification URL to confirm authenticity.');
         doc.end();
     });
 }
@@ -724,8 +822,8 @@ function buildStageUpdate(queueKey, action, remarks, actorUserId) {
                 now,
                 actorUserId,
                 remarks || SDO_STANDARD_REASONS[normalizedAction] || null,
-                normalizedAction === 'cleared' ? 'pending_guidance' : normalizedAction,
-                normalizedAction === 'cleared' ? 'pending_guidance' : normalizedAction,
+                ['cleared', 'disqualified_minor'].includes(normalizedAction) ? 'pending_guidance' : normalizedAction,
+                ['cleared', 'disqualified_minor'].includes(normalizedAction) ? 'pending_guidance' : normalizedAction,
             ],
         };
     }
@@ -851,12 +949,17 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
 
         let finalizedDetail = await fetchSlipDetail(slipId, actor);
         let pdfError = null;
+        let activation = null;
         if (queueKey === 'pd' && finalizedDetail.overall_status === 'completed') {
             try {
                 finalizedDetail = await finalizeCompletedSlip(slipId);
             } catch (error) {
                 pdfError = error.message || 'Failed to generate final PDF.';
             }
+
+            activation = await applicationService.attemptScholarActivationIfReady(
+                finalizedDetail.application_id
+            );
         }
 
         return {
@@ -865,6 +968,7 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             emittedStage: finalizedDetail.current_stage,
             action,
             pdfError,
+            activation,
         };
     } catch (error) {
         await client.query('rollback');
@@ -894,12 +998,18 @@ async function fetchVerificationPayload(token) {
             es.sdo_acted_at,
             es.sdo_remarks,
             st.pdm_id,
+            st.gwa,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
-            sp.program_name
+            sp.program_name,
+            ay.label as school_year,
+            ap.term as semester
         from endorsement_slips es
         join students st on st.student_id = es.student_id
         left join applications a on a.application_id = es.application_id
         left join scholarship_program sp on sp.program_id = a.program_id
+        left join program_openings po on po.opening_id = a.opening_id
+        left join academic_years ay on ay.academic_year_id = po.academic_year_id
+        left join academic_period ap on ap.period_id = po.period_id
         where es.verification_token = $1
         limit 1
         `,
@@ -912,13 +1022,17 @@ async function fetchVerificationPayload(token) {
 
     const row = rows[0];
     const tracker = buildProgressTracker(row);
+    const officeResults = mapPaperOfficeResults(row);
     return {
         verified: row.overall_status === 'completed',
         slip_id: row.slip_id,
+        slip_code: deriveSlipCode(row.slip_id),
         application_id: row.application_id,
         student_name: row.student_name || 'Unknown Student',
         pdm_id: row.pdm_id || 'N/A',
         program_name: row.program_name || 'N/A',
+        semester: row.semester || '',
+        school_year: row.school_year || '',
         current_stage: row.current_stage,
         current_stage_label: tracker.current_stage_label,
         overall_status: row.overall_status,
@@ -926,19 +1040,23 @@ async function fetchVerificationPayload(token) {
         current_label: tracker.current_label,
         completed_at: row.completed_at,
         tracker,
+        office_results: officeResults,
         stages: {
             sdo: {
                 decision: row.sdo_status,
+                result_label: officeResults.sdo,
                 acted_at: row.sdo_acted_at,
                 remarks: row.sdo_remarks || '',
             },
             guidance: {
                 decision: row.guidance_status,
+                result_label: officeResults.guidance,
                 acted_at: row.guidance_acted_at,
                 remarks: row.guidance_remarks || '',
             },
             pd: {
                 decision: row.pd_status,
+                result_label: officeResults.pd,
                 acted_at: row.pd_acted_at,
                 remarks: row.pd_remarks || '',
             },

@@ -43,7 +43,7 @@ const QUEUE_META = {
   },
   sdo: {
     title: 'SDO Queue',
-    subtitle: 'Start the endorsement flow and clear or disqualify incoming applicants.',
+    subtitle: 'Start the endorsement flow and record no offense, minor offense, or major offense findings.',
     endpoint: '/api/endorsement-slips/sdo',
     actionEndpoint: (slipId) => `/api/endorsement-slips/${slipId}/sdo-action`,
     allowedRoles: ['sdo', 'admin'],
@@ -52,7 +52,7 @@ const QUEUE_META = {
 
 const SDO_STANDARD_REASONS = {
   clear: 'No record - cleared.',
-  disqualify_minor: 'Minor offense - under review.',
+  disqualify_minor: 'Minor offense noted and forwarded to Guidance.',
   disqualify_major: 'Major offense - disqualified.',
 };
 
@@ -199,9 +199,9 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="clear">No record - cleared</SelectItem>
-          <SelectItem value="disqualify_minor">Minor offense - under review</SelectItem>
-          <SelectItem value="disqualify_major">Major offense - disqualified</SelectItem>
+          <SelectItem value="clear">No offense</SelectItem>
+          <SelectItem value="disqualify_minor">Minor offense</SelectItem>
+          <SelectItem value="disqualify_major">Major offense</SelectItem>
         </SelectContent>
       </Select>
       <Textarea
@@ -227,7 +227,7 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           disabled={loading}
           onClick={() => onSubmit(row, 'disqualify_minor')}
         >
-          Disqualify (Minor)
+          Minor Offense
         </Button>
         <Button
           size="sm"
@@ -236,7 +236,7 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           disabled={loading}
           onClick={() => onSubmit(row, 'disqualify_major')}
         >
-          Disqualify (Major)
+          Major Offense
         </Button>
       </div>
     </div>

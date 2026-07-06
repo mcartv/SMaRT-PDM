@@ -1236,25 +1236,25 @@ function VerificationActions({
 
         {!hasAnyUpload && (
           <p className="text-xs text-stone-400">
-            Complete verification is disabled until the required items are available.
+            Requirements review is disabled until the required items are available.
           </p>
         )}
 
         {hasAnyUpload && !hasCompleteRequirements && (
           <p className="text-xs text-orange-600">
-            Complete verification is disabled until all {requiredDocCount} required items are available.
+            Requirements review is disabled until all {requiredDocCount} required items are available.
           </p>
         )}
 
         {hasCompleteRequirements && !allRequiredDocsReviewed && (
           <p className="text-xs text-orange-600">
-            All {requiredDocCount} items are present. Apply admin review actions to each item before completing verification.
+            All {requiredDocCount} items are present. Apply admin review actions to each item before saving requirements completion.
           </p>
         )}
 
         {hasCompleteRequirements && allRequiredDocsReviewed && finalVerificationStatus !== 'verified' && (
           <p className="text-xs text-orange-600">
-            Verification can be completed, but the application will be marked as rejected and can be archived afterward.
+            Requirements review can be completed, but the application will be marked as rejected and can be archived afterward.
           </p>
         )}
 
@@ -1267,18 +1267,18 @@ function VerificationActions({
           {submitting ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving Verification...
+              Saving Requirements Review...
             </>
           ) : !hasAnyUpload ? (
-            'Complete Verification & Next'
+            'Save Requirements Review'
           ) : !hasCompleteRequirements ? (
             `Wait for All ${requiredDocCount} Items`
           ) : !allRequiredDocsReviewed ? (
             'Review All Items First'
           ) : finalVerificationStatus === 'verified' ? (
-            'Complete Verification & Next'
+            'Save Requirements Review'
           ) : (
-            'Save Verification as Rejected'
+            'Save Rejected Requirements Review'
           )}
         </Button>
       </div>
@@ -1644,15 +1644,16 @@ export default function DocumentVerification() {
       }
 
       const finalOutcome = data?.data?.final_outcome;
+      const readiness = data?.data?.readiness || {};
 
       alert(
         finalOutcome === 'approved'
-          ? 'Verification completed successfully. The student has been approved and notified.'
-          : finalOutcome === 'waiting'
-            ? 'Verification completed successfully. The student has been moved to the waiting list and notified.'
-            : finalVerificationStatus === 'verified'
-              ? 'Verification completed successfully.'
-              : 'Verification completed. Application marked as rejected and ready for archiving.'
+          ? 'Requirements review saved successfully. The student is now scholar-ready and has been approved.'
+          : finalVerificationStatus === 'verified'
+            ? readiness?.endorsement_complete
+              ? 'Requirements review saved successfully. Scholar activation is waiting for the backend refresh.'
+              : 'Requirements review saved successfully. Endorsement slip completion is still required before scholar activation.'
+            : 'Requirements review completed. Application marked as rejected and ready for archiving.'
       );
 
       navigate('/admin/applications');

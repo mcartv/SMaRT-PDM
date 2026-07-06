@@ -46,8 +46,11 @@ function StageIcon({ status }) {
   if (['completed', 'approved', 'cleared'].includes(status)) {
     return <CheckCircle2 className="h-4 w-4 text-green-700" />;
   }
-  if (['rejected', 'disqualified_minor', 'disqualified_major', 'held'].includes(status)) {
+  if (['rejected', 'disqualified_major', 'held'].includes(status)) {
     return <XCircle className="h-4 w-4 text-red-700" />;
+  }
+  if (status === 'disqualified_minor') {
+    return <Clock3 className="h-4 w-4 text-amber-700" />;
   }
   return <Clock3 className="h-4 w-4 text-amber-700" />;
 }
@@ -132,6 +135,10 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
           </CardHeader>
           <CardContent className="grid gap-3 p-5 text-sm text-stone-700">
             <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Slip Code</p>
+              <p className="font-mono text-xs">{slip.slip_code || 'N/A'}</p>
+            </div>
+            <div>
               <p className="text-xs uppercase tracking-wide text-stone-500">PDM ID</p>
               <p className="font-medium">{slip.pdm_id}</p>
             </div>
@@ -142,6 +149,14 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
             <div>
               <p className="text-xs uppercase tracking-wide text-stone-500">Opening</p>
               <p className="font-medium">{slip.opening_title}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Semester</p>
+              <p className="font-medium">{slip.semester || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">School Year</p>
+              <p className="font-medium">{slip.school_year || 'N/A'}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-stone-500">Application ID</p>
@@ -191,6 +206,9 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
                     <StageIcon status={stage.status} />
                     <div>
                       <p className="font-semibold text-stone-900">{stage.label}</p>
+                      <p className="text-sm text-stone-700">
+                        {stage.result_label || stage.status}
+                      </p>
                       <p className="text-sm text-stone-500">{formatDate(stage.acted_at)}</p>
                     </div>
                   </div>

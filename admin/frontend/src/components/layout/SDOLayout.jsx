@@ -35,7 +35,8 @@ function resolveProfileImage(profile) {
 }
 
 const navItems = [
-  { path: '/sdo/dashboard', label: 'My Queue', icon: LayoutDashboard },
+  { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/sdo/queue', label: 'My Queue', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
   { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },

@@ -32,7 +32,10 @@ import PDLogin from './pages/PDLogin';
 import GuidanceLogin from './pages/GuidanceLogin';
 import PDDashboard from './pages/PDDashboard';
 import GuidanceDashboard from './pages/GuidanceDashboard';
+import PDMaintenance from './pages/PDMaintenance';
+import GuidanceMaintenance from './pages/GuidanceMaintenance';
 import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
+import EndorsementQueue from './pages/EndorsementQueue';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
@@ -138,6 +141,17 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<PDDashboard />} />
           <Route
+            path="queue"
+            element={
+              <EndorsementQueue
+                queueKey="pd"
+                tokenStorageKey="pdToken"
+                profileStorageKey="pdProfile"
+                detailBasePath="/pd/endorsements"
+              />
+            }
+          />
+          <Route
             path="tracker"
             element={
               <AllEndorsementsTracker
@@ -162,6 +176,7 @@ export default function App() {
               />
             }
           />
+          <Route path="maintenance" element={<PDMaintenance />} />
         </Route>
 
         {/* --- PROTECTED GUIDANCE PANEL --- */}
@@ -175,6 +190,17 @@ export default function App() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<GuidanceDashboard />} />
+          <Route
+            path="queue"
+            element={
+              <EndorsementQueue
+                queueKey="guidance"
+                tokenStorageKey="guidanceToken"
+                profileStorageKey="guidanceProfile"
+                detailBasePath="/guidance/endorsements"
+              />
+            }
+          />
           <Route
             path="tracker"
             element={
@@ -200,6 +226,7 @@ export default function App() {
               />
             }
           />
+          <Route path="maintenance" element={<GuidanceMaintenance />} />
         </Route>
 
         {/* --- PROTECTED SDO PANEL --- */}
@@ -213,6 +240,17 @@ export default function App() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SDODashboard />} />
+          <Route
+            path="queue"
+            element={
+              <EndorsementQueue
+                queueKey="sdo"
+                tokenStorageKey="sdoToken"
+                profileStorageKey="sdoProfile"
+                detailBasePath="/sdo/endorsements"
+              />
+            }
+          />
           <Route
             path="tracker"
             element={

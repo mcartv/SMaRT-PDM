@@ -1,12 +1,7 @@
-import EndorsementQueue from './EndorsementQueue';
+import OfficeDashboard from '@/components/endorsement/OfficeDashboard';
 
 export default function GuidanceDashboard() {
   return (
-    <EndorsementQueue
-      queueKey="guidance"
-      tokenStorageKey="guidanceToken"
-      profileStorageKey="guidanceProfile"
-      detailBasePath="/guidance/endorsements"
-    />
+    <OfficeDashboard officeKey="guidance" tokenStorageKey="guidanceToken" />
   );
 }

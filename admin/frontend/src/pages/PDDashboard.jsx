@@ -1,12 +1,7 @@
-import EndorsementQueue from './EndorsementQueue';
+import OfficeDashboard from '@/components/endorsement/OfficeDashboard';
 
 export default function PDDashboard() {
   return (
-    <EndorsementQueue
-      queueKey="pd"
-      tokenStorageKey="pdToken"
-      profileStorageKey="pdProfile"
-      detailBasePath="/pd/endorsements"
-    />
+    <OfficeDashboard officeKey="pd" tokenStorageKey="pdToken" />
   );
 }

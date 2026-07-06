@@ -13,7 +13,7 @@ function safeText(value) {
 
 function normalizeReportType(value) {
     const type = safeText(value).toLowerCase();
-    const allowed = ['applications', 'scholars', 'payouts', 'support'];
+    const allowed = ['applications', 'scholars', 'payouts', 'support', 'sdo', 'guidance', 'pd'];
     return allowed.includes(type) ? type : 'applications';
 }
 
@@ -59,6 +59,21 @@ async function getReportMetadata() {
                 id: 'support',
                 name: 'Support Ticket Report',
                 sub: 'Student concerns, ticket status, and handler records',
+            },
+            {
+                id: 'sdo',
+                name: 'SDO Endorsement Report',
+                sub: 'SDO findings, offense details, remarks, and endorsement stage status',
+            },
+            {
+                id: 'guidance',
+                name: 'Guidance Endorsement Report',
+                sub: 'Guidance decisions, prior SDO context, and review status summary',
+            },
+            {
+                id: 'pd',
+                name: 'PD Endorsement Report',
+                sub: 'Program Director decisions with full endorsement progression summary',
             },
         ],
         programs: [
@@ -276,6 +291,200 @@ async function getSupportRows() {
     return rows;
 }
 
+async function getSdoRows({ academicYearId, semester, programId, benefactorId }) {
+    const params = [];
+    const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`po.academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`ap.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`a.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    const query = `
+    SELECT
+      es.slip_id,
+      st.pdm_id,
+      CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      ac.course_code,
+      st.year_level,
+      sp.program_name,
+      b.benefactor_name,
+      po.opening_title,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      es.current_stage,
+      es.overall_status,
+      es.sdo_status,
+      es.sdo_offense_type,
+      es.sdo_incident_date,
+      es.sdo_case_reference_number,
+      es.sdo_remarks,
+      CONCAT(COALESCE(sdo_profile.last_name, ''), CASE WHEN sdo_profile.last_name IS NOT NULL AND sdo_profile.first_name IS NOT NULL THEN ', ' ELSE '' END, COALESCE(sdo_profile.first_name, '')) AS reviewed_by,
+      es.sdo_acted_at,
+      a.submission_date
+    FROM endorsement_slips es
+    JOIN applications a ON es.application_id = a.application_id
+    LEFT JOIN students st ON a.student_id = st.student_id
+    LEFT JOIN academic_course ac ON st.course_id = ac.course_id
+    LEFT JOIN scholarship_program sp ON a.program_id = sp.program_id
+    LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
+    LEFT JOIN program_openings po ON a.opening_id = po.opening_id
+    LEFT JOIN academic_years ay ON po.academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap ON po.period_id = ap.period_id
+    LEFT JOIN admin_profiles sdo_profile ON es.sdo_acted_by_user_id = sdo_profile.user_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY es.sdo_acted_at DESC NULLS LAST, a.submission_date DESC;
+  `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function getGuidanceRows({ academicYearId, semester, programId, benefactorId }) {
+    const params = [];
+    const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`po.academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`ap.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`a.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    const query = `
+    SELECT
+      es.slip_id,
+      st.pdm_id,
+      CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      ac.course_code,
+      st.year_level,
+      sp.program_name,
+      b.benefactor_name,
+      po.opening_title,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      es.current_stage,
+      es.overall_status,
+      es.sdo_status,
+      es.sdo_offense_type,
+      es.sdo_incident_date,
+      es.sdo_case_reference_number,
+      es.guidance_status,
+      es.guidance_remarks,
+      CONCAT(COALESCE(guidance_profile.last_name, ''), CASE WHEN guidance_profile.last_name IS NOT NULL AND guidance_profile.first_name IS NOT NULL THEN ', ' ELSE '' END, COALESCE(guidance_profile.first_name, '')) AS reviewed_by,
+      es.guidance_acted_at,
+      a.submission_date
+    FROM endorsement_slips es
+    JOIN applications a ON es.application_id = a.application_id
+    LEFT JOIN students st ON a.student_id = st.student_id
+    LEFT JOIN academic_course ac ON st.course_id = ac.course_id
+    LEFT JOIN scholarship_program sp ON a.program_id = sp.program_id
+    LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
+    LEFT JOIN program_openings po ON a.opening_id = po.opening_id
+    LEFT JOIN academic_years ay ON po.academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap ON po.period_id = ap.period_id
+    LEFT JOIN admin_profiles guidance_profile ON es.guidance_acted_by_user_id = guidance_profile.user_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY es.guidance_acted_at DESC NULLS LAST, a.submission_date DESC;
+  `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function getPdRows({ academicYearId, semester, programId, benefactorId }) {
+    const params = [];
+    const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`po.academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`ap.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`a.program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    const query = `
+    SELECT
+      es.slip_id,
+      st.pdm_id,
+      CONCAT(st.last_name, ', ', st.first_name) AS student_name,
+      ac.course_code,
+      st.year_level,
+      sp.program_name,
+      b.benefactor_name,
+      po.opening_title,
+      ay.label AS academic_year,
+      ap.term AS semester,
+      es.current_stage,
+      es.overall_status,
+      es.sdo_status,
+      es.guidance_status,
+      es.pd_status,
+      es.pd_remarks,
+      CONCAT(COALESCE(pd_profile.last_name, ''), CASE WHEN pd_profile.last_name IS NOT NULL AND pd_profile.first_name IS NOT NULL THEN ', ' ELSE '' END, COALESCE(pd_profile.first_name, '')) AS reviewed_by,
+      es.pd_acted_at,
+      es.completed_at,
+      es.final_pdf_url,
+      a.submission_date
+    FROM endorsement_slips es
+    JOIN applications a ON es.application_id = a.application_id
+    LEFT JOIN students st ON a.student_id = st.student_id
+    LEFT JOIN academic_course ac ON st.course_id = ac.course_id
+    LEFT JOIN scholarship_program sp ON a.program_id = sp.program_id
+    LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
+    LEFT JOIN program_openings po ON a.opening_id = po.opening_id
+    LEFT JOIN academic_years ay ON po.academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap ON po.period_id = ap.period_id
+    LEFT JOIN admin_profiles pd_profile ON es.pd_acted_by_user_id = pd_profile.user_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY es.pd_acted_at DESC NULLS LAST, a.submission_date DESC;
+  `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
 function addRows(sheet, rows) {
     rows.forEach((row) => sheet.addRow(row));
 }
@@ -308,6 +517,18 @@ async function previewReport(query = {}) {
 
     if (reportType === 'support') {
         rows = await getSupportRows();
+    }
+
+    if (reportType === 'sdo') {
+        rows = await getSdoRows({ academicYearId, semester, programId, benefactorId });
+    }
+
+    if (reportType === 'guidance') {
+        rows = await getGuidanceRows({ academicYearId, semester, programId, benefactorId });
+    }
+
+    if (reportType === 'pd') {
+        rows = await getPdRows({ academicYearId, semester, programId, benefactorId });
     }
 
     return {
@@ -409,6 +630,92 @@ async function generateExcelReport(query = {}) {
         ];
         rows = await getSupportRows();
         filename = 'support_ticket_report.xlsx';
+    }
+
+    if (reportType === 'sdo') {
+        sheet = workbook.addWorksheet('SDO Endorsements');
+        sheet.columns = [
+            { header: 'Slip ID', key: 'slip_id' },
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Opening', key: 'opening_title' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Current Stage', key: 'current_stage' },
+            { header: 'Overall Status', key: 'overall_status' },
+            { header: 'SDO Result', key: 'sdo_status' },
+            { header: 'Offense Type', key: 'sdo_offense_type' },
+            { header: 'Incident Date', key: 'sdo_incident_date' },
+            { header: 'Case Ref No.', key: 'sdo_case_reference_number' },
+            { header: 'SDO Remarks', key: 'sdo_remarks' },
+            { header: 'Reviewed By', key: 'reviewed_by' },
+            { header: 'Reviewed At', key: 'sdo_acted_at' },
+            { header: 'Submitted At', key: 'submission_date' },
+        ];
+        rows = await getSdoRows({ academicYearId, semester, programId, benefactorId });
+        filename = 'sdo_endorsement_report.xlsx';
+    }
+
+    if (reportType === 'guidance') {
+        sheet = workbook.addWorksheet('Guidance Endorsements');
+        sheet.columns = [
+            { header: 'Slip ID', key: 'slip_id' },
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Opening', key: 'opening_title' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Current Stage', key: 'current_stage' },
+            { header: 'Overall Status', key: 'overall_status' },
+            { header: 'SDO Result', key: 'sdo_status' },
+            { header: 'Offense Type', key: 'sdo_offense_type' },
+            { header: 'Incident Date', key: 'sdo_incident_date' },
+            { header: 'Case Ref No.', key: 'sdo_case_reference_number' },
+            { header: 'Guidance Result', key: 'guidance_status' },
+            { header: 'Guidance Remarks', key: 'guidance_remarks' },
+            { header: 'Reviewed By', key: 'reviewed_by' },
+            { header: 'Reviewed At', key: 'guidance_acted_at' },
+            { header: 'Submitted At', key: 'submission_date' },
+        ];
+        rows = await getGuidanceRows({ academicYearId, semester, programId, benefactorId });
+        filename = 'guidance_endorsement_report.xlsx';
+    }
+
+    if (reportType === 'pd') {
+        sheet = workbook.addWorksheet('PD Endorsements');
+        sheet.columns = [
+            { header: 'Slip ID', key: 'slip_id' },
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Opening', key: 'opening_title' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Current Stage', key: 'current_stage' },
+            { header: 'Overall Status', key: 'overall_status' },
+            { header: 'SDO Result', key: 'sdo_status' },
+            { header: 'Guidance Result', key: 'guidance_status' },
+            { header: 'PD Result', key: 'pd_status' },
+            { header: 'PD Remarks', key: 'pd_remarks' },
+            { header: 'Reviewed By', key: 'reviewed_by' },
+            { header: 'Reviewed At', key: 'pd_acted_at' },
+            { header: 'Completed At', key: 'completed_at' },
+            { header: 'Final PDF URL', key: 'final_pdf_url' },
+            { header: 'Submitted At', key: 'submission_date' },
+        ];
+        rows = await getPdRows({ academicYearId, semester, programId, benefactorId });
+        filename = 'pd_endorsement_report.xlsx';
     }
 
     if (!sheet) {

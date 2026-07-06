@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import {
+  BarChart3,
   LayoutDashboard,
   FileText,
   ShieldAlert,
@@ -36,6 +37,7 @@ function resolveProfileImage(profile) {
 const navItems = [
   { path: '/sdo/dashboard', label: 'My Queue', icon: LayoutDashboard },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
+  { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
   { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
 ];

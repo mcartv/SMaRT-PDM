@@ -27,8 +27,8 @@ const C = {
   brownMid: '#7c4a2e',
 };
 
-function getAuthHeaders() {
-  const token = sessionStorage.getItem('adminToken');
+function getAuthHeaders(tokenStorageKey = 'adminToken') {
+  const token = sessionStorage.getItem(tokenStorageKey);
   return {
     Authorization: `Bearer ${token}`,
   };
@@ -89,7 +89,11 @@ function formatHeader(key) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default function ReportGeneration() {
+export default function ReportGeneration({
+  tokenStorageKey = 'adminToken',
+  allowedReportTypes = null,
+  defaultReportType = '',
+}) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -110,9 +114,17 @@ export default function ReportGeneration() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
 
+  const visibleReportTypes = useMemo(() => {
+    if (!Array.isArray(allowedReportTypes) || allowedReportTypes.length === 0) {
+      return reportTypes;
+    }
+
+    return reportTypes.filter((report) => allowedReportTypes.includes(report.id));
+  }, [allowedReportTypes, reportTypes]);
+
   useEffect(() => {
     loadMetadata();
-  }, []);
+  }, [tokenStorageKey]);
 
   useSocketEvent('maintenance:updated', () => {
     loadMetadata();
@@ -129,8 +141,8 @@ export default function ReportGeneration() {
   }, [selected, academicYearId, semester, programId, benefactorId]);
 
   const selectedReport = useMemo(
-    () => reportTypes.find((r) => r.id === selected) || reportTypes[0],
-    [reportTypes, selected]
+    () => visibleReportTypes.find((r) => r.id === selected) || visibleReportTypes[0],
+    [visibleReportTypes, selected]
   );
 
   const previewColumns = useMemo(() => {
@@ -162,7 +174,7 @@ export default function ReportGeneration() {
       setLoading(true);
 
       const res = await fetch(`${API_BASE}/reports/metadata`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(tokenStorageKey),
       });
 
       const data = await res.json();
@@ -171,14 +183,25 @@ export default function ReportGeneration() {
         throw new Error(data?.error || 'Failed to load report metadata.');
       }
 
-      setReportTypes(data.reportTypes || []);
+      const allReports = data.reportTypes || [];
+      setReportTypes(allReports);
       setPrograms(data.programs || []);
       setAcademicYears(data.academicYears || []);
       setSemesters(data.semesters || []);
       setBenefactors(data.benefactors || []);
 
-      if (data.reportTypes?.[0]?.id) {
-        setSelected(data.reportTypes[0].id);
+      const allowed =
+        Array.isArray(allowedReportTypes) && allowedReportTypes.length > 0
+          ? allReports.filter((report) => allowedReportTypes.includes(report.id))
+          : allReports;
+
+      const preferred =
+        allowed.find((report) => report.id === defaultReportType)?.id ||
+        allowed[0]?.id ||
+        'applications';
+
+      if (preferred) {
+        setSelected(preferred);
       }
     } catch (error) {
       console.error('REPORT METADATA LOAD ERROR:', error);
@@ -213,7 +236,7 @@ export default function ReportGeneration() {
       setPreviewLoading(true);
 
       const res = await fetch(`${API_BASE}/reports/preview?${buildParams()}`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(tokenStorageKey),
       });
 
       const data = await res.json();
@@ -238,7 +261,7 @@ export default function ReportGeneration() {
       setGenerating(true);
 
       const res = await fetch(`${API_BASE}/reports/export?${buildParams()}`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(tokenStorageKey),
       });
 
       if (!res.ok) {
@@ -291,7 +314,7 @@ export default function ReportGeneration() {
           </div>
 
           <CardContent className="space-y-3 p-4">
-            {reportTypes.map((report) => (
+            {visibleReportTypes.map((report) => (
               <TemplateCard
                 key={report.id}
                 report={report}

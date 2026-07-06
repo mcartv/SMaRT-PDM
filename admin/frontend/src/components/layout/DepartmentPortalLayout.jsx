@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import {
+  BarChart3,
   Bell,
   ChevronLeft,
   ChevronRight,
@@ -43,6 +44,7 @@ export default function DepartmentPortalLayout({
   profileStorageKey,
   colors,
   trackerPath = '',
+  reportsPath = '',
 }) {
   const navigate = useNavigate();
   const notifRef = useRef(null);
@@ -88,6 +90,7 @@ export default function DepartmentPortalLayout({
   const navItems = [
     { path: dashboardPath, label: 'My Queue', icon: LayoutDashboard },
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
+    ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
   ];
 
   return (

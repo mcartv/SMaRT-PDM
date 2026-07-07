@@ -1,12 +1,7 @@
-import EndorsementQueue from './EndorsementQueue';
+import OfficeDashboard from '@/components/endorsement/OfficeDashboard';
 
 export default function SDODashboard() {
   return (
-    <EndorsementQueue
-      queueKey="sdo"
-      tokenStorageKey="sdoToken"
-      profileStorageKey="sdoProfile"
-      detailBasePath="/sdo/endorsements"
-    />
+    <OfficeDashboard officeKey="sdo" tokenStorageKey="sdoToken" />
   );
 }

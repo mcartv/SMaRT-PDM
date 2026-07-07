@@ -56,6 +56,19 @@ exports.getSlipDetail = async (req, res) => {
     }
 };
 
+exports.downloadSlipPdf = async (req, res) => {
+    try {
+        const pdf = await endorsementSlipService.buildSlipPdfDownload(req.params.slipId, req.user);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${pdf.fileName}"`);
+        res.status(200).send(pdf.buffer);
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            message: error.message || 'Failed to download endorsement slip PDF.',
+        });
+    }
+};
+
 exports.postPdAction = async (req, res) => {
     try {
         const result = await endorsementSlipService.applyStageAction('pd', req.params.slipId, req.body, req.user);
@@ -67,10 +80,29 @@ exports.postPdAction = async (req, res) => {
             queue: 'pd',
             action: result.action,
         });
+        socketEvents.applicationUpdated(io, {
+            application_id: result.slip.application_id,
+            updated_at: new Date().toISOString(),
+            source: 'endorsement',
+        });
+
+        if (result.activation?.activated) {
+            socketEvents.applicationApproved(io, {
+                application_id: result.slip.application_id,
+                status: result.activation.outcome || 'approved',
+                updated_at: new Date().toISOString(),
+                source: 'endorsement',
+            });
+        }
 
         (result.notifications || []).forEach((notification) => {
             socketEvents.notificationCreated(io, notification.target_user_id, notification);
         });
+
+        const activationNotification = result.activation?.notification?.notification;
+        if (activationNotification?.user_id) {
+            socketEvents.notificationCreated(io, activationNotification.user_id, activationNotification);
+        }
 
         res.status(200).json(result);
     } catch (error) {
@@ -90,6 +122,11 @@ exports.postGuidanceAction = async (req, res) => {
             overall_status: result.slip.overall_status,
             queue: 'guidance',
             action: result.action,
+        });
+        socketEvents.applicationUpdated(io, {
+            application_id: result.slip.application_id,
+            updated_at: new Date().toISOString(),
+            source: 'endorsement',
         });
 
         (result.notifications || []).forEach((notification) => {
@@ -114,6 +151,11 @@ exports.postSdoAction = async (req, res) => {
             overall_status: result.slip.overall_status,
             queue: 'sdo',
             action: result.action,
+        });
+        socketEvents.applicationUpdated(io, {
+            application_id: result.slip.application_id,
+            updated_at: new Date().toISOString(),
+            source: 'endorsement',
         });
 
         (result.notifications || []).forEach((notification) => {

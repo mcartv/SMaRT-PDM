@@ -164,11 +164,25 @@ exports.saveApplicationVerification = async (req, res) => {
         const io = req.app.get('io');
         socketEvents.applicationUpdated(io, {
             application_id: id,
-            status: data?.status ?? data?.application_status ?? null,
+            status:
+                data?.application?.application_status ??
+                data?.application_detail?.application_status ??
+                data?.status ??
+                data?.application_status ??
+                null,
             verification_status: data?.verification_status ?? req.body?.verification_status ?? null,
             updated_at: new Date().toISOString(),
             source: 'verification',
         });
+
+        if (data?.activation?.activated) {
+            socketEvents.applicationApproved(io, {
+                application_id: id,
+                status: data.activation.outcome || 'approved',
+                updated_at: new Date().toISOString(),
+                source: 'verification',
+            });
+        }
 
         res.status(200).json({
             message: 'Verification saved successfully',

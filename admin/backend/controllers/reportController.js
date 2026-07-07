@@ -2,7 +2,7 @@ const reportService = require('../services/reportService');
 
 function isAdmin(req) {
     const role = String(req.user?.role || '').toLowerCase();
-    return role === 'admin' || role === 'sdo';
+    return ['admin', 'sdo', 'guidance', 'pd'].includes(role);
 }
 
 async function getReportMetadata(req, res) {
@@ -25,6 +25,18 @@ async function exportReport(req, res) {
     try {
         if (!isAdmin(req)) {
             return res.status(403).json({ error: 'Admin access required.' });
+        }
+
+        const format = String(req.query?.format || 'xlsx').toLowerCase();
+
+        if (format === 'csv') {
+            const result = await reportService.generateCsvReport(req.query || {});
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader(
+                'Content-Disposition',
+                `attachment; filename="${result.filename}"`
+            );
+            return res.status(200).send(result.content);
         }
 
         const result = await reportService.generateExcelReport(req.query || {});

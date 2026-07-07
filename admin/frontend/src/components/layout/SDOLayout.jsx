@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import {
+  BarChart3,
   LayoutDashboard,
   FileText,
   ShieldAlert,
@@ -11,6 +12,7 @@ import {
   Settings,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
+import PortalQuickTools from './PortalQuickTools';
 
 const SB_BASE = '#2e4b43';
 const SB_TEXT = '#ecfdf5';
@@ -34,8 +36,10 @@ function resolveProfileImage(profile) {
 }
 
 const navItems = [
-  { path: '/sdo/dashboard', label: 'My Queue', icon: LayoutDashboard },
+  { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/sdo/queue', label: 'My Queue', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
+  { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
   { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
 ];
@@ -279,6 +283,11 @@ export default function SDOLayout() {
                 </div>
               )}
             </div>
+
+            <PortalQuickTools
+              storageKey="sdo-portal-quick-notes"
+              noteTitle="SDO Notes"
+            />
 
             {/* Profile Chip */}
             <button

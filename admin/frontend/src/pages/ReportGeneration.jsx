@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   FileText,
   Download,
@@ -27,8 +28,32 @@ const C = {
   brownMid: '#7c4a2e',
 };
 
-function getAuthHeaders() {
-  const token = sessionStorage.getItem('adminToken');
+const OFFICE_REPORT_FILTERS = {
+  sdo: [
+    { value: 'all', label: 'All SDO Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cleared', label: 'No Offense' },
+    { value: 'disqualified_minor', label: 'Minor Offense' },
+    { value: 'disqualified_major', label: 'Major Offense' },
+  ],
+  guidance: [
+    { value: 'all', label: 'All Guidance Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'cleared', label: 'Good Moral Standing' },
+    { value: 'held', label: 'For Counseling / Hold' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
+  pd: [
+    { value: 'all', label: 'All PD Results' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'completed', label: 'Completed Slip' },
+  ],
+};
+
+function getAuthHeaders(tokenStorageKey = 'adminToken') {
+  const token = sessionStorage.getItem(tokenStorageKey);
   return {
     Authorization: `Bearer ${token}`,
   };
@@ -89,7 +114,11 @@ function formatHeader(key) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default function ReportGeneration() {
+export default function ReportGeneration({
+  tokenStorageKey = 'adminToken',
+  allowedReportTypes = null,
+  defaultReportType = '',
+}) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -104,15 +133,27 @@ export default function ReportGeneration() {
   const [semester, setSemester] = useState('all');
   const [programId, setProgramId] = useState('all');
   const [benefactorId, setBenefactorId] = useState('all');
+  const [reviewResult, setReviewResult] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [previewRows, setPreviewRows] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewSummary, setPreviewSummary] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
 
+  const visibleReportTypes = useMemo(() => {
+    if (!Array.isArray(allowedReportTypes) || allowedReportTypes.length === 0) {
+      return reportTypes;
+    }
+
+    return reportTypes.filter((report) => allowedReportTypes.includes(report.id));
+  }, [allowedReportTypes, reportTypes]);
+
   useEffect(() => {
     loadMetadata();
-  }, []);
+  }, [tokenStorageKey]);
 
   useSocketEvent('maintenance:updated', () => {
     loadMetadata();
@@ -125,12 +166,23 @@ export default function ReportGeneration() {
   useEffect(() => {
     setPreviewRows([]);
     setPreviewTotal(0);
+    setPreviewSummary(null);
     setHasPreviewed(false);
-  }, [selected, academicYearId, semester, programId, benefactorId]);
+  }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo]);
 
   const selectedReport = useMemo(
-    () => reportTypes.find((r) => r.id === selected) || reportTypes[0],
-    [reportTypes, selected]
+    () => visibleReportTypes.find((r) => r.id === selected) || visibleReportTypes[0],
+    [visibleReportTypes, selected]
+  );
+
+  const officeFilterOptions = useMemo(
+    () => OFFICE_REPORT_FILTERS[selected] || [],
+    [selected]
+  );
+
+  const isOfficeEndorsementReport = useMemo(
+    () => ['sdo', 'guidance', 'pd'].includes(selected),
+    [selected]
   );
 
   const previewColumns = useMemo(() => {
@@ -154,15 +206,18 @@ export default function ReportGeneration() {
       benefactors.find((item) => item.benefactor_id === benefactorId)
         ?.benefactor_name || 'All Benefactors';
 
-    return { year, term, program, benefactor };
-  }, [academicYears, semesters, programs, benefactors, academicYearId, semester, programId, benefactorId]);
+    const result =
+      officeFilterOptions.find((item) => item.value === reviewResult)?.label || 'All Results';
+
+    return { year, term, program, benefactor, result };
+  }, [academicYears, semesters, programs, benefactors, academicYearId, semester, programId, benefactorId, officeFilterOptions, reviewResult]);
 
   async function loadMetadata() {
     try {
       setLoading(true);
 
       const res = await fetch(`${API_BASE}/reports/metadata`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(tokenStorageKey),
       });
 
       const data = await res.json();
@@ -171,14 +226,25 @@ export default function ReportGeneration() {
         throw new Error(data?.error || 'Failed to load report metadata.');
       }
 
-      setReportTypes(data.reportTypes || []);
+      const allReports = data.reportTypes || [];
+      setReportTypes(allReports);
       setPrograms(data.programs || []);
       setAcademicYears(data.academicYears || []);
       setSemesters(data.semesters || []);
       setBenefactors(data.benefactors || []);
 
-      if (data.reportTypes?.[0]?.id) {
-        setSelected(data.reportTypes[0].id);
+      const allowed =
+        Array.isArray(allowedReportTypes) && allowedReportTypes.length > 0
+          ? allReports.filter((report) => allowedReportTypes.includes(report.id))
+          : allReports;
+
+      const preferred =
+        allowed.find((report) => report.id === defaultReportType)?.id ||
+        allowed[0]?.id ||
+        'applications';
+
+      if (preferred) {
+        setSelected(preferred);
       }
     } catch (error) {
       console.error('REPORT METADATA LOAD ERROR:', error);
@@ -195,6 +261,9 @@ export default function ReportGeneration() {
       semester,
       programId,
       benefactorId,
+      reviewResult,
+      dateFrom,
+      dateTo,
     });
   }
 
@@ -203,8 +272,12 @@ export default function ReportGeneration() {
     setSemester('all');
     setProgramId('all');
     setBenefactorId('all');
+    setReviewResult('all');
+    setDateFrom('');
+    setDateTo('');
     setPreviewRows([]);
     setPreviewTotal(0);
+    setPreviewSummary(null);
     setHasPreviewed(false);
   }
 
@@ -213,7 +286,7 @@ export default function ReportGeneration() {
       setPreviewLoading(true);
 
       const res = await fetch(`${API_BASE}/reports/preview?${buildParams()}`, {
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(tokenStorageKey),
       });
 
       const data = await res.json();
@@ -224,6 +297,7 @@ export default function ReportGeneration() {
 
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
+      setPreviewSummary(data.summary || null);
       setHasPreviewed(true);
     } catch (error) {
       console.error('REPORT PREVIEW ERROR:', error);
@@ -234,11 +308,18 @@ export default function ReportGeneration() {
   }
 
   async function handleGenerateReport() {
+    await handleDownloadByFormat('xlsx');
+  }
+
+  async function handleDownloadByFormat(format = 'xlsx') {
     try {
       setGenerating(true);
 
-      const res = await fetch(`${API_BASE}/reports/export?${buildParams()}`, {
-        headers: getAuthHeaders(),
+      const params = buildParams();
+      params.set('format', format);
+
+      const res = await fetch(`${API_BASE}/reports/export?${params.toString()}`, {
+        headers: getAuthHeaders(tokenStorageKey),
       });
 
       if (!res.ok) {
@@ -249,7 +330,7 @@ export default function ReportGeneration() {
       const blob = await res.blob();
       const disposition = res.headers.get('Content-Disposition') || '';
       const match = disposition.match(/filename="(.+)"/);
-      const filename = match?.[1] || `${selected}_report.xlsx`;
+      const filename = match?.[1] || `${selected}_report.${format === 'csv' ? 'csv' : 'xlsx'}`;
 
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -268,6 +349,38 @@ export default function ReportGeneration() {
       setGenerating(false);
     }
   }
+
+  const summaryEntries = useMemo(() => {
+    if (!previewSummary || !isOfficeEndorsementReport) return [];
+
+    if (selected === 'sdo') {
+      return [
+        { label: 'Total', value: previewSummary.total ?? 0 },
+        { label: 'Pending', value: previewSummary.pending ?? 0 },
+        { label: 'No Offense', value: previewSummary.cleared ?? 0 },
+        { label: 'Minor', value: previewSummary.minor ?? 0 },
+        { label: 'Major', value: previewSummary.major ?? 0 },
+      ];
+    }
+
+    if (selected === 'guidance') {
+      return [
+        { label: 'Total', value: previewSummary.total ?? 0 },
+        { label: 'Pending', value: previewSummary.pending ?? 0 },
+        { label: 'Good Moral', value: previewSummary.cleared ?? 0 },
+        { label: 'Hold', value: previewSummary.held ?? 0 },
+        { label: 'Rejected', value: previewSummary.rejected ?? 0 },
+      ];
+    }
+
+    return [
+      { label: 'Total', value: previewSummary.total ?? 0 },
+      { label: 'Pending', value: previewSummary.pending ?? 0 },
+      { label: 'Approved', value: previewSummary.approved ?? 0 },
+      { label: 'Rejected', value: previewSummary.rejected ?? 0 },
+      { label: 'Completed', value: previewSummary.completed ?? 0 },
+    ];
+  }, [isOfficeEndorsementReport, previewSummary, selected]);
 
   if (loading) {
     return (
@@ -291,7 +404,7 @@ export default function ReportGeneration() {
           </div>
 
           <CardContent className="space-y-3 p-4">
-            {reportTypes.map((report) => (
+            {visibleReportTypes.map((report) => (
               <TemplateCard
                 key={report.id}
                 report={report}
@@ -403,6 +516,54 @@ export default function ReportGeneration() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {isOfficeEndorsementReport ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Office Result
+                  </label>
+                  <Select value={reviewResult} onValueChange={setReviewResult}>
+                    <SelectTrigger className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {officeFilterOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {isOfficeEndorsementReport ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Date From
+                  </label>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(event) => setDateFrom(event.target.value)}
+                    className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
+                  />
+                </div>
+              ) : null}
+
+              {isOfficeEndorsementReport ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
+                    Date To
+                  </label>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(event) => setDateTo(event.target.value)}
+                    className="h-11 rounded-xl border-stone-200 bg-stone-50/50 text-sm font-medium"
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
@@ -419,6 +580,9 @@ export default function ReportGeneration() {
                     {selectedReport?.name || 'Report'} • {selectedLabels.year} •{' '}
                     {selectedLabels.term} • {selectedLabels.benefactor} •{' '}
                     {selectedLabels.program}
+                    {isOfficeEndorsementReport ? ` • ${selectedLabels.result}` : ''}
+                    {dateFrom ? ` • from ${dateFrom}` : ''}
+                    {dateTo ? ` • to ${dateTo}` : ''}
                   </p>
                 </div>
               </div>
@@ -439,19 +603,30 @@ export default function ReportGeneration() {
                 Preview
               </Button>
 
-              <Button
-                className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
-                style={{ background: C.brown }}
-                disabled={generating}
-                onClick={handleGenerateReport}
-              >
-                {generating ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+              <div className="flex flex-1 gap-3">
+                <Button
+                  className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
+                  style={{ background: C.brown }}
+                  disabled={generating}
+                  onClick={handleGenerateReport}
+                >
+                  {generating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Download Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                  disabled={generating}
+                  onClick={() => handleDownloadByFormat('csv')}
+                >
                   <Download className="mr-2 h-4 w-4" />
-                )}
-                Download Excel Report
-              </Button>
+                  Download CSV
+                </Button>
+              </div>
 
               <Button
                 variant="outline"
@@ -491,6 +666,16 @@ export default function ReportGeneration() {
           </div>
 
           <CardContent className="p-0">
+            {summaryEntries.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 border-b border-stone-100 p-4 md:grid-cols-5">
+                {summaryEntries.map((item) => (
+                  <div key={item.label} className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-wide text-stone-400">{item.label}</p>
+                    <p className="mt-1 text-lg font-semibold text-stone-900">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {previewLoading ? (
               <div className="flex h-[180px] items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-stone-400" />

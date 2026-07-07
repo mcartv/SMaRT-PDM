@@ -55,4 +55,22 @@ router.post(
     applicationController.saveApplicationVerification
 );
 
+router.patch(
+    '/:id/approve',
+    protect,
+    applicationController.approveApplication
+);
+
+router.patch(
+    '/:id/remarks',
+    protect,
+    applicationController.saveApplicationRemarks
+);
+
+router.patch(
+    '/:id/disqualify',
+    protect,
+    applicationController.disqualifyApplication
+);
+
 module.exports = router;

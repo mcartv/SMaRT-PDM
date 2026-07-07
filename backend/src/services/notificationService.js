@@ -1,6 +1,5 @@
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
-const { mailFrom, transporter } = require('../config/mailer');
 
 let ioInstance = null;
 
@@ -23,21 +22,6 @@ function safeInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-function isEmailNotificationEnabled() {
-  const value = String(process.env.EMAIL_NOTIFICATIONS_ENABLED || 'true')
-    .trim()
-    .toLowerCase();
-  return !['false', '0', 'no'].includes(value);
-}
-
-function escapeHtml(value) {
-  return safeText(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 function safeCompareSecrets(left, right) {
   const leftBuffer = Buffer.from(left || '');
   const rightBuffer = Buffer.from(right || '');
@@ -72,53 +56,6 @@ function emitToUser(userId, eventName, payload) {
   ioInstance.to(`user:${userId}`).emit(eventName, payload);
 }
 
-async function fetchNotificationRecipient(userId) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('email, username')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data || null;
-}
-
-async function sendNotificationEmailCopy(notification) {
-  if (!isEmailNotificationEnabled() || !notification?.user_id) return;
-
-  const recipient = await fetchNotificationRecipient(notification.user_id);
-  const email = safeText(recipient?.email);
-  if (!email) return;
-
-  await transporter.sendMail({
-    from: mailFrom,
-    to: email,
-    subject: `[SMaRT-PDM] ${safeText(notification.title) || 'New notification'}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2>${escapeHtml(notification.title || 'New notification')}</h2>
-        <p>${escapeHtml(notification.message)}</p>
-        <p style="color: #666; font-size: 12px;">Open SMaRT-PDM to view the latest details.</p>
-      </div>
-    `,
-    text: `${safeText(notification.title)}\n\n${safeText(notification.message)}\n\nOpen SMaRT-PDM to view the latest details.`,
-  });
-}
-
-function queueNotificationEmailCopy(notification) {
-  // In-app notification persistence and realtime delivery are the source of truth.
-  // Email is a best-effort copy, so provider failures must not roll back the row.
-  sendNotificationEmailCopy(notification).catch((error) => {
-    console.error('NOTIFICATION EMAIL COPY ERROR:', {
-      notificationId: notification?.notification_id,
-      userId: notification?.user_id,
-      message: error.message || String(error),
-    });
-  });
-}
 async function createUserNotification({
   userId,
   type,
@@ -162,7 +99,6 @@ async function createUserNotification({
   if (error) throw error;
 
   emitToUser(userId, 'notification:new', data);
-  queueNotificationEmailCopy(data);
 
   return data;
 }

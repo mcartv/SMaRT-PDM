@@ -34,7 +34,7 @@ function createAccountRecoveryService({
   resolveAvatarUrl,
   createHttpError,
   transporter,
-  mailFrom = `"${process.env.TRANSACTIONAL_EMAIL_FROM_NAME || 'SMaRT-PDM Admin'}" <${process.env.TRANSACTIONAL_EMAIL_FROM || process.env.GMAIL_USER || 'pelimavenice.pdm@gmail.com'}>`,
+  mailFrom = '"SMaRT-PDM Admin" <pelimavenice.pdm@gmail.com>',
 }) {
   if (!supabase) {
     throw new Error('Account recovery service requires a Supabase client.');

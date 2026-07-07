@@ -23,14 +23,8 @@ class _OtpScreenState extends State<OtpScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   bool _isLoading = false;
-  int _resendCooldown = 60;
+  int _resendCooldown = 0;
   Timer? _cooldownTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _startCooldown();
-  }
 
   @override
   void dispose() {
@@ -137,11 +131,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
       _showMessage('Email verified successfully!');
 
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.home,
-        (route) => false,
-      );
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (route) => false);
     } on TimeoutException {
       _showMessage('Request timed out. Server might be down.', isError: true);
     } catch (e) {
@@ -195,9 +185,9 @@ class _OtpScreenState extends State<OtpScreen> {
           LengthLimitingTextInputFormatter(6),
           FilteringTextInputFormatter.digitsOnly,
         ],
-        style: Theme.of(
-          context,
-        ).textTheme.displayLarge?.copyWith(fontWeight: FontWeight.w700),
+        style: Theme.of(context).textTheme.displayLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
@@ -311,8 +301,9 @@ class _OtpScreenState extends State<OtpScreen> {
                         Text(
                           'Verify Your Account',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.displayLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -320,11 +311,10 @@ class _OtpScreenState extends State<OtpScreen> {
                               ? 'Enter the 6-digit OTP sent to your email address.'
                               : 'Enter the 6-digit OTP sent to $email',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Colors.grey.shade600,
-                                height: 1.4,
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey.shade600,
+                            height: 1.4,
+                          ),
                         ),
                         const SizedBox(height: 28),
 
@@ -338,8 +328,9 @@ class _OtpScreenState extends State<OtpScreen> {
                         Text(
                           'The code must be exactly 6 digits.',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(color: Colors.grey.shade600),
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: Colors.grey.shade600,
+                          ),
                         ),
 
                         const SizedBox(height: 24),
@@ -347,17 +338,14 @@ class _OtpScreenState extends State<OtpScreen> {
                         SizedBox(
                           height: 52,
                           child: ElevatedButton(
-                            onPressed: (_isLoading || !_isOtpComplete)
-                                ? null
-                                : _verifyOtp,
+                            onPressed:
+                                (_isLoading || !_isOtpComplete) ? null : _verifyOtp,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: accentColor,
                               foregroundColor: Colors.white,
                               disabledBackgroundColor: Colors.grey.shade300,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  borderRadius,
-                                ),
+                                borderRadius: BorderRadius.circular(borderRadius),
                               ),
                             ),
                             child: _isLoading
@@ -371,11 +359,10 @@ class _OtpScreenState extends State<OtpScreen> {
                                   )
                                 : Text(
                                     'VERIFY',
-                                    style: Theme.of(context).textTheme.bodyLarge
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.3,
-                                        ),
+                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.3,
+                                    ),
                                   ),
                           ),
                         ),
@@ -390,9 +377,7 @@ class _OtpScreenState extends State<OtpScreen> {
                               style: TextStyle(color: Colors.grey.shade700),
                             ),
                             TextButton(
-                              onPressed: _resendCooldown > 0 || _isLoading
-                                  ? null
-                                  : _resendOtp,
+                              onPressed: _resendCooldown > 0 ? null : _resendOtp,
                               child: Text(
                                 _resendCooldown > 0
                                     ? 'RESEND IN ${_resendCooldown}s'

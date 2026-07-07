@@ -536,7 +536,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       final application =
           provider.lastSubmissionResponse?['application']
               as Map<String, dynamic>?;
-      final applicationId = application?['application_id']?.toString() ?? '';
       final openingTitle = _data.openingTitle.isNotEmpty
           ? _data.openingTitle
           : application?['opening_title']?.toString();
@@ -550,15 +549,10 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
 
       Navigator.pushReplacementNamed(
         context,
-        AppRoutes.success,
+        AppRoutes.documents,
         arguments: {
-          'message':
-              'Your scholarship application was submitted. You can download your filled application form or continue to Documents.',
-          'applicationId': applicationId,
-          'openingId': _data.openingId,
-          'openingTitle': openingTitle,
-          'programName': programName,
-          'canUploadRequirements': true,
+          'initialTitle': openingTitle,
+          'initialProgramName': programName,
         },
       );
       return;

@@ -311,21 +311,6 @@ class _StatusSummaryView extends StatelessWidget {
             label: Text('Open Scholarship Requirements'),
           ),
         ),
-        if ((summary.applicationId ?? '').trim().isNotEmpty) ...[
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                AppRoutes.downloads,
-                arguments: {'applicationId': summary.applicationId},
-              ),
-              icon: const Icon(Icons.download_rounded),
-              label: Text('Open Downloads'),
-            ),
-          ),
-        ],
       ],
     );
   }

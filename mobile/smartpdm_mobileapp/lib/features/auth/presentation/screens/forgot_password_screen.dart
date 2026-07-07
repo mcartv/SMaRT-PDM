@@ -123,7 +123,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Enter your Student ID and we will send a password reset code to your registered email address.',
+                      'Enter your Student ID and we will send password reset instructions to your registered email address.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: mutedColor,
                       ),
@@ -164,7 +164,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 child: CircularProgressIndicator(strokeWidth: 2.5),
                               ),
                             )
-                          : GoldButton(label: 'Send Reset Code', onTap: _submit),
+                          : GoldButton(label: 'Send Instructions', onTap: _submit),
                     ),
                     const SizedBox(height: 14),
                     TextButton(

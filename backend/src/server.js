@@ -4,7 +4,6 @@ const http = require('http');
 const { createApp } = require('./app');
 const { configureSocket } = require('./config/socket');
 const supabase = require('./config/supabase');
-const { getEmailConfigStatus } = require('./config/mailer');
 
 const notificationService = require('./services/notificationService');
 const messageService = require('./services/messageService');
@@ -34,5 +33,4 @@ configureRealtimeBridge({
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
-    console.log('Transactional email config:', getEmailConfigStatus());
 });

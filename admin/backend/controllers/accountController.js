@@ -1,4 +1,5 @@
 const accountService = require('../services/accountService');
+const socketEvents = require('../utils/socketEvents');
 
 exports.getStaffAccounts = async (req, res) => {
     try {
@@ -42,6 +43,12 @@ exports.getCurrentStaffProfile = async (req, res) => {
 exports.createStaffAccount = async (req, res) => {
     try {
         const account = await accountService.createStaffAccount(req.body);
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            entity: 'staff_account',
+            action: 'created',
+            account,
+        });
         res.status(201).json({
             success: true,
             data: account,
@@ -64,6 +71,12 @@ exports.updateCurrentStaffProfile = async (req, res) => {
             req.user?.user_id || req.user?.userId || null,
             req.body
         );
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            entity: 'staff_profile',
+            action: 'updated',
+            profile,
+        });
 
         res.status(200).json({
             success: true,

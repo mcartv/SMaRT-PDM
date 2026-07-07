@@ -21,6 +21,7 @@ import {
     UsersRound,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { C, EmptyState, FieldLabel, GroupCard } from './components/MaintenanceShared';
 
 const ROLE_OPTIONS = [
@@ -138,6 +139,10 @@ export default function AccountsPanel() {
     };
 
     useEffect(() => {
+        loadAccounts();
+    }, []);
+
+    useSocketEvent('maintenance:updated', () => {
         loadAccounts();
     }, []);
 

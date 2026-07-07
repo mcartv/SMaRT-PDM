@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,70 +82,83 @@ function GeneralPanel({
     is_active: true,
   });
 
-  useEffect(() => {
+  const loadProfile = useCallback(async () => {
     let active = true;
+    try {
+      setLoadingProfile(true);
+      setAccountFeedback('');
 
-    const loadProfile = async () => {
-      try {
-        setLoadingProfile(true);
-        setAccountFeedback('');
-
-        const token = sessionStorage.getItem(tokenStorageKey);
-        if (!token) {
-          throw new Error('Session expired. Please log in again.');
-        }
-
-        const response = await fetch(buildApiUrl('/api/accounts/me'), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(payload?.error?.message || payload?.message || 'Failed to load account profile.');
-        }
-
-        const profile = payload?.data || {};
-        if (!active) return;
-
-        const nextAccount = {
-          first_name: profile.first_name || config.account.first_name,
-          last_name: profile.last_name || config.account.last_name,
-          email: profile.email || config.account.email,
-          phone_number: profile.phone_number || '',
-          position: profile.position || config.account.position,
-          department: profile.department || config.account.department,
-          role: profile.role || config.account.role,
-          is_active: true,
-        };
-
-        setAccount(nextAccount);
-        setInitialAccount(nextAccount);
-        sessionStorage.setItem(
-          profileStorageKey,
-          JSON.stringify({
-            ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
-            ...profile,
-            name: profile.name || `${nextAccount.first_name} ${nextAccount.last_name}`.trim(),
-          })
-        );
-      } catch (err) {
-        if (!active) return;
-        setAccountFeedback(err.message || 'Failed to load account profile.');
-      } finally {
-        if (active) setLoadingProfile(false);
+      const token = sessionStorage.getItem(tokenStorageKey);
+      if (!token) {
+        throw new Error('Session expired. Please log in again.');
       }
-    };
 
-    loadProfile();
+      const response = await fetch(buildApiUrl('/api/accounts/me'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.message || 'Failed to load account profile.');
+      }
+
+      const profile = payload?.data || {};
+      if (!active) return;
+
+      const nextAccount = {
+        first_name: profile.first_name || config.account.first_name,
+        last_name: profile.last_name || config.account.last_name,
+        email: profile.email || config.account.email,
+        phone_number: profile.phone_number || '',
+        position: profile.position || config.account.position,
+        department: profile.department || config.account.department,
+        role: profile.role || config.account.role,
+        is_active: true,
+      };
+
+      setAccount(nextAccount);
+      setInitialAccount(nextAccount);
+      sessionStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
+          ...profile,
+          name: profile.name || `${nextAccount.first_name} ${nextAccount.last_name}`.trim(),
+        })
+      );
+    } catch (err) {
+      if (!active) return;
+      setAccountFeedback(err.message || 'Failed to load account profile.');
+    } finally {
+      if (active) setLoadingProfile(false);
+    }
 
     return () => {
       active = false;
     };
   }, [config.account, profileStorageKey, tokenStorageKey]);
+
+  useEffect(() => {
+    let cleanup = () => {};
+
+    const run = async () => {
+      cleanup = (await loadProfile()) || (() => {});
+    };
+
+    run();
+
+    return () => {
+      cleanup();
+    };
+  }, [loadProfile]);
+
+  useSocketEvent('maintenance:updated', () => {
+    loadProfile();
+  }, [loadProfile]);
 
   const handleSaveGeneral = () => {
     setSaved(true);

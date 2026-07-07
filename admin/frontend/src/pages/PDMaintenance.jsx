@@ -49,5 +49,12 @@ const config = {
 };
 
 export default function PDMaintenance() {
-  return <DepartmentMaintenancePage config={config} palette={palette} />;
+  return (
+    <DepartmentMaintenancePage
+      config={config}
+      palette={palette}
+      tokenStorageKey="pdToken"
+      profileStorageKey="pdProfile"
+    />
+  );
 }

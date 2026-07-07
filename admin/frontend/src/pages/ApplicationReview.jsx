@@ -30,6 +30,8 @@ import {
   ChevronRight,
   RefreshCw,
   SlidersHorizontal,
+  Download,
+  CheckCircle2,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -226,6 +228,9 @@ function normalizeApplicantRow(app) {
     endorsement_pending: app.endorsement_pending !== false,
     needs_activation_attention: app.needs_activation_attention !== false,
     blockers: Array.isArray(app.blockers) ? app.blockers : [],
+    endorsement_slip_id: app.endorsement_slip_id || null,
+    endorsement_slip_code: app.endorsement_slip_code || 'ES-PENDING',
+    endorsement_current_stage: app.endorsement_current_stage || null,
   };
 }
 
@@ -264,6 +269,42 @@ function MetricItem({ label, value }) {
       </p>
       <p className="mt-0.5 text-base font-semibold text-stone-900">{value}</p>
     </div>
+  );
+}
+
+function ReadinessSummary({ rows }) {
+  const totalReady = rows.length;
+  const withSlip = rows.filter((row) => row.endorsement_slip_id).length;
+  const completeRequirements = rows.filter((row) => row.requirements_complete).length;
+  const completeEndorsement = rows.filter((row) => row.endorsement_complete).length;
+
+  return (
+    <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">Ready for Activation</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{totalReady}</p>
+        </CardContent>
+      </Card>
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">Requirements Complete</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{completeRequirements}</p>
+        </CardContent>
+      </Card>
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">Endorsement Complete</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{completeEndorsement}</p>
+        </CardContent>
+      </Card>
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">With Downloadable Slip</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{withSlip}</p>
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
@@ -575,6 +616,9 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
 function RegistryTable({
   rows,
   navigate,
+  onDownloadSlip,
+  onApproveScholar,
+  approvalLoadingId = '',
   title = 'Applicant Registry',
   subtitle = 'Current applicants and document status overview',
   mode = 'registry',
@@ -602,6 +646,7 @@ function RegistryTable({
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Submitted</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Requirements</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Endorsement</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Slip</th>
               {isReadinessMode ? (
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Ready Status</th>
               ) : null}
@@ -661,6 +706,25 @@ function RegistryTable({
                     <StatusPill meta={endorsementMeta} />
                   </td>
 
+                  <td className="px-4 py-4 align-top">
+                    {row.endorsement_slip_id ? (
+                      <div className="space-y-2">
+                        <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
+                        <StatusPill
+                          meta={{
+                            label: row.endorsement_current_stage
+                              ? row.endorsement_current_stage.replaceAll('_', ' ')
+                              : 'Slip Available',
+                            bg: '#f5f5f4',
+                            color: '#57534e',
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-sm text-stone-400">No slip yet</span>
+                    )}
+                  </td>
+
                   {isReadinessMode ? (
                     <td className="px-4 py-4 align-top">
                       <StatusPill meta={readinessMeta} />
@@ -668,17 +732,56 @@ function RegistryTable({
                   ) : null}
 
                   <td className="px-4 py-4 align-top text-right">
-                    <Button
-                      size="sm"
-                      className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                      style={{ background: C.brownMid }}
-                      onClick={() =>
-                        navigate(`/admin/applications/${row.application_id}/documents`)
-                      }
-                    >
-                      View Documents
-                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      {row.endorsement_slip_id ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                          onClick={() => navigate(`/admin/endorsements/${row.endorsement_slip_id}`)}
+                        >
+                          View Slip
+                        </Button>
+                      ) : null}
+                      {row.endorsement_slip_id ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                          onClick={() => onDownloadSlip(row)}
+                        >
+                          <Download className="mr-1.5 h-3.5 w-3.5" />
+                          PDF
+                        </Button>
+                      ) : null}
+                      {isReadinessMode ? (
+                        <Button
+                          size="sm"
+                          className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                          style={{ background: C.green }}
+                          onClick={() => onApproveScholar(row)}
+                          disabled={approvalLoadingId === row.application_id}
+                        >
+                          {approvalLoadingId === row.application_id ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          Finalize Scholar
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                        style={{ background: C.brownMid }}
+                        onClick={() =>
+                          navigate(`/admin/applications/${row.application_id}/documents`)
+                        }
+                      >
+                        View Documents
+                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -740,6 +843,58 @@ export default function ApplicationReview() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
   const [openings, setOpenings] = useState([]);
+  const [approvalLoadingId, setApprovalLoadingId] = useState('');
+
+  const downloadSlipPdf = async (row) => {
+    if (!row?.endorsement_slip_id) return;
+
+    try {
+      const response = await fetch(buildApiUrl(`/api/endorsement-slips/${row.endorsement_slip_id}/pdf`), {
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseErrorResponse(response, 'Failed to download endorsement slip PDF'));
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${row.endorsement_slip_code || 'endorsement-slip'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || 'Failed to download endorsement slip PDF');
+    }
+  };
+
+  const approveScholar = async (row) => {
+    try {
+      setApprovalLoadingId(row.application_id);
+      const response = await fetch(buildApiUrl(`/api/applications/${row.application_id}/approve`), {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseErrorResponse(response, 'Failed to finalize scholar activation'));
+      }
+
+      await loadData({ soft: true });
+    } catch (err) {
+      alert(err.message || 'Failed to finalize scholar activation');
+    } finally {
+      setApprovalLoadingId('');
+    }
+  };
 
   const loadData = async ({ soft = false } = {}) => {
     try {
@@ -1015,14 +1170,18 @@ export default function ApplicationReview() {
         readinessRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">
           <CardContent className="py-16 text-center text-sm text-stone-400">
-            No applicants are ready for final scholar handling.
+            No applicants are ready for final scholar handling yet. Once both requirements and endorsement are complete, they will move here automatically.
           </CardContent>
         </Card>
       ) : (
           <>
+            <ReadinessSummary rows={readinessRows} />
             <RegistryTable
               rows={readinessPageData}
               navigate={navigate}
+              onDownloadSlip={downloadSlipPdf}
+              onApproveScholar={approveScholar}
+              approvalLoadingId={approvalLoadingId}
               title="Activation Readiness Queue"
               subtitle="Applicants who completed both requirements and endorsement and are ready for final scholar handling."
               mode="readiness"
@@ -1048,6 +1207,9 @@ export default function ApplicationReview() {
           <RegistryTable
             rows={tablePageData}
             navigate={navigate}
+            onDownloadSlip={downloadSlipPdf}
+            onApproveScholar={approveScholar}
+            approvalLoadingId={approvalLoadingId}
             title="Applicant Registry"
             subtitle="Applicants still completing requirements or endorsement before moving to readiness."
             mode="registry"

@@ -139,6 +139,7 @@ export default function ReportGeneration({
 
   const [previewRows, setPreviewRows] = useState([]);
   const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewSummary, setPreviewSummary] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
 
@@ -165,6 +166,7 @@ export default function ReportGeneration({
   useEffect(() => {
     setPreviewRows([]);
     setPreviewTotal(0);
+    setPreviewSummary(null);
     setHasPreviewed(false);
   }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo]);
 
@@ -275,6 +277,7 @@ export default function ReportGeneration({
     setDateTo('');
     setPreviewRows([]);
     setPreviewTotal(0);
+    setPreviewSummary(null);
     setHasPreviewed(false);
   }
 
@@ -294,6 +297,7 @@ export default function ReportGeneration({
 
       setPreviewRows(Array.isArray(data.rows) ? data.rows : []);
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
+      setPreviewSummary(data.summary || null);
       setHasPreviewed(true);
     } catch (error) {
       console.error('REPORT PREVIEW ERROR:', error);
@@ -304,10 +308,17 @@ export default function ReportGeneration({
   }
 
   async function handleGenerateReport() {
+    await handleDownloadByFormat('xlsx');
+  }
+
+  async function handleDownloadByFormat(format = 'xlsx') {
     try {
       setGenerating(true);
 
-      const res = await fetch(`${API_BASE}/reports/export?${buildParams()}`, {
+      const params = buildParams();
+      params.set('format', format);
+
+      const res = await fetch(`${API_BASE}/reports/export?${params.toString()}`, {
         headers: getAuthHeaders(tokenStorageKey),
       });
 
@@ -319,7 +330,7 @@ export default function ReportGeneration({
       const blob = await res.blob();
       const disposition = res.headers.get('Content-Disposition') || '';
       const match = disposition.match(/filename="(.+)"/);
-      const filename = match?.[1] || `${selected}_report.xlsx`;
+      const filename = match?.[1] || `${selected}_report.${format === 'csv' ? 'csv' : 'xlsx'}`;
 
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -338,6 +349,38 @@ export default function ReportGeneration({
       setGenerating(false);
     }
   }
+
+  const summaryEntries = useMemo(() => {
+    if (!previewSummary || !isOfficeEndorsementReport) return [];
+
+    if (selected === 'sdo') {
+      return [
+        { label: 'Total', value: previewSummary.total ?? 0 },
+        { label: 'Pending', value: previewSummary.pending ?? 0 },
+        { label: 'No Offense', value: previewSummary.cleared ?? 0 },
+        { label: 'Minor', value: previewSummary.minor ?? 0 },
+        { label: 'Major', value: previewSummary.major ?? 0 },
+      ];
+    }
+
+    if (selected === 'guidance') {
+      return [
+        { label: 'Total', value: previewSummary.total ?? 0 },
+        { label: 'Pending', value: previewSummary.pending ?? 0 },
+        { label: 'Good Moral', value: previewSummary.cleared ?? 0 },
+        { label: 'Hold', value: previewSummary.held ?? 0 },
+        { label: 'Rejected', value: previewSummary.rejected ?? 0 },
+      ];
+    }
+
+    return [
+      { label: 'Total', value: previewSummary.total ?? 0 },
+      { label: 'Pending', value: previewSummary.pending ?? 0 },
+      { label: 'Approved', value: previewSummary.approved ?? 0 },
+      { label: 'Rejected', value: previewSummary.rejected ?? 0 },
+      { label: 'Completed', value: previewSummary.completed ?? 0 },
+    ];
+  }, [isOfficeEndorsementReport, previewSummary, selected]);
 
   if (loading) {
     return (
@@ -560,19 +603,30 @@ export default function ReportGeneration({
                 Preview
               </Button>
 
-              <Button
-                className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
-                style={{ background: C.brown }}
-                disabled={generating}
-                onClick={handleGenerateReport}
-              >
-                {generating ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+              <div className="flex flex-1 gap-3">
+                <Button
+                  className="h-11 flex-1 rounded-xl border-none text-sm font-semibold text-white"
+                  style={{ background: C.brown }}
+                  disabled={generating}
+                  onClick={handleGenerateReport}
+                >
+                  {generating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Download Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11 rounded-xl border-stone-200 text-sm font-semibold text-stone-700"
+                  disabled={generating}
+                  onClick={() => handleDownloadByFormat('csv')}
+                >
                   <Download className="mr-2 h-4 w-4" />
-                )}
-                Download Excel Report
-              </Button>
+                  Download CSV
+                </Button>
+              </div>
 
               <Button
                 variant="outline"
@@ -612,6 +666,16 @@ export default function ReportGeneration({
           </div>
 
           <CardContent className="p-0">
+            {summaryEntries.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 border-b border-stone-100 p-4 md:grid-cols-5">
+                {summaryEntries.map((item) => (
+                  <div key={item.label} className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+                    <p className="text-[10px] uppercase tracking-wide text-stone-400">{item.label}</p>
+                    <p className="mt-1 text-lg font-semibold text-stone-900">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {previewLoading ? (
               <div className="flex h-[180px] items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-stone-400" />

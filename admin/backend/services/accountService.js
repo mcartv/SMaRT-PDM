@@ -128,6 +128,163 @@ async function listStaffAccounts() {
         .filter((account) => ['admin', 'pd', 'guidance', 'sdo'].includes(account.role));
 }
 
+async function getCurrentStaffProfile(userId) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const result = await db.query(
+        `
+        SELECT
+            u.user_id,
+            u.email,
+            u.username,
+            u.phone_number,
+            u.role AS user_role,
+            u.created_at,
+            a.admin_id,
+            a.first_name,
+            a.last_name,
+            a.department,
+            a.position
+        FROM users u
+        INNER JOIN admin_profiles a ON a.user_id = u.user_id
+        WHERE u.user_id = $1
+          AND COALESCE(a.is_archived, false) = false
+        LIMIT 1
+        `,
+        [userId]
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+        throw createHttpError(404, 'Staff profile not found.');
+    }
+
+    return mapStaffAccount(row);
+}
+
+async function updateCurrentStaffProfile(userId, payload = {}) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const firstName = safeText(payload.first_name);
+    const lastName = safeText(payload.last_name);
+    const email = safeText(payload.email).toLowerCase();
+    const phoneNumber = safeText(payload.phone_number) || null;
+    const department = safeText(payload.department);
+    const position = safeText(payload.position);
+
+    if (!firstName) {
+        throw createHttpError(400, 'First name is required.');
+    }
+
+    if (!lastName) {
+        throw createHttpError(400, 'Last name is required.');
+    }
+
+    if (!email) {
+        throw createHttpError(400, 'Email is required.');
+    }
+
+    const parsedEmail = z.string().trim().toLowerCase().email().safeParse(email);
+
+    if (!parsedEmail.success) {
+        throw createHttpError(400, 'A valid email address is required.');
+    }
+
+    const client = await db.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const currentProfileResult = await client.query(
+            `
+            SELECT
+                u.user_id,
+                u.email,
+                u.username,
+                u.phone_number,
+                u.role AS user_role,
+                u.created_at,
+                a.admin_id,
+                a.first_name,
+                a.last_name,
+                a.department,
+                a.position
+            FROM users u
+            INNER JOIN admin_profiles a ON a.user_id = u.user_id
+            WHERE u.user_id = $1
+              AND COALESCE(a.is_archived, false) = false
+            LIMIT 1
+            `,
+            [userId]
+        );
+
+        const currentProfile = currentProfileResult.rows[0];
+
+        if (!currentProfile) {
+            throw createHttpError(404, 'Staff profile not found.');
+        }
+
+        const duplicateEmailResult = await client.query(
+            `
+            SELECT user_id
+            FROM users
+            WHERE LOWER(email) = LOWER($1)
+              AND user_id <> $2
+            LIMIT 1
+            `,
+            [email, userId]
+        );
+
+        if (duplicateEmailResult.rows.length) {
+            throw createHttpError(400, 'Another account is already using this email address.');
+        }
+
+        const nextDepartment = department || currentProfile.department || '';
+        const nextPosition = position || currentProfile.position || '';
+
+        await client.query(
+            `
+            UPDATE users
+            SET email = $2,
+                phone_number = $3
+            WHERE user_id = $1
+            `,
+            [userId, email, phoneNumber]
+        );
+
+        await client.query(
+            `
+            UPDATE admin_profiles
+            SET first_name = $2,
+                last_name = $3,
+                department = $4,
+                position = $5
+            WHERE user_id = $1
+            `,
+            [userId, firstName, lastName, nextDepartment, nextPosition]
+        );
+
+        await client.query('COMMIT');
+
+        return getCurrentStaffProfile(userId);
+    } catch (error) {
+        await client.query('ROLLBACK');
+
+        if (error.code === '23505') {
+            throw createHttpError(400, 'An account with this email already exists.');
+        }
+
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 async function createStaffAccount(payload) {
     const parsed = staffAccountSchema.safeParse(payload);
 
@@ -206,5 +363,7 @@ async function createStaffAccount(payload) {
 
 module.exports = {
     createStaffAccount,
+    getCurrentStaffProfile,
     listStaffAccounts,
+    updateCurrentStaffProfile,
 };

@@ -313,6 +313,29 @@ function buildProgressTracker({
 function mapQueueRow(row) {
     const tracker = buildProgressTracker(row);
     const officeResults = mapPaperOfficeResults(row);
+    const stages = [
+        {
+            key: 'sdo',
+            label: 'SDO Clearance',
+            status: row.sdo_status || null,
+            result_label: officeResults.sdo || null,
+            acted_at: row.sdo_acted_at || null,
+        },
+        {
+            key: 'guidance',
+            label: 'Guidance Clearance',
+            status: row.guidance_status || null,
+            result_label: officeResults.guidance || null,
+            acted_at: row.guidance_acted_at || null,
+        },
+        {
+            key: 'pd',
+            label: 'Program Director Approval',
+            status: row.pd_status || null,
+            result_label: officeResults.pd || null,
+            acted_at: row.pd_acted_at || null,
+        },
+    ];
 
     return {
         slip_id: row.slip_id,
@@ -353,6 +376,7 @@ function mapQueueRow(row) {
         office_results: officeResults,
         per_office_statuses: tracker.per_office_statuses,
         tracker,
+        stages,
         final_pdf_url: row.final_pdf_url || null,
         completed_at: row.completed_at,
     };

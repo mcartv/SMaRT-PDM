@@ -545,6 +545,65 @@ function addRows(sheet, rows) {
     rows.forEach((row) => sheet.addRow(row));
 }
 
+function buildOfficeSummary(reportType, rows = []) {
+    const summary = {
+        total: rows.length,
+        pending: 0,
+        completed: 0,
+        rejected: 0,
+    };
+
+    if (reportType === 'sdo') {
+        summary.cleared = 0;
+        summary.minor = 0;
+        summary.major = 0;
+
+        rows.forEach((row) => {
+            const status = safeText(row.sdo_status).toLowerCase();
+            if (!status) summary.pending += 1;
+            if (status === 'cleared') summary.cleared += 1;
+            if (status === 'disqualified_minor') summary.minor += 1;
+            if (status === 'disqualified_major') summary.major += 1;
+            if (safeText(row.overall_status).toLowerCase() === 'completed') summary.completed += 1;
+            if (status === 'disqualified_major') summary.rejected += 1;
+        });
+    }
+
+    if (reportType === 'guidance') {
+        summary.cleared = 0;
+        summary.held = 0;
+
+        rows.forEach((row) => {
+            const status = safeText(row.guidance_status).toLowerCase();
+            if (!status) summary.pending += 1;
+            if (status === 'cleared') summary.cleared += 1;
+            if (status === 'held') summary.held += 1;
+            if (status === 'rejected') summary.rejected += 1;
+            if (safeText(row.overall_status).toLowerCase() === 'completed') summary.completed += 1;
+        });
+    }
+
+    if (reportType === 'pd') {
+        summary.approved = 0;
+
+        rows.forEach((row) => {
+            const status = safeText(row.pd_status).toLowerCase();
+            if (!status) summary.pending += 1;
+            if (status === 'approved') summary.approved += 1;
+            if (status === 'rejected') summary.rejected += 1;
+            if (safeText(row.overall_status).toLowerCase() === 'completed') summary.completed += 1;
+        });
+    }
+
+    return summary;
+}
+
+function escapeCsvValue(value) {
+    if (value === null || value === undefined) return '';
+    const normalized = String(value).replace(/"/g, '""');
+    return /[",\n]/.test(normalized) ? `"${normalized}"` : normalized;
+}
+
 async function previewReport(query = {}) {
     const reportType = normalizeReportType(query.reportType || query.type);
     const academicYearId = safeText(query.academicYearId || query.academic_year_id || 'all');
@@ -594,6 +653,9 @@ async function previewReport(query = {}) {
         reportType,
         total: rows.length,
         rows: rows.slice(0, 50),
+        summary: ['sdo', 'guidance', 'pd'].includes(reportType)
+            ? buildOfficeSummary(reportType, rows)
+            : null,
     };
 }
 
@@ -793,8 +855,30 @@ async function generateExcelReport(query = {}) {
     };
 }
 
+async function generateCsvReport(query = {}) {
+    const excelResult = await generateExcelReport(query);
+    const sheet = excelResult.workbook.worksheets[0];
+    const headers = (sheet.columns || []).map((column) => column.header);
+    const keys = (sheet.columns || []).map((column) => column.key);
+    const rows = [];
+
+    rows.push(headers.map(escapeCsvValue).join(','));
+
+    sheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        const values = keys.map((key) => escapeCsvValue(row.getCell(key).value ?? ''));
+        rows.push(values.join(','));
+    });
+
+    return {
+        filename: excelResult.filename.replace(/\.xlsx$/i, '.csv'),
+        content: rows.join('\n'),
+    };
+}
+
 module.exports = {
     getReportMetadata,
     previewReport,
     generateExcelReport,
+    generateCsvReport,
 };

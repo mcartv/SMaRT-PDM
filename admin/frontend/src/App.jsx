@@ -108,6 +108,10 @@ export default function App() {
             path="applications/:id/documents"
             element={<DocumentVerification />}
           />
+          <Route
+            path="endorsements/:slipId"
+            element={<EndorsementSlipDetail tokenStorageKey="adminToken" />}
+          />
 
           {/* Other Admin Pages */}
           <Route path="scholars" element={<ScholarMonitoring />} />

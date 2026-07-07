@@ -55,6 +55,12 @@ function StageIcon({ status }) {
   return <Clock3 className="h-4 w-4 text-amber-700" />;
 }
 
+function formatStageBadgeLabel(value = '') {
+  return String(value || '')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Pending';
+}
+
 export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }) {
   const navigate = useNavigate();
   const { slipId } = useParams();
@@ -141,6 +147,10 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
     }
   };
 
+  const historyItems = (slip.stages || []).filter(
+    (stage) => stage.acted_at || stage.remarks || stage.acted_by_name || stage.status
+  );
+
   return (
     <div className="space-y-5 py-2">
       <div className="flex items-center gap-3">
@@ -158,6 +168,51 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
           <h1 className="text-2xl font-semibold text-stone-900">{slip.student_name}</h1>
         </div>
       </div>
+
+      <Card className="overflow-hidden border-stone-200 shadow-none">
+        <CardHeader className="border-b border-stone-100 bg-stone-50/70">
+          <h2 className="text-base font-semibold text-stone-900">Printable Slip Snapshot</h2>
+        </CardHeader>
+        <CardContent className="p-5">
+          <div className="rounded-2xl border border-stone-200 bg-white p-5">
+            <div className="text-center">
+              <p className="text-sm font-semibold tracking-wide text-stone-900">PAMBAYANG DALUBHASAAN NG MARILAO</p>
+              <p className="text-xs text-stone-500">Abangan Norte, Marilao, Bulacan</p>
+              <p className="mt-1 text-xs font-medium text-stone-600">OFFICE OF SCHOLARSHIP AND FINANCIAL ASSISTANCE (OSFA)</p>
+              <p className="mt-4 text-lg font-semibold text-stone-900">ENDORSEMENT SLIP</p>
+              <p className="text-sm text-stone-600">Application for Scholarship</p>
+            </div>
+
+            <div className="mt-5 grid gap-3 rounded-2xl bg-stone-50 p-4 md:grid-cols-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-stone-500">Slip Code</p>
+                <p className="mt-1 font-mono text-xs text-stone-800">{slip.slip_code || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-stone-500">Student</p>
+                <p className="mt-1 text-sm font-semibold text-stone-900">{slip.student_name}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-stone-500">Semester</p>
+                <p className="mt-1 text-sm text-stone-800">{slip.semester || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-stone-500">School Year</p>
+                <p className="mt-1 text-sm text-stone-800">{slip.school_year || 'N/A'}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Badge className={STAGE_META[slip.overall_status] || 'bg-stone-100 text-stone-700'}>
+                {formatStageBadgeLabel(slip.overall_status_label || slip.overall_status)}
+              </Badge>
+              <Badge variant="outline" className="border-stone-200 text-stone-700">
+                {formatStageBadgeLabel(slip.current_stage_label || slip.current_stage)}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_1.3fr]">
         <Card className="border-stone-200 shadow-none">
@@ -302,6 +357,44 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
               Final scholar activation still depends on both endorsement and requirements readiness.
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-stone-200 shadow-none">
+        <CardHeader className="border-b border-stone-100">
+          <h2 className="text-base font-semibold text-stone-900">Review History</h2>
+        </CardHeader>
+        <CardContent className="space-y-3 p-5">
+          {historyItems.length === 0 ? (
+            <p className="text-sm text-stone-500">No office history recorded yet.</p>
+          ) : (
+            historyItems.map((stage) => (
+              <div key={`${stage.key}-${stage.acted_at || stage.status}`} className="rounded-2xl border border-stone-200 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-stone-900">{stage.label}</p>
+                    <p className="mt-1 text-xs text-stone-500">
+                      {stage.acted_by_name || 'No recorded staff yet'}
+                      {stage.acted_at ? ` • ${formatDate(stage.acted_at)}` : ''}
+                    </p>
+                  </div>
+                  <Badge className={STAGE_META[stage.status] || 'bg-stone-100 text-stone-700'}>
+                    {formatStageBadgeLabel(stage.result_label || stage.status)}
+                  </Badge>
+                </div>
+                {stage.remarks ? (
+                  <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-700">{stage.remarks}</p>
+                ) : null}
+                {stage.key === 'sdo' && slip.sdo_offense_detail?.offense_type ? (
+                  <div className="mt-3 grid gap-2 text-xs text-stone-600 md:grid-cols-3">
+                    <p>Offense: {slip.sdo_offense_detail.offense_type}</p>
+                    <p>Incident: {slip.sdo_offense_detail.incident_date || 'N/A'}</p>
+                    <p>Reference: {slip.sdo_offense_detail.case_reference_number || 'N/A'}</p>
+                  </div>
+                ) : null}
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 

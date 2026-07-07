@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { buildApiUrl } from '@/api';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
   User,
   Activity,
   ShieldCheck,
+  Loader2,
 } from 'lucide-react';
 
 function FieldLabel({ children }) {
@@ -55,10 +57,19 @@ function Toggle({ value, onChange, labels = ['Enabled', 'Disabled'], activeColor
   );
 }
 
-function GeneralPanel({ config, palette }) {
+function GeneralPanel({
+  config,
+  palette,
+  tokenStorageKey,
+  profileStorageKey,
+}) {
   const [saved, setSaved] = useState(false);
   const [featureOpen, setFeatureOpen] = useState(true);
   const [instName, setInstName] = useState('Pambayang Dalubhasaan ng Marilao');
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [accountFeedback, setAccountFeedback] = useState('');
+  const [initialAccount, setInitialAccount] = useState(null);
   const [account, setAccount] = useState({
     first_name: config.account.first_name,
     last_name: config.account.last_name,
@@ -70,13 +81,78 @@ function GeneralPanel({ config, palette }) {
     is_active: true,
   });
 
+  useEffect(() => {
+    let active = true;
+
+    const loadProfile = async () => {
+      try {
+        setLoadingProfile(true);
+        setAccountFeedback('');
+
+        const token = sessionStorage.getItem(tokenStorageKey);
+        if (!token) {
+          throw new Error('Session expired. Please log in again.');
+        }
+
+        const response = await fetch(buildApiUrl('/api/accounts/me'), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload?.error?.message || payload?.message || 'Failed to load account profile.');
+        }
+
+        const profile = payload?.data || {};
+        if (!active) return;
+
+        const nextAccount = {
+          first_name: profile.first_name || config.account.first_name,
+          last_name: profile.last_name || config.account.last_name,
+          email: profile.email || config.account.email,
+          phone_number: profile.phone_number || '',
+          position: profile.position || config.account.position,
+          department: profile.department || config.account.department,
+          role: profile.role || config.account.role,
+          is_active: true,
+        };
+
+        setAccount(nextAccount);
+        setInitialAccount(nextAccount);
+        sessionStorage.setItem(
+          profileStorageKey,
+          JSON.stringify({
+            ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
+            ...profile,
+            name: profile.name || `${nextAccount.first_name} ${nextAccount.last_name}`.trim(),
+          })
+        );
+      } catch (err) {
+        if (!active) return;
+        setAccountFeedback(err.message || 'Failed to load account profile.');
+      } finally {
+        if (active) setLoadingProfile(false);
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [config.account, profileStorageKey, tokenStorageKey]);
+
   const handleSaveGeneral = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
   const resetAccount = () => {
-    setAccount({
+    setAccount(initialAccount || {
       first_name: config.account.first_name,
       last_name: config.account.last_name,
       email: config.account.email,
@@ -97,10 +173,57 @@ function GeneralPanel({ config, palette }) {
 
   const handleSaveAccount = async () => {
     try {
-      alert(`${config.shortName} account changes are ready to be connected to backend.`);
+      setSavingAccount(true);
+      setAccountFeedback('');
+
+      const token = sessionStorage.getItem(tokenStorageKey);
+      if (!token) {
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      const response = await fetch(buildApiUrl('/api/accounts/me'), {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(account),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.message || 'Failed to save account changes.');
+      }
+
+      const savedProfile = payload?.data || {};
+      const updatedAccount = {
+        first_name: savedProfile.first_name || account.first_name,
+        last_name: savedProfile.last_name || account.last_name,
+        email: savedProfile.email || account.email,
+        phone_number: savedProfile.phone_number || '',
+        position: savedProfile.position || account.position,
+        department: savedProfile.department || account.department,
+        role: savedProfile.role || account.role,
+        is_active: true,
+      };
+
+      setAccount(updatedAccount);
+      setInitialAccount(updatedAccount);
+      sessionStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
+          ...savedProfile,
+          name: savedProfile.name || `${updatedAccount.first_name} ${updatedAccount.last_name}`.trim(),
+        })
+      );
+      setAccountFeedback(`${config.shortName} account updated successfully.`);
     } catch (err) {
       console.error(`${config.shortName.toUpperCase()} ACCOUNT SAVE ERROR:`, err);
-      alert(`Failed to save ${config.shortName} account changes`);
+      setAccountFeedback(err.message || `Failed to save ${config.shortName} account changes.`);
+    } finally {
+      setSavingAccount(false);
     }
   };
 
@@ -182,6 +305,22 @@ function GeneralPanel({ config, palette }) {
             </p>
           </div>
 
+          {accountFeedback ? (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${accountFeedback.includes('successfully')
+              ? 'border-green-100 bg-green-50 text-green-800'
+              : 'border-red-100 bg-red-50 text-red-700'
+              }`}>
+              {accountFeedback}
+            </div>
+          ) : null}
+
+          {loadingProfile ? (
+            <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading current {config.shortName} account details...
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <FieldLabel>First Name</FieldLabel>
@@ -189,6 +328,7 @@ function GeneralPanel({ config, palette }) {
                 value={account.first_name}
                 onChange={(e) => handleFieldChange('first_name', e.target.value)}
                 className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                disabled={loadingProfile || savingAccount}
               />
             </div>
 
@@ -198,6 +338,7 @@ function GeneralPanel({ config, palette }) {
                 value={account.last_name}
                 onChange={(e) => handleFieldChange('last_name', e.target.value)}
                 className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                disabled={loadingProfile || savingAccount}
               />
             </div>
 
@@ -209,6 +350,7 @@ function GeneralPanel({ config, palette }) {
                   value={account.email}
                   onChange={(e) => handleFieldChange('email', e.target.value)}
                   className="h-10 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
+                  disabled={loadingProfile || savingAccount}
                 />
               </div>
             </div>
@@ -221,6 +363,7 @@ function GeneralPanel({ config, palette }) {
                   value={account.phone_number}
                   onChange={(e) => handleFieldChange('phone_number', e.target.value)}
                   className="h-10 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
+                  disabled={loadingProfile || savingAccount}
                 />
               </div>
             </div>
@@ -231,6 +374,7 @@ function GeneralPanel({ config, palette }) {
                 value={account.position}
                 onChange={(e) => handleFieldChange('position', e.target.value)}
                 className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                disabled={loadingProfile || savingAccount}
               />
             </div>
 
@@ -240,6 +384,7 @@ function GeneralPanel({ config, palette }) {
                 value={account.department}
                 onChange={(e) => handleFieldChange('department', e.target.value)}
                 className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                disabled={loadingProfile || savingAccount}
               />
             </div>
           </div>
@@ -271,8 +416,9 @@ function GeneralPanel({ config, palette }) {
               onClick={handleSaveAccount}
               className="h-9 rounded-lg border-none text-xs text-white"
               style={{ background: palette.base }}
+              disabled={loadingProfile || savingAccount}
             >
-              <Save className="mr-2 h-4 w-4" />
+              {savingAccount ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save {config.shortName} Account
             </Button>
           </div>
@@ -374,7 +520,12 @@ function AuditPanel({ config, palette }) {
   );
 }
 
-export default function DepartmentMaintenancePage({ config, palette }) {
+export default function DepartmentMaintenancePage({
+  config,
+  palette,
+  tokenStorageKey = 'adminToken',
+  profileStorageKey = 'adminProfile',
+}) {
   const [tab, setTab] = useState('general');
   const tabs = [
     { key: 'general', label: 'General', icon: SlidersHorizontal },
@@ -409,7 +560,14 @@ export default function DepartmentMaintenancePage({ config, palette }) {
         </div>
 
         <div className="p-5">
-          {tab === 'general' && <GeneralPanel config={config} palette={palette} />}
+          {tab === 'general' && (
+            <GeneralPanel
+              config={config}
+              palette={palette}
+              tokenStorageKey={tokenStorageKey}
+              profileStorageKey={profileStorageKey}
+            />
+          )}
           {tab === 'audit' && <AuditPanel config={config} palette={palette} />}
         </div>
       </Card>

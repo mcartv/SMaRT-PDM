@@ -49,5 +49,12 @@ const config = {
 };
 
 export default function GuidanceMaintenance() {
-  return <DepartmentMaintenancePage config={config} palette={palette} />;
+  return (
+    <DepartmentMaintenancePage
+      config={config}
+      palette={palette}
+      tokenStorageKey="guidanceToken"
+      profileStorageKey="guidanceProfile"
+    />
+  );
 }

@@ -646,9 +646,11 @@ function RegistryTable({
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Submitted</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Requirements</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Endorsement</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Slip</th>
               {isReadinessMode ? (
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Ready Status</th>
+                <>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Slip</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Ready Status</th>
+                </>
               ) : null}
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">Action</th>
             </tr>
@@ -706,34 +708,35 @@ function RegistryTable({
                     <StatusPill meta={endorsementMeta} />
                   </td>
 
-                  <td className="px-4 py-4 align-top">
-                    {row.endorsement_slip_id ? (
-                      <div className="space-y-2">
-                        <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
-                        <StatusPill
-                          meta={{
-                            label: row.endorsement_current_stage
-                              ? row.endorsement_current_stage.replaceAll('_', ' ')
-                              : 'Slip Available',
-                            bg: '#f5f5f4',
-                            color: '#57534e',
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-sm text-stone-400">No slip yet</span>
-                    )}
-                  </td>
-
                   {isReadinessMode ? (
-                    <td className="px-4 py-4 align-top">
-                      <StatusPill meta={readinessMeta} />
-                    </td>
+                    <>
+                      <td className="px-4 py-4 align-top">
+                        {row.endorsement_slip_id ? (
+                          <div className="space-y-2">
+                            <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
+                            <StatusPill
+                              meta={{
+                                label: row.endorsement_current_stage
+                                  ? row.endorsement_current_stage.replaceAll('_', ' ')
+                                  : 'Slip Available',
+                                bg: '#f5f5f4',
+                                color: '#57534e',
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-sm text-stone-400">No slip yet</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <StatusPill meta={readinessMeta} />
+                      </td>
+                    </>
                   ) : null}
 
                   <td className="px-4 py-4 align-top text-right">
                     <div className="flex justify-end gap-2">
-                      {row.endorsement_slip_id ? (
+                      {isReadinessMode && row.endorsement_slip_id ? (
                         <Button
                           size="sm"
                           variant="outline"
@@ -743,7 +746,7 @@ function RegistryTable({
                           View Slip
                         </Button>
                       ) : null}
-                      {row.endorsement_slip_id ? (
+                      {isReadinessMode && row.endorsement_slip_id ? (
                         <Button
                           size="sm"
                           variant="outline"

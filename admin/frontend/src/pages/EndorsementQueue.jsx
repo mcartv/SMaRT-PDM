@@ -220,14 +220,14 @@ function QueueSummary({ queueKey, rows }) {
 
 function SummaryCard({ icon: Icon, label, value, tone }) {
   return (
-    <Card className="border-stone-200 shadow-none">
+    <Card className="overflow-hidden border-stone-200 shadow-none">
       <CardContent className="flex items-center gap-3 p-4">
-        <div className={`rounded-xl p-2 ${tone}`}>
+        <div className={`rounded-2xl p-3 ${tone}`}>
           <Icon className="h-4 w-4" />
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-stone-500">{label}</p>
-          <p className="text-xl font-semibold text-stone-900">{value}</p>
+          <p className="text-[11px] uppercase tracking-wide text-stone-500">{label}</p>
+          <p className="text-2xl font-semibold leading-none text-stone-900">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -255,15 +255,19 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
 
   if (queueKey === 'pd') {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">PD Decision</p>
+          <p className="mt-1 text-sm text-stone-600">Finalize the endorsement after checking the grade and prior office reviews.</p>
+        </div>
         <Textarea
           rows={2}
           value={state.remarks}
           onChange={(event) => updateState({ remarks: event.target.value })}
           placeholder="Optional remark"
-          className="min-h-[72px]"
+          className="min-h-[88px] bg-white"
         />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             className="bg-green-700 text-white hover:bg-green-800"
@@ -288,8 +292,8 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
 
   if (queueKey === 'guidance') {
     return (
-      <div className="space-y-2">
-        <div className="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
+      <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+        <div className="rounded-xl bg-white p-3 text-xs text-stone-600">
           Clear students with good moral standing, hold them for counseling, or reject them with a reason.
         </div>
         <Textarea
@@ -297,9 +301,9 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           value={state.remarks}
           onChange={(event) => updateState({ remarks: event.target.value })}
           placeholder="Reason is required when holding or rejecting a student"
-          className="min-h-[72px]"
+          className="min-h-[88px] bg-white"
         />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             className="bg-green-700 text-white hover:bg-green-800"
@@ -335,8 +339,8 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
   const needsOffenseDetail = ['disqualify_minor', 'disqualify_major'].includes(selectedReason);
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
+    <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+      <div className="rounded-xl bg-white p-3 text-xs text-stone-600">
         Minor offense still proceeds to Guidance. Major offense stops the slip in SDO.
       </div>
       <Select
@@ -386,7 +390,7 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
         value={state.remarks}
         onChange={(event) => updateState({ remarks: event.target.value })}
         placeholder={needsOffenseDetail ? 'Remarks are required for minor or major offense' : 'Optional remark'}
-        className="min-h-[72px]"
+        className="min-h-[88px] bg-white"
       />
       <div className="flex flex-wrap gap-2">
         <Button
@@ -601,7 +605,7 @@ export default function EndorsementQueue({
         <QueueSummary queueKey={queueKey} rows={rows} />
       </div>
 
-      <Card className="border-stone-200 shadow-none">
+      <Card className="overflow-hidden border-stone-200 shadow-none">
         <CardHeader className="space-y-3 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
           <div className="flex flex-col gap-3 lg:flex-row">
             <div className="relative flex-1">
@@ -649,17 +653,24 @@ export default function EndorsementQueue({
             filteredRows.map((row) => (
               <div
                 key={row.slip_id}
-                className="grid gap-4 rounded-2xl border border-stone-200 bg-white p-4 lg:grid-cols-[1.2fr_1fr_1.1fr]"
+                className="rounded-[22px] border border-stone-200 bg-white p-4 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
               >
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="grid gap-4 xl:grid-cols-[1.15fr_0.9fr_1fr]">
+                  <div className="space-y-3">
+                  <div className="flex flex-col gap-3 border-b border-stone-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-base font-semibold text-stone-900">{row.student_name}</p>
-                      <p className="text-sm text-stone-500">{row.pdm_id}</p>
+                      <p className="text-lg font-semibold text-stone-900">{row.student_name}</p>
+                      <p className="mt-1 text-sm text-stone-500">{row.pdm_id}</p>
+                      <p className="mt-2 font-mono text-[11px] text-stone-400">{row.slip_code}</p>
                     </div>
-                    <Badge className={STAGE_TONE[row.current_stage] || 'bg-stone-100 text-stone-700'}>
-                      {row.overall_status_label}
-                    </Badge>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className={STAGE_TONE[row.current_stage] || 'bg-stone-100 text-stone-700'}>
+                        {row.current_stage_label || row.overall_status_label}
+                      </Badge>
+                      <Badge variant="outline" className="border-stone-200 text-stone-700">
+                        {row.overall_status_label}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="border-stone-200 text-stone-700">
@@ -669,39 +680,49 @@ export default function EndorsementQueue({
                       {row.opening_title || 'Opening not set'}
                     </Badge>
                   </div>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-600">
-                      Submitted: {formatDate(row.submitted_at)}
-                    </span>
-                    <span
-                      className={`rounded-full border px-2.5 py-1 ${getQueueDecisionTone(getQueueDecisionValue(queueKey, row))}`}
-                    >
-                      {getQueueDecisionLabel(queueKey, row)}
-                    </span>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-stone-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Submitted</p>
+                      <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-stone-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Current Decision</p>
+                      <span
+                        className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs ${getQueueDecisionTone(getQueueDecisionValue(queueKey, row))}`}
+                      >
+                        {getQueueDecisionLabel(queueKey, row)}
+                      </span>
+                    </div>
                   </div>
                   {queueKey === 'pd' ? (
-                    <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
-                      <p>GWA: {row.grade_summary?.gwa ?? 'N/A'}</p>
-                      <p>Grade file: {row.grade_document?.url ? 'Uploaded' : 'Missing'}</p>
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Quick Grade Status</p>
+                      <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
+                      <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
                     </div>
                   ) : null}
                   {queueKey !== 'sdo' ? (
-                    <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
-                      <p className="font-medium text-stone-900">Previous SDO Review</p>
-                      <p>{row.office_results?.sdo || 'Pending SDO review'}</p>
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Previous SDO Review</p>
+                      <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
                       {row.sdo_offense_detail?.offense_type ? (
-                        <p className="text-xs text-stone-500">
+                        <p className="mt-2 text-xs leading-5 text-stone-500">
                           {row.sdo_offense_detail.offense_type}
                           {row.sdo_offense_detail.incident_date ? ` • ${row.sdo_offense_detail.incident_date}` : ''}
                           {row.sdo_offense_detail.case_reference_number ? ` • ${row.sdo_offense_detail.case_reference_number}` : ''}
                         </p>
                       ) : null}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">SDO Rule</p>
+                      <p className="mt-2">Minor offense still proceeds to Guidance. Major offense stops the slip here.</p>
+                    </div>
+                  )}
                   {queueKey === 'pd' ? (
-                    <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-700">
-                      <p className="font-medium text-stone-900">Guidance Review</p>
-                      <p>{row.office_results?.guidance || 'Pending Guidance review'}</p>
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Guidance Review</p>
+                      <p className="mt-2 font-medium text-stone-900">{row.office_results?.guidance || 'Pending Guidance review'}</p>
                     </div>
                   ) : null}
                   <div className="rounded-2xl bg-stone-50 p-3">
@@ -709,48 +730,51 @@ export default function EndorsementQueue({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-                    {queueKey === 'pd' ? 'PD Grade Review' : 'Slip Access'}
-                  </p>
-                  {queueKey === 'pd' ? (
-                    row.grade_document?.url ? (
-                      <a
-                        href={row.grade_document.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-                      >
-                        <FileText className="h-4 w-4" />
-                        {row.grade_document.file_name || 'Open grade file'}
-                      </a>
-                    ) : (
-                      <p className="text-sm text-red-600">No uploaded grade document</p>
-                    )
-                  ) : (
-                    <p className="text-sm text-stone-600">
-                      SDO and Guidance can continue without a grade upload. Only PD needs to review it.
+                  <div className="space-y-3">
+                  <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                      {queueKey === 'pd' ? 'PD Grade Review' : 'Slip Access'}
                     </p>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-stone-200"
-                    onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    View Slip
-                  </Button>
-                </div>
+                    {queueKey === 'pd' ? (
+                      row.grade_document?.url ? (
+                        <a
+                          href={row.grade_document.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
+                        >
+                          <FileText className="h-4 w-4" />
+                          {row.grade_document.file_name || 'Open grade file'}
+                        </a>
+                      ) : (
+                        <p className="mt-3 text-sm text-red-600">No uploaded grade document</p>
+                      )
+                    ) : (
+                      <p className="mt-3 text-sm text-stone-600">
+                        SDO and Guidance can continue without a grade upload. Only PD needs to review it.
+                      </p>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 w-full border-stone-200 bg-white"
+                      onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Open Full Slip
+                    </Button>
+                  </div>
+                  </div>
 
-                <ActionPanel
-                  queueKey={queueKey}
-                  row={row}
-                  actionState={actionState}
-                  setActionState={setActionState}
-                  onSubmit={handleSubmit}
-                  loading={savingSlipId === row.slip_id}
-                />
+                  <ActionPanel
+                    queueKey={queueKey}
+                    row={row}
+                    actionState={actionState}
+                    setActionState={setActionState}
+                    onSubmit={handleSubmit}
+                    loading={savingSlipId === row.slip_id}
+                  />
+                </div>
               </div>
             ))
           )}

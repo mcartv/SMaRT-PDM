@@ -105,8 +105,13 @@ async function loginWithRole(req, res, role) {
             token,
             message: portalTitle ? `Welcome to the ${portalTitle} panel` : 'Welcome back',
             user: {
+                user_id: user.user_id,
+                admin_id: user.admin_id || null,
                 name: displayName,
+                first_name: user.first_name || '',
+                last_name: user.last_name || '',
                 email: user.email,
+                phone_number: user.phone_number || '',
                 position: user.position || (tokenRole === 'sdo' ? 'SDO Officer' : 'Staff'),
                 department: user.department || (tokenRole === 'sdo' ? 'Student Disciplinary Office' : null),
                 role: tokenRole,

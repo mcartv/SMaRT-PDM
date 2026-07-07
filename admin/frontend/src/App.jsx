@@ -32,7 +32,10 @@ import PDLogin from './pages/PDLogin';
 import GuidanceLogin from './pages/GuidanceLogin';
 import PDDashboard from './pages/PDDashboard';
 import GuidanceDashboard from './pages/GuidanceDashboard';
+import PDMaintenance from './pages/PDMaintenance';
+import GuidanceMaintenance from './pages/GuidanceMaintenance';
 import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
+import EndorsementQueue from './pages/EndorsementQueue';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
@@ -105,6 +108,10 @@ export default function App() {
             path="applications/:id/documents"
             element={<DocumentVerification />}
           />
+          <Route
+            path="endorsements/:slipId"
+            element={<EndorsementSlipDetail tokenStorageKey="adminToken" />}
+          />
 
           {/* Other Admin Pages */}
           <Route path="scholars" element={<ScholarMonitoring />} />
@@ -138,6 +145,17 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<PDDashboard />} />
           <Route
+            path="queue"
+            element={
+              <EndorsementQueue
+                queueKey="pd"
+                tokenStorageKey="pdToken"
+                profileStorageKey="pdProfile"
+                detailBasePath="/pd/endorsements"
+              />
+            }
+          />
+          <Route
             path="tracker"
             element={
               <AllEndorsementsTracker
@@ -152,6 +170,17 @@ export default function App() {
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="pdToken" />}
           />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="pdToken"
+                allowedReportTypes={['pd']}
+                defaultReportType="pd"
+              />
+            }
+          />
+          <Route path="maintenance" element={<PDMaintenance />} />
         </Route>
 
         {/* --- PROTECTED GUIDANCE PANEL --- */}
@@ -165,6 +194,17 @@ export default function App() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<GuidanceDashboard />} />
+          <Route
+            path="queue"
+            element={
+              <EndorsementQueue
+                queueKey="guidance"
+                tokenStorageKey="guidanceToken"
+                profileStorageKey="guidanceProfile"
+                detailBasePath="/guidance/endorsements"
+              />
+            }
+          />
           <Route
             path="tracker"
             element={
@@ -180,6 +220,17 @@ export default function App() {
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="guidanceToken" />}
           />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="guidanceToken"
+                allowedReportTypes={['guidance']}
+                defaultReportType="guidance"
+              />
+            }
+          />
+          <Route path="maintenance" element={<GuidanceMaintenance />} />
         </Route>
 
         {/* --- PROTECTED SDO PANEL --- */}
@@ -194,6 +245,17 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SDODashboard />} />
           <Route
+            path="queue"
+            element={
+              <EndorsementQueue
+                queueKey="sdo"
+                tokenStorageKey="sdoToken"
+                profileStorageKey="sdoProfile"
+                detailBasePath="/sdo/endorsements"
+              />
+            }
+          />
+          <Route
             path="tracker"
             element={
               <AllEndorsementsTracker
@@ -207,6 +269,16 @@ export default function App() {
           <Route
             path="endorsements/:slipId"
             element={<EndorsementSlipDetail tokenStorageKey="sdoToken" />}
+          />
+          <Route
+            path="reports"
+            element={
+              <ReportGeneration
+                tokenStorageKey="sdoToken"
+                allowedReportTypes={['sdo']}
+                defaultReportType="sdo"
+              />
+            }
           />
           <Route path="scholars" element={<SDOScholarList />} />
           <Route path="profile" element={<SDOProfile />} />

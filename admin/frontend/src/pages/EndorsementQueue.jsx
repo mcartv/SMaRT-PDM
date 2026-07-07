@@ -710,19 +710,27 @@ export default function EndorsementQueue({
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Documents</p>
-                  {row.grade_document?.url ? (
-                    <a
-                      href={row.grade_document.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-                    >
-                      <FileText className="h-4 w-4" />
-                      {row.grade_document.file_name || 'Open grade file'}
-                    </a>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                    {queueKey === 'pd' ? 'PD Grade Review' : 'Slip Access'}
+                  </p>
+                  {queueKey === 'pd' ? (
+                    row.grade_document?.url ? (
+                      <a
+                        href={row.grade_document.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
+                      >
+                        <FileText className="h-4 w-4" />
+                        {row.grade_document.file_name || 'Open grade file'}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-red-600">No uploaded grade document</p>
+                    )
                   ) : (
-                    <p className="text-sm text-red-600">No uploaded grade document</p>
+                    <p className="text-sm text-stone-600">
+                      SDO and Guidance can continue without a grade upload. Only PD needs to review it.
+                    </p>
                   )}
                   <Button
                     variant="outline"

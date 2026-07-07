@@ -230,6 +230,11 @@ function normalizeLookupValue(value) {
         .trim();
 }
 
+function deriveSlipCode(slipId) {
+    const base = String(slipId || '').trim().split('-')[0].toUpperCase();
+    return base ? `ES-${base}` : 'ES-PENDING';
+}
+
 function buildReadinessFlags(row = {}) {
     const requirementsComplete =
         Number(row.verified_review_count || 0) >= REQUIRED_REVIEW_DOCUMENT_KEYS.length &&
@@ -254,6 +259,8 @@ function buildReadinessFlags(row = {}) {
         uploaded_required_count: Number(row.uploaded_required_count || 0),
         endorsement_status: row.endorsement_overall_status || row.overall_status || null,
         endorsement_slip_id: row.endorsement_slip_id || row.slip_id || null,
+        endorsement_slip_code: deriveSlipCode(row.endorsement_slip_id || row.slip_id || null),
+        endorsement_current_stage: row.endorsement_current_stage || row.current_stage || null,
     };
 }
 
@@ -297,6 +304,7 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
             a.application_id,
             es.slip_id as endorsement_slip_id,
             es.overall_status as endorsement_overall_status,
+            es.current_stage as endorsement_current_stage,
             coalesce(rs.verified_review_count, 0) as verified_review_count,
             coalesce(us.uploaded_required_count, 0) as uploaded_required_count
         from applications a

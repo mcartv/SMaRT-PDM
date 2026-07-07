@@ -221,11 +221,58 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   const cards = useMemo(() => config.cards(rows), [config, rows]);
 
+  const pendingCount = useMemo(
+    () => rows.filter((row) => row.current_stage === config.queueStage).length,
+    [config.queueStage, rows]
+  );
+
+  const completedToday = useMemo(() => {
+    const today = new Date().toDateString();
+    return rows.filter((row) => {
+      if (!row.completed_at) return false;
+      const date = new Date(row.completed_at);
+      return !Number.isNaN(date.getTime()) && date.toDateString() === today;
+    }).length;
+  }, [rows]);
+
+  const blockedCount = useMemo(() => {
+    if (officeKey === 'sdo') {
+      return rows.filter((row) => ['disqualified_minor', 'disqualified_major'].includes(row.sdo_decision)).length;
+    }
+
+    if (officeKey === 'guidance') {
+      return rows.filter((row) => ['held', 'rejected'].includes(row.guidance_decision)).length;
+    }
+
+    return rows.filter((row) => row.pd_decision === 'rejected').length;
+  }, [officeKey, rows]);
+
   const recentRows = useMemo(() => {
     return rows
       .filter((row) => row.current_stage === config.queueStage || row.overall_status === 'completed')
       .slice(0, 5);
   }, [config.queueStage, rows]);
+
+  const recentActivity = useMemo(() => {
+    const activity = [];
+
+    rows.forEach((row) => {
+      (row.stages || []).forEach((stage) => {
+        if (!stage?.acted_at) return;
+        activity.push({
+          slip_id: row.slip_id,
+          student_name: row.student_name,
+          stage_label: stage.label,
+          status: stage.result_label || stage.status,
+          acted_at: stage.acted_at,
+        });
+      });
+    });
+
+    return activity
+      .sort((a, b) => new Date(b.acted_at).getTime() - new Date(a.acted_at).getTime())
+      .slice(0, 6);
+  }, [rows]);
 
   if (loading) {
     return (
@@ -255,7 +302,13 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
         ))}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <SummaryCard icon={ClipboardList} label="Pending Queue Count" value={pendingCount} tone="bg-stone-100 text-stone-700" />
+        <SummaryCard icon={CheckCircle2} label="Completed Today" value={completedToday} tone="bg-green-50 text-green-700" />
+        <SummaryCard icon={ShieldAlert} label={officeKey === 'guidance' ? 'Held / Rejected' : officeKey === 'sdo' ? 'Minor / Major Cases' : 'Rejected Decisions'} value={blockedCount} tone="bg-amber-50 text-amber-700" />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="border-stone-200 shadow-none">
           <CardHeader className="border-b border-stone-100">
             <div className="flex items-center justify-between gap-3">
@@ -310,21 +363,34 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
         <Card className="border-stone-200 shadow-none">
           <CardHeader className="border-b border-stone-100">
-            <h2 className="text-base font-semibold text-stone-900">Quick Links</h2>
+            <h2 className="text-base font-semibold text-stone-900">Recent Activity</h2>
           </CardHeader>
-          <CardContent className="space-y-3 p-5">
-            <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.trackerPath)}>
-              {config.queueLabel}
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.reportsPath)}>
-              Reports
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.maintenancePath)}>
-              Maintenance
-              <ArrowRight className="h-4 w-4" />
-            </Button>
+          <CardContent className="space-y-4 p-5">
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-stone-500">No office activity recorded yet.</p>
+            ) : (
+              recentActivity.map((item) => (
+                <div key={`${item.slip_id}-${item.acted_at}-${item.stage_label}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                  <p className="text-sm font-semibold text-stone-900">{item.student_name}</p>
+                  <p className="mt-1 text-xs text-stone-500">{item.stage_label} • {formatDate(item.acted_at)}</p>
+                  <p className="mt-2 text-xs font-medium text-stone-700">{item.status}</p>
+                </div>
+              ))
+            )}
+            <div className="space-y-3 border-t border-stone-100 pt-4">
+              <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.trackerPath)}>
+                {config.queueLabel}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.reportsPath)}>
+                Reports
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.maintenancePath)}>
+                Maintenance
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

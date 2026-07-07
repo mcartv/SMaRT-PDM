@@ -4,8 +4,10 @@ import {
   ArrowRight,
   CheckCircle2,
   ClipboardList,
+  Clock3,
   FileText,
   Loader2,
+  NotebookPen,
   RefreshCw,
   ShieldAlert,
   XCircle,
@@ -38,13 +40,13 @@ function formatDate(value) {
 
 function SummaryCard({ icon: Icon, label, value, tone }) {
   return (
-    <Card className="border-stone-200 shadow-none">
+    <Card className="rounded-[22px] border-stone-200 shadow-none">
       <CardContent className="flex items-center gap-3 p-4">
-        <div className={`rounded-xl p-2 ${tone}`}>
+        <div className={`rounded-2xl p-2.5 ${tone}`}>
           <Icon className="h-4 w-4" />
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-stone-500">{label}</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-stone-500">{label}</p>
           <p className="text-2xl font-semibold text-stone-900">{value}</p>
         </div>
       </CardContent>
@@ -55,13 +57,16 @@ function SummaryCard({ icon: Icon, label, value, tone }) {
 const DASHBOARD_CONFIG = {
   sdo: {
     title: 'SDO Dashboard',
-    subtitle: 'Quick SDO endorsement overview without repeating the full queue.',
+    subtitle: 'A lighter overview for offense checks, queue review, and recent endorsement actions.',
     queueStage: 'pending_sdo',
     queueLabel: 'Awaiting SDO',
     trackerPath: '/sdo/tracker',
     reportsPath: '/sdo/reports',
     maintenancePath: '/sdo/maintenance',
     detailBasePath: '/sdo/endorsements',
+    accent: 'from-emerald-700 via-emerald-600 to-teal-600',
+    accentSoft: 'bg-emerald-50 text-emerald-700',
+    actionTint: 'hover:bg-emerald-50',
     cards: (rows) => [
       {
         label: 'Awaiting SDO',
@@ -91,13 +96,16 @@ const DASHBOARD_CONFIG = {
   },
   guidance: {
     title: 'Guidance Dashboard',
-    subtitle: 'See what needs counseling review today and what has already been resolved.',
+    subtitle: 'A cleaner daily view for moral standing, counseling holds, and guidance decisions.',
     queueStage: 'pending_guidance',
     queueLabel: 'Awaiting Guidance',
     trackerPath: '/guidance/tracker',
     reportsPath: '/guidance/reports',
     maintenancePath: '/guidance/maintenance',
     detailBasePath: '/guidance/endorsements',
+    accent: 'from-sky-700 via-sky-600 to-blue-600',
+    accentSoft: 'bg-sky-50 text-sky-700',
+    actionTint: 'hover:bg-sky-50',
     cards: (rows) => [
       {
         label: 'Awaiting Guidance',
@@ -127,13 +135,16 @@ const DASHBOARD_CONFIG = {
   },
   pd: {
     title: 'PD Dashboard',
-    subtitle: 'Track pending PD decisions and completed endorsement outcomes at a glance.',
+    subtitle: 'A simpler endorsement view for pending approvals, rejections, and completed slips.',
     queueStage: 'pending_pd',
     queueLabel: 'Awaiting PD',
     trackerPath: '/pd/tracker',
     reportsPath: '/pd/reports',
     maintenancePath: '/pd/maintenance',
     detailBasePath: '/pd/endorsements',
+    accent: 'from-violet-700 via-violet-600 to-fuchsia-600',
+    accentSoft: 'bg-violet-50 text-violet-700',
+    actionTint: 'hover:bg-violet-50',
     cards: (rows) => [
       {
         label: 'Awaiting PD',
@@ -175,6 +186,20 @@ const STATUS_TONE = {
   disqualified_major: 'bg-red-50 text-red-700',
 };
 
+function getFocusLabel(officeKey) {
+  if (officeKey === 'sdo') return 'Minor and major offense handling';
+  if (officeKey === 'guidance') return 'Counseling holds and moral standing review';
+  return 'Program endorsement approvals and final review';
+}
+
+function getDecisionLabel(row, officeKey) {
+  if (officeKey === 'sdo') return row.sdo_decision_label || row.sdo_decision || 'Pending SDO';
+  if (officeKey === 'guidance') {
+    return row.guidance_decision_label || row.guidance_decision || 'Pending Guidance';
+  }
+  return row.pd_decision_label || row.pd_decision || 'Pending PD';
+}
+
 export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminToken' }) {
   const navigate = useNavigate();
   const config = DASHBOARD_CONFIG[officeKey];
@@ -185,8 +210,11 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   const loadRows = async ({ soft = false } = {}) => {
     try {
-      if (soft) setRefreshing(true);
-      else setLoading(true);
+      if (soft) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError('');
 
       const response = await fetch(buildApiUrl('/api/endorsement-slips?scope=all'), {
@@ -226,6 +254,11 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
     [config.queueStage, rows]
   );
 
+  const completedCount = useMemo(
+    () => rows.filter((row) => row.overall_status === 'completed').length,
+    [rows]
+  );
+
   const completedToday = useMemo(() => {
     const today = new Date().toDateString();
     return rows.filter((row) => {
@@ -237,7 +270,9 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   const blockedCount = useMemo(() => {
     if (officeKey === 'sdo') {
-      return rows.filter((row) => ['disqualified_minor', 'disqualified_major'].includes(row.sdo_decision)).length;
+      return rows.filter((row) =>
+        ['disqualified_minor', 'disqualified_major'].includes(row.sdo_decision)
+      ).length;
     }
 
     if (officeKey === 'guidance') {
@@ -246,6 +281,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
     return rows.filter((row) => row.pd_decision === 'rejected').length;
   }, [officeKey, rows]);
+
+  const priorityRows = useMemo(() => {
+    return rows.filter((row) => row.current_stage === config.queueStage).slice(0, 4);
+  }, [config.queueStage, rows]);
 
   const recentRows = useMemo(() => {
     return rows
@@ -271,7 +310,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
     return activity
       .sort((a, b) => new Date(b.acted_at).getTime() - new Date(a.acted_at).getTime())
-      .slice(0, 6);
+      .slice(0, 4);
   }, [rows]);
 
   if (loading) {
@@ -285,74 +324,126 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   return (
     <div className="space-y-5 py-2">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-stone-900">{config.title}</h1>
-          <p className="mt-1 text-sm text-stone-500">{config.subtitle}</p>
+      <section className={`overflow-hidden rounded-[28px] bg-gradient-to-r ${config.accent} text-white shadow-sm`}>
+        <div className="flex flex-col gap-6 px-6 py-6 lg:flex-row lg:items-end lg:justify-between lg:px-7">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
+              <NotebookPen className="h-3.5 w-3.5" />
+              {config.queueLabel}
+            </div>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight">{config.title}</h1>
+            <p className="mt-2 text-sm text-white/80">{config.subtitle}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-white/70">Pending</p>
+              <p className="mt-1 text-2xl font-semibold">{pendingCount}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-white/70">Completed</p>
+              <p className="mt-1 text-2xl font-semibold">{completedCount}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-white/70">Today</p>
+              <p className="mt-1 text-2xl font-semibold">{completedToday}</p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-white/70">Attention</p>
+              <p className="mt-1 text-2xl font-semibold">{blockedCount}</p>
+            </div>
+          </div>
         </div>
-        <Button variant="outline" className="border-stone-200" onClick={() => loadRows({ soft: true })}>
-          {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Refresh
-        </Button>
+      </section>
+
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-stone-900">Office snapshot</p>
+          <p className="mt-1 text-sm text-stone-500">Simple counts for today’s work and recent decisions.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="border-stone-200 bg-white"
+            onClick={() => navigate(config.trackerPath)}
+          >
+            Open Tracker
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            className="border-stone-200 bg-white"
+            onClick={() => loadRows({ soft: true })}
+          >
+            {refreshing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         {cards.map((card) => (
-          <SummaryCard key={card.label} icon={card.icon} label={card.label} value={card.value} tone={card.tone} />
+          <SummaryCard
+            key={card.label}
+            icon={card.icon}
+            label={card.label}
+            value={card.value}
+            tone={card.tone}
+          />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <SummaryCard icon={ClipboardList} label="Pending Queue Count" value={pendingCount} tone="bg-stone-100 text-stone-700" />
-        <SummaryCard icon={CheckCircle2} label="Completed Today" value={completedToday} tone="bg-green-50 text-green-700" />
-        <SummaryCard icon={ShieldAlert} label={officeKey === 'guidance' ? 'Held / Rejected' : officeKey === 'sdo' ? 'Minor / Major Cases' : 'Rejected Decisions'} value={blockedCount} tone="bg-amber-50 text-amber-700" />
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="border-stone-200 shadow-none">
+      <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
+        <Card className="rounded-[24px] border-stone-200 shadow-none">
           <CardHeader className="border-b border-stone-100">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-stone-900">Recent Endorsements</h2>
-                <p className="text-sm text-stone-500">
-                  A light overview so you can jump straight into the right applicant.
-                </p>
+                <h2 className="text-base font-semibold text-stone-900">Priority Queue</h2>
+                <p className="text-sm text-stone-500">Applicants that still need your office action first.</p>
               </div>
-              <Button variant="outline" size="sm" className="border-stone-200" onClick={() => navigate(config.trackerPath)}>
-                Open Tracker
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              <Badge className={config.accentSoft}>{pendingCount} waiting</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-3 p-5">
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
-            {recentRows.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
-                No endorsements found for this office yet.
+            {priorityRows.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
+                No applicants are waiting in your queue right now.
               </div>
             ) : (
-              recentRows.map((row) => (
+              priorityRows.map((row) => (
                 <button
                   key={row.slip_id}
                   type="button"
                   onClick={() => navigate(`${config.detailBasePath}/${row.slip_id}`)}
-                  className="w-full rounded-2xl border border-stone-200 p-4 text-left transition-colors hover:border-stone-300 hover:bg-stone-50"
+                  className={`w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition ${config.actionTint}`}
                 >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
-                      <p className="text-xs text-stone-500">
+                      <p className="mt-1 text-xs text-stone-500">
                         {row.pdm_id} • {row.opening_title || 'Opening not set'}
                       </p>
-                      <p className="mt-1 text-xs text-stone-500">Submitted: {formatDate(row.submitted_at)}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="border-stone-200 text-stone-700">
+                          {row.current_stage_label}
+                        </Badge>
+                        <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
+                          {getDecisionLabel(row, officeKey)}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
-                        {row.overall_status_label}
-                      </Badge>
-                      <Badge variant="outline" className="border-stone-200 text-stone-700">
-                        {row.current_stage_label}
-                      </Badge>
+
+                    <div className="shrink-0 text-left md:text-right">
+                      <div className="inline-flex items-center gap-1 text-[11px] text-stone-500">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        Submitted
+                      </div>
+                      <p className="mt-1 text-xs font-medium text-stone-700">{formatDate(row.submitted_at)}</p>
                     </div>
                   </div>
                 </button>
@@ -361,39 +452,119 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
           </CardContent>
         </Card>
 
-        <Card className="border-stone-200 shadow-none">
-          <CardHeader className="border-b border-stone-100">
-            <h2 className="text-base font-semibold text-stone-900">Recent Activity</h2>
-          </CardHeader>
-          <CardContent className="space-y-4 p-5">
-            {recentActivity.length === 0 ? (
-              <p className="text-sm text-stone-500">No office activity recorded yet.</p>
-            ) : (
-              recentActivity.map((item) => (
-                <div key={`${item.slip_id}-${item.acted_at}-${item.stage_label}`} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                  <p className="text-sm font-semibold text-stone-900">{item.student_name}</p>
-                  <p className="mt-1 text-xs text-stone-500">{item.stage_label} • {formatDate(item.acted_at)}</p>
-                  <p className="mt-2 text-xs font-medium text-stone-700">{item.status}</p>
-                </div>
-              ))
-            )}
-            <div className="space-y-3 border-t border-stone-100 pt-4">
-              <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.trackerPath)}>
+        <div className="space-y-5">
+          <Card className="rounded-[24px] border-stone-200 shadow-none">
+            <CardHeader className="border-b border-stone-100">
+              <div>
+                <h2 className="text-base font-semibold text-stone-900">Quick Actions</h2>
+                <p className="text-sm text-stone-500">{getFocusLabel(officeKey)}</p>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5">
+              <Button
+                variant="outline"
+                className="w-full justify-between border-stone-200"
+                onClick={() => navigate(config.trackerPath)}
+              >
                 {config.queueLabel}
                 <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.reportsPath)}>
+              <Button
+                variant="outline"
+                className="w-full justify-between border-stone-200"
+                onClick={() => navigate(config.reportsPath)}
+              >
                 Reports
                 <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button variant="outline" className="w-full justify-between border-stone-200" onClick={() => navigate(config.maintenancePath)}>
+              <Button
+                variant="outline"
+                className="w-full justify-between border-stone-200"
+                onClick={() => navigate(config.maintenancePath)}
+              >
                 Maintenance
                 <ArrowRight className="h-4 w-4" />
               </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[24px] border-stone-200 shadow-none">
+            <CardHeader className="border-b border-stone-100">
+              <h2 className="text-base font-semibold text-stone-900">Recent Activity</h2>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5">
+              {recentActivity.length === 0 ? (
+                <p className="text-sm text-stone-500">No office activity recorded yet.</p>
+              ) : (
+                recentActivity.map((item) => (
+                  <div
+                    key={`${item.slip_id}-${item.acted_at}-${item.stage_label}`}
+                    className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-stone-900">{item.student_name}</p>
+                        <p className="mt-1 text-xs text-stone-500">{item.stage_label}</p>
+                      </div>
+                      <Badge variant="outline" className="border-stone-200 text-stone-700">
+                        {item.status}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs text-stone-500">{formatDate(item.acted_at)}</p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      <Card className="rounded-[24px] border-stone-200 shadow-none">
+        <CardHeader className="border-b border-stone-100">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-stone-900">Recently Updated Slips</h2>
+              <p className="text-sm text-stone-500">A lightweight list of completed or recently moved endorsements.</p>
+            </div>
+            <Badge variant="outline" className="border-stone-200 text-stone-700">
+              {recentRows.length} shown
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 p-5">
+          {recentRows.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
+              No recent endorsements found yet.
+            </div>
+          ) : (
+            recentRows.map((row) => (
+              <button
+                key={row.slip_id}
+                type="button"
+                onClick={() => navigate(`${config.detailBasePath}/${row.slip_id}`)}
+                className="w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition hover:bg-stone-50"
+              >
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-stone-900">{row.student_name}</p>
+                    <p className="text-xs text-stone-500">
+                      {row.pdm_id} • {row.opening_title || 'Opening not set'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
+                      {row.overall_status_label}
+                    </Badge>
+                    <Badge variant="outline" className="border-stone-200 text-stone-700">
+                      {row.current_stage_label}
+                    </Badge>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

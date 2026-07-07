@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
+import PortalQuickTools from './PortalQuickTools';
 
 // Theme Colors
 const SB_BASE = '#7c4a2e';
@@ -267,6 +268,11 @@ export default function AdminLayout() {
                 </div>
               )}
             </div>
+
+            <PortalQuickTools
+              storageKey="admin-portal-quick-notes"
+              noteTitle="Admin Notes"
+            />
 
             <button
               onClick={handleProfileClick}

@@ -11,6 +11,7 @@ import {
   Settings,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
+import PortalQuickTools from './PortalQuickTools';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -198,6 +199,11 @@ export default function DepartmentPortalLayout({
                 </div>
               )}
             </div>
+
+            <PortalQuickTools
+              storageKey={`${portalKey}-portal-quick-notes`}
+              noteTitle={`${officeName} Notes`}
+            />
 
             <button
               type="button"

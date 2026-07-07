@@ -17,6 +17,7 @@ import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_pass
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/splash_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/faqs_screen.dart';
+import 'package:smartpdm_mobileapp/features/downloads/presentation/screens/downloads_screen.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/status_tracking_screen.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/success_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/messaging_screen.dart';
@@ -108,6 +109,13 @@ class AppRouter {
           ),
         );
 
+      case AppRoutes.downloads:
+        return _buildProtectedRoute(
+          settings,
+          (context) => ApplicantAccessGate(
+            child: _buildDownloadsScreen(context, settings),
+          ),
+        );
       case AppRoutes.renewalDocuments:
         return _buildProtectedRoute(
           settings,
@@ -192,6 +200,17 @@ class AppRouter {
     );
   }
 
+  static DownloadsScreen _buildDownloadsScreen(
+    BuildContext context,
+    RouteSettings settings,
+  ) {
+    final args = settings.arguments;
+    final payload = args is Map<String, dynamic> ? args : const {};
+
+    return DownloadsScreen(
+      initialApplicationId: payload['applicationId']?.toString(),
+    );
+  }
   static NewApplicantScreen _buildNewApplicantScreen(
     BuildContext context,
     RouteSettings settings,

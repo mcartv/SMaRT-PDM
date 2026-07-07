@@ -5,19 +5,18 @@ import 'package:smartpdm_mobileapp/features/auth/data/services/password_reset_se
 import 'package:smartpdm_mobileapp/features/auth/data/services/recovery_service.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/login_screen.dart';
+import 'package:smartpdm_mobileapp/features/auth/presentation/screens/otp_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_otp_screen.dart';
 
 class _FakePasswordResetService extends PasswordResetService {
   _FakePasswordResetService();
 
-  final Future<String> Function(String studentId)? onForgotPassword;
   String? lastStudentId;
 
   @override
   Future<String> forgotPassword(String studentId) async {
     lastStudentId = studentId;
-    return onForgotPassword?.call(studentId) ??
-        'If an account exists, password reset instructions have been sent.';
+    return 'If an account exists, password reset instructions have been sent.';
   }
 }
 
@@ -62,7 +61,7 @@ void main() {
       );
 
       await tester.enterText(find.byType(TextFormField), 'invalid-id');
-      await tester.tap(find.text('Send Instructions'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       expect(
@@ -81,14 +80,12 @@ void main() {
           routes: {
             AppRoutes.resetPasswordOtp: (_) => const ResetPasswordOtpScreen(),
           },
-          home: ForgotPasswordScreen(
-            passwordResetService: fakeService,
-          ),
+          home: ForgotPasswordScreen(passwordResetService: fakeService),
         ),
       );
 
       await tester.enterText(find.byType(TextFormField), 'PDM-2024-000123');
-      await tester.tap(find.text('Send Instructions'));
+      await tester.tap(find.text('Send Reset Code'));
       await tester.pumpAndSettle();
 
       expect(fakeService.lastStudentId, 'PDM-2024-000123');
@@ -96,6 +93,41 @@ void main() {
     });
   });
 
+  group('OtpScreen', () {
+    testWidgets('starts resend cooldown when screen opens', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          onGenerateRoute: (settings) {
+            if (settings.name == AppRoutes.otp) {
+              return MaterialPageRoute<void>(
+                settings: const RouteSettings(
+                  name: AppRoutes.otp,
+                  arguments: {'email': 'student@example.com'},
+                ),
+                builder: (_) => const OtpScreen(),
+              );
+            }
+            return null;
+          },
+          initialRoute: AppRoutes.otp,
+        ),
+      );
+
+      expect(find.text('RESEND IN 60s'), findsOneWidget);
+      expect(find.text('RESEND'), findsNothing);
+
+      final resendButton = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'RESEND IN 60s'),
+      );
+      expect(resendButton.onPressed, isNull);
+
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('RESEND IN 59s'), findsOneWidget);
+    });
+  });
   testWidgets('LoginScreen applies prefilled student id from route arguments', (
     WidgetTester tester,
   ) async {

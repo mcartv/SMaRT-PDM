@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { mailFrom, transporter } = require('../config/mailer');
 
 const AUDIENCE_TO_ROLE_FILTER = {
     all: null,
@@ -11,7 +12,7 @@ const AUDIENCE_TO_ROLE_FILTER = {
 async function getAudienceUsers(audience) {
     let usersQuery = supabase
         .from('users')
-        .select('user_id, role');
+        .select('user_id, role, email');
 
     const roleFilter = AUDIENCE_TO_ROLE_FILTER[audience];
 
@@ -39,6 +40,72 @@ async function getAudienceUsers(audience) {
     return filteredUsers;
 }
 
+function safeText(value) {
+    return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function isEmailNotificationEnabled() {
+    const value = String(process.env.EMAIL_NOTIFICATIONS_ENABLED || 'true')
+        .trim()
+        .toLowerCase();
+    return !['false', '0', 'no'].includes(value);
+}
+
+function escapeHtml(value) {
+    return safeText(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function fetchUserEmail(userId) {
+    const { data, error } = await supabase
+        .from('users')
+        .select('email')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (error) {
+        throw error;
+    }
+
+    return safeText(data?.email);
+}
+
+async function sendNotificationEmailCopy(notification, emailOverride = '') {
+    if (!isEmailNotificationEnabled() || !notification?.user_id) return;
+
+    const email = safeText(emailOverride) || await fetchUserEmail(notification.user_id);
+    if (!email) return;
+
+    await transporter.sendMail({
+        from: mailFrom,
+        to: email,
+        subject: `[SMaRT-PDM] ${safeText(notification.title) || 'New notification'}`,
+        html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>${escapeHtml(notification.title || 'New notification')}</h2>
+                <p>${escapeHtml(notification.message)}</p>
+                <p style="color: #666; font-size: 12px;">Open SMaRT-PDM to view the latest details.</p>
+            </div>
+        `,
+        text: `${safeText(notification.title)}\n\n${safeText(notification.message)}\n\nOpen SMaRT-PDM to view the latest details.`,
+    });
+}
+
+function queueNotificationEmailCopy(notification, emailOverride = '') {
+    // Database notifications power the app UI; email copies are best-effort and must not
+    // undo the persisted notification if the provider is temporarily unavailable.
+    sendNotificationEmailCopy(notification, emailOverride).catch((error) => {
+        console.error('ADMIN NOTIFICATION EMAIL COPY ERROR:', {
+            notificationId: notification?.notification_id,
+            userId: notification?.user_id,
+            message: error.message || String(error),
+        });
+    });
+}
 async function createNotificationsForAudience({
     audience,
     title,
@@ -80,6 +147,10 @@ async function createNotificationsForAudience({
         throw new Error(error.message);
     }
 
+    const emailByUserId = new Map(users.map((user) => [user.user_id, user.email]));
+    for (const row of data || []) {
+        queueNotificationEmailCopy(row, emailByUserId.get(row.user_id));
+    }
     return data || [];
 }
 
@@ -143,6 +214,7 @@ async function createUserNotification({
         throw new Error(error.message);
     }
 
+    queueNotificationEmailCopy(data);
     return data;
 }
 

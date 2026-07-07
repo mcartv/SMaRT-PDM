@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const pool = require('../config/db');
 const supabase = require('../config/supabase');
-const { transporter } = require('../config/mailer');
+const { mailFrom, transporter } = require('../config/mailer');
 const notificationService = require('./notificationService');
 const applicationService = require('./applicationService');
 const { resolveStaffRole } = require('../utils/staffRoles');
@@ -1264,7 +1264,7 @@ async function sendPendingDigestForRole(role) {
 
     for (const recipient of recipients) {
         await transporter.sendMail({
-            from: process.env.GMAIL_USER,
+            from: mailFrom,
             to: recipient.email,
             subject: `[SMaRT-PDM] ${role.toUpperCase()} queue digest`,
             html: `

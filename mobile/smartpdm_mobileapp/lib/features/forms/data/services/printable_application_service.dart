@@ -26,10 +26,16 @@ class PrintableApplicationService {
   }
 
   Future<File> generateFromApplicationId(String applicationId) async {
-    final payload = await _applicationService.fetchApplicationDetails(
+    final payload = await _applicationService.fetchApplicationPrintData(
       applicationId,
     );
-    final model = SavedApplicationPrintModel.fromApi(payload);
+    final application = payload['application'] is Map
+        ? Map<String, dynamic>.from(payload['application'] as Map)
+        : <String, dynamic>{};
+    final printData = application['print_data'] is Map
+        ? Map<String, dynamic>.from(application['print_data'] as Map)
+        : payload;
+    final model = SavedApplicationPrintModel.fromApi(printData);
     return _pdfService.generateFromSavedApplication(model);
   }
 

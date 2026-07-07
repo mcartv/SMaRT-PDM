@@ -65,6 +65,36 @@ function buildMailFrom() {
 const mailFrom = buildMailFrom();
 const defaultSender = parseAddress(mailFrom);
 
+function getEmailConfigStatus() {
+    return {
+        sender: defaultSender.email,
+        senderName: defaultSender.name,
+        brevoConfigured: !!safeText(process.env.BREVO_API_KEY),
+        gmailFallbackConfigured: !!(
+            safeText(process.env.GMAIL_USER) &&
+            stripPasswordWhitespace(
+                process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS
+            )
+        ),
+        skipEmail: process.env.SKIP_EMAIL === 'true',
+    };
+}
+
+function serializeEmailError(error) {
+    if (!error) return {};
+
+    return {
+        message: error.message,
+        code: error.code,
+        command: error.command,
+        responseCode: error.responseCode,
+        statusCode: error.statusCode,
+        provider: error.provider,
+        response: error.response,
+        responseBody: error.responseBody,
+    };
+}
+
 function postJson(url, payload, headers = {}) {
     return new Promise((resolve, reject) => {
         const body = JSON.stringify(payload);
@@ -204,9 +234,7 @@ async function sendMail(mailOptions = {}) {
 
         // Brevo remains the primary provider; Gmail is only a continuity fallback.
         console.error('BREVO EMAIL SEND ERROR, USING GMAIL FALLBACK:', {
-            message: brevoError.message,
-            statusCode: brevoError.statusCode,
-            code: brevoError.code,
+            ...serializeEmailError(brevoError),
         });
 
         return sendWithGmailFallback(mailOptions);
@@ -216,5 +244,7 @@ async function sendMail(mailOptions = {}) {
 module.exports = {
     mailFrom,
     sendMail,
+    getEmailConfigStatus,
+    serializeEmailError,
     transporter: { sendMail },
 };

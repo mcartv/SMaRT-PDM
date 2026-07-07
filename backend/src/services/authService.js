@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 const bcrypt = require('bcrypt');
-const { mailFrom, transporter } = require('../config/mailer');
+const { mailFrom, serializeEmailError, transporter } = require('../config/mailer');
 const { buildAuthToken } = require('../middleware/authMiddleware');
 const {
     normalizeStudentNumber,
@@ -66,7 +66,11 @@ async function sendOTPEmail(email, otp) {
                 `,
         });
     } catch (error) {
-        console.error('OTP EMAIL SEND ERROR:', error);
+        console.error('OTP EMAIL SEND ERROR:', {
+            to: email,
+            from: mailFrom,
+            ...serializeEmailError(error),
+        });
         throw createHttpError(
             502,
             'Failed to send OTP email. Please check backend transactional email configuration.'

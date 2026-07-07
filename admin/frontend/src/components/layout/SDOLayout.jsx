@@ -12,6 +12,7 @@ import {
   Settings,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
+import PortalQuickTools from './PortalQuickTools';
 
 const SB_BASE = '#2e4b43';
 const SB_TEXT = '#ecfdf5';
@@ -282,6 +283,11 @@ export default function SDOLayout() {
                 </div>
               )}
             </div>
+
+            <PortalQuickTools
+              storageKey="sdo-portal-quick-notes"
+              noteTitle="SDO Notes"
+            />
 
             {/* Profile Chip */}
             <button

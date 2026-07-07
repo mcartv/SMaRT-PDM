@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router';
 import {
+  BarChart3,
   Bell,
   ChevronLeft,
   ChevronRight,
   FileText,
   LayoutDashboard,
   LogOut,
+  Settings,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
+import PortalQuickTools from './PortalQuickTools';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -42,7 +45,10 @@ export default function DepartmentPortalLayout({
   tokenStorageKey,
   profileStorageKey,
   colors,
+  queuePath = '',
   trackerPath = '',
+  reportsPath = '',
+  maintenancePath = '',
 }) {
   const navigate = useNavigate();
   const notifRef = useRef(null);
@@ -86,8 +92,11 @@ export default function DepartmentPortalLayout({
   const displayName = profile?.name || officeName;
   const displayPosition = profile?.position || title;
   const navItems = [
-    { path: dashboardPath, label: 'My Queue', icon: LayoutDashboard },
+    { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
+    ...(queuePath ? [{ path: queuePath, label: 'My Queue', icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
+    ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
+    ...(maintenancePath ? [{ path: maintenancePath, label: 'Maintenance', icon: Settings }] : []),
   ];
 
   return (
@@ -190,6 +199,11 @@ export default function DepartmentPortalLayout({
                 </div>
               )}
             </div>
+
+            <PortalQuickTools
+              storageKey={`${portalKey}-portal-quick-notes`}
+              noteTitle={`${officeName} Notes`}
+            />
 
             <button
               type="button"

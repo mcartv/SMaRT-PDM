@@ -20,6 +20,9 @@ create table if not exists public.endorsement_slips (
     sdo_acted_at timestamptz null,
     sdo_acted_by_user_id uuid null references public.users(user_id) on delete set null,
     sdo_remarks text null,
+    sdo_offense_type text null,
+    sdo_incident_date date null,
+    sdo_case_reference_number text null,
     final_pdf_url text null,
     final_pdf_path text null,
     verification_token text not null unique default encode(gen_random_bytes(24), 'hex'),
@@ -34,6 +37,7 @@ create table if not exists public.endorsement_slips (
                 'pending_pd',
                 'completed',
                 'rejected',
+                'guidance_rejected',
                 'held',
                 'disqualified_minor',
                 'disqualified_major'
@@ -47,6 +51,7 @@ create table if not exists public.endorsement_slips (
                 'pending_pd',
                 'completed',
                 'rejected',
+                'guidance_rejected',
                 'held',
                 'disqualified_minor',
                 'disqualified_major'
@@ -55,7 +60,7 @@ create table if not exists public.endorsement_slips (
     constraint endorsement_slips_pd_status_check
         check (pd_status is null or pd_status in ('approved', 'rejected')),
     constraint endorsement_slips_guidance_status_check
-        check (guidance_status is null or guidance_status in ('cleared', 'held')),
+        check (guidance_status is null or guidance_status in ('cleared', 'held', 'rejected')),
     constraint endorsement_slips_sdo_status_check
         check (sdo_status is null or sdo_status in ('cleared', 'disqualified_minor', 'disqualified_major'))
 );

@@ -30,6 +30,8 @@ import {
   ChevronRight,
   RefreshCw,
   SlidersHorizontal,
+  Download,
+  CheckCircle2,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -154,6 +156,22 @@ function getDocumentStatusMeta(row) {
   };
 }
 
+function getReadinessMeta(isComplete, positiveLabel, negativeLabel) {
+  if (isComplete) {
+    return { label: positiveLabel, bg: C.greenSoft, color: C.green };
+  }
+
+  return { label: negativeLabel, bg: '#FFF7ED', color: '#d97706' };
+}
+
+function getScholarReadinessMeta(row) {
+  if (row?.scholar_activation_ready) {
+    return { label: 'Scholar Ready', bg: C.greenSoft, color: C.green };
+  }
+
+  return { label: 'Pending Activation', bg: '#FEF2F2', color: '#dc2626' };
+}
+
 function getOpeningStatusMeta(opening) {
   const group = getOpeningGroup(opening?.posting_status || opening?.status || '');
 
@@ -203,6 +221,16 @@ function normalizeApplicantRow(app) {
     posting_status: app.posting_status || app.opening_status || 'open',
     allocated_slots: app.allocated_slots || 0,
     filled_slots: app.filled_slots || 0,
+    requirements_complete: app.requirements_complete === true,
+    endorsement_complete: app.endorsement_complete === true,
+    scholar_activation_ready: app.scholar_activation_ready === true,
+    requirements_incomplete: app.requirements_incomplete !== false,
+    endorsement_pending: app.endorsement_pending !== false,
+    needs_activation_attention: app.needs_activation_attention !== false,
+    blockers: Array.isArray(app.blockers) ? app.blockers : [],
+    endorsement_slip_id: app.endorsement_slip_id || null,
+    endorsement_slip_code: app.endorsement_slip_code || 'ES-PENDING',
+    endorsement_current_stage: app.endorsement_current_stage || null,
   };
 }
 
@@ -244,11 +272,48 @@ function MetricItem({ label, value }) {
   );
 }
 
+function ReadinessSummary({ rows }) {
+  const totalReady = rows.length;
+  const withSlip = rows.filter((row) => row.endorsement_slip_id).length;
+  const completeRequirements = rows.filter((row) => row.requirements_complete).length;
+  const completeEndorsement = rows.filter((row) => row.endorsement_complete).length;
+
+  return (
+    <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">Ready for Activation</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{totalReady}</p>
+        </CardContent>
+      </Card>
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">Requirements Complete</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{completeRequirements}</p>
+        </CardContent>
+      </Card>
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">Endorsement Complete</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{completeEndorsement}</p>
+        </CardContent>
+      </Card>
+      <Card className="border-stone-200 shadow-none">
+        <CardContent className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-stone-500">With Downloadable Slip</p>
+          <p className="mt-2 text-2xl font-semibold text-stone-900">{withSlip}</p>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 function Toolbar({
   search,
   setSearch,
   viewType,
   setViewType,
+  hasNeedsAttention,
   refreshing,
   onRefresh,
   filters,
@@ -323,6 +388,21 @@ function Toolbar({
             >
               <Table2 className="h-4 w-4" />
               Registry
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewType('action')}
+              className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewType === 'action'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
+                }`}
+            >
+              <span className="relative inline-flex items-center">
+                Readiness
+                {hasNeedsAttention ? (
+                  <span className="absolute -right-2 -top-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+                ) : null}
+              </span>
             </button>
           </div>
 
@@ -470,7 +550,11 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
         const allocatedSlots = Number(opening.allocated_slots || opening.slot_count || 0);
         const filledSlots = getComputedFilledSlots(opening);
         const remainingSlots = Math.max(0, allocatedSlots - filledSlots);
-        const applicationCount = countsMap.get(opening.opening_id)?.applicants || 0;
+        const summary = countsMap.get(opening.opening_id) || {};
+        const applicationCount = summary.applicants || 0;
+        const requirementsCount = summary.requirementsComplete || 0;
+        const endorsementCount = summary.endorsementComplete || 0;
+        const readyCount = summary.scholarReady || 0;
 
         return (
           <Card
@@ -493,11 +577,18 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                   <StatusPill meta={statusMeta} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                   <MetricItem label="Slots" value={allocatedSlots} />
                   <MetricItem label="Filled" value={filledSlots} />
                   <MetricItem label="Applicants" value={applicationCount} />
                   <MetricItem label="Remaining" value={remainingSlots} />
+                  <MetricItem label="Req. OK" value={requirementsCount} />
+                  <MetricItem label="Endorse OK" value={endorsementCount} />
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                  <span>Scholar-ready applicants</span>
+                  <span className="font-semibold text-stone-900">{readyCount}</span>
                 </div>
 
                 <div className="flex items-center justify-end border-t border-stone-100 pt-3">
@@ -522,39 +613,62 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
   );
 }
 
-function RegistryTable({ rows, navigate }) {
+function RegistryTable({
+  rows,
+  navigate,
+  onDownloadSlip,
+  onApproveScholar,
+  approvalLoadingId = '',
+  title = 'Applicant Registry',
+  subtitle = 'Current applicants and document status overview',
+  mode = 'registry',
+}) {
+  const isReadinessMode = mode === 'readiness';
+
   return (
     <section
       className="overflow-hidden rounded-2xl border bg-white"
       style={{ borderColor: C.line }}
     >
       <div className="border-b border-stone-100 px-5 py-4">
-        <h2 className="text-base font-semibold text-stone-900">Applicant Registry</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Current applicants and document status overview
-        </p>
+        <h2 className="text-base font-semibold text-stone-900">{title}</h2>
+        <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1080px]">
+        <table className="w-full min-w-[980px]">
           <thead className="bg-stone-50">
             <tr className="border-b border-stone-200">
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Applicant</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">PDM ID</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Scholarship</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Opening</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Academic Year</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Submitted</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Application</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Documents</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Requirements</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Endorsement</th>
+              {isReadinessMode ? (
+                <>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Slip</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Ready Status</th>
+                </>
+              ) : null}
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">Action</th>
             </tr>
           </thead>
 
           <tbody>
             {rows.map((row) => {
-              const appStatusMeta = getApplicationStatusMeta(row);
-              const docStatusMeta = getDocumentStatusMeta(row);
+              const requirementsMeta = getReadinessMeta(
+                row.requirements_complete,
+                'Complete',
+                'Incomplete'
+              );
+              const endorsementMeta = getReadinessMeta(
+                row.endorsement_complete,
+                'Complete',
+                'Pending'
+              );
+              const readinessMeta = getScholarReadinessMeta(row);
 
               return (
                 <tr
@@ -579,10 +693,7 @@ function RegistryTable({ rows, navigate }) {
 
                   <td className="px-4 py-4 align-top text-sm text-stone-600">
                     <div className="max-w-[220px]">{row.opening_title}</div>
-                  </td>
-
-                  <td className="px-4 py-4 align-top whitespace-nowrap text-sm text-stone-600">
-                    {row.academic_year}
+                    <p className="mt-1 text-xs text-stone-400">{row.academic_year}</p>
                   </td>
 
                   <td className="px-4 py-4 align-top whitespace-nowrap text-sm text-stone-500">
@@ -590,25 +701,90 @@ function RegistryTable({ rows, navigate }) {
                   </td>
 
                   <td className="px-4 py-4 align-top">
-                    <StatusPill meta={appStatusMeta} />
+                    <StatusPill meta={requirementsMeta} />
                   </td>
 
                   <td className="px-4 py-4 align-top">
-                    <StatusPill meta={docStatusMeta} />
+                    <StatusPill meta={endorsementMeta} />
                   </td>
 
+                  {isReadinessMode ? (
+                    <>
+                      <td className="px-4 py-4 align-top">
+                        {row.endorsement_slip_id ? (
+                          <div className="space-y-2">
+                            <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
+                            <StatusPill
+                              meta={{
+                                label: row.endorsement_current_stage
+                                  ? row.endorsement_current_stage.replaceAll('_', ' ')
+                                  : 'Slip Available',
+                                bg: '#f5f5f4',
+                                color: '#57534e',
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-sm text-stone-400">No slip yet</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <StatusPill meta={readinessMeta} />
+                      </td>
+                    </>
+                  ) : null}
+
                   <td className="px-4 py-4 align-top text-right">
-                    <Button
-                      size="sm"
-                      className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                      style={{ background: C.brownMid }}
-                      onClick={() =>
-                        navigate(`/admin/applications/${row.application_id}/documents`)
-                      }
-                    >
-                      View Documents
-                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      {isReadinessMode && row.endorsement_slip_id ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                          onClick={() => navigate(`/admin/endorsements/${row.endorsement_slip_id}`)}
+                        >
+                          View Slip
+                        </Button>
+                      ) : null}
+                      {isReadinessMode && row.endorsement_slip_id ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                          onClick={() => onDownloadSlip(row)}
+                        >
+                          <Download className="mr-1.5 h-3.5 w-3.5" />
+                          PDF
+                        </Button>
+                      ) : null}
+                      {isReadinessMode ? (
+                        <Button
+                          size="sm"
+                          className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                          style={{ background: C.green }}
+                          onClick={() => onApproveScholar(row)}
+                          disabled={approvalLoadingId === row.application_id}
+                        >
+                          {approvalLoadingId === row.application_id ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          Finalize Scholar
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                        style={{ background: C.brownMid }}
+                        onClick={() =>
+                          navigate(`/admin/applications/${row.application_id}/documents`)
+                        }
+                      >
+                        View Documents
+                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -670,6 +846,58 @@ export default function ApplicationReview() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
   const [openings, setOpenings] = useState([]);
+  const [approvalLoadingId, setApprovalLoadingId] = useState('');
+
+  const downloadSlipPdf = async (row) => {
+    if (!row?.endorsement_slip_id) return;
+
+    try {
+      const response = await fetch(buildApiUrl(`/api/endorsement-slips/${row.endorsement_slip_id}/pdf`), {
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseErrorResponse(response, 'Failed to download endorsement slip PDF'));
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${row.endorsement_slip_code || 'endorsement-slip'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || 'Failed to download endorsement slip PDF');
+    }
+  };
+
+  const approveScholar = async (row) => {
+    try {
+      setApprovalLoadingId(row.application_id);
+      const response = await fetch(buildApiUrl(`/api/applications/${row.application_id}/approve`), {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseErrorResponse(response, 'Failed to finalize scholar activation'));
+      }
+
+      await loadData({ soft: true });
+    } catch (err) {
+      alert(err.message || 'Failed to finalize scholar activation');
+    } finally {
+      setApprovalLoadingId('');
+    }
+  };
 
   const loadData = async ({ soft = false } = {}) => {
     try {
@@ -769,8 +997,16 @@ export default function ApplicationReview() {
     registryRows.forEach((row) => {
       if (!row.opening_id) return;
 
-      const current = map.get(row.opening_id) || { applicants: 0 };
+      const current = map.get(row.opening_id) || {
+        applicants: 0,
+        requirementsComplete: 0,
+        endorsementComplete: 0,
+        scholarReady: 0,
+      };
       current.applicants += 1;
+      if (row.requirements_complete) current.requirementsComplete += 1;
+      if (row.endorsement_complete) current.endorsementComplete += 1;
+      if (row.scholar_activation_ready) current.scholarReady += 1;
       map.set(row.opening_id, current);
     });
 
@@ -827,18 +1063,36 @@ export default function ApplicationReview() {
     });
   }, [registryRows, search, filters]);
 
-  const tableTotalPages = Math.max(1, Math.ceil(filteredRegistryRows.length / PAGE_SIZE));
+  const pendingRegistryRows = useMemo(
+    () => filteredRegistryRows.filter((row) => !row.scholar_activation_ready),
+    [filteredRegistryRows]
+  );
+
+  const readinessRows = useMemo(
+    () => filteredRegistryRows.filter((row) => row.scholar_activation_ready),
+    [filteredRegistryRows]
+  );
+
+  const hasNeedsAttention = readinessRows.length > 0;
+
+  const tableTotalPages = Math.max(1, Math.ceil(pendingRegistryRows.length / PAGE_SIZE));
   const cardsTotalPages = Math.max(1, Math.ceil(filteredOpeningCards.length / PAGE_SIZE));
+  const readinessTotalPages = Math.max(1, Math.ceil(readinessRows.length / PAGE_SIZE));
 
   const tablePageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return filteredRegistryRows.slice(start, start + PAGE_SIZE);
-  }, [filteredRegistryRows, page]);
+    return pendingRegistryRows.slice(start, start + PAGE_SIZE);
+  }, [pendingRegistryRows, page]);
 
   const cardsPageData = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     return filteredOpeningCards.slice(start, start + PAGE_SIZE);
   }, [filteredOpeningCards, page]);
+
+  const readinessPageData = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return readinessRows.slice(start, start + PAGE_SIZE);
+  }, [readinessRows, page]);
 
   const applyFilters = () => setFilters(draftFilters);
 
@@ -881,6 +1135,7 @@ export default function ApplicationReview() {
         setSearch={setSearch}
         viewType={viewType}
         setViewType={setViewType}
+        hasNeedsAttention={hasNeedsAttention}
         refreshing={refreshing}
         onRefresh={() => loadData({ soft: true })}
         filters={filters}
@@ -914,7 +1169,37 @@ export default function ApplicationReview() {
             />
           </>
         )
-      ) : filteredRegistryRows.length === 0 ? (
+      ) : viewType === 'action' ? (
+        readinessRows.length === 0 ? (
+        <Card className="rounded-2xl border-stone-200 shadow-none">
+          <CardContent className="py-16 text-center text-sm text-stone-400">
+            No applicants are ready for final scholar handling yet. Once both requirements and endorsement are complete, they will move here automatically.
+          </CardContent>
+        </Card>
+      ) : (
+          <>
+            <ReadinessSummary rows={readinessRows} />
+            <RegistryTable
+              rows={readinessPageData}
+              navigate={navigate}
+              onDownloadSlip={downloadSlipPdf}
+              onApproveScholar={approveScholar}
+              approvalLoadingId={approvalLoadingId}
+              title="Activation Readiness Queue"
+              subtitle="Applicants who completed both requirements and endorsement and are ready for final scholar handling."
+              mode="readiness"
+            />
+
+            <Pagination
+              page={page}
+              totalPages={readinessTotalPages}
+              totalItems={readinessRows.length}
+              onPrev={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => Math.min(readinessTotalPages, p + 1))}
+            />
+          </>
+        )
+      ) : pendingRegistryRows.length === 0 ? (
         <Card className="rounded-2xl border-stone-200 shadow-none">
           <CardContent className="py-16 text-center text-sm text-stone-400">
             No applicants found.
@@ -922,12 +1207,21 @@ export default function ApplicationReview() {
         </Card>
       ) : (
         <>
-          <RegistryTable rows={tablePageData} navigate={navigate} />
+          <RegistryTable
+            rows={tablePageData}
+            navigate={navigate}
+            onDownloadSlip={downloadSlipPdf}
+            onApproveScholar={approveScholar}
+            approvalLoadingId={approvalLoadingId}
+            title="Applicant Registry"
+            subtitle="Applicants still completing requirements or endorsement before moving to readiness."
+            mode="registry"
+          />
 
           <Pagination
             page={page}
             totalPages={tableTotalPages}
-            totalItems={filteredRegistryRows.length}
+            totalItems={pendingRegistryRows.length}
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() => setPage((p) => Math.min(tableTotalPages, p + 1))}
           />

@@ -971,7 +971,10 @@ function RejectDocumentModal({ onClose, onConfirm, saving, activeDocName }) {
   );
 }
 
-function StudentCard({ application }) {
+function StudentCard({ application, onViewSlip }) {
+  const endorsementSlipId = application?.readiness?.endorsement_slip_id || null;
+  const endorsementComplete = application?.readiness?.endorsement_complete === true;
+
   return (
     <Card className="border-stone-200 shadow-none bg-white">
       <div className="p-5">
@@ -998,6 +1001,28 @@ function StudentCard({ application }) {
             </Badge>
           </div>
         </div>
+
+        {endorsementSlipId ? (
+          <div className="mb-4 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400">Endorsement Slip</p>
+                <p className="mt-1 text-sm font-semibold text-stone-800">
+                  {endorsementComplete ? 'Completed and available for review' : 'Available and still in endorsement flow'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-stone-200 text-xs"
+                onClick={onViewSlip}
+              >
+                View Slip
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="space-y-3.5 pt-4 border-t border-stone-100">
           <InfoRow label="Email Address" value={application?.student?.email} />
@@ -1236,25 +1261,25 @@ function VerificationActions({
 
         {!hasAnyUpload && (
           <p className="text-xs text-stone-400">
-            Complete verification is disabled until the required items are available.
+            Requirements review is disabled until the required items are available.
           </p>
         )}
 
         {hasAnyUpload && !hasCompleteRequirements && (
           <p className="text-xs text-orange-600">
-            Complete verification is disabled until all {requiredDocCount} required items are available.
+            Requirements review is disabled until all {requiredDocCount} required items are available.
           </p>
         )}
 
         {hasCompleteRequirements && !allRequiredDocsReviewed && (
           <p className="text-xs text-orange-600">
-            All {requiredDocCount} items are present. Apply admin review actions to each item before completing verification.
+            All {requiredDocCount} items are present. Apply admin review actions to each item before saving requirements completion.
           </p>
         )}
 
         {hasCompleteRequirements && allRequiredDocsReviewed && finalVerificationStatus !== 'verified' && (
           <p className="text-xs text-orange-600">
-            Verification can be completed, but the application will be marked as rejected and can be archived afterward.
+            Requirements review can be completed, but the application will be marked as rejected and can be archived afterward.
           </p>
         )}
 
@@ -1267,18 +1292,18 @@ function VerificationActions({
           {submitting ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving Verification...
+              Saving Requirements Review...
             </>
           ) : !hasAnyUpload ? (
-            'Complete Verification & Next'
+            'Save Requirements Review'
           ) : !hasCompleteRequirements ? (
             `Wait for All ${requiredDocCount} Items`
           ) : !allRequiredDocsReviewed ? (
             'Review All Items First'
           ) : finalVerificationStatus === 'verified' ? (
-            'Complete Verification & Next'
+            'Save Requirements Review'
           ) : (
-            'Save Verification as Rejected'
+            'Save Rejected Requirements Review'
           )}
         </Button>
       </div>
@@ -1409,6 +1434,7 @@ export default function DocumentVerification() {
     () => docs.find((d) => d.id === activeDocId) || docs[0] || null,
     [docs, activeDocId]
   );
+  const endorsementSlipId = application?.readiness?.endorsement_slip_id || null;
 
   const requiredDocCount = REQUIRED_DOCUMENTS.length;
   const requiredDocs = docs.slice(0, requiredDocCount);
@@ -1644,15 +1670,16 @@ export default function DocumentVerification() {
       }
 
       const finalOutcome = data?.data?.final_outcome;
+      const readiness = data?.data?.readiness || {};
 
       alert(
         finalOutcome === 'approved'
-          ? 'Verification completed successfully. The student has been approved and notified.'
-          : finalOutcome === 'waiting'
-            ? 'Verification completed successfully. The student has been moved to the waiting list and notified.'
-            : finalVerificationStatus === 'verified'
-              ? 'Verification completed successfully.'
-              : 'Verification completed. Application marked as rejected and ready for archiving.'
+          ? 'Requirements review saved successfully. The student is now scholar-ready and has been approved.'
+          : finalVerificationStatus === 'verified'
+            ? readiness?.endorsement_complete
+              ? 'Requirements review saved successfully. Scholar activation is waiting for the backend refresh.'
+              : 'Requirements review saved successfully. Endorsement slip completion is still required before scholar activation.'
+            : 'Requirements review completed. Application marked as rejected and ready for archiving.'
       );
 
       navigate('/admin/applications');
@@ -1661,6 +1688,35 @@ export default function DocumentVerification() {
       alert(err.message || 'Failed to complete verification');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDownloadSlipPdf = async () => {
+    if (!endorsementSlipId) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/endorsement-slips/${endorsementSlipId}/pdf`, {
+        headers: {
+          Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || 'Failed to download endorsement slip PDF');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${application?.readiness?.endorsement_slip_code || 'endorsement-slip'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || 'Failed to download endorsement slip PDF');
     }
   };
 
@@ -1729,26 +1785,53 @@ export default function DocumentVerification() {
         </div>
 
         <div className="ml-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchApplicationDocuments({ soft: true })}
-            disabled={refreshing}
-            className="rounded-lg border-stone-200 text-xs"
-          >
-            {refreshing ? (
-              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {endorsementSlipId ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/admin/endorsements/${endorsementSlipId}`)}
+                  className="rounded-lg border-stone-200 text-xs"
+                >
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                  Open Endorsement Slip
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadSlipPdf}
+                  className="rounded-lg border-stone-200 text-xs"
+                >
+                  <FileText className="mr-1.5 h-3.5 w-3.5" />
+                  Download Slip PDF
+                </Button>
+              </>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchApplicationDocuments({ soft: true })}
+              disabled={refreshing}
+              className="rounded-lg border-stone-200 text-xs"
+            >
+              {refreshing ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="lg:col-span-2 space-y-4">
-          <StudentCard application={application} />
+          <StudentCard
+            application={application}
+            onViewSlip={() => navigate(`/admin/endorsements/${endorsementSlipId}`)}
+          />
 
           <ChecklistCard
             docs={docs}

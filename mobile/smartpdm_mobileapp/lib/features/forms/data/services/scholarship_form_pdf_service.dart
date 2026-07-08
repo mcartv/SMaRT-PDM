@@ -23,9 +23,14 @@ class ScholarshipFormPdfService {
   Future<File> generateFromSavedApplication(
     SavedApplicationPrintModel model,
   ) async {
-    final templateBytes = await rootBundle.load(
-      'assets/files/scholarship_app_form.pdf',
-    );
+    ByteData templateBytes;
+    try {
+      templateBytes = await rootBundle.load(
+        'assets/files/scholarship_app_form.pdf',
+      );
+    } catch (e) {
+      return _generateFallbackPdf(model);
+    }
 
     final document = PdfDocument(
       inputBytes: templateBytes.buffer.asUint8List(),
@@ -74,9 +79,17 @@ class ScholarshipFormPdfService {
     void drawMultiLine(String value, Rect bounds, {PdfFont? textFont}) {
       final clean = value.trim();
       if (clean.isEmpty) return;
+      
+      PdfFont currentFont = textFont ?? smallFont;
+      if (clean.length > 800) {
+        currentFont = PdfStandardFont(PdfFontFamily.helvetica, 5.5);
+      } else if (clean.length > 500) {
+        currentFont = PdfStandardFont(PdfFontFamily.helvetica, 6);
+      }
+      
       page.graphics.drawString(
         clean,
-        textFont ?? smallFont,
+        currentFont,
         bounds: bounds,
         format: PdfStringFormat(
           lineAlignment: PdfVerticalAlignment.top,
@@ -321,6 +334,7 @@ class ScholarshipFormPdfService {
       textFont: smallFont,
     );
     drawText(model.currentCourse, r(1275, 2104, 320, 55), textFont: smallFont);
+    drawText(model.gwa, r(1600, 2104, 80, 55), textFont: smallFont);
 
     drawCheck(model.supportParents, r(1695, 2110, 20, 20));
     drawCheck(model.supportScholarship, r(1880, 2110, 20, 20));
@@ -400,5 +414,23 @@ class ScholarshipFormPdfService {
         'Printable PDF was created at ${file.path}, but automatic opening is not available on this device.',
       );
     }
+  }
+
+  Future<File> _generateFallbackPdf(SavedApplicationPrintModel model) async {
+    final document = PdfDocument();
+    final page = document.pages.add();
+    final font = PdfStandardFont(PdfFontFamily.helvetica, 12);
+    final boldFont = PdfStandardFont(PdfFontFamily.helvetica, 14, style: PdfFontStyle.bold);
+    
+    page.graphics.drawString('Scholarship Application (Fallback)', boldFont, bounds: const Rect.fromLTWH(0, 0, 500, 30));
+    page.graphics.drawString('Name: ${model.firstName} ${model.lastName}\nCourse: ${model.currentCourse}\nGWA: ${model.gwa}\nStudent ID: ${model.studentNumber}\nEmail: ${model.email}\nMobile: ${model.mobileNumber}\n\nSelf Description:\n${model.selfDescription}\n\nAims and Ambitions:\n${model.aimsAndAmbitions}', font, bounds: const Rect.fromLTWH(0, 40, 500, 700), format: PdfStringFormat(wordWrap: PdfWordWrapType.word));
+    
+    final bytes = Uint8List.fromList(document.saveSync());
+    document.dispose();
+
+    final dir = await _resolveOutputDirectory();
+    final file = File('${dir.path}/fallback_scholarship_form.pdf');
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
   }
 }

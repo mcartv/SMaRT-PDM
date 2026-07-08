@@ -272,8 +272,6 @@ class _StepAcademicState extends State<StepAcademic> {
           ? widget.data.studentNumber
           : widget.data.accountStudentId,
     );
-    gwaController = TextEditingController(text: widget.data.gwa);
-
     selectedCourse = courseOptions.contains(widget.data.currentCourse)
         ? widget.data.currentCourse
         : null;

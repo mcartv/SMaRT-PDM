@@ -1,4 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
@@ -31,6 +35,28 @@ class _SuccessScreenState extends State<SuccessScreen> {
     return null;
   }
 
+  Future<bool> _requestStoragePermission() async {
+    if (Platform.isIOS) return true;
+    
+    // For Android 11+ (API 30+)
+    if (await Permission.manageExternalStorage.isRestricted) {
+      // Manage external storage is not restricted on older OS, but needed for new ones
+    }
+    
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
+    }
+    
+    // If storage is permanently denied on Android 11+, we might need manageExternalStorage
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      var manageStatus = await Permission.manageExternalStorage.request();
+      return manageStatus.isGranted;
+    }
+    
+    return status.isGranted;
+  }
+
   Future<void> _handleGeneratePdf({
     required String applicationId,
     required Map<String, dynamic>? submissionPayload,
@@ -38,19 +64,70 @@ class _SuccessScreenState extends State<SuccessScreen> {
     setState(() => _isGeneratingPdf = true);
 
     try {
+      if (!await _requestStoragePermission()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Storage permission required to save PDF'))
+        );
+        return;
+      }
+
+      File generatedFile;
       if (submissionPayload != null) {
-        await _printableApplicationService.generateOpenFromSubmissionPayload(
+        generatedFile = await _printableApplicationService.generateFromSubmissionPayload(
           submissionPayload,
         );
       } else {
-        await _printableApplicationService.generateOpenFromApplicationId(
+        generatedFile = await _printableApplicationService.generateFromApplicationId(
           applicationId,
         );
       }
+
+      final safeAppId = applicationId.isNotEmpty ? applicationId : 'Guest';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      String fileName = 'Scholarship_Application_${safeAppId}_$timestamp.pdf';
+      
+      Directory? directory;
+      if (Platform.isAndroid) {
+        final dirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+        directory = (dirs != null && dirs.isNotEmpty) ? dirs.first : await getExternalStorageDirectory();
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+      
+      final exportFile = File('${directory!.path}/$fileName');
+      await generatedFile.copy(exportFile.path);
+      
+      // Cleanup temporary file
+      if (generatedFile.existsSync()) {
+        await generatedFile.delete();
+      }
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Export Complete'),
+          content: const Text('Application form saved to your downloads folder.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await Share.shareXFiles([XFile(exportFile.path)],
+                    text: 'SMaRT-PDM Scholarship Application');
+              },
+              child: const Text('Share'),
+            ),
+          ],
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to generate printable PDF: $error')),
+        SnackBar(content: Text('Failed to export PDF: $error')),
       );
     } finally {
       if (mounted) {

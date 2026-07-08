@@ -42,9 +42,6 @@ class SmartPdmBottomNav extends StatelessWidget {
     final navTheme = theme.bottomNavigationBarTheme;
     final backgroundColor =
         navTheme.backgroundColor ?? theme.colorScheme.surface;
-    final selectedLabelColor = isDark
-        ? Colors.white
-        : theme.colorScheme.onSurface;
     final unselectedItemColor =
         navTheme.unselectedItemColor ??
         (isDark ? Colors.white70 : _lightInactiveColor);
@@ -60,23 +57,21 @@ class SmartPdmBottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         currentIndex: safeIndex,
         enableFeedback: false,
-        elevation: 0,
+        elevation: 12,
         backgroundColor: backgroundColor,
-        selectedItemColor: selectedLabelColor,
+        selectedItemColor: _selectedIconColor,
         unselectedItemColor: unselectedItemColor,
         showSelectedLabels: true,
         showUnselectedLabels: true,
-        selectedLabelStyle: TextStyle(
-          fontWeight: FontWeight.w900,
-          color: selectedLabelColor,
-          fontSize: 11,
-          height: 1,
-        ),
-        unselectedLabelStyle: TextStyle(
+        selectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w800,
-          color: unselectedItemColor,
           fontSize: 11,
-          height: 1,
+          height: 1.1,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+          height: 1.1,
         ),
         onTap: (index) {
           if (index == safeIndex) return;
@@ -115,8 +110,8 @@ class SmartPdmBottomNav extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final unselectedItemColor = isDark ? Colors.white70 : _lightInactiveColor;
     final selectedIconBackground = isDark
-        ? AppColors.gold.withOpacity(0.20)
-        : AppColors.gold.withOpacity(0.18);
+        ? AppColors.gold.withValues(alpha: 0.20)
+        : AppColors.gold.withValues(alpha: 0.18);
     final iconWidget = Icon(
       icon,
       color: isSelected ? _selectedIconColor : unselectedItemColor,
@@ -125,7 +120,7 @@ class SmartPdmBottomNav extends StatelessWidget {
 
     final content = isSelected
         ? Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: selectedIconBackground,
               borderRadius: const BorderRadius.all(Radius.circular(999)),

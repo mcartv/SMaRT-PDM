@@ -189,7 +189,6 @@ class _StepAcademicState extends State<StepAcademic> {
     return null;
   }
 
-
   String? _otherSupportError() {
     if (!widget.showErrors) return null;
     if (selectedFinancialSupport != 'Other') return null;

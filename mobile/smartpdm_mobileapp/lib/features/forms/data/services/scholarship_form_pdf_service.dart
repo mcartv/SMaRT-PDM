@@ -37,24 +37,41 @@ class ScholarshipFormPdfService {
     );
 
     final page = document.pages[0];
-    final font = PdfStandardFont(PdfFontFamily.helvetica, 8);
-    final smallFont = PdfStandardFont(PdfFontFamily.helvetica, 7);
-    final boldFont = PdfStandardFont(
+
+    // Blue ink – matches the "blue ink" instruction on the form.
+    // The heading "OFFICE FOR SCHOLARSHIP AND FINANCIAL ASSISTANCE" renders
+    // at ~9.5 pt on a 612-pt wide page, so we match that size here.
+    final blueColor = PdfColor(0, 70, 180);
+    final font      = PdfStandardFont(PdfFontFamily.helvetica, 9.5);
+    final smallFont = PdfStandardFont(PdfFontFamily.helvetica, 8.5);
+    final boldFont  = PdfStandardFont(
       PdfFontFamily.helvetica,
-      8,
+      9.5,
       style: PdfFontStyle.bold,
     );
+    final brush = PdfSolidBrush(blueColor);
 
-    final pageWidth = page.size.width;
+    final pageWidth  = page.size.width;
     final pageHeight = page.size.height;
 
     Rect r(double x, double y, double w, double h) {
       return Rect.fromLTWH(
-        x * pageWidth / _imageWidth,
+        x * pageWidth  / _imageWidth,
         y * pageHeight / _imageHeight,
-        w * pageWidth / _imageWidth,
+        w * pageWidth  / _imageWidth,
         h * pageHeight / _imageHeight,
       );
+    }
+
+    // Format a MM/DD/YYYY date string into spaced digits "MM DD YYYY"
+    // so each character lands in its own box on the form.
+    String formatDob(String raw) {
+      // Strip any slashes or dashes and keep only digits
+      final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.length != 8) return raw; // fallback if unexpected format
+      // MM  DD  YYYY with a space between each digit pair group
+      return '${digits[0]} ${digits[1]}  ${digits[2]} ${digits[3]}  '
+             '${digits[4]} ${digits[5]} ${digits[6]} ${digits[7]}';
     }
 
     void drawText(
@@ -68,6 +85,7 @@ class ScholarshipFormPdfService {
       page.graphics.drawString(
         clean,
         textFont ?? font,
+        brush: brush,
         bounds: bounds,
         format: PdfStringFormat(
           alignment: align,
@@ -79,17 +97,18 @@ class ScholarshipFormPdfService {
     void drawMultiLine(String value, Rect bounds, {PdfFont? textFont}) {
       final clean = value.trim();
       if (clean.isEmpty) return;
-      
+
       PdfFont currentFont = textFont ?? smallFont;
       if (clean.length > 800) {
-        currentFont = PdfStandardFont(PdfFontFamily.helvetica, 5.5);
+        currentFont = PdfStandardFont(PdfFontFamily.helvetica, 7.0);
       } else if (clean.length > 500) {
-        currentFont = PdfStandardFont(PdfFontFamily.helvetica, 6);
+        currentFont = PdfStandardFont(PdfFontFamily.helvetica, 7.5);
       }
-      
+
       page.graphics.drawString(
         clean,
         currentFont,
+        brush: brush,
         bounds: bounds,
         format: PdfStringFormat(
           lineAlignment: PdfVerticalAlignment.top,
@@ -103,6 +122,7 @@ class ScholarshipFormPdfService {
       page.graphics.drawString(
         'X',
         boldFont,
+        brush: brush,
         bounds: bounds,
         format: PdfStringFormat(
           alignment: PdfTextAlignment.center,
@@ -111,280 +131,166 @@ class ScholarshipFormPdfService {
       );
     }
 
-    drawText(model.lastName, r(85, 705, 350, 65));
-    drawText(model.firstName, r(445, 705, 560, 65));
-    drawText(model.middleName, r(1045, 705, 500, 65));
-    drawText(model.maidenName, r(1575, 705, 450, 65));
+    // ── I. PERSONAL DATA ──────────────────────────────────────────────
+    // Labels at Y≈832. Value entry area is below labels at Y≈870.
+    // Column X positions from template: LastName=99, FirstName=696, MiddleName=1343, MaidenName=1889
+    drawText(model.lastName, r(99, 865, 590, 55));
+    drawText(model.firstName, r(696, 865, 640, 55));
+    drawText(model.middleName, r(1343, 865, 540, 55));
+    drawText(model.maidenName, r(1889, 865, 520, 55));
 
-    drawText(model.age, r(85, 800, 140, 55));
-    drawText(model.dateOfBirth, r(245, 800, 340, 55));
-    drawText(model.placeOfBirth, r(605, 800, 620, 55));
-    drawText(model.citizenship, r(1245, 800, 250, 55));
-    drawText(model.religion, r(1505, 800, 410, 55));
-    drawText(model.civilStatus, r(1930, 800, 235, 55));
-    drawText(model.sex, r(2180, 800, 225, 55));
+    // Row 2: Labels at Y≈935. Value area at Y≈970.
+    // Age=99, DOB=253, PlaceOfBirth=696, Citizenship=1343, CivilStatus=1606, Religion=1889, Sex=2247
+    drawText(model.age, r(99, 970, 150, 55));
+    // DOB: 8 individual boxes on the form (MM-DD-YYYY).
+    // We strip slashes and space the digits to land one-per-box.
+    drawText(formatDob(model.dateOfBirth), r(253, 970, 420, 55));
+    drawText(model.placeOfBirth, r(696, 970, 640, 55));
+    drawText(model.citizenship, r(1343, 970, 255, 55));
+    drawText(model.civilStatus, r(1606, 970, 275, 55));
+    drawText(model.religion, r(1889, 970, 350, 55));
+    drawText(model.sex, r(2247, 970, 210, 55));
 
-    drawText(model.houseLotBlockNo, r(85, 895, 235, 55));
-    drawText(model.phase, r(330, 895, 160, 55));
-    drawText(model.street, r(500, 895, 395, 55), textFont: smallFont);
-    drawText(model.subdivision, r(905, 895, 350, 55), textFont: smallFont);
-    drawText(model.barangay, r(1265, 895, 330, 55), textFont: smallFont);
-    drawText(model.city, r(1605, 895, 305, 55));
-    drawText(model.province, r(1920, 895, 290, 55));
-    drawText(model.zipCode, r(2220, 895, 185, 55));
+    // ── PERMANENT ADDRESS ────────────────────────────────────────────
+    // Labels at Y≈1049. Value area at Y≈1085.
+    drawText(model.houseLotBlockNo, r(99, 1085, 310, 45));
+    drawText(model.phase, r(420, 1085, 270, 45));
+    drawText(model.street, r(696, 1085, 255, 45), textFont: smallFont);
+    drawText(model.subdivision, r(958, 1085, 380, 45), textFont: smallFont);
+    drawText(model.barangay, r(1343, 1085, 255, 45), textFont: smallFont);
+    drawText(model.city, r(1606, 1085, 275, 45));
+    drawText(model.province, r(1889, 1085, 350, 45));
+    drawText(model.zipCode, r(2247, 1085, 210, 45));
 
-    drawText(model.landlineNumber, r(820, 990, 360, 55));
-    drawText(model.mobileNumber, r(1190, 990, 520, 55));
-    drawText(model.email, r(1725, 990, 690, 55), textFont: smallFont);
+    // ── CONTACT INFORMATION ──────────────────────────────────────────
+    // Labels at Y≈1138. Value area at Y≈1170.
+    drawText(model.landlineNumber, r(696, 1170, 640, 45));
+    drawText(model.mobileNumber, r(1343, 1170, 540, 45));
+    drawText(model.email, r(1889, 1170, 520, 45), textFont: smallFont);
 
-    drawMultiLine(model.parentGuardianAddress, r(85, 1128, 395, 240));
+    // ── II. FAMILY DATA ──────────────────────────────────────────────
+    // "Address of Parents/Guardian" label at Y≈1275. Content area below.
+    drawMultiLine(model.parentGuardianAddress, r(99, 1310, 440, 200));
 
-    drawText(model.fatherLastName, r(505, 1140, 440, 42), textFont: smallFont);
-    drawText(model.fatherFirstName, r(505, 1182, 440, 42), textFont: smallFont);
-    drawText(
-      model.fatherMiddleName,
-      r(505, 1224, 440, 42),
-      textFont: smallFont,
-    );
-    drawText(model.fatherMobile, r(505, 1266, 440, 42), textFont: smallFont);
+    // Family name sub-rows: label text like "Last Name___" is at the given Y.
+    // The value goes AFTER the label text, so X is shifted right past the label width.
+    // Father col labels at X=547, label width ~190 → values at X≈740
+    // Mother col labels at X=1015, label width ~190 → values at X≈1205  
+    // Sibling col labels at X=1501, label width ~190 → values at X≈1695
+    // Guardian col labels at X=1989, label width ~190 → values at X≈2180
+    // Row Ys: LastName=1304, FirstName=1347, MiddleName=1390, Mobile=1434
+    drawText(model.fatherLastName, r(740, 1304, 270, 40), textFont: smallFont);
+    drawText(model.fatherFirstName, r(740, 1347, 270, 40), textFont: smallFont);
+    drawText(model.fatherMiddleName, r(740, 1390, 270, 40), textFont: smallFont);
+    drawText(model.fatherMobile, r(700, 1434, 310, 40), textFont: smallFont);
 
-    drawText(model.motherLastName, r(960, 1140, 440, 42), textFont: smallFont);
-    drawText(model.motherFirstName, r(960, 1182, 440, 42), textFont: smallFont);
-    drawText(
-      model.motherMiddleName,
-      r(960, 1224, 440, 42),
-      textFont: smallFont,
-    );
-    drawText(model.motherMobile, r(960, 1266, 440, 42), textFont: smallFont);
+    drawText(model.motherLastName, r(1205, 1304, 290, 40), textFont: smallFont);
+    drawText(model.motherFirstName, r(1205, 1347, 290, 40), textFont: smallFont);
+    drawText(model.motherMiddleName, r(1205, 1390, 290, 40), textFont: smallFont);
+    drawText(model.motherMobile, r(1165, 1434, 330, 40), textFont: smallFont);
 
-    drawText(
-      model.siblingLastName,
-      r(1415, 1140, 440, 42),
-      textFont: smallFont,
-    );
-    drawText(
-      model.siblingFirstName,
-      r(1415, 1182, 440, 42),
-      textFont: smallFont,
-    );
-    drawText(
-      model.siblingMiddleName,
-      r(1415, 1224, 440, 42),
-      textFont: smallFont,
-    );
-    drawText(model.siblingMobile, r(1415, 1266, 440, 42), textFont: smallFont);
+    drawText(model.siblingLastName, r(1695, 1304, 290, 40), textFont: smallFont);
+    drawText(model.siblingFirstName, r(1695, 1347, 290, 40), textFont: smallFont);
+    drawText(model.siblingMiddleName, r(1695, 1390, 290, 40), textFont: smallFont);
+    drawText(model.siblingMobile, r(1655, 1434, 330, 40), textFont: smallFont);
 
-    drawText(
-      model.guardianLastName,
-      r(1870, 1140, 500, 42),
-      textFont: smallFont,
-    );
-    drawText(
-      model.guardianFirstName,
-      r(1870, 1182, 500, 42),
-      textFont: smallFont,
-    );
-    drawText(
-      model.guardianMiddleName,
-      r(1870, 1224, 500, 42),
-      textFont: smallFont,
-    );
-    drawText(model.guardianMobile, r(1870, 1266, 500, 42), textFont: smallFont);
+    drawText(model.guardianLastName, r(2180, 1304, 230, 40), textFont: smallFont);
+    drawText(model.guardianFirstName, r(2180, 1347, 230, 40), textFont: smallFont);
+    drawText(model.guardianMiddleName, r(2180, 1390, 230, 40), textFont: smallFont);
+    drawText(model.guardianMobile, r(2140, 1434, 270, 40), textFont: smallFont);
 
-    drawText(
-      model.fatherEducationalAttainment,
-      r(505, 1368, 440, 60),
-      textFont: smallFont,
-    );
-    drawText(
-      model.motherEducationalAttainment,
-      r(960, 1368, 440, 60),
-      textFont: smallFont,
-    );
-    drawText(
-      model.guardianEducationalAttainment,
-      r(1870, 1368, 500, 60),
-      textFont: smallFont,
-    );
+    // HIGHEST EDUCATIONAL ATTAINMENT – label at Y≈1478. Value area at Y≈1520.
+    drawText(model.fatherEducationalAttainment, r(547, 1510, 460, 60), textFont: smallFont);
+    drawText(model.motherEducationalAttainment, r(1015, 1510, 480, 60), textFont: smallFont);
+    drawText(model.guardianEducationalAttainment, r(1989, 1510, 420, 60), textFont: smallFont);
 
-    drawText(
-      model.fatherOccupation,
-      r(505, 1460, 440, 60),
-      textFont: smallFont,
-    );
-    drawText(
-      model.motherOccupation,
-      r(960, 1460, 440, 60),
-      textFont: smallFont,
-    );
-    drawText(
-      model.guardianOccupation,
-      r(1870, 1460, 500, 60),
-      textFont: smallFont,
-    );
+    // OCCUPATION – label at Y≈1590. Value area at Y≈1600.
+    drawText(model.fatherOccupation, r(547, 1600, 460, 55), textFont: smallFont);
+    drawText(model.motherOccupation, r(1015, 1600, 480, 55), textFont: smallFont);
+    drawText(model.guardianOccupation, r(1989, 1600, 420, 55), textFont: smallFont);
 
-    drawMultiLine(
-      model.fatherCompanyNameAddress,
-      r(505, 1548, 440, 95),
-      textFont: smallFont,
-    );
-    drawMultiLine(
-      model.motherCompanyNameAddress,
-      r(960, 1548, 440, 95),
-      textFont: smallFont,
-    );
-    drawMultiLine(
-      model.guardianCompanyNameAddress,
-      r(1870, 1548, 500, 95),
-      textFont: smallFont,
-    );
+    // COMPANY NAME/ADDRESS – label at Y≈1669. Value area at Y≈1700.
+    drawMultiLine(model.fatherCompanyNameAddress, r(547, 1700, 460, 80), textFont: smallFont);
+    drawMultiLine(model.motherCompanyNameAddress, r(1015, 1700, 480, 80), textFont: smallFont);
+    drawMultiLine(model.guardianCompanyNameAddress, r(1989, 1700, 420, 80), textFont: smallFont);
 
-    drawCheck(model.isFatherOnlyNative, r(1040, 1668, 24, 24));
-    drawCheck(model.isMotherOnlyNative, r(1255, 1668, 24, 24));
-    drawCheck(model.isBothParentsNative, r(1440, 1668, 24, 24));
-    drawCheck(model.isNotNative, r(1728, 1668, 24, 24));
-    drawText(model.yearsResident, r(1880, 1656, 355, 36), textFont: smallFont);
-    drawText(model.originProvince, r(1760, 1694, 655, 36), textFont: smallFont);
+    // ── Native of Marilao? ───────────────────────────────────────────
+    // "Yes, father only" etc. on line Y≈1736. Checkboxes inline.
+    // "If NO" line at Y≈1780.
+    drawCheck(model.isFatherOnlyNative, r(578, 1742, 20, 20));
+    drawCheck(model.isMotherOnlyNative, r(818, 1742, 20, 20));
+    drawCheck(model.isBothParentsNative, r(1058, 1742, 20, 20));
+    drawCheck(model.isNotNative, r(1250, 1742, 20, 20));
+    drawText(model.yearsResident, r(2100, 1736, 310, 40), textFont: smallFont);
+    drawText(model.originProvince, r(2050, 1775, 360, 40), textFont: smallFont);
 
-    drawText(model.collegeSchool, r(170, 1818, 505, 58), textFont: smallFont);
-    drawText(model.collegeAddress, r(680, 1818, 520, 58), textFont: smallFont);
-    drawText(model.collegeHonors, r(1205, 1818, 470, 58), textFont: smallFont);
-    drawText(model.collegeClub, r(1680, 1818, 445, 58), textFont: smallFont);
-    drawText(
-      model.collegeYearGraduated,
-      r(2130, 1818, 250, 58),
-      textFont: smallFont,
-    );
+    // ── III. ACADEMIC INFORMATION ────────────────────────────────────
+    // Header row labels at Y≈1870. Data rows below.
+    // Column Xs: School=599, Address=1055, Honors=1399, Club=1866, YearGrad=2208
+    // COLLEGE label at Y≈1918
+    drawText(model.collegeSchool, r(420, 1918, 500, 50), textFont: smallFont);
+    drawText(model.collegeAddress, r(958, 1918, 435, 50), textFont: smallFont);
+    drawText(model.collegeHonors, r(1399, 1918, 460, 50), textFont: smallFont);
+    drawText(model.collegeClub, r(1866, 1918, 335, 50), textFont: smallFont);
+    drawText(model.collegeYearGraduated, r(2208, 1918, 250, 50), textFont: smallFont);
 
-    drawText(
-      model.highSchoolSchool,
-      r(170, 1888, 505, 58),
-      textFont: smallFont,
-    );
-    drawText(
-      model.highSchoolAddress,
-      r(680, 1888, 520, 58),
-      textFont: smallFont,
-    );
-    drawText(
-      model.highSchoolHonors,
-      r(1205, 1888, 470, 58),
-      textFont: smallFont,
-    );
-    drawText(model.highSchoolClub, r(1680, 1888, 445, 58), textFont: smallFont);
-    drawText(
-      model.highSchoolYearGraduated,
-      r(2130, 1888, 250, 58),
-      textFont: smallFont,
-    );
+    // HIGH SCHOOL label at Y≈1985
+    drawText(model.highSchoolSchool, r(420, 1985, 500, 50), textFont: smallFont);
+    drawText(model.highSchoolAddress, r(958, 1985, 435, 50), textFont: smallFont);
+    drawText(model.highSchoolHonors, r(1399, 1985, 460, 50), textFont: smallFont);
+    drawText(model.highSchoolClub, r(1866, 1985, 335, 50), textFont: smallFont);
+    drawText(model.highSchoolYearGraduated, r(2208, 1985, 250, 50), textFont: smallFont);
 
-    drawText(
-      model.seniorHighSchool,
-      r(170, 1958, 505, 58),
-      textFont: smallFont,
-    );
-    drawText(
-      model.seniorHighAddress,
-      r(680, 1958, 520, 58),
-      textFont: smallFont,
-    );
-    drawText(
-      model.seniorHighHonors,
-      r(1205, 1958, 470, 58),
-      textFont: smallFont,
-    );
-    drawText(model.seniorHighClub, r(1680, 1958, 445, 58), textFont: smallFont);
-    drawText(
-      model.seniorHighYearGraduated,
-      r(2130, 1958, 250, 58),
-      textFont: smallFont,
-    );
+    // SENIOR HIGH SCHOOL label at Y≈2054
+    drawText(model.seniorHighSchool, r(420, 2054, 500, 50), textFont: smallFont);
+    drawText(model.seniorHighAddress, r(958, 2054, 435, 50), textFont: smallFont);
+    drawText(model.seniorHighHonors, r(1399, 2054, 460, 50), textFont: smallFont);
+    drawText(model.seniorHighClub, r(1866, 2054, 335, 50), textFont: smallFont);
+    drawText(model.seniorHighYearGraduated, r(2208, 2054, 250, 50), textFont: smallFont);
 
-    drawText(
-      model.elementarySchool,
-      r(170, 2028, 505, 58),
-      textFont: smallFont,
-    );
-    drawText(
-      model.elementaryAddress,
-      r(680, 2028, 520, 58),
-      textFont: smallFont,
-    );
-    drawText(
-      model.elementaryHonors,
-      r(1205, 2028, 470, 58),
-      textFont: smallFont,
-    );
-    drawText(model.elementaryClub, r(1680, 2028, 445, 58), textFont: smallFont);
-    drawText(
-      model.elementaryYearGraduated,
-      r(2130, 2028, 250, 58),
-      textFont: smallFont,
-    );
+    // ELEMENTARY label at Y≈2121
+    drawText(model.elementarySchool, r(420, 2121, 500, 50), textFont: smallFont);
+    drawText(model.elementaryAddress, r(958, 2121, 435, 50), textFont: smallFont);
+    drawText(model.elementaryHonors, r(1399, 2121, 460, 50), textFont: smallFont);
+    drawText(model.elementaryClub, r(1866, 2121, 335, 50), textFont: smallFont);
+    drawText(model.elementaryYearGraduated, r(2208, 2121, 250, 50), textFont: smallFont);
 
-    drawText(
-      model.currentYearSection,
-      r(170, 2104, 330, 55),
-      textFont: smallFont,
-    );
-    drawText(model.studentNumber, r(505, 2104, 330, 55), textFont: smallFont);
-    drawText(
-      model.learnersReferenceNumber,
-      r(840, 2104, 430, 55),
-      textFont: smallFont,
-    );
-    drawText(model.currentCourse, r(1275, 2104, 320, 55), textFont: smallFont);
-    drawText(model.gwa, r(1600, 2104, 80, 55), textFont: smallFont);
+    // ── Course/Year Level/Section row at Y≈2180 ─────────────────────
+    drawText(model.currentYearSection, r(99, 2180, 335, 50), textFont: smallFont);
+    drawText(model.studentNumber, r(438, 2180, 465, 50), textFont: smallFont);
+    drawText(model.learnersReferenceNumber, r(907, 2180, 460, 50), textFont: smallFont);
 
-    drawCheck(model.supportParents, r(1695, 2110, 20, 20));
-    drawCheck(model.supportScholarship, r(1880, 2110, 20, 20));
-    drawCheck(model.supportLoan, r(2055, 2110, 20, 20));
-    drawCheck(model.supportOther, r(2215, 2110, 20, 20));
-    drawText(
-      model.financialSupportOther,
-      r(2260, 2104, 155, 55),
-      textFont: smallFont,
-    );
+    // Financial Support: label at X≈1372, checkboxes inline
+    // "Parents" ~X=1570, "Scholarship" ~X=1730, "Loan" ~X=1920, "Other" ~X=2100
+    drawCheck(model.supportParents, r(1555, 2185, 20, 20));
+    drawCheck(model.supportScholarship, r(1730, 2185, 20, 20));
+    drawCheck(model.supportLoan, r(1920, 2185, 20, 20));
+    drawCheck(model.supportOther, r(2120, 2185, 20, 20));
+    drawText(model.financialSupportOther, r(2260, 2180, 150, 50), textFont: smallFont);
 
-    drawCheck(model.hadScholarship, r(220, 2185, 20, 20));
-    drawCheck(model.noScholarshipHistory, r(360, 2185, 20, 20));
-    drawMultiLine(
-      model.scholarshipDetails,
-      r(1290, 2168, 1120, 58),
-      textFont: smallFont,
-    );
+    // ── Scholarship history – label row at Y≈2270 ────────────────────
+    // "Yes" checkbox ~X=157, "No" ~X=305
+    drawCheck(model.hadScholarship, r(157, 2318, 20, 20));
+    drawCheck(model.noScholarshipHistory, r(305, 2318, 20, 20));
+    drawMultiLine(model.scholarshipDetails, r(1293, 2270, 1120, 80), textFont: smallFont);
 
-    drawCheck(model.hasDisciplinaryRecord, r(220, 2248, 20, 20));
-    drawCheck(model.noDisciplinaryRecord, r(360, 2248, 20, 20));
-    drawMultiLine(
-      model.disciplinaryDetails,
-      r(1290, 2232, 1120, 58),
-      textFont: smallFont,
-    );
+    // ── Disciplinary record – label row at Y≈2362 ───────────────────
+    drawCheck(model.hasDisciplinaryRecord, r(157, 2406, 20, 20));
+    drawCheck(model.noDisciplinaryRecord, r(305, 2406, 20, 20));
+    drawMultiLine(model.disciplinaryDetails, r(1295, 2358, 1120, 55), textFont: smallFont);
 
-    drawMultiLine(
-      model.selfDescription,
-      r(90, 2328, 2320, 180),
-      textFont: smallFont,
-    );
-    drawMultiLine(
-      model.aimsAndAmbitions,
-      r(90, 2550, 2320, 170),
-      textFont: smallFont,
-    );
+    // ── Essays ───────────────────────────────────────────────────────
+    // "Write a short essay..." label at Y≈2448. Content area below.
+    drawMultiLine(model.selfDescription, r(99, 2490, 2310, 120), textFont: smallFont);
+    // "State briefly..." label at Y≈2622. Content area below.
+    drawMultiLine(model.aimsAndAmbitions, r(99, 2665, 2310, 130), textFont: smallFont);
 
-    drawText(
-      model.applicantPrintedName,
-      r(225, 2915, 600, 55),
-      textFont: smallFont,
-    );
-    drawText(model.printedDate, r(1085, 2915, 160, 55), textFont: smallFont);
-    drawText(
-      model.parentGuardianPrintedName,
-      r(1365, 2915, 700, 55),
-      textFont: smallFont,
-    );
-    drawText(model.printedDate, r(2310, 2915, 120, 55), textFont: smallFont);
+    // ── Signatures ───────────────────────────────────────────────────
+    // "SIGNATURE OVER PRINTED NAME" label at Y≈2949. Name goes ABOVE at ~Y=2905.
+    drawText(model.applicantPrintedName, r(167, 2905, 660, 40), textFont: smallFont);
+    drawText(model.printedDate, r(1027, 2905, 180, 40), textFont: smallFont);
+    drawText(model.parentGuardianPrintedName, r(1286, 2905, 775, 40), textFont: smallFont);
+    drawText(model.printedDate, r(2257, 2905, 150, 40), textFont: smallFont);
 
     final bytes = Uint8List.fromList(document.saveSync());
     document.dispose();

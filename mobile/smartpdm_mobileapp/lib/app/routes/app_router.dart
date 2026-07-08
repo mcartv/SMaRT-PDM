@@ -95,8 +95,8 @@ class AppRouter {
       case AppRoutes.application:
         return _buildProtectedRoute(
           settings,
-          (_) => const ApplicantAccessGate(
-            child: _PlaceholderScreen(title: 'Application'),
+          (context) => ApplicantAccessGate(
+            child: _buildNewApplicantScreen(context, settings),
           ),
         );
 

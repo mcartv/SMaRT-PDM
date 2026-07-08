@@ -35,28 +35,6 @@ class _SuccessScreenState extends State<SuccessScreen> {
     return null;
   }
 
-  Future<bool> _requestStoragePermission() async {
-    if (Platform.isIOS) return true;
-    
-    // For Android 11+ (API 30+)
-    if (await Permission.manageExternalStorage.isRestricted) {
-      // Manage external storage is not restricted on older OS, but needed for new ones
-    }
-    
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      status = await Permission.storage.request();
-    }
-    
-    // If storage is permanently denied on Android 11+, we might need manageExternalStorage
-    if (status.isPermanentlyDenied || status.isRestricted) {
-      var manageStatus = await Permission.manageExternalStorage.request();
-      return manageStatus.isGranted;
-    }
-    
-    return status.isGranted;
-  }
-
   Future<void> _handleGeneratePdf({
     required String applicationId,
     required Map<String, dynamic>? submissionPayload,
@@ -64,14 +42,6 @@ class _SuccessScreenState extends State<SuccessScreen> {
     setState(() => _isGeneratingPdf = true);
 
     try {
-      if (!await _requestStoragePermission()) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Storage permission required to save PDF'))
-        );
-        return;
-      }
-
       File generatedFile;
       if (submissionPayload != null) {
         debugPrint('Generating PDF from raw submission payload...');
@@ -90,15 +60,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       String fileName = 'Scholarship_Application_${safeAppId}_$timestamp.pdf';
       
-      Directory? directory;
-      if (Platform.isAndroid) {
-        final dirs = await getExternalStorageDirectories(type: StorageDirectory.downloads);
-        directory = (dirs != null && dirs.isNotEmpty) ? dirs.first : await getExternalStorageDirectory();
-      } else {
-        directory = await getApplicationDocumentsDirectory();
-      }
+      final directory = await getApplicationDocumentsDirectory();
       
-      final exportFile = File('${directory!.path}/$fileName');
+      final exportFile = File('${directory.path}/$fileName');
       await generatedFile.copy(exportFile.path);
       
       // Cleanup temporary file
@@ -132,15 +96,84 @@ class _SuccessScreenState extends State<SuccessScreen> {
     }
   }
 
+  Widget _buildActionTile({
+    required IconData icon,
+    required String title,
+    required Color backgroundColor,
+    required Color textColor,
+    required Color iconColor,
+    required VoidCallback? onTap,
+    Color? borderColor,
+    bool isLoading = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: InkWell(
+        onTap: isLoading ? null : onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(16),
+            border: borderColor != null
+                ? Border.all(color: borderColor, width: 1)
+                : null,
+            boxShadow: backgroundColor == Colors.white
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    )
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              isLoading
+                  ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: iconColor),
+                    )
+                  : Icon(icon, color: iconColor),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right, color: textColor.withOpacity(0.8)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
     final payload = args is Map<String, dynamic> ? args : const {};
-    final title =
+    final rawTitle =
         payload['title']?.toString() ?? 'Application Submitted Successfully!';
+    
+    // Format the title to split nicely like in the design if it's the default string
+    String title = rawTitle;
+    if (title == 'Application Submitted Successfully!') {
+      title = 'Application Submitted\nSuccessfully!';
+    }
+
     final message =
         payload['message']?.toString() ??
-        'Your scholarship application was submitted. You can continue in Documents to upload the required files for this opening.';
+        'Your scholarship application was submitted.\nYou can continue in Documents to upload\nthe required files for this opening.';
     final appBarTitle =
         payload['appBarTitle']?.toString() ?? 'Application Submitted';
     final applicationId = payload['applicationId']?.toString() ?? '';
@@ -156,68 +189,170 @@ class _SuccessScreenState extends State<SuccessScreen> {
         applicationId.trim().isNotEmpty;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(appBarTitle),
-        backgroundColor: primaryColor,
-        automaticallyImplyLeading: false, // Prevent back button
+        title: Text(
+          appBarTitle,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: AppColors.gold, size: 20),
+          onPressed: () {
+             Navigator.maybePop(context);
+          },
+        ),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(padding),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
-                Icons.check_circle_outline,
-                color: Colors.green,
-                size: 100,
-              ),
+              // Checkmark Graphic
               const SizedBox(height: 20),
+              Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 160,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Faint glow background
+                      Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              AppColors.gold.withOpacity(0.15),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.3, 1.0],
+                          ),
+                        ),
+                      ),
+                      // The gold circle with checkmark
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.gold, width: 5),
+                          color: Colors.white,
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.check,
+                            color: AppColors.gold,
+                            size: 50,
+                          ),
+                        ),
+                      ),
+                      // Sparkles
+                      const Positioned(
+                        top: 20,
+                        left: 40,
+                        child: Icon(Icons.star, color: AppColors.gold, size: 14),
+                      ),
+                      Positioned(
+                        top: 45,
+                        left: 20,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ),
+                      const Positioned(
+                        top: 30,
+                        right: 40,
+                        child: Icon(Icons.star_border, color: AppColors.gold, size: 18),
+                      ),
+                      Positioned(
+                        top: 70,
+                        right: 15,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ),
+                      const Positioned(
+                        bottom: 25,
+                        left: 45,
+                        child: Icon(Icons.star_border, color: AppColors.gold, size: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+              
+              // Title
               Text(
                 title,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                style: const TextStyle(
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  height: 1.3,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 16),
+              
+              // Subtitle
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  height: 1.5,
+                ),
               ),
-              if (canGeneratePdf) ...[
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: _isGeneratingPdf
+              const SizedBox(height: 32),
+              
+              // Action Buttons
+              if (canGeneratePdf)
+                _buildActionTile(
+                  icon: Icons.file_download_outlined,
+                  title: _isGeneratingPdf ? 'Generating PDF...' : 'Export Application Form',
+                  backgroundColor: AppColors.gold,
+                  textColor: Colors.black,
+                  iconColor: Colors.black,
+                  isLoading: _isGeneratingPdf,
+                  onTap: _isGeneratingPdf
                       ? null
                       : () => _handleGeneratePdf(
-                          applicationId: applicationId,
-                          submissionPayload: submissionPayload,
-                        ),
-                  icon: _isGeneratingPdf
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.file_download_outlined),
-                  label: Text(
-                    _isGeneratingPdf
-                        ? 'Generating PDF...'
-                        : 'Export Application Form',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC9A84C), // PDM gold
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  ),
+                            applicationId: applicationId,
+                            submissionPayload: submissionPayload,
+                          ),
                 ),
-              ],
-              if (canUploadRequirements) ...[
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: () {
+                
+              if (canUploadRequirements)
+                _buildActionTile(
+                  icon: Icons.description_outlined,
+                  title: 'View Documents',
+                  backgroundColor: Colors.white,
+                  textColor: Colors.black,
+                  iconColor: AppColors.gold,
+                  borderColor: Colors.grey.shade200,
+                  onTap: () {
                     Navigator.pushNamed(
                       context,
                       AppRoutes.documents,
@@ -229,21 +364,82 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       },
                     );
                   },
-                  icon: const Icon(Icons.upload_file_outlined),
-                  label: Text('View Documents'),
                 ),
-              ],
-              const SizedBox(height: 30),
-              ElevatedButton(
-                onPressed: () {
+                
+              _buildActionTile(
+                icon: Icons.home_outlined,
+                title: 'Back to Dashboard',
+                backgroundColor: Colors.white,
+                textColor: Colors.black,
+                iconColor: AppColors.gold,
+                borderColor: Colors.grey.shade200,
+                onTap: () {
                   Navigator.pushNamedAndRemoveUntil(
                     context,
                     AppRoutes.home,
                     (route) => false,
-                  ); // Go back to dashboard
+                  );
                 },
-                child: Text('Back to Dashboard'),
               ),
+              
+              const SizedBox(height: 24),
+              
+              // Bottom Banner
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFFFFF9E6),
+                      Color(0xFFFFF0C2),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.gold.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.info,
+                          color: AppColors.gold,
+                          size: 24,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "You can track your application status anytime in your dashboard.",
+                        style: TextStyle(
+                          color: Colors.grey.shade800,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(
+                      Icons.fact_check_outlined, 
+                      color: AppColors.gold.withOpacity(0.8),
+                      size: 48,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

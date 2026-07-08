@@ -147,6 +147,127 @@ function firstNonEmptyFamilyValue(rows = [], field) {
     return '';
 }
 
+function normalizeLookupKey(value) {
+    return safeText(value)
+        .toLowerCase()
+        .replace(/[_-]+/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function rawSnapshotValue(snapshot = {}, keys = []) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+        return '';
+    }
+
+    const normalizedEntries = Object.entries(snapshot).map(([key, value]) => [
+        normalizeLookupKey(key),
+        value,
+    ]);
+
+    for (const key of keys) {
+        const normalizedKey = normalizeLookupKey(key);
+        const match = normalizedEntries.find(([entryKey]) => entryKey === normalizedKey);
+        const text = safeText(match?.[1]);
+        if (text) return text;
+    }
+
+    return '';
+}
+
+function splitFullName(value) {
+    const parts = safeText(value).split(/\s+/).filter(Boolean);
+    if (parts.length === 0) {
+        return { first_name: '', middle_name: '', last_name: '' };
+    }
+    if (parts.length === 1) {
+        return { first_name: parts[0], middle_name: '', last_name: '' };
+    }
+    if (parts.length === 2) {
+        return { first_name: parts[0], middle_name: '', last_name: parts[1] };
+    }
+    return {
+        first_name: parts[0],
+        middle_name: parts.slice(1, -1).join(' '),
+        last_name: parts[parts.length - 1],
+    };
+}
+
+function rawFamilyMember(snapshot = {}, relation = '') {
+    const prefix = normalizeLookupKey(relation);
+    if (!prefix) return {};
+
+    const keys = (field) => [
+        `${relation} ${field}`,
+        `${relation}'s ${field}`,
+        `${relation}_${field}`,
+        `${prefix}_${field}`,
+    ];
+    const fullName = splitFullName(rawSnapshotValue(snapshot, keys('name')));
+
+    return {
+        relation,
+        last_name: firstNonEmpty(
+            rawSnapshotValue(snapshot, keys('last name')),
+            fullName.last_name
+        ),
+        first_name: firstNonEmpty(
+            rawSnapshotValue(snapshot, keys('first name')),
+            fullName.first_name
+        ),
+        middle_name: firstNonEmpty(
+            rawSnapshotValue(snapshot, keys('middle name')),
+            fullName.middle_name
+        ),
+        mobile_number: rawSnapshotValue(snapshot, [
+            ...keys('mobile no'),
+            ...keys('mobile number'),
+            ...keys('contact number'),
+            ...keys('phone number'),
+        ]),
+        highest_educational_attainment: rawSnapshotValue(snapshot, [
+            ...keys('highest educational attainment'),
+            ...keys('educational attainment'),
+        ]),
+        occupation: rawSnapshotValue(snapshot, keys('occupation')),
+        company_name_address: rawSnapshotValue(snapshot, [
+            ...keys('company name address'),
+            ...keys('company name and address'),
+            ...keys('company address'),
+        ]),
+        address: rawSnapshotValue(snapshot, keys('address')),
+    };
+}
+
+function addressFromRawSnapshot(snapshot = {}) {
+    const permanentAddress = rawSnapshotValue(snapshot, ['Permanent Address']);
+    const presentAddress = rawSnapshotValue(snapshot, ['Present Address']);
+    const permanentZip = rawSnapshotValue(snapshot, ['Permanent ZIP Code']);
+    const presentZip = rawSnapshotValue(snapshot, ['Present ZIP Code']);
+
+    return {
+        street: firstNonEmpty(permanentAddress, presentAddress),
+        zip_code: firstNonEmpty(permanentZip, presentZip),
+    };
+}
+
+function hasFamilyName(row = {}) {
+    return Boolean(safeText(row.first_name) || safeText(row.last_name));
+}
+
+function deriveFinancialSupport(master = {}, profile = {}) {
+    const profileSupport = safeText(profile?.financial_support_type);
+    if (profileSupport) return profileSupport;
+
+    if (master?.financial_support_parents === true) return 'Parents';
+    if (master?.financial_support_scholarship === true) return 'Scholarship';
+    if (master?.financial_support_loan === true) return 'Loan';
+    if (master?.financial_support_other === true) return 'Other';
+
+    return 'Parents';
+}
+
 async function getUser(userId) {
     const { data, error } = await supabase
         .from('users')
@@ -208,7 +329,22 @@ async function getMasterStudent(masterStudentId) {
   phone_number,
   course_id,
   year_level,
-  sequence_number
+  sequence_number,
+  age,
+  date_of_birth,
+  place_of_birth,
+  civil_status,
+  sibling_last_name,
+  sibling_first_name,
+  sibling_middle_name,
+  sibling_mobile_no,
+  financial_support_parents,
+  financial_support_scholarship,
+  financial_support_loan,
+  financial_support_other,
+  has_been_scholar,
+  has_disciplinary_action,
+  raw_snapshot
 `)
         .eq('master_student_id', masterStudentId)
         .maybeSingle();
@@ -383,7 +519,17 @@ async function getMyFormData(userId) {
         throw createHttpError(404, 'User account not found.');
     }
 
-    const student = await getStudent(userId);
+    let student = await getStudent(userId);
+    if (!student) {
+        try {
+            await ensureStudentForUser(userId);
+            student = await getStudent(userId);
+        } catch (error) {
+            if (![400, 404].includes(Number(error?.statusCode))) {
+                throw error;
+            }
+        }
+    }
     const draft = await getDraft(userId);
     const draftPayload = draft?.payload && typeof draft.payload === 'object'
         ? draft.payload
@@ -434,16 +580,22 @@ async function getMyFormData(userId) {
 
     const father =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Father') ||
-        {};
+        rawFamilyMember(master?.raw_snapshot, 'Father');
     const mother =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Mother') ||
-        {};
+        rawFamilyMember(master?.raw_snapshot, 'Mother');
     const sibling =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Sibling') ||
-        {};
+        {
+            relation: 'Sibling',
+            last_name: safeText(master?.sibling_last_name),
+            first_name: safeText(master?.sibling_first_name),
+            middle_name: safeText(master?.sibling_middle_name),
+            mobile_number: safeText(master?.sibling_mobile_no),
+        };
     const guardian =
         familyRows.find((row) => normalizeFamilyRelation(row.relation) === 'Guardian') ||
-        {};
+        rawFamilyMember(master?.raw_snapshot, 'Guardian');
     const collegeEducation = educationRowByLevel(educationRows, 'College');
     const highSchoolEducation = educationRowByLevel(educationRows, 'High School');
     const seniorHighEducation = educationRowByLevel(
@@ -455,6 +607,12 @@ async function getMyFormData(userId) {
     const firstName = firstNonEmpty(master?.first_name, student.first_name);
     const middleName = firstNonEmpty(master?.middle_name, student.middle_name);
     const lastName = firstNonEmpty(master?.last_name, student.last_name);
+    const dateOfBirth = firstNonEmpty(profile?.date_of_birth, master?.date_of_birth);
+    const age = firstNonEmpty(
+        profile?.date_of_birth ? calculateAgeFromDate(profile.date_of_birth) : '',
+        master?.age,
+        calculateAgeFromDate(master?.date_of_birth)
+    );
 
     const studentNumber = firstNonEmpty(
         student.pdm_id,
@@ -475,6 +633,7 @@ async function getMyFormData(userId) {
         student.phone_number,
         user.phone_number
     );
+    const rawAddress = addressFromRawSnapshot(master?.raw_snapshot);
 
     const basePayload = {
         has_saved_form: !!draft,
@@ -497,12 +656,15 @@ async function getMyFormData(userId) {
             middle_name: middleName,
             last_name: lastName,
             maiden_name: safeText(profile?.maiden_name),
-            age: calculateAgeFromDate(profile?.date_of_birth),
-            date_of_birth: profile?.date_of_birth || '',
+            age,
+            date_of_birth: dateOfBirth,
             sex: firstNonEmpty(student.sex_at_birth, master?.sex_at_birth),
-            place_of_birth: safeText(profile?.place_of_birth),
+            place_of_birth: firstNonEmpty(
+                profile?.place_of_birth,
+                master?.place_of_birth
+            ),
             citizenship: firstNonEmpty(profile?.citizenship, 'Filipino'),
-            civil_status: safeText(profile?.civil_status),
+            civil_status: firstNonEmpty(profile?.civil_status, master?.civil_status),
             religion: firstNonEmpty(
                 profile?.religion,
                 master?.religion,
@@ -513,12 +675,12 @@ async function getMyFormData(userId) {
         address: {
             unit_bldg_no: safeText(profile?.unit_bldg_no),
             house_lot_block_no: safeText(profile?.house_lot_block_no),
-            street: safeText(profile?.street_address),
+            street: firstNonEmpty(profile?.street_address, rawAddress.street),
             subdivision: safeText(profile?.subdivision),
             barangay: safeText(profile?.barangay),
             city_municipality: safeText(profile?.city),
             province: safeText(profile?.province),
-            zip_code: safeText(profile?.zip_code),
+            zip_code: firstNonEmpty(profile?.zip_code, rawAddress.zip_code),
         },
 
         contact: {
@@ -552,10 +714,9 @@ async function getMyFormData(userId) {
                         : profile?.father_present === false
                             ? false
                             : profile?.father_present === true
-                                ? true
-                                : Boolean(
-                                    safeText(father?.first_name) ||
-                                    safeText(father?.last_name)
+                            ? true
+                            : Boolean(
+                                    hasFamilyName(father)
                                 ),
 
             mother_present:
@@ -566,10 +727,9 @@ async function getMyFormData(userId) {
                         : profile?.mother_present === false
                             ? false
                             : profile?.mother_present === true
-                                ? true
-                                : Boolean(
-                                    safeText(mother?.first_name) ||
-                                    safeText(mother?.last_name)
+                            ? true
+                            : Boolean(
+                                    hasFamilyName(mother)
                                 ),
 
             guardian_only:
@@ -643,19 +803,34 @@ async function getMyFormData(userId) {
 
         support: {
             financial_support:
-                safeText(profile?.financial_support_type) || 'Parents',
+                deriveFinancialSupport(master, profile),
             financial_support_type: safeText(profile?.financial_support_type),
             financial_support_other: safeText(profile?.financial_support_other),
-            scholarship_history: profile?.has_prior_scholarship === true,
-            has_prior_scholarship: profile?.has_prior_scholarship === true,
+            scholarship_history:
+                profile?.has_prior_scholarship === true ||
+                master?.has_been_scholar === true,
+            has_prior_scholarship:
+                profile?.has_prior_scholarship === true ||
+                master?.has_been_scholar === true,
             scholarship_details: safeText(profile?.prior_scholarship_details),
             prior_scholarship_details: safeText(profile?.prior_scholarship_details),
             scholarship_others_specify: safeText(profile?.financial_support_other),
+            scholarship_elementary:
+                draftPayload.support?.scholarship_elementary === true,
+            scholarship_high_school:
+                draftPayload.support?.scholarship_high_school === true,
+            scholarship_college:
+                draftPayload.support?.scholarship_college === true,
+            scholarship_others: master?.financial_support_other === true,
         },
 
         discipline: {
-            disciplinary_action: profile?.has_disciplinary_record === true,
-            has_disciplinary_record: profile?.has_disciplinary_record === true,
+            disciplinary_action:
+                profile?.has_disciplinary_record === true ||
+                master?.has_disciplinary_action === true,
+            has_disciplinary_record:
+                profile?.has_disciplinary_record === true ||
+                master?.has_disciplinary_action === true,
             disciplinary_explanation: safeText(profile?.disciplinary_details),
             disciplinary_details: safeText(profile?.disciplinary_details),
         },

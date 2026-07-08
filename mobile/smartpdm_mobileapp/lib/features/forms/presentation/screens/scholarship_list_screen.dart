@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
@@ -20,20 +21,18 @@ class _ScholarshipListScreenState extends State<ScholarshipListScreen> {
         children: [
           Text(
             'Available Scholarships',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-              fontWeight: FontWeight.w900
-),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 6),
           Text(
             'ACADEMIC YEAR 2025-2026',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
               color: Colors.grey,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.4
-),
+              letterSpacing: 0.4,
+            ),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -145,7 +144,8 @@ class ScholarshipCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        onTap: () => Navigator.pushNamed(context, '/application'),
+        onTap: () =>
+            Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -165,10 +165,11 @@ class ScholarshipCard extends StatelessWidget {
                       ),
                       child: Text(
                         badgeText!,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: Colors.white,
-                          fontWeight: FontWeight.w900
-),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
                       ),
                     ),
                   const Spacer(),
@@ -184,10 +185,9 @@ color: Colors.white,
                     child: Text(
                       'EST. VALUE',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                         fontWeight: FontWeight.w900,
-                        color: Colors.grey.shade600
-),
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ),
                 ],
@@ -195,19 +195,17 @@ color: Colors.white,
               const SizedBox(height: 10),
               Text(
                 title,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
-                  fontWeight: FontWeight.w900
-),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 4),
               Text(
                 provider,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700
-),
+                  color: Colors.grey.shade700,
+                ),
               ),
               const SizedBox(height: 14),
               Row(
@@ -215,22 +213,26 @@ color: Colors.white,
                   Text(
                     amount,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-fontWeight: FontWeight.w900,
-                      color: primaryColor
-),
+                      fontWeight: FontWeight.w900,
+                      color: primaryColor,
+                    ),
                   ),
                   const Spacer(),
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today, size: 16, color: Colors.orange),
+                      const Icon(
+                        Icons.calendar_today,
+                        size: 16,
+                        color: Colors.orange,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'DEADLINE: $deadline',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                          fontWeight: FontWeight.w900,
-                          color: Colors.orange.shade900
-),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: Colors.orange.shade900,
+                            ),
                       ),
                     ],
                   ),

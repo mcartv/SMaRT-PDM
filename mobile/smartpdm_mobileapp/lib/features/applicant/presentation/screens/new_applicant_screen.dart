@@ -518,6 +518,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
+    final submissionPayload = _data.toSubmissionPayload();
     final provider = context.read<NewScholarProvider>();
     final success = await provider.submitApplication(
       _data,
@@ -542,17 +543,27 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       final programName = _data.openingProgramName.isNotEmpty
           ? _data.openingProgramName
           : application?['program_name']?.toString();
+      final applicationId =
+          application?['application_id']?.toString() ??
+          provider.lastSubmissionResponse?['application_id']?.toString() ??
+          '';
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
 
+      provider.resetApplication();
+
       Navigator.pushReplacementNamed(
         context,
-        AppRoutes.documents,
+        AppRoutes.success,
         arguments: {
-          'initialTitle': openingTitle,
-          'initialProgramName': programName,
+          'applicationId': applicationId,
+          'openingId': _data.openingId,
+          'openingTitle': openingTitle,
+          'programName': programName,
+          'submissionPayload': submissionPayload,
+          'canUploadRequirements': true,
         },
       );
       return;
@@ -628,6 +639,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         return 'Mobile number is too long.';
       }
 
+      final email = _data.email.trim();
+      if (email.isNotEmpty) {
+        final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+        if (!emailRegex.hasMatch(email)) {
+          return 'Please enter a valid email address.';
+        }
+      }
+
       return null;
     }
 
@@ -661,6 +680,45 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           _data.scholarshipOthersSpecify.trim().isEmpty) {
         return 'Please specify the other financial support.';
       }
+      if (_data.disciplinaryAction &&
+          _data.disciplinaryExplanation.trim().isEmpty) {
+        return 'Please explain the disciplinary action.';
+      }
+
+      return null;
+    }
+
+    String? validateEssay() {
+      if (_data.describeYourselfEssay.trim().isEmpty) {
+        return 'Describe yourself essay is required.';
+      }
+      if (_data.aimsAndAmbitionEssay.trim().isEmpty) {
+        return 'Aims and ambition essay is required.';
+      }
+
+      return null;
+    }
+
+    String? validateFamily() {
+      final hasNamedFather =
+          _data.fatherPresent &&
+          (_data.fatherFirstName.trim().isNotEmpty ||
+              _data.fatherLastName.trim().isNotEmpty);
+      final hasNamedMother =
+          _data.motherPresent &&
+          (_data.motherFirstName.trim().isNotEmpty ||
+              _data.motherLastName.trim().isNotEmpty);
+      final hasNamedGuardian =
+          _data.guardianFirstName.trim().isNotEmpty ||
+          _data.guardianLastName.trim().isNotEmpty;
+
+      if (!hasNamedFather && !hasNamedMother && !hasNamedGuardian) {
+        return 'Add at least one parent or guardian.';
+      }
+
+      if (_data.guardianOnly && !hasNamedGuardian) {
+        return 'Guardian name is required.';
+      }
 
       return null;
     }
@@ -668,10 +726,17 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     switch (_step) {
       case 0:
         return validatePersonalAndContact();
+      case 1:
+        return validateFamily();
       case 2:
         return validateAcademic();
+      case 3:
+        return validateEssay();
       case 4:
-        return validatePersonalAndContact() ?? validateAcademic();
+        return validatePersonalAndContact() ??
+            validateFamily() ??
+            validateAcademic() ??
+            validateEssay();
       default:
         return null;
     }
@@ -712,6 +777,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             setState(() {});
             _queueAutosave();
           },
+          showErrors: _showValidationErrors,
         );
       case 4:
         return StepSubmit(
@@ -797,20 +863,24 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                   children: [
                                     Text(
                                       'Choose an opening first',
-                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.darkBrown
-),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.darkBrown,
+                                          ),
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
                                       'This application form is now tied to one admin-posted scholarship opening. Select the opening you want to apply for before continuing.',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                                        height: 1.45,
-                                        color: AppColors.brown
-),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            height: 1.45,
+                                            color: AppColors.brown,
+                                          ),
                                     ),
                                     const SizedBox(height: 16),
                                     SizedBox(
@@ -847,22 +917,26 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                       children: [
                                         Text(
                                           'Selected Opening',
-                                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.brown
-),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.brown,
+                                              ),
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
                                           _data.openingTitle.isNotEmpty
                                               ? _data.openingTitle
                                               : 'Scholarship Opening',
-                                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.darkBrown
-),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.darkBrown,
+                                              ),
                                         ),
                                         if (_data.openingProgramName.isNotEmpty)
                                           Padding(
@@ -871,11 +945,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                             ),
                                             child: Text(
                                               _data.openingProgramName,
-                                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.brown
-),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.brown,
+                                                  ),
                                             ),
                                           ),
                                         const SizedBox(height: 10),
@@ -907,10 +983,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                                       : _autosaveError == null
                                                       ? 'Draft autosaves as you complete the form.'
                                                       : _autosaveError!,
-                                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                                    color: AppColors.brown
-),
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelMedium
+                                                      ?.copyWith(
+                                                        color: AppColors.brown,
+                                                      ),
                                                 ),
                                               ),
                                             ],

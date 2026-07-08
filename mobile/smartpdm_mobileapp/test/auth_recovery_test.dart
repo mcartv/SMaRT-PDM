@@ -10,14 +10,12 @@ import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_pass
 class _FakePasswordResetService extends PasswordResetService {
   _FakePasswordResetService();
 
-  final Future<String> Function(String studentId)? onForgotPassword;
   String? lastStudentId;
 
   @override
   Future<String> forgotPassword(String studentId) async {
     lastStudentId = studentId;
-    return onForgotPassword?.call(studentId) ??
-        'If an account exists, password reset instructions have been sent.';
+    return 'If an account exists, password reset instructions have been sent.';
   }
 }
 
@@ -81,9 +79,7 @@ void main() {
           routes: {
             AppRoutes.resetPasswordOtp: (_) => const ResetPasswordOtpScreen(),
           },
-          home: ForgotPasswordScreen(
-            passwordResetService: fakeService,
-          ),
+          home: ForgotPasswordScreen(passwordResetService: fakeService),
         ),
       );
 

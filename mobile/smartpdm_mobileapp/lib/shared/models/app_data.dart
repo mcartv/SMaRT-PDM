@@ -149,6 +149,12 @@ class ApplicationData {
     return int.tryParse(trimmed);
   }
 
+  static double? parseGwaValue(String value) {
+    final normalized = value.trim().replaceAll(',', '.');
+    if (normalized.isEmpty) return null;
+    return double.tryParse(normalized);
+  }
+
   static DateTime? parseInputDate(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return null;

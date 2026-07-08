@@ -90,6 +90,12 @@ class _StepSubmitState extends State<StepSubmit> {
     if (_empty(widget.data.currentYearLevel)) missing.add('Year level');
     if (_empty(widget.data.currentSection)) missing.add('Section');
     if (_empty(widget.data.studentNumber)) missing.add('Student number');
+    if (_empty(widget.data.describeYourselfEssay)) {
+      missing.add('Describe yourself essay');
+    }
+    if (_empty(widget.data.aimsAndAmbitionEssay)) {
+      missing.add('Aims and ambition essay');
+    }
 
     final hasGuardianName =
         widget.data.guardianFirstName.trim().isNotEmpty ||
@@ -324,8 +330,16 @@ class _StepSubmitState extends State<StepSubmit> {
           ),
         ]),
         _previewSection('Essay', [
-          _previewRow('Describe Yourself', widget.data.describeYourselfEssay),
-          _previewRow('Aims and Ambitions', widget.data.aimsAndAmbitionEssay),
+          _previewRow(
+            'Describe Yourself',
+            widget.data.describeYourselfEssay,
+            required: true,
+          ),
+          _previewRow(
+            'Aims and Ambitions',
+            widget.data.aimsAndAmbitionEssay,
+            required: true,
+          ),
         ]),
         _previewSection('Scholarship / Discipline', [
           _previewRow('Financial Support', widget.data.financialSupport),

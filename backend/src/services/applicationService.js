@@ -1090,6 +1090,25 @@ function intOrNull(value) {
     return Number.isInteger(parsed) ? parsed : null;
 }
 
+function numericOrNull(value) {
+    const text = safeText(value).replace(',', '.');
+    if (!text) return null;
+
+    const parsed = Number(text);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseRequiredGwa(value) {
+    const parsed = numericOrNull(value);
+    if (parsed === null) {
+        throw createHttpError(400, 'GWA is required and must be a valid number.');
+    }
+    if (parsed < 1 || parsed > 5) {
+        throw createHttpError(400, 'GWA must be between 1.00 and 5.00.');
+    }
+    return parsed;
+}
+
 function normalizeDate(value) {
     const raw = safeText(value);
 
@@ -1232,6 +1251,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
     const support = payload.support || {};
     const discipline = payload.discipline || {};
     const essays = payload.essays || {};
+    const submittedGwa = parseRequiredGwa(academic.gwa);
 
     const profilePayload = {
         student_id: student.student_id,
@@ -1369,6 +1389,13 @@ async function submitMyApplicationForm(userId, payload = {}) {
 
     if (educationError) throw educationError;
 
+    const studentUpdatePayload = {
+        is_profile_complete: true,
+        updated_at: new Date().toISOString(),
+    };
+
+    studentUpdatePayload.gwa = submittedGwa;
+
     const { data: existingApplication, error: existingApplicationError } =
         await supabase
             .from('applications')
@@ -1423,10 +1450,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
 
     await supabase
         .from('students')
-        .update({
-            is_profile_complete: true,
-            updated_at: new Date().toISOString(),
-        })
+        .update(studentUpdatePayload)
         .eq('student_id', student.student_id);
 
     await supabase

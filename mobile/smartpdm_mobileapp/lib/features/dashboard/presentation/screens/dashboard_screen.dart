@@ -96,7 +96,8 @@ class DashboardContent extends StatefulWidget {
 
 class _DashboardContentState extends State<DashboardContent> {
   final TextEditingController _searchController = TextEditingController();
-  final ApplicantDocumentsService _documentsService = ApplicantDocumentsService();
+  final ApplicantDocumentsService _documentsService =
+      ApplicantDocumentsService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
 
   String _studentId = 'Student';
@@ -107,7 +108,6 @@ class _DashboardContentState extends State<DashboardContent> {
 
   bool _isLoadingOpenings = true;
   bool _isLoadingRequirements = true;
-  final bool _isGeneratingPdf = false;
   List<ProgramOpening> _latestOpenings = [];
   ApplicantDocumentsPackage? _requirementsPackage;
   bool _needsBaseApplication = false;
@@ -217,7 +217,9 @@ class _DashboardContentState extends State<DashboardContent> {
         _requirementsPackage = null;
         _needsBaseApplication =
             error.statusCode == 404 || error.statusCode == 409;
-        _requirementsError = _needsBaseApplication ? null : error.message.trim();
+        _requirementsError = _needsBaseApplication
+            ? null
+            : error.message.trim();
         _isLoadingRequirements = false;
       });
     } catch (error) {
@@ -226,7 +228,10 @@ class _DashboardContentState extends State<DashboardContent> {
       setState(() {
         _requirementsPackage = null;
         _needsBaseApplication = false;
-        _requirementsError = error.toString().replaceFirst('Exception: ', '').trim();
+        _requirementsError = error
+            .toString()
+            .replaceFirst('Exception: ', '')
+            .trim();
         _isLoadingRequirements = false;
       });
     }
@@ -367,9 +372,12 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   List<ApplicantRequirementDocument> _filteredRequirements() {
-    final documents = _requirementsPackage?.documents ?? const <ApplicantRequirementDocument>[];
+    final documents =
+        _requirementsPackage?.documents ??
+        const <ApplicantRequirementDocument>[];
     return _filterItems(
-      sectionLabel: 'Requirements prerequisites qualifications conditions documents uploads',
+      sectionLabel:
+          'Requirements prerequisites qualifications conditions documents uploads',
       items: documents,
       textForItem: _requirementSearchText,
     );
@@ -497,9 +505,7 @@ class _DashboardContentState extends State<DashboardContent> {
 
   List<_MenuAction> _filteredToolActions() {
     return _filterItems(
-      sectionLabel: _hasScholarAccess
-          ? 'Scholar Tools'
-          : 'Applicant Tools',
+      sectionLabel: _hasScholarAccess ? 'Scholar Tools' : 'Applicant Tools',
       items: _toolActions(),
       textForItem: _menuActionSearchText,
     );
@@ -664,22 +670,10 @@ class _DashboardContentState extends State<DashboardContent> {
 
   Widget _buildFilterChips() {
     final chips = [
-      (
-        label: 'All',
-        section: _DashboardSection.all,
-      ),
-      (
-        label: 'Openings',
-        section: _DashboardSection.openings,
-      ),
-      (
-        label: 'Updates',
-        section: _DashboardSection.updates,
-      ),
-      (
-        label: 'Requirements',
-        section: _DashboardSection.requirements,
-      ),
+      (label: 'All', section: _DashboardSection.all),
+      (label: 'Openings', section: _DashboardSection.openings),
+      (label: 'Updates', section: _DashboardSection.updates),
+      (label: 'Requirements', section: _DashboardSection.requirements),
     ];
 
     return SingleChildScrollView(
@@ -961,7 +955,8 @@ class _DashboardContentState extends State<DashboardContent> {
             tags: _officeUpdateTags(notifications[i]),
             isDark: _isDark,
             onTap: () => _openOfficeUpdateArticle(context, notifications[i]),
-            onOpeningsTap: _isOpeningUpdate(notifications[i]) && !_hasScholarAccess
+            onOpeningsTap:
+                _isOpeningUpdate(notifications[i]) && !_hasScholarAccess
                 ? () => _openScholarshipOpenings(context)
                 : null,
           ),
@@ -1066,10 +1061,7 @@ class _DashboardContentState extends State<DashboardContent> {
                 _buildSearchShortcut(),
                 const SizedBox(height: 12),
                 _buildFilterChips(),
-                if (showAll) ...[
-                  const SizedBox(height: 18),
-                  _buildHero(),
-                ],
+                if (showAll) ...[const SizedBox(height: 18), _buildHero()],
                 if (showAll &&
                     (!_hasSearchQuery || quickActions.isNotEmpty)) ...[
                   const SizedBox(height: 20),
@@ -1107,7 +1099,8 @@ class _DashboardContentState extends State<DashboardContent> {
                         ? 'Open documents'
                         : null,
                     onTap: !_hasScholarAccess && !_needsBaseApplication
-                        ? () => Navigator.pushNamed(context, AppRoutes.documents)
+                        ? () =>
+                              Navigator.pushNamed(context, AppRoutes.documents)
                         : null,
                   ),
                   _buildRequirementsSection(requirements),
@@ -1691,7 +1684,11 @@ class _RequirementsCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _ChipLabel(label: package.documentStatus, isDark: isDark, filled: true),
+              _ChipLabel(
+                label: package.documentStatus,
+                isDark: isDark,
+                filled: true,
+              ),
               _ChipLabel(label: package.applicationStatus, isDark: isDark),
               _ChipLabel(
                 label: '$uploadedCount/$totalCount Uploaded',
@@ -1776,9 +1773,7 @@ class _RequirementsCard extends StatelessWidget {
                   onPressed: onOpenOpenings,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isDark ? Colors.white : AppColors.brown,
-                    side: BorderSide(
-                      color: AppColors.gold.withOpacity(0.75),
-                    ),
+                    side: BorderSide(color: AppColors.gold.withOpacity(0.75)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
@@ -1856,7 +1851,11 @@ class _RequirementRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        _ChipLabel(label: statusLabel, isDark: isDark, filled: document.isSubmitted),
+        _ChipLabel(
+          label: statusLabel,
+          isDark: isDark,
+          filled: document.isSubmitted,
+        ),
       ],
     );
   }

@@ -4,24 +4,49 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/printable_application_service.dart';
 
 class SuccessScreen extends StatefulWidget {
-  const SuccessScreen({super.key});
+  const SuccessScreen({super.key, this.printableApplicationService});
+
+  final PrintableApplicationService? printableApplicationService;
 
   @override
   State<SuccessScreen> createState() => _SuccessScreenState();
 }
 
 class _SuccessScreenState extends State<SuccessScreen> {
-  final PrintableApplicationService _printableApplicationService =
-      PrintableApplicationService();
+  late final PrintableApplicationService _printableApplicationService;
   bool _isGeneratingPdf = false;
 
-  Future<void> _handleGeneratePdf(String applicationId) async {
+  @override
+  void initState() {
+    super.initState();
+    _printableApplicationService =
+        widget.printableApplicationService ?? PrintableApplicationService();
+  }
+
+  Map<String, dynamic>? _mapPayload(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, mapValue) => MapEntry('$key', mapValue));
+    }
+    return null;
+  }
+
+  Future<void> _handleGeneratePdf({
+    required String applicationId,
+    required Map<String, dynamic>? submissionPayload,
+  }) async {
     setState(() => _isGeneratingPdf = true);
 
     try {
-      await _printableApplicationService.generateOpenFromApplicationId(
-        applicationId,
-      );
+      if (submissionPayload != null) {
+        await _printableApplicationService.generateOpenFromSubmissionPayload(
+          submissionPayload,
+        );
+      } else {
+        await _printableApplicationService.generateOpenFromApplicationId(
+          applicationId,
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -49,9 +74,12 @@ class _SuccessScreenState extends State<SuccessScreen> {
     final openingId = payload['openingId']?.toString() ?? '';
     final openingTitle = payload['openingTitle']?.toString();
     final programName = payload['programName']?.toString();
-    final canGeneratePdf = applicationId.trim().isNotEmpty;
+    final submissionPayload = _mapPayload(payload['submissionPayload']);
+    final canGeneratePdf =
+        submissionPayload != null || applicationId.trim().isNotEmpty;
     final canUploadRequirements =
         payload['canUploadRequirements'] == true ||
+        openingId.trim().isNotEmpty ||
         applicationId.trim().isNotEmpty;
 
     return Scaffold(
@@ -75,8 +103,8 @@ class _SuccessScreenState extends State<SuccessScreen> {
               Text(
                 title,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
- fontWeight: FontWeight.bold
-),
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
@@ -90,7 +118,10 @@ class _SuccessScreenState extends State<SuccessScreen> {
                 OutlinedButton.icon(
                   onPressed: _isGeneratingPdf
                       ? null
-                      : () => _handleGeneratePdf(applicationId),
+                      : () => _handleGeneratePdf(
+                          applicationId: applicationId,
+                          submissionPayload: submissionPayload,
+                        ),
                   icon: _isGeneratingPdf
                       ? const SizedBox(
                           width: 16,

@@ -4,8 +4,14 @@ import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 class StepEssay extends StatefulWidget {
   final ApplicationData data;
   final VoidCallback onChanged;
+  final bool showErrors;
 
-  const StepEssay({super.key, required this.data, required this.onChanged});
+  const StepEssay({
+    super.key,
+    required this.data,
+    required this.onChanged,
+    this.showErrors = false,
+  });
 
   @override
   State<StepEssay> createState() => _StepEssayState();
@@ -16,17 +22,26 @@ class _StepEssayState extends State<StepEssay> {
   late final TextEditingController aimsAndAmbitionController;
 
   InputDecoration _dec(String hint) => InputDecoration(
-        hintText: hint,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      );
+    hintText: hint,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  );
+
+  String? _requiredEssayError(String value, String label) {
+    if (!widget.showErrors) return null;
+    return value.trim().isEmpty ? '$label is required.' : null;
+  }
 
   @override
   void initState() {
     super.initState();
 
-    describeYourselfController = TextEditingController(text: widget.data.describeYourselfEssay);
-    aimsAndAmbitionController = TextEditingController(text: widget.data.aimsAndAmbitionEssay);
+    describeYourselfController = TextEditingController(
+      text: widget.data.describeYourselfEssay,
+    );
+    aimsAndAmbitionController = TextEditingController(
+      text: widget.data.aimsAndAmbitionEssay,
+    );
 
     describeYourselfController.addListener(() {
       widget.data.describeYourselfEssay = describeYourselfController.text;
@@ -53,48 +68,70 @@ class _StepEssayState extends State<StepEssay> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('IV. PERSONAL STATEMENT', style: Theme.of(context).textTheme.titleLarge?.copyWith(
- fontWeight: FontWeight.bold, color: Colors.brown
-)),
+          Text(
+            'IV. PERSONAL STATEMENT',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.brown,
+            ),
+          ),
           const Divider(color: Colors.orange, thickness: 2),
           const SizedBox(height: 24),
 
-          Text('1. Write a short essay describing yourself. (200-300 words)',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-fontWeight: FontWeight.w600
-)),
+          Text(
+            '1. Write a short essay describing yourself. (200-300 words)',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 16),
           TextFormField(
             controller: describeYourselfController,
             maxLines: 6,
-            decoration: _dec('Write about yourself...'),
+            decoration: _dec('Write about yourself...').copyWith(
+              errorText: _requiredEssayError(
+                describeYourselfController.text,
+                'Describe yourself essay',
+              ),
+            ),
           ),
           const SizedBox(height: 24),
 
-          Text('2. State briefly your aims and ambition after graduation (include plans for hometown or province). (200-300 words)',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-fontWeight: FontWeight.w600
-)),
+          Text(
+            '2. State briefly your aims and ambition after graduation (include plans for hometown or province). (200-300 words)',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 16),
           TextFormField(
             controller: aimsAndAmbitionController,
             maxLines: 6,
-            decoration: _dec('Share your aims and ambitions...'),
+            decoration: _dec('Share your aims and ambitions...').copyWith(
+              errorText: _requiredEssayError(
+                aimsAndAmbitionController.text,
+                'Aims and ambition essay',
+              ),
+            ),
           ),
           const SizedBox(height: 32),
 
-          Text('Tips:', style: Theme.of(context).textTheme.labelMedium?.copyWith(
-fontWeight: FontWeight.bold, color: Colors.grey
-)),
+          Text(
+            'Tips:',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             '• Be honest and genuine in your responses\n'
             '• Proofread for grammar and spelling\n'
             '• Stay within the word limit\n'
             '• Use clear and concise language',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
- color: Colors.grey
-),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: Colors.grey),
           ),
         ],
       ),

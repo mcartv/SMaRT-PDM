@@ -74,14 +74,17 @@ class _SuccessScreenState extends State<SuccessScreen> {
 
       File generatedFile;
       if (submissionPayload != null) {
+        debugPrint('Generating PDF from raw submission payload...');
         generatedFile = await _printableApplicationService.generateFromSubmissionPayload(
           submissionPayload,
         );
       } else {
+        debugPrint('Generating PDF from application ID: $applicationId...');
         generatedFile = await _printableApplicationService.generateFromApplicationId(
           applicationId,
         );
       }
+      debugPrint('PDF generation successful. Copying to downloads...');
 
       final safeAppId = applicationId.isNotEmpty ? applicationId : 'Guest';
       final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -104,24 +107,17 @@ class _SuccessScreenState extends State<SuccessScreen> {
       }
 
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Export Complete'),
-          content: const Text('Application form saved to your downloads folder.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await Share.shareXFiles([XFile(exportFile.path)],
-                    text: 'SMaRT-PDM Scholarship Application');
-              },
-              child: const Text('Share'),
-            ),
-          ],
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Application form saved to downloads.'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Share',
+            onPressed: () async {
+              await Share.shareXFiles([XFile(exportFile.path)],
+                  text: 'SMaRT-PDM Scholarship Application');
+            },
+          ),
         ),
       );
     } catch (error) {
@@ -192,7 +188,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
               ),
               if (canGeneratePdf) ...[
                 const SizedBox(height: 24),
-                OutlinedButton.icon(
+                ElevatedButton.icon(
                   onPressed: _isGeneratingPdf
                       ? null
                       : () => _handleGeneratePdf(
@@ -203,13 +199,18 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.picture_as_pdf_outlined),
+                      : const Icon(Icons.file_download_outlined),
                   label: Text(
                     _isGeneratingPdf
                         ? 'Generating PDF...'
-                        : 'Download Printable PDF',
+                        : 'Export Application Form',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC9A84C), // PDM gold
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   ),
                 ),
               ],

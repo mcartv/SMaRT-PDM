@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { resolveStaffRole } = require('../utils/staffRoles');
 const { sendAdminResetOtp } = require('../utils/mailer');
+const { resolveAvatarUrl } = require('../services/avatarService');
 
 const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
 
@@ -24,7 +25,8 @@ const ADMIN_USER_QUERY = `
         a.first_name,
         a.last_name,
         a.department,
-        a.position
+        a.position,
+        a.profile_photo_url
     FROM users u
     LEFT JOIN admin_profiles a ON u.user_id = a.user_id
     WHERE LOWER(u.email) = LOWER($1)
@@ -189,6 +191,7 @@ async function loginWithRole(req, res, role) {
         const token = buildToken(user, tokenRole);
 
         const portalTitle = departmentPortalLabels[role];
+        const avatarUrl = await resolveAvatarUrl(user.profile_photo_url || null);
 
         return res.status(200).json({
             token,
@@ -210,6 +213,8 @@ async function loginWithRole(req, res, role) {
                         ? 'Student Disciplinary Office'
                         : null),
                 role: tokenRole,
+                profile_photo_url: user.profile_photo_url || null,
+                avatar_url: avatarUrl,
             },
         });
     } catch (err) {

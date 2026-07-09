@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,19 @@ import {
   Activity,
   ShieldCheck,
   Loader2,
+  Camera,
 } from 'lucide-react';
+
+function resolveProfileImage(profile) {
+  const candidates = [
+    profile?.avatar_url,
+    profile?.profile_photo_url,
+    profile?.photo_url,
+    profile?.image_url,
+  ];
+
+  return candidates.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
+}
 
 function FieldLabel({ children }) {
   return (
@@ -71,6 +83,11 @@ function GeneralPanel({
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountFeedback, setAccountFeedback] = useState('');
   const [initialAccount, setInitialAccount] = useState(null);
+  const [profileData, setProfileData] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef(null);
   const [account, setAccount] = useState({
     first_name: config.account.first_name,
     last_name: config.account.last_name,
@@ -122,6 +139,7 @@ function GeneralPanel({
 
       setAccount(nextAccount);
       setInitialAccount(nextAccount);
+      setProfileData(profile);
       sessionStorage.setItem(
         profileStorageKey,
         JSON.stringify({
@@ -157,8 +175,24 @@ function GeneralPanel({
   }, [loadProfile]);
 
   useSocketEvent('maintenance:updated', () => {
+    const latestProfile = sessionStorage.getItem(profileStorageKey);
+    if (latestProfile) {
+      try {
+        setProfileData(JSON.parse(latestProfile));
+      } catch {
+        setProfileData(null);
+      }
+    }
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!photoPreview) return undefined;
+
+    return () => {
+      window.URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
 
   useEffect(() => {
     if (!saved && !accountFeedback) return undefined;
@@ -194,6 +228,94 @@ function GeneralPanel({
       ...prev,
       [field]: value,
     }));
+  };
+
+  const currentProfileImage = photoPreview || resolveProfileImage(profileData);
+  const displayName = `${account.first_name} ${account.last_name}`.trim() || config.shortName;
+  const feedbackIsError = /failed|please|expired|already|valid|required|unable/i.test(accountFeedback);
+  const initials = useMemo(() => {
+    const parts = displayName.split(' ').filter(Boolean);
+    if (parts.length <= 1) return (parts[0]?.[0] || config.shortName[0] || 'S').toUpperCase();
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }, [config.shortName, displayName]);
+
+  const handlePhotoSelection = (event) => {
+    const nextFile = event.target.files?.[0];
+    if (!nextFile) return;
+
+    if (!nextFile.type.startsWith('image/')) {
+      setAccountFeedback('Please choose a valid image file for the profile photo.');
+      return;
+    }
+
+    if (photoPreview) {
+      window.URL.revokeObjectURL(photoPreview);
+    }
+
+    setPhotoFile(nextFile);
+    setPhotoPreview(window.URL.createObjectURL(nextFile));
+    setAccountFeedback('Profile photo selected. Click upload to save it.');
+  };
+
+  const handleUploadPhoto = async () => {
+    if (!photoFile) {
+      setAccountFeedback('Please choose a profile photo first.');
+      return;
+    }
+
+    try {
+      setUploadingPhoto(true);
+      setAccountFeedback('');
+
+      const token = sessionStorage.getItem(tokenStorageKey);
+      if (!token) {
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      const formData = new FormData();
+      formData.append('file', photoFile);
+
+      const response = await fetch(buildApiUrl('/api/accounts/me/profile-photo'), {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.message || 'Failed to upload profile photo.');
+      }
+
+      const savedProfile = payload?.data || {};
+      setProfileData(savedProfile);
+      setPhotoFile(null);
+      if (photoPreview) {
+        window.URL.revokeObjectURL(photoPreview);
+      }
+      setPhotoPreview('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      sessionStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
+          ...savedProfile,
+          name: savedProfile.name || `${savedProfile.first_name || account.first_name} ${savedProfile.last_name || account.last_name}`.trim(),
+        })
+      );
+
+      setAccountFeedback(`${config.shortName} profile photo updated successfully.`);
+    } catch (err) {
+      console.error(`${config.shortName.toUpperCase()} PROFILE PHOTO UPLOAD ERROR:`, err);
+      setAccountFeedback(err.message || `Failed to upload ${config.shortName} profile photo.`);
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const handleSaveAccount = async () => {
@@ -336,11 +458,68 @@ function GeneralPanel({
             </p>
           </div>
 
+          <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              {currentProfileImage ? (
+                <img
+                  src={currentProfileImage}
+                  alt={displayName}
+                  className="h-20 w-20 rounded-2xl border-4 border-white object-cover shadow-sm"
+                />
+              ) : (
+                <div
+                  className="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white text-xl font-bold text-white shadow-sm"
+                  style={{ background: palette.base }}
+                >
+                  {initials}
+                </div>
+              )}
+
+              <div>
+                <p className="text-sm font-semibold text-stone-800">Profile Photo</p>
+                <p className="mt-1 text-xs text-stone-500">
+                  Upload a real photo for the portal header and profile page. Initials will remain as the fallback when no image is set.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoSelection}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-lg border-stone-200 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingPhoto}
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                Choose Photo
+              </Button>
+              <Button
+                type="button"
+                className="h-9 rounded-lg border-none text-xs text-white"
+                style={{ background: palette.base }}
+                onClick={handleUploadPhoto}
+                disabled={!photoFile || uploadingPhoto}
+              >
+                {uploadingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Upload Photo
+              </Button>
+            </div>
+          </div>
+
           {accountFeedback ? (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${accountFeedback.includes('successfully')
-              ? 'border-green-100 bg-green-50 text-green-800'
-              : 'border-red-100 bg-red-50 text-red-700'
-              }`}>
+            <div className={`rounded-xl border px-4 py-3 text-sm ${
+              feedbackIsError
+                ? 'border-red-100 bg-red-50 text-red-700'
+                : 'border-green-100 bg-green-50 text-green-800'
+            }`}>
               {accountFeedback}
             </div>
           ) : null}

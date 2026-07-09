@@ -9,6 +9,7 @@ export default function PDLayout() {
       officeName="Program Director Office"
       loginPath="/pd/login"
       dashboardPath="/pd/dashboard"
+      profilePath="/pd/profile"
       queuePath="/pd/queue"
       trackerPath="/pd/tracker"
       reportsPath="/pd/reports"

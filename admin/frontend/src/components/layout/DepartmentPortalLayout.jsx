@@ -13,6 +13,7 @@ import {
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
+import { useSocketEvent } from '../../hooks/useSocket';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -43,6 +44,7 @@ export default function DepartmentPortalLayout({
   officeName,
   loginPath,
   dashboardPath,
+  profilePath = '',
   tokenStorageKey,
   profileStorageKey,
   colors,
@@ -94,6 +96,21 @@ export default function DepartmentPortalLayout({
     if (notifOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [notifOpen]);
+
+  useSocketEvent(
+    'maintenance:updated',
+    () => {
+      const latestProfile = sessionStorage.getItem(profileStorageKey);
+      if (!latestProfile) return;
+
+      try {
+        setProfile(JSON.parse(latestProfile));
+      } catch {
+        setProfile(null);
+      }
+    },
+    [profileStorageKey]
+  );
 
   const handleLogout = () => {
     sessionStorage.removeItem(tokenStorageKey);
@@ -275,9 +292,9 @@ export default function DepartmentPortalLayout({
 
             <button
               type="button"
-              onClick={() => navigate(dashboardPath)}
+              onClick={() => navigate(profilePath || dashboardPath)}
               className="flex cursor-pointer items-center gap-3 rounded-full border border-stone-200 bg-stone-50/80 py-1.5 pl-1.5 pr-3 transition-colors hover:bg-stone-100"
-              title="Open dashboard"
+              title="Open Profile"
             >
               {profileImage ? (
                 <img

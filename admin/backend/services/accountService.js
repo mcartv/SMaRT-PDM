@@ -1,7 +1,9 @@
 const bcrypt = require('bcryptjs');
 const { z } = require('zod');
 const db = require('../config/db');
+const supabase = require('../config/supabase');
 const { resolveStaffRole } = require('../utils/staffRoles');
+const { extractAvatarStoragePath, resolveAvatarUrl } = require('./avatarService');
 
 const ROLE_CONFIG = {
     admin: {
@@ -77,8 +79,25 @@ function mapStaffAccount(row) {
         position: row.position || '',
         role,
         db_role: row.user_role,
+        profile_photo_url: row.profile_photo_url || null,
         created_at: row.created_at,
     };
+}
+
+async function decorateStaffAccount(row) {
+    const account = mapStaffAccount(row);
+    return {
+        ...account,
+        avatar_url: await resolveAvatarUrl(account.profile_photo_url),
+    };
+}
+
+function sanitizeFileName(value) {
+    return String(value || 'profile-photo')
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || 'profile-photo';
 }
 
 async function buildUniqueUsername(client, email) {
@@ -116,16 +135,17 @@ async function listStaffAccounts() {
             a.first_name,
             a.last_name,
             a.department,
-            a.position
+            a.position,
+            a.profile_photo_url
         FROM users u
         INNER JOIN admin_profiles a ON a.user_id = u.user_id
         WHERE COALESCE(a.is_archived, false) = false
         ORDER BY u.created_at DESC
     `);
 
-    return result.rows
-        .map(mapStaffAccount)
-        .filter((account) => ['admin', 'pd', 'guidance', 'sdo'].includes(account.role));
+    const accounts = await Promise.all(result.rows.map((row) => decorateStaffAccount(row)));
+
+    return accounts.filter((account) => ['admin', 'pd', 'guidance', 'sdo'].includes(account.role));
 }
 
 async function getCurrentStaffProfile(userId) {
@@ -146,7 +166,8 @@ async function getCurrentStaffProfile(userId) {
             a.first_name,
             a.last_name,
             a.department,
-            a.position
+            a.position,
+            a.profile_photo_url
         FROM users u
         INNER JOIN admin_profiles a ON a.user_id = u.user_id
         WHERE u.user_id = $1
@@ -162,7 +183,7 @@ async function getCurrentStaffProfile(userId) {
         throw createHttpError(404, 'Staff profile not found.');
     }
 
-    return mapStaffAccount(row);
+    return decorateStaffAccount(row);
 }
 
 async function updateCurrentStaffProfile(userId, payload = {}) {
@@ -213,7 +234,8 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
                 a.first_name,
                 a.last_name,
                 a.department,
-                a.position
+                a.position,
+                a.profile_photo_url
             FROM users u
             INNER JOIN admin_profiles a ON a.user_id = u.user_id
             WHERE u.user_id = $1
@@ -337,14 +359,14 @@ async function createStaffAccount(payload) {
             `
                 INSERT INTO admin_profiles (user_id, first_name, last_name, department, position, is_archived)
                 VALUES ($1, $2, $3, $4, $5, false)
-                RETURNING admin_id, first_name, last_name, department, position
+                RETURNING admin_id, first_name, last_name, department, position, profile_photo_url
             `,
             [user.user_id, firstName, lastName, department, position]
         );
 
         await client.query('COMMIT');
 
-        return mapStaffAccount({
+        return decorateStaffAccount({
             ...user,
             ...profileResult.rows[0],
         });
@@ -361,9 +383,58 @@ async function createStaffAccount(payload) {
     }
 }
 
+async function uploadCurrentStaffProfilePhoto(userId, file) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    if (!file) {
+        throw createHttpError(400, 'Profile photo file is required.');
+    }
+
+    const mimeType = safeText(file.mimetype).toLowerCase();
+    if (!mimeType.startsWith('image/')) {
+        throw createHttpError(400, 'Only image files are allowed for profile photos.');
+    }
+
+    const currentProfile = await getCurrentStaffProfile(userId);
+    const originalName = sanitizeFileName(file.originalname || 'profile-photo');
+    const baseName = originalName.replace(/\.[^.]+$/, '') || 'profile-photo';
+    const extension = originalName.includes('.') ? originalName.split('.').pop() : 'png';
+    const storagePath = `staff/${userId}/${Date.now()}-${baseName}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(storagePath, file.buffer, {
+            contentType: file.mimetype || 'image/png',
+            upsert: true,
+        });
+
+    if (uploadError) {
+        throw createHttpError(500, uploadError.message || 'Failed to upload profile photo.');
+    }
+
+    const oldPath = extractAvatarStoragePath(currentProfile.profile_photo_url);
+    if (oldPath && oldPath !== storagePath) {
+        await supabase.storage.from('avatars').remove([oldPath]).catch(() => null);
+    }
+
+    await db.query(
+        `
+        UPDATE admin_profiles
+        SET profile_photo_url = $2
+        WHERE user_id = $1
+        `,
+        [userId, storagePath]
+    );
+
+    return getCurrentStaffProfile(userId);
+}
+
 module.exports = {
     createStaffAccount,
     getCurrentStaffProfile,
     listStaffAccounts,
     updateCurrentStaffProfile,
+    uploadCurrentStaffProfilePhoto,
 };

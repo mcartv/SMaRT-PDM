@@ -47,10 +47,12 @@ async function publishAnnouncementInternal(announcementId) {
             status: 'Published',
             publish_date: nowIso,
             published_at: nowIso,
+            scheduled_at: null,
             updated_at: nowIso,
         })
         .eq('announcement_id', announcementId)
         .eq('is_archived', false)
+        .in('status', ['Draft', 'Scheduled'])
         .select()
         .single();
 
@@ -66,7 +68,6 @@ async function publishAnnouncementInternal(announcementId) {
         notificationsInserted,
     };
 }
-
 exports.fetchAnnouncements = async () => {
     const { data, error } = await supabase
         .from('announcements')
@@ -222,17 +223,14 @@ exports.publishAnnouncement = async (announcementId) => {
 };
 
 exports.publishDueAnnouncements = async () => {
-    const now = new Date();
-    const nowLocal = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 19);
+    const nowIso = new Date().toISOString();
 
     const { data, error } = await supabase
         .from('announcements')
         .select('*')
         .eq('status', 'Scheduled')
         .eq('is_archived', false)
-        .lte('scheduled_at', nowLocal);
+        .lte('scheduled_at', nowIso);
 
     if (error) {
         console.error('SUPABASE FETCH DUE ANNOUNCEMENTS ERROR:', error);
@@ -250,7 +248,10 @@ exports.publishDueAnnouncements = async () => {
             const result = await publishAnnouncementInternal(row.announcement_id);
             published.push(result);
         } catch (err) {
-            console.error(`FAILED TO AUTO-PUBLISH ANNOUNCEMENT ${row.announcement_id}:`, err.message);
+            console.error(
+                `FAILED TO AUTO-PUBLISH ANNOUNCEMENT ${row.announcement_id}:`,
+                err.message
+            );
         }
     }
 

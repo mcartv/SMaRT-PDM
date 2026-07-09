@@ -1,24 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  FileText,
-  Building2,
-  Calendar,
-  User,
-  AlertTriangle,
-  CheckCircle2,
-  Plus,
+  Search,
+  RefreshCw,
   Loader2,
-  X,
+  CheckCircle2,
   ClipboardCheck,
-  RotateCcw,
+  Filter,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -35,32 +29,6 @@ const C = {
   bg: '#faf7f2',
 };
 
-const TAB_CONFIG = [
-  { key: 'pending', label: 'Pending', icon: Clock, color: '#d97706' },
-  { key: 'verified', label: 'Verified', icon: CheckCircle2, color: '#16a34a' },
-  { key: 'overdue', label: 'Overdue', icon: AlertTriangle, color: '#dc2626' },
-];
-
-const SCHOLARSHIP_STYLE = {
-  TES: { bg: '#EFF6FF', color: '#1E3A8A' },
-  TDP: { bg: '#F0FDF4', color: '#16a34a' },
-  Private: { bg: '#FAF5FF', color: '#7c3aed' },
-  Scholar: { bg: '#f3f4f6', color: '#6b7280' },
-};
-
-function ScholarPill({ program }) {
-  const s = SCHOLARSHIP_STYLE[program] ?? SCHOLARSHIP_STYLE.Scholar;
-
-  return (
-    <span
-      className="rounded-full px-2 py-1 text-[10px] font-medium"
-      style={{ background: s.bg, color: s.color }}
-    >
-      {program || 'Scholar'}
-    </span>
-  );
-}
-
 function StatusChip({ children, tone = 'default' }) {
   const map = {
     default: { bg: '#f5f5f4', color: '#57534e' },
@@ -74,7 +42,7 @@ function StatusChip({ children, tone = 'default' }) {
 
   return (
     <span
-      className="rounded-full px-2 py-1 text-[10px] font-medium"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold"
       style={{ background: s.bg, color: s.color }}
     >
       {children}
@@ -82,140 +50,135 @@ function StatusChip({ children, tone = 'default' }) {
   );
 }
 
-function HoursBar({ logged = 0, required = 1 }) {
-  const safeRequired = Number(required) || 1;
-  const safeLogged = Number(logged) || 0;
-  const pct = Math.min(100, Math.round((safeLogged / safeRequired) * 100));
-  const met = safeLogged >= safeRequired;
-  const color = met ? C.green : safeLogged >= safeRequired * 0.5 ? C.amber : C.red;
+function normalizeStatus(value) {
+  return String(value || '').trim().toLowerCase();
+}
 
+function isClearedScholar(scholar) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-          Hours Progress
-        </span>
-        <span className="text-[11px] font-semibold" style={{ color }}>
-          {safeLogged}/{safeRequired} hrs · {pct}%
-        </span>
-      </div>
-
-      <div className="h-2 overflow-hidden rounded-full bg-stone-200">
-        <div
-          className="h-2 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: color }}
-        />
-      </div>
-    </div>
+    scholar.is_cleared === true ||
+    normalizeStatus(scholar.ro_status) === 'cleared'
   );
 }
 
-function InfoBlock({ icon: Icon, label, value }) {
+function getScholarName(scholar) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-white px-3 py-3">
-      <div className="mb-1 flex items-center gap-2 text-stone-400">
-        <Icon className="h-3.5 w-3.5" />
-        <span className="text-[10px] font-medium uppercase tracking-wide">
-          {label}
-        </span>
-      </div>
-      <p className="text-xs font-medium text-stone-800">{value || 'N/A'}</p>
-    </div>
+    scholar.name ||
+    scholar.student_name ||
+    [scholar.first_name, scholar.middle_name, scholar.last_name]
+      .filter(Boolean)
+      .join(' ') ||
+    'Unknown Scholar'
   );
 }
 
-function EmptyState({ tab, onAssign }) {
-  const copy = {
-    pending: {
-      title: 'No pending RO submissions',
-      desc: 'Submitted obligations that need review will appear here.',
-    },
-    verified: {
-      title: 'No verified RO records',
-      desc: 'Approved and completed obligations will appear here.',
-    },
-    overdue: {
-      title: 'No overdue obligations',
-      desc: 'Students with missed RO deadlines will appear here.',
-    },
+function getInitials(name = '') {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function formatYearLevel(value) {
+  if (!value) return 'N/A';
+
+  const raw = String(value).trim();
+
+  if (raw.toLowerCase().includes('year')) return raw;
+
+  const map = {
+    1: '1st Year',
+    2: '2nd Year',
+    3: '3rd Year',
+    4: '4th Year',
+    5: '5th Year',
   };
 
-  const current = copy[tab] || copy.pending;
+  return map[raw] || `${raw} Year`;
+}
+
+function formatDate(value) {
+  if (!value) return 'Not yet cleared';
+
+  try {
+    return new Date(value).toLocaleDateString();
+  } catch {
+    return 'Invalid date';
+  }
+}
+
+function EmptyState({ viewMode, hasFilters, onReset }) {
+  const isClearedView = viewMode === 'cleared';
 
   return (
-    <div className="flex min-h-[280px] flex-col items-center justify-center px-6 py-10 text-center">
+    <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-10 text-center">
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200 bg-stone-50">
         <ClipboardCheck className="h-6 w-6 text-stone-400" />
       </div>
 
-      <h3 className="text-sm font-semibold text-stone-800">{current.title}</h3>
-      <p className="mt-1 max-w-md text-xs leading-6 text-stone-500">{current.desc}</p>
+      <h3 className="text-sm font-semibold text-stone-800">
+        {isClearedView ? 'No cleared scholars found' : 'No pending RO scholars found'}
+      </h3>
 
-      {tab === 'pending' && (
+      <p className="mt-1 max-w-md text-xs leading-6 text-stone-500">
+        {hasFilters
+          ? 'No scholar matches the current search or filter choices.'
+          : isClearedView
+            ? 'Scholars you mark as cleared will appear here.'
+            : 'Scholars with pending return-of-obligation clearance will appear here.'}
+      </p>
+
+      {hasFilters && (
         <Button
-          onClick={onAssign}
+          onClick={onReset}
+          variant="outline"
           size="sm"
-          className="mt-4 rounded-lg border-none text-xs text-white"
-          style={{ background: C.brownMid }}
+          className="mt-4 rounded-lg border-stone-200 text-xs"
         >
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Assign RO
+          Reset Filters
         </Button>
       )}
     </div>
   );
 }
 
-function CreateROModal({
+function FilterModal({
   open,
   onClose,
-  onSubmit,
-  loading,
-  activeRequiredHours = 10,
-  allowCarryOver = true,
+  courses,
+  openings,
+  courseId,
+  setCourseId,
+  yearLevel,
+  setYearLevel,
+  openingId,
+  setOpeningId,
+  onReset,
 }) {
-  const [scholarId, setScholarId] = useState('');
-  const [departmentAssigned, setDepartmentAssigned] = useState('');
-  const [taskDescription, setTaskDescription] = useState('');
-  const [requiredHours, setRequiredHours] = useState(activeRequiredHours);
-  const [renderedHours, setRenderedHours] = useState(0);
-  const [deadlineDate, setDeadlineDate] = useState('');
-  const [isCarryOver, setIsCarryOver] = useState(false);
-  const [previousSemester, setPreviousSemester] = useState('');
-
-  useEffect(() => {
-    if (!open) {
-      setScholarId('');
-      setDepartmentAssigned('');
-      setTaskDescription('');
-      setRequiredHours(activeRequiredHours);
-      setRenderedHours(0);
-      setDeadlineDate('');
-      setIsCarryOver(false);
-      setPreviousSemester('');
-    }
-  }, [open, activeRequiredHours]);
-
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
 
-      <Card className="relative w-full max-w-2xl overflow-hidden border-stone-200 bg-white shadow-xl">
+      <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold text-stone-800">
-              Assign Return of Obligation
+            <h3 className="text-sm font-semibold text-stone-900">
+              Filter RO Scholars
             </h3>
             <p className="mt-0.5 text-xs text-stone-500">
-              Create a new RO record for a scholar.
+              Refine the scholar list by course, year level, or scholarship opening.
             </p>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100"
+            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
           >
             <X className="h-4 w-4" />
           </button>
@@ -224,133 +187,206 @@ function CreateROModal({
         <CardContent className="space-y-4 p-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                Scholar ID
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                Course
               </label>
-              <Input
-                value={scholarId}
-                onChange={(e) => setScholarId(e.target.value)}
-                className="mt-1 h-10 rounded-lg"
-              />
+
+              <select
+                value={courseId}
+                onChange={(e) => setCourseId(e.target.value)}
+                className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
+              >
+                <option value="all">All Courses</option>
+                {courses.map((course) => (
+                  <option
+                    key={course.course_id || course.id}
+                    value={course.course_id || course.id}
+                  >
+                    {course.course_code
+                      ? `${course.course_code} - ${course.course_name || ''}`
+                      : course.course_name || course.name || 'Unnamed Course'}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                Department Assigned
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                Year Level
               </label>
-              <Input
-                value={departmentAssigned}
-                onChange={(e) => setDepartmentAssigned(e.target.value)}
-                className="mt-1 h-10 rounded-lg"
-              />
+
+              <select
+                value={yearLevel}
+                onChange={(e) => setYearLevel(e.target.value)}
+                className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
+              >
+                <option value="all">All Year Levels</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+                <option value="5">5th Year</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                Scholarship Opening
+              </label>
+
+              <select
+                value={openingId}
+                onChange={(e) => setOpeningId(e.target.value)}
+                className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
+              >
+                <option value="all">All Openings</option>
+                {openings.map((opening) => (
+                  <option
+                    key={opening.opening_id || opening.id}
+                    value={opening.opening_id || opening.id}
+                  >
+                    {opening.opening_title ||
+                      opening.title ||
+                      opening.program_name ||
+                      'Unnamed Opening'}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-              Task Description
-            </label>
-            <Input
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-              className="mt-1 h-10 rounded-lg"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                Required Hours
-              </label>
-              <Input
-                type="number"
-                value={requiredHours}
-                onChange={(e) => setRequiredHours(e.target.value)}
-                className="mt-1 h-10 rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                Rendered Hours
-              </label>
-              <Input
-                type="number"
-                value={renderedHours}
-                onChange={(e) => setRenderedHours(e.target.value)}
-                className="mt-1 h-10 rounded-lg"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                Deadline
-              </label>
-              <Input
-                type="datetime-local"
-                value={deadlineDate}
-                onChange={(e) => setDeadlineDate(e.target.value)}
-                className="mt-1 h-10 rounded-lg"
-              />
-            </div>
-          </div>
-
-          {allowCarryOver && (
-            <label className="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
-              <input
-                type="checkbox"
-                checked={isCarryOver}
-                onChange={(e) => setIsCarryOver(e.target.checked)}
-              />
-              <span className="text-sm text-stone-700">Carry-over obligation</span>
-            </label>
-          )}
-
-          {isCarryOver && (
-            <div>
-              <label className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                Previous Semester
-              </label>
-              <Input
-                value={previousSemester}
-                onChange={(e) => setPreviousSemester(e.target.value)}
-                className="mt-1 h-10 rounded-lg"
-              />
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex justify-end gap-3 border-t border-stone-100 pt-4">
             <Button
+              type="button"
+              variant="outline"
+              onClick={onReset}
+              className="rounded-xl border-stone-200 text-xs"
+            >
+              Reset Filters
+            </Button>
+
+            <Button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border-none px-5 text-xs font-bold text-white"
+              style={{ background: C.brownMid }}
+            >
+              Apply Filters
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ClearConfirmModal({
+  open,
+  scholar,
+  loading,
+  error,
+  onClose,
+  onConfirm,
+}) {
+  if (!open || !scholar) return null;
+
+  const name = getScholarName(scholar);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+      <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
+
+      <Card className="relative w-full max-w-md overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
+        <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-stone-900">
+                  Clear Return of Obligation?
+                </h3>
+                <p className="mt-0.5 text-xs leading-5 text-stone-500">
+                  This will mark the scholar as cleared and move the record to the cleared scholars section.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <CardContent className="space-y-4 p-5">
+          <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+              Scholar
+            </p>
+            <p className="mt-1 text-sm font-bold text-stone-900">{name}</p>
+            <p className="mt-0.5 font-mono text-[11px] text-stone-400">
+              {scholar.pdm_id || scholar.student_number || scholar.student_id || 'No Student ID'}
+            </p>
+
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              <div className="rounded-lg bg-stone-50 px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                  Program
+                </p>
+                <p className="text-xs font-semibold text-stone-800">
+                  {scholar.program_name || 'N/A'}
+                </p>
+              </div>
+
+              <div className="rounded-lg bg-stone-50 px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                  Opening
+                </p>
+                <p className="text-xs font-semibold text-stone-800">
+                  {scholar.opening_title || 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 border-t border-stone-100 pt-4">
+            <Button
+              type="button"
               variant="outline"
               onClick={onClose}
-              className="rounded-lg border-stone-200"
+              disabled={loading}
+              className="rounded-xl border-stone-200 text-xs"
             >
               Cancel
             </Button>
 
             <Button
-              onClick={() =>
-                onSubmit({
-                  scholarId,
-                  departmentAssigned,
-                  taskDescription,
-                  requiredHours,
-                  renderedHours,
-                  deadlineDate,
-                  isCarryOver,
-                  previousSemester,
-                })
-              }
+              type="button"
+              onClick={onConfirm}
               disabled={loading}
-              className="rounded-lg border-none text-white"
-              style={{ background: C.brownMid }}
+              className="rounded-xl border-none px-5 text-xs font-bold text-white"
+              style={{ background: C.green }}
             >
               {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Plus className="mr-2 h-4 w-4" />
+                <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
               )}
-              Create RO
+              Confirm Clear
             </Button>
           </div>
         </CardContent>
@@ -360,209 +396,265 @@ function CreateROModal({
 }
 
 export default function ROAdmin() {
-  const [tab, setTab] = useState('pending');
-  const [items, setItems] = useState([]);
-  const [reqHours, setReqHours] = useState(20);
-  const [currentSem, setCurrentSem] = useState('1st Sem AY 2025-26');
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createLoading, setCreateLoading] = useState(false);
-  const [activeROSetting, setActiveROSetting] = useState(null);
-
   const token = sessionStorage.getItem('adminToken');
 
-  const initials = (name = '') =>
-    name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
+  const [scholars, setScholars] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [openings, setOpenings] = useState([]);
 
-  const loadROData = async (activeTab = tab) => {
+  const [viewMode, setViewMode] = useState('pending');
+  const [search, setSearch] = useState('');
+  const [courseId, setCourseId] = useState('all');
+  const [yearLevel, setYearLevel] = useState('all');
+  const [openingId, setOpeningId] = useState('all');
+
+  const [loading, setLoading] = useState(true);
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [error, setError] = useState('');
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [clearModalOpen, setClearModalOpen] = useState(false);
+  const [selectedScholar, setSelectedScholar] = useState(null);
+  const [clearError, setClearError] = useState('');
+
+  const activeFilterCount = [
+    courseId !== 'all',
+    yearLevel !== 'all',
+    openingId !== 'all',
+  ].filter(Boolean).length;
+
+  const authHeaders = useMemo(
+    () => ({
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }),
+    [token]
+  );
+
+  const buildScholarQuery = () => {
+    const params = new URLSearchParams();
+
+    params.set('status', viewMode);
+
+    if (search.trim()) params.set('search', search.trim());
+    if (courseId !== 'all') params.set('courseId', courseId);
+    if (yearLevel !== 'all') params.set('yearLevel', yearLevel);
+    if (openingId !== 'all') params.set('openingId', openingId);
+
+    return params.toString();
+  };
+
+  const loadFilterData = async () => {
     try {
-      setLoading(true);
-
-      const [summaryRes, activeSettingRes, listRes] = await Promise.all([
-        fetch(buildApiUrl('/api/ro/summary'), {
+      const [coursesRes, openingsRes] = await Promise.all([
+        fetch(buildApiUrl('/api/courses'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(buildApiUrl('/api/ro-settings/active'), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(buildApiUrl(`/api/ro?status=${activeTab}`), {
+        fetch(buildApiUrl('/api/program-openings'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
 
-      const summaryData = await summaryRes.json().catch(() => ({}));
-      const activeSettingData = await activeSettingRes.json().catch(() => ({}));
-      const listData = await listRes.json().catch(() => []);
+      const coursesData = await coursesRes.json().catch(() => []);
+      const openingsData = await openingsRes.json().catch(() => []);
 
-      if (!summaryRes.ok) {
-        throw new Error(summaryData.error || 'Failed to load RO summary');
+      if (coursesRes.ok) {
+        setCourses(Array.isArray(coursesData) ? coursesData : coursesData.data || []);
       }
 
-      if (!activeSettingRes.ok) {
-        throw new Error(activeSettingData.error || 'Failed to load active RO setting');
+      if (openingsRes.ok) {
+        setOpenings(Array.isArray(openingsData) ? openingsData : openingsData.data || []);
       }
-
-      if (!listRes.ok) {
-        throw new Error(listData.error || 'Failed to load RO list');
-      }
-
-      const setting = activeSettingData.setting || null;
-
-      setActiveROSetting(setting);
-      setItems(Array.isArray(listData) ? listData : []);
-      setReqHours(setting?.required_hours || summaryData.requiredHours || 20);
-
-      setCurrentSem(
-        setting?.academic_period?.term ||
-        setting?.academic_years?.label ||
-        summaryData.currentSemester ||
-        'Active RO Requirement'
-      );
     } catch (err) {
-      console.error('LOAD RO ERROR:', err);
-      alert(err.message || 'Failed to load RO data');
+      console.error('LOAD RO FILTER DATA ERROR:', err);
+    }
+  };
+
+  const loadScholars = async ({ initial = false } = {}) => {
+    try {
+      if (initial) setLoading(true);
+      else setFilterLoading(true);
+
+      setError('');
+
+      const query = buildScholarQuery();
+
+      const res = await fetch(
+        buildApiUrl(`/api/ro/scholars?${query}`),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to load RO scholars');
+      }
+
+      const rows = Array.isArray(data)
+        ? data
+        : Array.isArray(data.scholars)
+          ? data.scholars
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+
+      setScholars(rows);
+    } catch (err) {
+      console.error('LOAD RO SCHOLARS ERROR:', err);
+      setError(err.message || 'Failed to load RO scholars');
+      setScholars([]);
     } finally {
       setLoading(false);
+      setFilterLoading(false);
     }
   };
 
   useEffect(() => {
-    loadROData(tab);
-  }, [tab]);
+    loadFilterData();
+    loadScholars({ initial: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useSocketEvent(
-    'scholar:updated',
-    () => {
-      loadROData(tab);
-    },
-    []
-  );
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      loadScholars();
+    }, 350);
+
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, search, courseId, yearLevel, openingId]);
 
   useSocketEvent(
     'ro:updated',
     () => {
-      loadROData(tab);
+      loadScholars();
     },
-    [tab]
+    [viewMode, search, courseId, yearLevel, openingId]
   );
 
-  const handleApprove = async (id) => {
-    try {
-      setActionLoading(id);
+  useSocketEvent(
+    'scholar:updated',
+    () => {
+      loadScholars();
+    },
+    [viewMode, search, courseId, yearLevel, openingId]
+  );
 
-      const res = await fetch(buildApiUrl(`/api/ro/${id}/approve`), {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to approve RO');
-
-      await loadROData(tab);
-    } catch (err) {
-      alert(err.message || 'Failed to approve RO');
-    } finally {
-      setActionLoading(null);
-    }
+  const handleResetFilters = () => {
+    setSearch('');
+    setCourseId('all');
+    setYearLevel('all');
+    setOpeningId('all');
   };
 
-  const handleReject = async (id) => {
-    const reason = window.prompt('Enter rejection reason:');
-    if (reason === null) return;
-
-    try {
-      setActionLoading(id);
-
-      const res = await fetch(buildApiUrl(`/api/ro/${id}/reject`), {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ reason }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to reject RO');
-
-      await loadROData(tab);
-    } catch (err) {
-      alert(err.message || 'Failed to reject RO');
-    } finally {
-      setActionLoading(null);
-    }
+  const openClearModal = (scholar) => {
+    setSelectedScholar(scholar);
+    setClearError('');
+    setClearModalOpen(true);
   };
 
-  const handleAssignDepartment = async (id) => {
-    const departmentAssigned = window.prompt('Enter department assignment:');
-    if (!departmentAssigned) return;
+  const closeClearModal = () => {
+    if (actionLoading) return;
 
-    try {
-      setActionLoading(id);
-
-      const res = await fetch(buildApiUrl(`/api/ro/${id}/assign-department`), {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ departmentAssigned }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to assign department');
-
-      await loadROData(tab);
-    } catch (err) {
-      alert(err.message || 'Failed to assign department');
-    } finally {
-      setActionLoading(null);
-    }
+    setSelectedScholar(null);
+    setClearError('');
+    setClearModalOpen(false);
   };
 
-  const handleCreateRO = async (payload) => {
-    try {
-      setCreateLoading(true);
+  const handleConfirmClear = async () => {
+    const scholar = selectedScholar;
+    if (!scholar) return;
 
-      const res = await fetch(buildApiUrl('/api/ro'), {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+    const studentId = scholar.student_id;
+
+    if (!studentId) {
+      setClearError('Missing student ID. Cannot clear this scholar.');
+      return;
+    }
+
+    const rowKey = `${studentId}-${scholar.application_id || scholar.opening_id || 'no-application'}`;
+
+    try {
+      setActionLoading(rowKey);
+      setClearError('');
+
+      const res = await fetch(buildApiUrl(`/api/ro/scholars/${studentId}/clear`), {
+        method: 'PATCH',
+        headers: authHeaders,
         body: JSON.stringify({
-          ...payload,
-          requiredHours: Number(payload.requiredHours || reqHours || 20),
+          applicationId: scholar.application_id || null,
+          openingId: scholar.opening_id || null,
+          programId: scholar.program_id || null,
+          remarks: 'Marked as cleared by RO admin.',
         }),
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to create RO');
 
-      setCreateOpen(false);
-      await loadROData(tab);
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to clear scholar');
+      }
+
+      const updatedClearance = data.clearance || {};
+
+      if (viewMode === 'pending') {
+        setScholars((prev) =>
+          prev.filter((item) => {
+            const sameStudent = String(item.student_id || '') === String(studentId);
+            const sameApplication =
+              String(item.application_id || '') === String(scholar.application_id || '');
+
+            return !(sameStudent && sameApplication);
+          })
+        );
+      } else {
+        setScholars((prev) =>
+          prev.map((item) => {
+            const sameStudent = String(item.student_id || '') === String(studentId);
+            const sameApplication =
+              String(item.application_id || '') === String(scholar.application_id || '');
+
+            if (sameStudent && sameApplication) {
+              return {
+                ...item,
+                ro_id: updatedClearance.ro_id || item.ro_id,
+                ro_status: 'Cleared',
+                is_cleared: true,
+                cleared_at: updatedClearance.cleared_at || new Date().toISOString(),
+                remarks: updatedClearance.remarks || item.remarks,
+              };
+            }
+
+            return item;
+          })
+        );
+      }
+
+      setSelectedScholar(null);
+      setClearModalOpen(false);
     } catch (err) {
-      alert(err.message || 'Failed to create RO');
+      console.error('CLEAR RO ERROR:', err);
+      setClearError(err.message || 'Failed to clear scholar');
     } finally {
-      setCreateLoading(false);
+      setActionLoading(null);
     }
   };
 
+  const hasFilters =
+    search.trim() ||
+    courseId !== 'all' ||
+    yearLevel !== 'all' ||
+    openingId !== 'all';
+
   if (loading) {
     return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
+      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3">
         <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
         <p className="text-xs uppercase tracking-widest text-stone-400">
-          Loading RO workspace...
+          Loading RO scholars...
         </p>
       </div>
     );
@@ -570,246 +662,323 @@ export default function ROAdmin() {
 
   return (
     <div className="space-y-4 py-2" style={{ background: C.bg }}>
-      <CreateROModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onSubmit={handleCreateRO}
-        loading={createLoading}
-        activeRequiredHours={reqHours}
-        allowCarryOver={activeROSetting?.allow_carry_over !== false}
+      <FilterModal
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        courses={courses}
+        openings={openings}
+        courseId={courseId}
+        setCourseId={setCourseId}
+        yearLevel={yearLevel}
+        setYearLevel={setYearLevel}
+        openingId={openingId}
+        setOpeningId={setOpeningId}
+        onReset={handleResetFilters}
+      />
+
+      <ClearConfirmModal
+        open={clearModalOpen}
+        scholar={selectedScholar}
+        loading={!!actionLoading}
+        error={clearError}
+        onClose={closeClearModal}
+        onConfirm={handleConfirmClear}
       />
 
       <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
         <div className="flex flex-col gap-4 border-b border-stone-100 bg-white px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-stone-900">
-              RO Tracking Workspace
+              Return of Obligation Clearance
             </h2>
             <p className="mt-0.5 text-xs text-stone-500">
-              Review, assign, and verify scholar return-of-obligation records.
+              Manage pending and cleared return-of-obligation records for active scholars.
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2 rounded-full border border-orange-100 bg-white px-3 py-2 shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-orange-500" />
-
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                  Active Requirement
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => setFilterOpen(true)}
+              variant="outline"
+              size="sm"
+              className="h-10 rounded-xl border-stone-200 bg-white text-xs font-semibold text-stone-700"
+            >
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
+              Filter
+              {activeFilterCount > 0 && (
+                <span
+                  className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white"
+                  style={{ background: C.brownMid }}
+                >
+                  {activeFilterCount}
                 </span>
-
-                <span className="text-xs font-semibold text-stone-800">
-                  {reqHours} hrs
-                </span>
-
-                <span className="text-[10px] text-stone-400">
-                  {currentSem}
-                </span>
-              </div>
-            </div>
+              )}
+            </Button>
 
             <Button
-              onClick={() => setCreateOpen(true)}
+              onClick={() => loadScholars()}
+              variant="outline"
               size="sm"
-              className="h-10 rounded-xl border-none px-4 text-xs text-white"
-              style={{ background: C.brownMid }}
+              className="h-10 rounded-xl border-stone-200 bg-white text-xs font-semibold text-stone-700"
+              disabled={filterLoading}
             >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Assign RO
+              {filterLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Refresh
             </Button>
           </div>
         </div>
 
-        <div className="flex flex-wrap border-b border-stone-100 bg-stone-50/50 px-3">
-          {TAB_CONFIG.map((t) => {
-            const Icon = t.icon;
-            const active = tab === t.key;
+        <div className="flex flex-col gap-3 border-b border-stone-100 bg-stone-50/40 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex w-full rounded-xl border border-stone-200 bg-white p-1 lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('pending')}
+              className={`flex-1 rounded-lg px-4 py-2 text-xs font-bold transition lg:flex-none ${viewMode === 'pending'
+                ? 'text-white'
+                : 'text-stone-500 hover:bg-stone-50 hover:text-stone-800'
+                }`}
+              style={{
+                background: viewMode === 'pending' ? C.brownMid : 'transparent',
+              }}
+            >
+              Pending RO
+            </button>
 
-            return (
+            <button
+              type="button"
+              onClick={() => setViewMode('cleared')}
+              className={`flex-1 rounded-lg px-4 py-2 text-xs font-bold transition lg:flex-none ${viewMode === 'cleared'
+                ? 'text-white'
+                : 'text-stone-500 hover:bg-stone-50 hover:text-stone-800'
+                }`}
+              style={{
+                background: viewMode === 'cleared' ? C.brownMid : 'transparent',
+              }}
+            >
+              Cleared Scholars
+            </button>
+          </div>
+
+          <div className="relative w-full lg:max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search scholar name or PDM ID..."
+              className="h-10 rounded-xl border-stone-200 bg-white pl-9 text-sm"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 lg:justify-end">
+            <p className="text-xs text-stone-500">
+              Showing{' '}
+              <span className="font-semibold text-stone-800">
+                {scholars.length}
+              </span>{' '}
+              {viewMode === 'cleared' ? 'cleared' : 'pending'} scholar
+              {scholars.length === 1 ? '' : 's'}
+            </p>
+
+            {hasFilters && (
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${active ? '' : 'text-stone-400 hover:text-stone-600'
-                  }`}
-                style={{ color: active ? t.color : undefined }}
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-semibold text-orange-800 hover:underline"
               >
-                <Icon className="h-3.5 w-3.5" />
-                {t.label}
-                {active && (
-                  <span
-                    className="absolute bottom-0 left-0 h-[2px] w-full"
-                    style={{ background: t.color }}
-                  />
-                )}
+                Clear filters
               </button>
-            );
-          })}
+            )}
+          </div>
         </div>
 
-        <div className="divide-y divide-stone-100">
-          {items.length === 0 ? (
-            <EmptyState tab={tab} onAssign={() => setCreateOpen(true)} />
+        {error && (
+          <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-xs font-semibold text-red-600">
+            {error}
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          {scholars.length === 0 ? (
+            <EmptyState
+              viewMode={viewMode}
+              hasFilters={hasFilters}
+              onReset={handleResetFilters}
+            />
           ) : (
-            items.map((ro) => (
-              <div key={ro.id} className="p-5 transition-colors hover:bg-stone-50/40">
-                <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-                  <div className="flex items-start gap-3 xl:col-span-3">
-                    <Avatar className="h-11 w-11 shrink-0 border border-stone-200 shadow-sm">
-                      <AvatarImage
-                        src={ro.student?.avatarUrl || undefined}
-                        alt={ro.student?.name || 'Scholar'}
-                      />
-                      <AvatarFallback className="bg-blue-900 text-xs font-semibold text-white">
-                        {initials(ro.student?.name || 'Scholar')}
-                      </AvatarFallback>
-                    </Avatar>
+            <table className="min-w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-stone-200 bg-stone-50/70">
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Scholar
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    PDM ID
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Scholarship
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Opening
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Course
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Year
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Cleared Date
+                  </th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wide text-stone-500">
+                    Action
+                  </th>
+                </tr>
+              </thead>
 
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-stone-900">
-                        {ro.student?.name || 'Unknown Scholar'}
-                      </p>
-                      <p className="mt-0.5 font-mono text-[11px] text-stone-400">
-                        {ro.student?.id || 'N/A'}
-                      </p>
+              <tbody className="divide-y divide-stone-100 bg-white">
+                {scholars.map((scholar) => {
+                  const studentId = scholar.student_id;
+                  const rowKey = `${studentId}-${scholar.application_id || scholar.opening_id || 'no-application'}`;
+                  const name = getScholarName(scholar);
+                  const cleared = isClearedScholar(scholar);
+                  const loadingThis = actionLoading === rowKey;
 
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <ScholarPill program={ro.student?.program} />
-                        {ro.carryOver && <StatusChip tone="amber">Carry-Over</StatusChip>}
-                      </div>
-                    </div>
-                  </div>
+                  return (
+                    <tr
+                      key={rowKey}
+                      className="transition-colors hover:bg-stone-50/70"
+                    >
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-9 w-9 shrink-0 border border-stone-200 shadow-sm">
+                            <AvatarImage
+                              src={
+                                scholar.profile_photo_url ||
+                                scholar.avatarUrl ||
+                                scholar.avatar_url ||
+                                undefined
+                              }
+                              alt={name}
+                            />
+                            <AvatarFallback className="bg-blue-900 text-[10px] font-semibold text-white">
+                              {getInitials(name)}
+                            </AvatarFallback>
+                          </Avatar>
 
-                  <div className="space-y-4 xl:col-span-6">
-                    <div>
-                      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                        Obligation
-                      </p>
-                      <p className="text-sm font-semibold leading-tight text-stone-800">
-                        {ro.obligation || 'No obligation description'}
-                      </p>
+                          <div className="min-w-0">
+                            <p className="max-w-[180px] truncate text-sm font-bold text-stone-900">
+                              {name}
+                            </p>
 
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <StatusChip>{ro.type || 'RO'}</StatusChip>
-                        {ro.prevSem ? (
-                          <StatusChip tone="blue">From {ro.prevSem}</StatusChip>
-                        ) : null}
-                        {ro.status === 'Overdue' ? (
-                          <StatusChip tone="red">Overdue</StatusChip>
-                        ) : null}
-                        {ro.status === 'Verified' ? (
-                          <StatusChip tone="green">Verified</StatusChip>
-                        ) : null}
-                      </div>
-                    </div>
+                            <p className="mt-0.5 text-[11px] text-stone-400">
+                              {scholar.is_active_scholar === false
+                                ? 'Inactive Scholar'
+                                : 'Active Scholar'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <InfoBlock
-                        icon={Calendar}
-                        label={
-                          tab === 'verified'
-                            ? 'Verified Date'
-                            : tab === 'overdue'
-                              ? 'Due Date'
-                              : 'Submitted'
-                        }
-                        value={
-                          tab === 'verified'
-                            ? ro.verifiedDate
-                              ? new Date(ro.verifiedDate).toLocaleDateString()
-                              : 'N/A'
-                            : tab === 'overdue'
-                              ? ro.dueDate
-                                ? new Date(ro.dueDate).toLocaleDateString()
-                                : 'N/A'
-                              : ro.submitted
-                                ? new Date(ro.submitted).toLocaleDateString()
-                                : 'Pending submission'
-                        }
-                      />
-
-                      <InfoBlock icon={Building2} label="Department" value={ro.dept} />
-                      <InfoBlock icon={FileText} label="Document" value={ro.doc || 'No proof uploaded'} />
-                    </div>
-
-                    <HoursBar logged={ro.hoursLogged} required={reqHours} />
-
-                    {ro.rejectionReason ? (
-                      <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-3">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-red-500">
-                          Rejection Reason
+                      <td className="px-4 py-4 align-top">
+                        <p className="font-mono text-xs text-stone-700">
+                          {scholar.pdm_id ||
+                            scholar.student_number ||
+                            scholar.student_id ||
+                            'N/A'}
                         </p>
-                        <p className="mt-1 text-xs font-medium text-red-700">
-                          {ro.rejectionReason}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
+                      </td>
 
-                  <div className="flex flex-col gap-2 xl:col-span-3">
-                    {tab === 'pending' && (
-                      <>
-                        <Button
-                          onClick={() => handleApprove(ro.id)}
-                          disabled={actionLoading === ro.id}
-                          className="h-10 w-full rounded-lg border-none text-white"
-                          style={{ background: C.green }}
-                        >
-                          {actionLoading === ro.id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                          )}
-                          Approve
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => handleReject(ro.id)}
-                          disabled={actionLoading === ro.id}
-                          className="h-10 w-full rounded-lg border-red-100 text-red-600 hover:bg-red-50"
-                        >
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Reject
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => handleAssignDepartment(ro.id)}
-                          disabled={actionLoading === ro.id}
-                          className="h-10 w-full rounded-lg border-stone-200 text-stone-600"
-                        >
-                          <User className="mr-2 h-4 w-4" />
-                          Assign to Dept
-                        </Button>
-                      </>
-                    )}
-
-                    {tab === 'verified' && (
-                      <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-3">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-green-500">
-                          Verification
+                      <td className="px-4 py-4 align-top">
+                        <p className="max-w-[180px] text-xs font-semibold leading-5 text-stone-900">
+                          {scholar.program_name ||
+                            scholar.scholarship_program ||
+                            scholar.program ||
+                            'N/A'}
                         </p>
-                        <p className="mt-0.5 text-xs font-semibold text-green-700">
-                          Approved and completed
-                        </p>
-                      </div>
-                    )}
 
-                    {tab === 'overdue' && (
-                      <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-3">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-red-500">
-                          Overdue Alert
+                        {scholar.benefactor_name && (
+                          <p className="mt-0.5 max-w-[180px] text-[11px] leading-4 text-stone-400">
+                            {scholar.benefactor_name}
+                          </p>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-4 align-top">
+                        <p className="max-w-[200px] text-xs font-medium leading-5 text-stone-700">
+                          {scholar.opening_title ||
+                            scholar.opening_name ||
+                            scholar.batch_title ||
+                            'N/A'}
                         </p>
-                        <p className="mt-0.5 text-xs font-semibold text-red-700">
-                          Immediate follow-up recommended
+                      </td>
+
+                      <td className="px-4 py-4 align-top">
+                        <p className="max-w-[180px] text-xs font-semibold leading-5 text-stone-800">
+                          {scholar.course_code || 'N/A'}
                         </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
+
+                        {scholar.course_name && (
+                          <p className="mt-0.5 max-w-[200px] text-[11px] leading-4 text-stone-400">
+                            {scholar.course_name}
+                          </p>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-4 align-top">
+                        <p className="text-xs font-medium text-stone-700">
+                          {formatYearLevel(scholar.year_level)}
+                        </p>
+                      </td>
+
+                      <td className="px-4 py-4 align-top">
+                        {cleared ? (
+                          <StatusChip tone="green">Cleared</StatusChip>
+                        ) : (
+                          <StatusChip tone="amber">Pending</StatusChip>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-4 align-top">
+                        <p className="text-xs font-medium text-stone-700">
+                          {cleared ? formatDate(scholar.cleared_at) : 'Not yet cleared'}
+                        </p>
+                      </td>
+
+                      <td className="px-4 py-4 text-right align-top">
+                        {viewMode === 'cleared' || cleared ? (
+                          <div className="inline-flex items-center gap-1.5 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs font-bold text-green-700">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            RO Cleared
+                          </div>
+                        ) : (
+                          <Button
+                            onClick={() => openClearModal(scholar)}
+                            disabled={loadingThis}
+                            className="h-9 rounded-xl border-none px-4 text-xs font-bold text-white"
+                            style={{ background: C.green }}
+                          >
+                            {loadingThis ? (
+                              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+                            )}
+                            Clear
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       </Card>

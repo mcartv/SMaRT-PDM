@@ -112,6 +112,21 @@ const ANNOUNCEMENT_TEMPLATES = {
   },
 };
 
+function toUtcIsoFromLocalInput(value) {
+  if (!value) return null;
+
+  return new Date(value).toISOString();
+}
+
+function toLocalDateTimeInputValue(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  const offsetMs = date.getTimezoneOffset() * 60000;
+
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function StatusPill({ status }) {
   const s = STATUS[status] || { bg: '#f4f4f5', color: '#71717a' };
 
@@ -564,10 +579,12 @@ function AnnouncementRow({
           <span className="flex items-center gap-1">
             <Calendar size={12} />
             {announcement.date
-              ? new Date(announcement.date).toLocaleDateString('en-US', {
+              ? new Date(announcement.date).toLocaleString('en-US', {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
               })
               : 'No date'}
           </span>
@@ -864,7 +881,7 @@ export default function AnnouncementsManagement() {
     setAudience(announcement.audienceKey || announcement.audience || 'all');
     setSchedDate(
       announcement.status === 'Scheduled' && announcement.date
-        ? String(announcement.date).slice(0, 16)
+        ? toLocalDateTimeInputValue(announcement.date)
         : ''
     );
     setIsRoVoluntary(announcement.isRoVoluntary ? 'true' : 'false');
@@ -926,7 +943,7 @@ export default function AnnouncementsManagement() {
         title: title.trim(),
         content: content.trim(),
         audience,
-        schedDate: schedDate || null,
+        schedDate: schedDate ? toUtcIsoFromLocalInput(schedDate) : null,
         isRoVoluntary: isRoVoluntary === 'true',
         forceDraft,
       }),
@@ -1173,8 +1190,8 @@ export default function AnnouncementsManagement() {
           <button
             onClick={() => setTab('active')}
             className={`rounded-md px-4 py-2 text-xs font-medium transition-all ${tab === 'active'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-500 hover:text-stone-700'
+              ? 'bg-white text-stone-900 shadow-sm'
+              : 'text-stone-500 hover:text-stone-700'
               }`}
           >
             Active
@@ -1183,8 +1200,8 @@ export default function AnnouncementsManagement() {
           <button
             onClick={() => setTab('archived')}
             className={`rounded-md px-4 py-2 text-xs font-medium transition-all ${tab === 'archived'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-500 hover:text-stone-700'
+              ? 'bg-white text-stone-900 shadow-sm'
+              : 'text-stone-500 hover:text-stone-700'
               }`}
           >
             Archived

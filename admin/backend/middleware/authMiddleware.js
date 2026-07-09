@@ -4,7 +4,9 @@ const protect = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'No token, authorization denied' });
+        return res.status(401).json({
+            message: 'No token, authorization denied',
+        });
     }
 
     const token = authHeader.split(' ')[1];
@@ -14,21 +16,31 @@ const protect = (req, res, next) => {
 
         req.user = {
             ...decoded,
-            userId: decoded.userId || decoded.user_id || null,
-            user_id: decoded.user_id || decoded.userId || null,
-            role: decoded.role || null,
+            userId: decoded.userId || decoded.user_id || decoded.sub || null,
+            user_id: decoded.user_id || decoded.userId || decoded.sub || null,
+            role: String(decoded.role || '').trim().toLowerCase() || null,
         };
 
         next();
     } catch (err) {
         console.error('JWT VERIFY ERROR:', err.message);
-        return res.status(401).json({ message: 'Token is not valid' });
+        return res.status(401).json({
+            message: 'Token is not valid',
+        });
     }
 };
 
 const authorizeRoles = (...roles) => (req, res, next) => {
-    if (!req.user?.role || !roles.includes(req.user.role)) {
-        return res.status(403).json({ message: 'Access denied for this account' });
+    const userRole = String(req.user?.role || '').trim().toLowerCase();
+
+    const allowedRoles = roles.map((role) =>
+        String(role || '').trim().toLowerCase()
+    );
+
+    if (!userRole || !allowedRoles.includes(userRole)) {
+        return res.status(403).json({
+            message: 'Access denied for this account',
+        });
     }
 
     next();

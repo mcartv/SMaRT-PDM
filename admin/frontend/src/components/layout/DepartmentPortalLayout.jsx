@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
+import usePortalNotifications from '../../hooks/usePortalNotifications';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -56,6 +57,17 @@ export default function DepartmentPortalLayout({
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profile, setProfile] = useState(null);
+  const {
+    notifications,
+    unreadCount,
+    loading: notificationsLoading,
+    markingAll,
+    markAllAsRead,
+    openNotification,
+  } = usePortalNotifications({
+    tokenStorageKey,
+    portalRootPath: `/${portalKey}`,
+  });
 
   useEffect(() => {
     const token = sessionStorage.getItem(tokenStorageKey);
@@ -188,6 +200,9 @@ export default function DepartmentPortalLayout({
                 title="Notifications"
               >
                 <Bell className="h-4 w-4 text-stone-600" />
+                {unreadCount > 0 ? (
+                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
+                ) : null}
               </button>
 
               {notifOpen && (
@@ -195,7 +210,44 @@ export default function DepartmentPortalLayout({
                   <div className="border-b border-stone-100 bg-stone-50/60 px-4 py-3">
                     <p className="text-xs font-semibold text-stone-800">Recent Alerts</p>
                   </div>
-                  <div className="p-8 text-center text-xs text-stone-400">No new notifications</div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {notifications.length > 0 ? (
+                      notifications.map((item) => (
+                        <button
+                          key={item.notification_id}
+                          type="button"
+                          onClick={() => {
+                            setNotifOpen(false);
+                            openNotification(item, navigate);
+                          }}
+                          className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-stone-50 ${
+                            item.is_read ? 'bg-white' : 'bg-stone-50/70'
+                          }`}
+                        >
+                          <p className="text-xs font-semibold text-stone-800">{item.title || 'Notification'}</p>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
+                            {item.message || 'Open notification'}
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center text-xs text-stone-400">
+                        {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
+                      </div>
+                    )}
+                  </div>
+                  {notifications.length > 0 ? (
+                    <div className="border-t border-stone-100 bg-stone-50/60 px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={markAllAsRead}
+                        disabled={markingAll || unreadCount === 0}
+                        className="text-[11px] font-semibold text-stone-600 transition hover:text-stone-900 disabled:cursor-not-allowed disabled:text-stone-400"
+                      >
+                        {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

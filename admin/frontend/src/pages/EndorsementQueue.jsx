@@ -444,6 +444,7 @@ export default function EndorsementQueue({
   const [refreshing, setRefreshing] = useState(false);
   const [savingSlipId, setSavingSlipId] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [search, setSearch] = useState('');
   const [programFilter, setProgramFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
@@ -537,6 +538,7 @@ export default function EndorsementQueue({
     try {
       setSavingSlipId(row.slip_id);
       setError('');
+      setSuccess('');
 
       const response = await fetch(buildApiUrl(meta.actionEndpoint(row.slip_id)), {
         method: 'POST',
@@ -557,6 +559,29 @@ export default function EndorsementQueue({
 
       if (data?.pdfError) {
         setError(`Decision saved, but final PDF generation failed: ${data.pdfError}`);
+      }
+
+      if (!data?.pdfError) {
+        const nextStageLabel =
+          data?.slip?.current_stage_label ||
+          data?.slip?.overall_status_label ||
+          data?.current_stage_label ||
+          data?.overall_status_label ||
+          '';
+
+        const actionLabelMap = {
+          clear: queueKey === 'guidance' ? 'cleared successfully' : 'saved successfully',
+          disqualify_minor: 'saved as minor offense and forwarded to Guidance',
+          disqualify_major: 'saved as major offense and stopped in SDO',
+          hold: 'saved for counseling / hold',
+          reject: 'saved as rejected',
+          approve: 'approved successfully',
+        };
+
+        const actionLabel = actionLabelMap[action] || 'saved successfully';
+        setSuccess(
+          `${row.student_name} ${actionLabel}${nextStageLabel ? `. Status: ${nextStageLabel}.` : '.'}`
+        );
       }
 
       await loadQueue({ soft: true });
@@ -643,6 +668,11 @@ export default function EndorsementQueue({
             </Select>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {success ? (
+            <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800">
+              {success}
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-4 p-5">
           {filteredRows.length === 0 ? (

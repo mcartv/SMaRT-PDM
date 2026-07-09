@@ -113,7 +113,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           savedOpeningId != (widget.initialOpeningId ?? '').trim();
 
       if (!shouldReplaceDraft) {
-        _hydrateFromSavedForm(savedFormData);
+        _data.applySavedForm(savedFormData);
         _hasDraftLoaded = savedFormData['has_saved_form'] == true;
         await _syncAccountHolderCache();
       }
@@ -130,21 +130,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   String _savedString(dynamic value) => value?.toString() ?? '';
-
-  String _formatSavedDate(dynamic value) {
-    final raw = _savedString(value).trim();
-    if (raw.isEmpty) return '';
-
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null) {
-      return raw;
-    }
-
-    final month = parsed.month.toString().padLeft(2, '0');
-    final day = parsed.day.toString().padLeft(2, '0');
-    final year = parsed.year.toString().padLeft(4, '0');
-    return '$month/$day/$year';
-  }
 
   void _queueAutosave({bool immediate = false}) {
     if (_isBootstrapping || !_hasSelectedOpening) {
@@ -183,232 +168,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         setState(() => _isAutosaving = false);
       }
     }
-  }
-
-  void _hydrateFromSavedForm(Map<String, dynamic> payload) {
-    final opening = Map<String, dynamic>.from(
-      payload['opening'] as Map? ?? const {},
-    );
-    final account = Map<String, dynamic>.from(
-      payload['account'] as Map? ?? const {},
-    );
-    final personal = Map<String, dynamic>.from(
-      payload['personal'] as Map? ?? const {},
-    );
-    final address = Map<String, dynamic>.from(
-      payload['address'] as Map? ?? const {},
-    );
-    final contact = Map<String, dynamic>.from(
-      payload['contact'] as Map? ?? const {},
-    );
-    final family = Map<String, dynamic>.from(
-      payload['family'] as Map? ?? const {},
-    );
-    final academic = Map<String, dynamic>.from(
-      payload['academic'] as Map? ?? const {},
-    );
-    final support = Map<String, dynamic>.from(
-      payload['support'] as Map? ?? const {},
-    );
-    final discipline = Map<String, dynamic>.from(
-      payload['discipline'] as Map? ?? const {},
-    );
-    final essays = Map<String, dynamic>.from(
-      payload['essays'] as Map? ?? const {},
-    );
-    final certification = Map<String, dynamic>.from(
-      payload['certification'] as Map? ?? const {},
-    );
-
-    final father = Map<String, dynamic>.from(
-      family['father'] as Map? ?? const {},
-    );
-    final mother = Map<String, dynamic>.from(
-      family['mother'] as Map? ?? const {},
-    );
-    final sibling = Map<String, dynamic>.from(
-      family['sibling'] as Map? ?? const {},
-    );
-    final guardian = Map<String, dynamic>.from(
-      family['guardian'] as Map? ?? const {},
-    );
-
-    _data.userId = _savedString(account['user_id']).isNotEmpty
-        ? _savedString(account['user_id'])
-        : _data.userId;
-    _data.accountStudentId = _savedString(account['student_id']).isNotEmpty
-        ? _savedString(account['student_id'])
-        : _data.accountStudentId;
-    _data.studentNumber = _savedString(academic['student_number']).isNotEmpty
-        ? _savedString(academic['student_number'])
-        : _data.accountStudentId;
-    _data.email = _savedString(contact['email']).isNotEmpty
-        ? _savedString(contact['email'])
-        : _data.email;
-    if (_savedString(opening['opening_id']).trim().isNotEmpty) {
-      _applyOpeningSelection(
-        openingId: _savedString(opening['opening_id']),
-        openingTitle: _savedString(opening['opening_title']),
-        programName: _savedString(opening['program_name']),
-      );
-    }
-
-    _data.firstName = _savedString(personal['first_name']);
-    _data.middleName = _savedString(personal['middle_name']);
-    _data.lastName = _savedString(personal['last_name']);
-    _data.maidenName = _savedString(personal['maiden_name']);
-    _data.age = _savedString(personal['age']);
-    _data.dateOfBirth = _formatSavedDate(personal['date_of_birth']);
-    _data.sex = _savedString(personal['sex']).isNotEmpty
-        ? _savedString(personal['sex'])
-        : _data.sex;
-    _data.placeOfBirth = _savedString(personal['place_of_birth']);
-    _data.citizenship = _savedString(personal['citizenship']).isNotEmpty
-        ? _savedString(personal['citizenship'])
-        : _data.citizenship;
-    _data.civilStatus = _savedString(personal['civil_status']).isNotEmpty
-        ? _savedString(personal['civil_status'])
-        : _data.civilStatus;
-    _data.religion = _savedString(personal['religion']);
-
-    _data.street = _savedString(address['street']);
-    _data.subdivision = _savedString(address['subdivision']);
-    _data.barangay = _savedString(address['barangay']);
-    _data.city = _savedString(address['city_municipality']).isNotEmpty
-        ? _savedString(address['city_municipality'])
-        : _data.city;
-    _data.province = _savedString(address['province']).isNotEmpty
-        ? _savedString(address['province'])
-        : _data.province;
-    _data.zipCode = _savedString(address['zip_code']).isNotEmpty
-        ? _savedString(address['zip_code'])
-        : _data.zipCode;
-
-    _data.landline = _savedString(contact['landline']);
-    _data.mobileNumber = _savedString(contact['mobile_number']).isNotEmpty
-        ? _savedString(contact['mobile_number'])
-        : _data.mobileNumber;
-
-    _data.parentGuardianAddress = _savedString(
-      family['parent_guardian_address'],
-    );
-    _data.fatherLastName = _savedString(father['last_name']);
-    _data.fatherFirstName = _savedString(father['first_name']);
-    _data.fatherMiddleName = _savedString(father['middle_name']);
-    _data.fatherMobile = _savedString(father['mobile']).isNotEmpty
-        ? _savedString(father['mobile'])
-        : _savedString(father['mobile_number']);
-    _data.fatherEducationalAttainment = _savedString(
-      father['educational_attainment'],
-    );
-    _data.fatherOccupation = _savedString(father['occupation']);
-    _data.fatherCompanyNameAndAddress = _savedString(
-      father['company_name_and_address'],
-    );
-    _data.motherLastName = _savedString(mother['last_name']);
-    _data.motherFirstName = _savedString(mother['first_name']);
-    _data.motherMiddleName = _savedString(mother['middle_name']);
-    _data.motherMobile = _savedString(mother['mobile']).isNotEmpty
-        ? _savedString(mother['mobile'])
-        : _savedString(mother['mobile_number']);
-    _data.motherEducationalAttainment = _savedString(
-      mother['educational_attainment'],
-    );
-    _data.motherOccupation = _savedString(mother['occupation']);
-    _data.motherCompanyNameAndAddress = _savedString(
-      mother['company_name_and_address'],
-    );
-    _data.siblingLastName = _savedString(sibling['last_name']);
-    _data.siblingFirstName = _savedString(sibling['first_name']);
-    _data.siblingMiddleName = _savedString(sibling['middle_name']);
-    _data.siblingMobile = _savedString(sibling['mobile']);
-    _data.guardianLastName = _savedString(guardian['last_name']);
-    _data.guardianFirstName = _savedString(guardian['first_name']);
-    _data.guardianMiddleName = _savedString(guardian['middle_name']);
-    _data.guardianMobile = _savedString(guardian['mobile']).isNotEmpty
-        ? _savedString(guardian['mobile'])
-        : _savedString(guardian['mobile_number']);
-    _data.guardianEducationalAttainment = _savedString(
-      guardian['educational_attainment'],
-    );
-    _data.guardianOccupation = _savedString(guardian['occupation']);
-    _data.guardianCompanyNameAndAddress = _savedString(
-      guardian['company_name_and_address'],
-    );
-    _data.parentNativeStatus =
-        _savedString(family['parent_native_status']).isNotEmpty
-        ? _savedString(family['parent_native_status'])
-        : _data.parentNativeStatus;
-    _data.parentMarilaoResidencyDuration = _savedString(
-      family['parent_marilao_residency_duration'],
-    );
-    _data.parentPreviousTownProvince = _savedString(
-      family['parent_previous_town_province'],
-    );
-
-    _data.collegeSchool = _savedString(academic['college_school']);
-    _data.collegeAddress = _savedString(academic['college_address']);
-    _data.collegeHonors = _savedString(academic['college_honors']);
-    _data.collegeClub = _savedString(academic['college_club']);
-    _data.collegeYearGraduated = _savedString(
-      academic['college_year_graduated'],
-    );
-    _data.highSchoolSchool = _savedString(academic['high_school_school']);
-    _data.highSchoolAddress = _savedString(academic['high_school_address']);
-    _data.highSchoolHonors = _savedString(academic['high_school_honors']);
-    _data.highSchoolClub = _savedString(academic['high_school_club']);
-    _data.highSchoolYearGraduated = _savedString(
-      academic['high_school_year_graduated'],
-    );
-    _data.seniorHighSchool = _savedString(academic['senior_high_school']);
-    _data.seniorHighAddress = _savedString(academic['senior_high_address']);
-    _data.seniorHighHonors = _savedString(academic['senior_high_honors']);
-    _data.seniorHighClub = _savedString(academic['senior_high_club']);
-    _data.seniorHighYearGraduated = _savedString(
-      academic['senior_high_year_graduated'],
-    );
-    _data.elementarySchool = _savedString(academic['elementary_school']);
-    _data.elementaryAddress = _savedString(academic['elementary_address']);
-    _data.elementaryHonors = _savedString(academic['elementary_honors']);
-    _data.elementaryClub = _savedString(academic['elementary_club']);
-    _data.elementaryYearGraduated = _savedString(
-      academic['elementary_year_graduated'],
-    );
-    _data.currentCourse =
-        _savedString(academic['current_course_code']).isNotEmpty
-        ? _savedString(academic['current_course_code'])
-        : _data.currentCourse;
-    _data.currentYearLevel =
-        _savedString(academic['current_year_level']).isNotEmpty
-        ? _savedString(academic['current_year_level'])
-        : _savedString(academic['year_level']);
-    _data.currentSection = _savedString(academic['current_section']).isNotEmpty
-        ? _savedString(academic['current_section'])
-        : _data.currentSection;
-
-    _data.financialSupport =
-        _savedString(support['financial_support']).isNotEmpty
-        ? _savedString(support['financial_support'])
-        : _data.financialSupport;
-    _data.scholarshipHistory = support['scholarship_history'] == true;
-    _data.scholarshipDetails = _savedString(support['scholarship_details']);
-    _data.scholarshipOthersSpecify = _savedString(
-      support['scholarship_others_specify'],
-    );
-
-    _data.disciplinaryAction = discipline['disciplinary_action'] == true;
-    _data.disciplinaryExplanation = _savedString(
-      discipline['disciplinary_explanation'],
-    );
-
-    _data.describeYourselfEssay = _savedString(
-      essays['describe_yourself_essay'],
-    );
-    _data.aimsAndAmbitionEssay = _savedString(
-      essays['aims_and_ambition_essay'],
-    );
-    _data.certificationRead = certification['certification_read'] == true;
-    _data.agree = certification['agree'] == true;
   }
 
   Future<void> _syncAccountHolderCache() async {
@@ -518,6 +277,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
+    final submissionPayload = _data.toSubmissionPayload();
     final provider = context.read<NewScholarProvider>();
     final success = await provider.submitApplication(
       _data,
@@ -542,17 +302,27 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       final programName = _data.openingProgramName.isNotEmpty
           ? _data.openingProgramName
           : application?['program_name']?.toString();
+      final applicationId =
+          application?['application_id']?.toString() ??
+          provider.lastSubmissionResponse?['application_id']?.toString() ??
+          '';
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
 
+      provider.resetApplication();
+
       Navigator.pushReplacementNamed(
         context,
-        AppRoutes.documents,
+        AppRoutes.success,
         arguments: {
-          'initialTitle': openingTitle,
-          'initialProgramName': programName,
+          'applicationId': applicationId,
+          'openingId': _data.openingId,
+          'openingTitle': openingTitle,
+          'programName': programName,
+          'submissionPayload': submissionPayload,
+          'canUploadRequirements': true,
         },
       );
       return;
@@ -628,6 +398,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         return 'Mobile number is too long.';
       }
 
+      final email = _data.email.trim();
+      if (email.isNotEmpty) {
+        final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+        if (!emailRegex.hasMatch(email)) {
+          return 'Please enter a valid email address.';
+        }
+      }
+
       return null;
     }
 
@@ -661,6 +439,45 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           _data.scholarshipOthersSpecify.trim().isEmpty) {
         return 'Please specify the other financial support.';
       }
+      if (_data.disciplinaryAction &&
+          _data.disciplinaryExplanation.trim().isEmpty) {
+        return 'Please explain the disciplinary action.';
+      }
+
+      return null;
+    }
+
+    String? validateEssay() {
+      if (_data.describeYourselfEssay.trim().isEmpty) {
+        return 'Describe yourself essay is required.';
+      }
+      if (_data.aimsAndAmbitionEssay.trim().isEmpty) {
+        return 'Aims and ambition essay is required.';
+      }
+
+      return null;
+    }
+
+    String? validateFamily() {
+      final hasNamedFather =
+          _data.fatherPresent &&
+          (_data.fatherFirstName.trim().isNotEmpty ||
+              _data.fatherLastName.trim().isNotEmpty);
+      final hasNamedMother =
+          _data.motherPresent &&
+          (_data.motherFirstName.trim().isNotEmpty ||
+              _data.motherLastName.trim().isNotEmpty);
+      final hasNamedGuardian =
+          _data.guardianFirstName.trim().isNotEmpty ||
+          _data.guardianLastName.trim().isNotEmpty;
+
+      if (!hasNamedFather && !hasNamedMother && !hasNamedGuardian) {
+        return 'Add at least one parent or guardian.';
+      }
+
+      if (_data.guardianOnly && !hasNamedGuardian) {
+        return 'Guardian name is required.';
+      }
 
       return null;
     }
@@ -668,10 +485,17 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     switch (_step) {
       case 0:
         return validatePersonalAndContact();
+      case 1:
+        return validateFamily();
       case 2:
         return validateAcademic();
+      case 3:
+        return validateEssay();
       case 4:
-        return validatePersonalAndContact() ?? validateAcademic();
+        return validatePersonalAndContact() ??
+            validateFamily() ??
+            validateAcademic() ??
+            validateEssay();
       default:
         return null;
     }
@@ -712,6 +536,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             setState(() {});
             _queueAutosave();
           },
+          showErrors: _showValidationErrors,
         );
       case 4:
         return StepSubmit(
@@ -797,20 +622,24 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                   children: [
                                     Text(
                                       'Choose an opening first',
-                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.darkBrown
-),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.darkBrown,
+                                          ),
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
                                       'This application form is now tied to one admin-posted scholarship opening. Select the opening you want to apply for before continuing.',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                                        height: 1.45,
-                                        color: AppColors.brown
-),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            height: 1.45,
+                                            color: AppColors.brown,
+                                          ),
                                     ),
                                     const SizedBox(height: 16),
                                     SizedBox(
@@ -847,22 +676,26 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                       children: [
                                         Text(
                                           'Selected Opening',
-                                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.brown
-),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.brown,
+                                              ),
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
                                           _data.openingTitle.isNotEmpty
                                               ? _data.openingTitle
                                               : 'Scholarship Opening',
-                                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.darkBrown
-),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.darkBrown,
+                                              ),
                                         ),
                                         if (_data.openingProgramName.isNotEmpty)
                                           Padding(
@@ -871,11 +704,13 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                             ),
                                             child: Text(
                                               _data.openingProgramName,
-                                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.brown
-),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.brown,
+                                                  ),
                                             ),
                                           ),
                                         const SizedBox(height: 10),
@@ -907,10 +742,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                                       : _autosaveError == null
                                                       ? 'Draft autosaves as you complete the form.'
                                                       : _autosaveError!,
-                                                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                                                    color: AppColors.brown
-),
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelMedium
+                                                      ?.copyWith(
+                                                        color: AppColors.brown,
+                                                      ),
                                                 ),
                                               ),
                                             ],

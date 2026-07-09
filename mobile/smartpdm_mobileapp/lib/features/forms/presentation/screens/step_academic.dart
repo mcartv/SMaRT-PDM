@@ -271,7 +271,6 @@ class _StepAcademicState extends State<StepAcademic> {
           ? widget.data.studentNumber
           : widget.data.accountStudentId,
     );
-
     selectedCourse = courseOptions.contains(widget.data.currentCourse)
         ? widget.data.currentCourse
         : null;

@@ -11,6 +11,7 @@ import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -25,16 +26,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileService _profileService = ProfileService();
   final SessionService _sessionService = const SessionService();
-
-  static const List<String> _courseOptions = [
-    'BSTM',
-    'BSOAD',
-    'BECED',
-    'BSCS',
-    'BSIT',
-    'BSHM',
-    'BTLED',
-  ];
 
   String _userName = 'Institutional Scholar';
   String? _imagePath;
@@ -271,9 +262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             profile['avatar_rejection_reason']?.toString() ?? '',
       );
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile photo submitted for review.')),
       );
     } on ApiException catch (e) {
@@ -409,27 +398,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return email.isEmpty || !emailRegex.hasMatch(email);
   }
 
-  String _getDisplayCourseName(String courseCode) {
-    switch (courseCode) {
-      case 'BSTM':
-        return 'BS Tourism Management';
-      case 'BSOAD':
-        return 'BS Office Administration';
-      case 'BECED':
-        return 'Bachelor of Early Childhood Education';
-      case 'BSCS':
-        return 'BS Computer Science';
-      case 'BSIT':
-        return 'BS Information Technology';
-      case 'BSHM':
-        return 'BS Hospitality Management';
-      case 'BTLED':
-        return 'Bachelor of Technology and Livelihood Education';
-      default:
-        return courseCode.isEmpty ? 'Not set' : courseCode;
-    }
-  }
-
   Future<void> _handleLogout(BuildContext context) async {
     await _sessionService.clearSession();
 
@@ -449,10 +417,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final confirmColor = isDark ? const Color(0xFFFF8A80) : Colors.red;
 
         return AlertDialog(
-          title: Text(
-            'Confirm Logout',
-            style: TextStyle(color: titleColor),
-          ),
+          title: Text('Confirm Logout', style: TextStyle(color: titleColor)),
           content: Text(
             'Are you sure you want to terminate your session?',
             style: TextStyle(color: bodyColor),
@@ -486,18 +451,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return SmartPdmPageScaffold(
-      appBar: AppBar(
-        title: Text('Profile'),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: isDark ? Colors.white : textColor,
-      ),
       selectedIndex: 2,
       showBottomNav: widget.showBottomNav,
-      showDrawer: true,
+      showDrawer: false,
       child: _isProfileLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -505,42 +462,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildProfileHeader(),
-                  const SizedBox(height: 24),
-                  _buildSectionLabel(
-                    _isProfileIncomplete ? 'Complete Your Profile' : 'Account',
-                  ),
-                  if (_isEditing)
-                    _buildEditSection()
-                  else
-                    _buildOverviewSection(),
-                  const SizedBox(height: 24),
-                  _buildSectionLabel('Account Links'),
-                  _profileRowCard(
-                    icon: Icons.alternate_email,
-                    title: 'Change Email',
-                    subtitle: 'Send a link to update your email address',
-                    onTap: () =>
-                        Navigator.pushNamed(context, AppRoutes.changeEmail),
-                  ),
-                  _profileRowCard(
-                    icon: Icons.lock_outline,
-                    title: 'Change Password',
-                    subtitle: 'Manage your sign-in credentials',
-                    onTap: () =>
-                        Navigator.pushNamed(context, AppRoutes.forgotPassword),
-                  ),
-                  _profileRowCard(
-                    icon: Icons.help_outline,
-                    title: 'FAQs',
-                    subtitle: 'View common scholarship questions',
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
-                  ),
-                  _profileRowCard(
-                    icon: Icons.logout_rounded,
-                    title: 'Log Out',
-                    subtitle: 'End your current session on this device',
-                    onTap: () => _confirmLogout(context),
-                  ),
+                  if (_isEditing) ...[
+                    const SizedBox(height: 12),
+                    _buildEditSection(),
+                  ] else ...[
+                    const SizedBox(height: 14),
+                    _buildScholarSection(),
+                    const SizedBox(height: 14),
+                    _buildAccountSection(),
+                  ],
                   const SizedBox(height: 8),
                 ],
               ),
@@ -553,172 +483,144 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final hasScholarAccess =
         context.watch<NotificationProvider>().hasScholarAccess ||
         _cachedScholarAccess;
-    final titleColor = isDark ? Colors.white : textColor;
-    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
+    final cardColor = isDark ? const Color(0xFF241A11) : Colors.white;
+    final borderColor = isDark
+        ? const Color(0xFF4B3B2D)
+        : const Color(0xFFEDE6DB);
+    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
+    final subtitleColor = isDark ? const Color(0xFFFFE082) : primaryColor;
     final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
-    final badgeTextColor = isDark ? Colors.white : textColor;
+    final displayId = _studentIdController.text.trim().isNotEmpty
+        ? _studentIdController.text.trim()
+        : _userName;
 
     return Container(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
         children: [
-          Row(
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              Stack(
-                children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.gold, width: 2.5),
-                    ),
-                    child: ClipOval(
-                      child: Container(
-                        color: isDark
-                            ? const Color(0xFF3A2718)
-                            : primaryColor.withOpacity(0.06),
-                        child: _imagePath != null
-                            ? (_imagePath!.startsWith('http')
-                                  ? Image.network(
-                                      _imagePath!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.file(
-                                      File(_imagePath!),
-                                      fit: BoxFit.cover,
-                                    ))
-                            : Center(
-                                child: Icon(
-                                  Icons.person,
-                                  size: 34,
-                                  color: accentColor,
-                                ),
+              InkWell(
+                onTap: _pickImage,
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.gold, width: 1.5),
+                  ),
+                  child: ClipOval(
+                    child: Container(
+                      color: isDark
+                          ? const Color(0xFF3A2718)
+                          : primaryColor.withOpacity(0.06),
+                      child: _imagePath != null
+                          ? (_imagePath!.startsWith('http')
+                                ? Image.network(_imagePath!, fit: BoxFit.cover)
+                                : Image.file(
+                                    File(_imagePath!),
+                                    fit: BoxFit.cover,
+                                  ))
+                          : Center(
+                              child: Icon(
+                                Icons.person,
+                                size: 26,
+                                color: accentColor,
                               ),
-                      ),
+                            ),
                     ),
                   ),
-                  if (_isUploading)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Colors.black38,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
+                ),
+              ),
+              Positioned(
+                bottom: -2,
+                right: -2,
+                child: Container(
+                  width: 21,
+                  height: 21,
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF24180F) : Colors.white,
+                      width: 2,
                     ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: InkWell(
-                      onTap: _pickImage,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: accentColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark
-                                ? const Color(0xFF24180F)
-                                : Colors.white,
-                            width: 2,
+                  ),
+                  child: _isUploading
+                      ? const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
                           ),
-                        ),
-                        child: Icon(
-                          Icons.camera_alt,
-                          size: 14,
+                        )
+                      : Icon(
+                          hasScholarAccess
+                              ? Icons.verified_rounded
+                              : Icons.camera_alt_rounded,
+                          size: 11,
                           color: isDark ? AppColors.darkBrown : Colors.white,
                         ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _userName,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-
-                        fontWeight: FontWeight.w800,
-                        color: titleColor
-),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      hasScholarAccess
-                          ? 'Approved Scholar'
-                          : 'Pending Applicant',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-                        color: subtitleColor,
-                        fontWeight: FontWeight.w600
-),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        _studentIdController.text.isNotEmpty
-                            ? _studentIdController.text
-                            : 'Scholar account',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-                          fontWeight: FontWeight.w700,
-                          color: badgeTextColor
-),
-                      ),
-                    ),
-                    if (_avatarReviewStatus == 'pending' ||
-                        _avatarReviewStatus == 'rejected') ...[
-                      const SizedBox(height: 8),
-                      _buildAvatarReviewNotice(),
-                    ],
-                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeaderStat(
-                  'Course',
-                  _getDisplayCourseName(_courseController.text),
+                Text(
+                  displayId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    color: titleColor,
+                    height: 1.1,
+                  ),
                 ),
-                const SizedBox(height: 14),
-                _buildHeaderStat(
-                  'Email',
-                  _emailController.text.isNotEmpty
-                      ? _emailController.text
-                      : 'Not set',
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Icon(
+                      hasScholarAccess
+                          ? Icons.check_circle_rounded
+                          : Icons.schedule_rounded,
+                      color: subtitleColor,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        hasScholarAccess
+                            ? 'Approved Scholar'
+                            : 'Pending Applicant',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: subtitleColor,
+                              fontWeight: FontWeight.w700,
+                              height: 1.1,
+                            ),
+                      ),
+                    ),
+                  ],
                 ),
+                if (_avatarReviewStatus == 'pending' ||
+                    _avatarReviewStatus == 'rejected') ...[
+                  const SizedBox(height: 7),
+                  _buildAvatarReviewNotice(),
+                ],
               ],
             ),
           ),
@@ -772,64 +674,117 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildHeaderStat(String label, String value) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-
-              letterSpacing: 1,
-              color: isDark ? Colors.white60 : Colors.black54,
-              fontWeight: FontWeight.w700
-),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-
-              color: isDark ? Colors.white : textColor,
-              fontWeight: FontWeight.w600
-),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSectionLabel(String label) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 7),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: isDark ? Colors.white : AppColors.darkBrown,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.8,
+          color: isDark ? Colors.white60 : const Color(0xFF8A6E4F),
         ),
       ),
     );
   }
 
-  Widget _buildOverviewSection() {
+  Widget _buildScholarSection() {
+    final hasScholarAccess =
+        context.watch<NotificationProvider>().hasScholarAccess ||
+        _cachedScholarAccess;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildSectionLabel(hasScholarAccess ? 'SCHOLAR' : 'APPLICANT'),
+        if (hasScholarAccess) ...[
+          _profileRowCard(
+            icon: Icons.event_note_rounded,
+            title: 'Payout Schedule',
+            subtitle: 'View release dates and payout details',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.payouts),
+          ),
+          _profileRowCard(
+            icon: Icons.assignment_turned_in_rounded,
+            title: 'RO Assignment',
+            subtitle: 'Check your assigned RO tasks',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
+          ),
+          _profileRowCard(
+            icon: Icons.upload_file_rounded,
+            title: 'Submit RO Completion',
+            subtitle: 'Upload proof and completion details',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
+          ),
+          _profileRowCard(
+            icon: Icons.support_agent_rounded,
+            title: 'Support Ticket',
+            subtitle: 'Report concerns and get assistance',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.tickets),
+          ),
+        ] else ...[
+          _profileRowCard(
+            icon: Icons.assignment_rounded,
+            title: 'Apply for Scholarship',
+            subtitle: 'Browse and apply for openings',
+            onTap: () =>
+                Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
+          ),
+          _profileRowCard(
+            icon: Icons.fact_check_rounded,
+            title: 'Application Status',
+            subtitle: 'Track your application progress',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.status),
+          ),
+          _profileRowCard(
+            icon: Icons.help_outline_rounded,
+            title: 'FAQs',
+            subtitle: 'Get answers to common questions',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.faqs),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAccountSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel('ACCOUNT'),
         _profileRowCard(
-          icon: Icons.edit_outlined,
-          title: _isProfileIncomplete ? 'Complete profile' : 'Edit profile',
-          subtitle: _isProfileIncomplete
-              ? 'Finish setting up your identity in the app'
-              : 'Update your personal information',
+          icon: Icons.person_rounded,
+          title: 'Profile',
+          subtitle: 'View and edit your profile',
           onTap: () => setState(() => _isEditing = true),
+        ),
+        _profileRowCard(
+          icon: Icons.settings_rounded,
+          title: 'App Settings',
+          subtitle: 'Customize your app experience',
+          onTap: () => showAppSettingsSheet(context),
+        ),
+        _profileRowCard(
+          icon: Icons.alternate_email_rounded,
+          title: 'Change Email',
+          subtitle: 'Update your registered email',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.changeEmail),
+        ),
+        _profileRowCard(
+          icon: Icons.lock_rounded,
+          title: 'Change Password',
+          subtitle: 'Update your password securely',
+          onTap: () => Navigator.pushNamed(context, AppRoutes.forgotPassword),
+        ),
+        _profileRowCard(
+          icon: Icons.logout_rounded,
+          title: 'Log Out',
+          subtitle: 'Sign out from your account',
+          onTap: () => _confirmLogout(context),
+          destructive: true,
         ),
       ],
     );
@@ -837,244 +792,289 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildEditSection() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final outlinedButtonColor = isDark ? Colors.white : textColor;
+    final cardColor = isDark ? const Color(0xFF241A11) : Colors.white;
+    final borderColor = isDark
+        ? const Color(0xFF4B3B2D)
+        : const Color(0xFFEDE6DB);
+    final titleColor = isDark ? Colors.white : textColor;
     final shadowColor = isDark
-        ? Colors.black.withOpacity(0.18)
-        : AppColors.darkBrown.withOpacity(0.06);
-    final dropdownTextColor = isDark ? Colors.white : textColor;
-    final dropdownSurfaceColor = isDark ? const Color(0xFF2D1E12) : Colors.white;
+        ? Colors.black.withValues(alpha: 0.18)
+        : AppColors.darkBrown.withValues(alpha: 0.06);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: shadowColor,
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _isProfileIncomplete
+                          ? 'Complete Your Profile'
+                          : 'Edit Profile Information',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: titleColor,
+                        height: 1.12,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(
+                        alpha: isDark ? 0.22 : 0.14,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      Icons.edit_rounded,
+                      color: isDark ? const Color(0xFFFFD54F) : AppColors.gold,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _profileInputRow(
+                icon: Icons.person_rounded,
+                label: 'First Name',
+                controller: _firstNameController,
+              ),
+              _profileInputRow(
+                icon: Icons.person_outline_rounded,
+                label: 'Last Name',
+                controller: _lastNameController,
+              ),
+              _profileInputRow(
+                icon: Icons.badge_outlined,
+                label: 'Student ID',
+                controller: _studentIdController,
+                enabled: false,
+              ),
+              _profileInputRow(
+                icon: Icons.groups_outlined,
+                label: 'Section',
+                controller: _sectionController,
+              ),
+              _profileInputRow(
+                icon: Icons.phone_rounded,
+                label: 'Phone Number',
+                controller: _phoneController,
+                multiLineValue: true,
+              ),
+              _profileInputRow(
+                icon: Icons.location_on_rounded,
+                label: 'Address',
+                controller: _addressController,
+                multiLineValue: true,
+                isLast: true,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        _loadUserData(refreshRemote: false);
+                        setState(() => _isEditing = false);
+                      },
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('Cancel'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: titleColor,
+                        backgroundColor: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : const Color(0xFFF8F7F5),
+                        side: BorderSide(
+                          color: isDark ? Colors.white10 : Colors.transparent,
+                        ),
+                        textStyle: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _saveProfile,
+                      icon: _isSaving
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded, size: 18),
+                      label: Text(_isSaving ? 'Saving...' : 'Save Changes'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: AppColors.black,
+                        elevation: 0,
+                        textStyle: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (_isEmailInvalid) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Please enter a valid email address',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Colors.red,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _profileInputRow({
+    required IconData icon,
+    required String label,
+    required TextEditingController controller,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+    bool enabled = true,
+    bool isError = false,
+    bool multiLineValue = false,
+    bool isLast = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isError
+        ? Colors.red
+        : isDark
+        ? const Color(0xFF4B3B2D)
+        : const Color(0xFFEDE7DD);
+    final labelColor = isDark ? Colors.white70 : const Color(0xFF6F675C);
+    final valueColor = enabled
+        ? (isDark ? Colors.white : AppColors.black)
+        : (isDark ? Colors.white54 : const Color(0xFF7C766F));
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
       decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF332216)
-            : Colors.white.withOpacity(0.92),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.gold.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        border: Border(
+          bottom: isLast ? BorderSide.none : BorderSide(color: borderColor),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _isProfileIncomplete
-                ? 'Complete Your Profile'
-                : 'Edit Profile Information',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : textColor
-),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _firstNameController,
-                  decoration: _fieldDecoration(
-                    label: 'First Name',
-                    icon: Icons.person,
+      child: Padding(
+        padding: EdgeInsets.only(top: isLast ? 8 : 0),
+        child: Row(
+          crossAxisAlignment: multiLineValue
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.center,
+          children: [
+            _profileRowIcon(icon),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontSize: 15,
+                      color: labelColor,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _lastNameController,
-                  decoration: _fieldDecoration(
-                    label: 'Last Name',
-                    icon: Icons.person_outline,
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: controller,
+                    enabled: enabled,
+                    keyboardType: keyboardType,
+                    onChanged: onChanged,
+                    minLines: multiLineValue ? 1 : 1,
+                    maxLines: multiLineValue ? 3 : 1,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontSize: 19,
+                      color: valueColor,
+                      fontWeight: FontWeight.w900,
+                      height: 1.18,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: '-',
+                      hintStyle: TextStyle(
+                        color: valueColor.withValues(alpha: 0.6),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _studentIdController,
-            enabled: false,
-            enableInteractiveSelection: false,
-            decoration: _fieldDecoration(
-              label: 'Student ID',
-              icon: Icons.badge,
-              enabled: false,
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            onChanged: (value) {
-              setState(() {
-                _isEmailInvalid = _isInvalidEmail(value.trim());
-              });
-            },
-            decoration: _fieldDecoration(
-              label: 'Email',
-              icon: Icons.email,
-              isError: _isEmailInvalid,
-              errorText: _isEmailInvalid
-                  ? 'Please enter a valid email address'
-                  : null,
-            ),
-            style: TextStyle(color: _isEmailInvalid ? Colors.red : null),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  dropdownColor: dropdownSurfaceColor,
-                  style: TextStyle(color: dropdownTextColor),
-                  initialValue: _courseOptions.contains(_courseController.text)
-                      ? _courseController.text
-                      : null,
-                  items: _courseOptions
-                      .map(
-                        (course) => DropdownMenuItem<String>(
-                          value: course,
-                          child: Text(
-                            course,
-                            style: TextStyle(color: dropdownTextColor),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _courseController.text = value ?? '';
-                    });
-                  },
-                  decoration: _fieldDecoration(
-                    label: 'Course',
-                    icon: Icons.school_outlined,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _sectionController,
-                  decoration: _fieldDecoration(
-                    label: 'Section',
-                    icon: Icons.groups_outlined,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _phoneController,
-            decoration: _fieldDecoration(
-              label: 'Phone Number',
-              icon: Icons.phone,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _addressController,
-            decoration: _fieldDecoration(
-              label: 'Address',
-              icon: Icons.location_on,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    _loadUserData(refreshRemote: false);
-                    setState(() => _isEditing = false);
-                  },
-                  icon: const Icon(Icons.close),
-                  label: Text('Cancel'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: outlinedButtonColor,
-                    side: BorderSide(color: AppColors.gold.withOpacity(0.35)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _saveProfile,
-                  icon: _isSaving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(_isSaving ? 'Saving...' : 'Save'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  InputDecoration _fieldDecoration({
-    required String label,
-    required IconData icon,
-    bool enabled = true,
-    bool isError = false,
-    String? errorText,
-  }) {
+  Widget _profileRowIcon(IconData icon) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accentColor = isDark ? const Color(0xFFFFD54F) : primaryColor;
-
-    return InputDecoration(
-      labelText: label,
-      errorText: errorText,
-      labelStyle: TextStyle(color: isDark ? Colors.white70 : null),
-      prefixIcon: Icon(icon, color: isError ? Colors.red : accentColor),
-      filled: true,
-      fillColor: isDark ? const Color(0xFF2D1E12) : Colors.white,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-      enabledBorder: OutlineInputBorder(
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.gold.withValues(alpha: 0.14)
+            : const Color(0xFFFFF7E3),
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(
-          color: isError
-              ? Colors.red
-              : enabled
-              ? AppColors.gold.withOpacity(0.3)
-              : AppColors.gold.withOpacity(0.24),
-        ),
       ),
-      disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: AppColors.gold.withOpacity(0.24)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(
-          color: isError ? Colors.red : accentColor,
-          width: 1.5,
-        ),
+      child: Icon(
+        icon,
+        color: isDark ? const Color(0xFFFFD54F) : AppColors.gold,
+        size: 22,
       ),
     );
   }
@@ -1084,60 +1084,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     String? subtitle,
     VoidCallback? onTap,
+    bool destructive = false,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : AppColors.darkBrown;
-    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
-    final iconAccent = isDark ? const Color(0xFFFFD54F) : primaryColor;
-    final tileColor = isDark ? const Color(0xFF332216) : Colors.white;
-    final borderColor = isDark ? Colors.white12 : AppColors.lightGray;
-    final trailingColor = isDark ? Colors.white70 : AppColors.brown;
-    final iconBackgroundColor = isDark
-        ? const Color(0xFF4A2F1C)
-        : AppColors.gold.withOpacity(0.12);
+    final titleColor = destructive
+        ? const Color(0xFFFF3B3B)
+        : (isDark ? Colors.white : AppColors.darkBrown);
+    final subtitleColor = isDark ? Colors.white60 : const Color(0xFF77706A);
+    final iconAccent = destructive
+        ? const Color(0xFFFF3B3B)
+        : (isDark ? const Color(0xFFFFD54F) : primaryColor);
+    final tileColor = destructive
+        ? (isDark
+              ? const Color(0xFF3A1E16).withValues(alpha: 0.78)
+              : const Color(0xFFFFF7F7))
+        : (isDark ? const Color(0xFF2A1D13) : Colors.white);
+    final borderColor = destructive
+        ? (isDark ? const Color(0xFF714033) : const Color(0xFFFFDDDD))
+        : (isDark ? Colors.white12 : const Color(0xFFEDE6DB));
+    final trailingColor = destructive
+        ? const Color(0xFFFF3B3B)
+        : (isDark ? Colors.white54 : AppColors.brown);
+    final iconBackgroundColor = destructive
+        ? (isDark
+              ? const Color(0xFFFF3B3B).withValues(alpha: 0.12)
+              : Colors.white)
+        : (isDark ? const Color(0xFF4A2F1C) : const Color(0xFFFFF7E3));
 
     return Container(
       decoration: BoxDecoration(
         color: tileColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: borderColor),
       ),
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        dense: true,
+        minLeadingWidth: 0,
+        horizontalTitleGap: 10,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         leading: Container(
-          width: 42,
-          height: 42,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             color: iconBackgroundColor,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: iconAccent),
+          child: Icon(icon, color: iconAccent, size: 19),
         ),
         title: Text(
           title,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: titleColor
-),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: titleColor,
+            height: 1.1,
+          ),
         ),
         subtitle: subtitle == null
             ? null
             : Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontSize: 9.5,
                     color: subtitleColor,
-                    height: 1.35,
+                    height: 1.15,
                   ),
                 ),
               ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: trailingColor,
-        ),
+        trailing: Icon(Icons.chevron_right, color: trailingColor, size: 20),
       ),
     );
   }

@@ -731,118 +731,299 @@ async function buildCompletedSlipPdf(detail) {
     const qrBuffer = Buffer.from(qrBase64, 'base64');
 
     return await new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ size: 'A4', margin: 48 });
+        const doc = new PDFDocument({ size: 'A4', margin: 28 });
         const chunks = [];
         const officeResults = detail.office_results || {};
         const officeSignatories = detail.office_signatories || {};
-        const drawCheckbox = (label, checked) => `${checked ? '[x]' : '[ ]'} ${label}`;
-        const drawActor = (label, value) => `${label}: ${safeText(value) || 'N/A'}`;
         const hasSchoolLogo = fs.existsSync(SCHOOL_LOGO_PATH);
+        const pageWidth = doc.page.width;
+        const pageHeight = doc.page.height;
+        const left = 28;
+        const right = pageWidth - 28;
+        const contentWidth = right - left;
+        const sectionSplit = left + contentWidth * 0.53;
+        const checkboxSize = 12;
+        const baseFont = 'Helvetica';
+        const boldFont = 'Helvetica-Bold';
+        const sectionLabelFontSize = 8;
+        const lineColor = '#111827';
+        const paperBlue = '#d8f4fb';
+        const summaryRemarks = [
+            detail.stages?.find((stage) => stage.key === 'sdo')?.remarks,
+            detail.stages?.find((stage) => stage.key === 'guidance')?.remarks,
+            detail.stages?.find((stage) => stage.key === 'pd')?.remarks,
+        ].filter((value) => safeText(value)).join(' | ') || 'N/A';
+        const studentSection = safeText(detail.section || detail.section_name) || 'N/A';
+
+        const drawBox = (x, y, width, height, options = {}) => {
+            const fillColor = options.fillColor || null;
+            doc.save();
+            if (fillColor) {
+                doc.rect(x, y, width, height).fillAndStroke(fillColor, options.strokeColor || lineColor);
+            } else {
+                doc.rect(x, y, width, height).stroke(options.strokeColor || lineColor);
+            }
+            doc.restore();
+        };
+
+        const drawCenteredText = (text, x, y, width, options = {}) => {
+            doc.font(options.font || baseFont)
+                .fontSize(options.size || 10)
+                .fillColor(options.color || '#111827')
+                .text(text, x, y, {
+                    width,
+                    align: 'center',
+                });
+        };
+
+        const drawFieldRow = (y, label, value, width = contentWidth) => {
+            drawBox(left, y, width, 34);
+            doc.font(boldFont).fontSize(9).text(label, left + 10, y + 10);
+            doc.font(baseFont).fontSize(10).text(value || 'N/A', left + 72, y + 10, {
+                width: width - 82,
+            });
+        };
+
+        const drawCheckboxLine = (x, y, label, checked) => {
+            drawBox(x, y + 2, checkboxSize, checkboxSize);
+            if (checked) {
+                doc.font(boldFont).fontSize(11).text('X', x + 2.5, y + 0.5);
+            }
+            doc.font(baseFont).fontSize(9.5).text(label, x + checkboxSize + 8, y, {
+                width: sectionSplit - x - checkboxSize - 20,
+            });
+        };
+
+        const drawSignatureBlock = (x, y, width, title, signatoryName) => {
+            drawBox(x, y, width, 74);
+            doc.moveTo(x, y + 38).lineTo(x + width, y + 38).stroke(lineColor);
+            drawCenteredText(title, x + 10, y + 44, width - 20, {
+                font: baseFont,
+                size: 8.5,
+            });
+            doc.font(baseFont).fontSize(8.5).text(safeText(signatoryName) || 'Pending', x + 10, y + 14, {
+                width: width - 20,
+                align: 'center',
+            });
+        };
+
+        const drawOfficeSection = ({
+            top,
+            leftItems,
+            signatureTitle,
+            signatoryName,
+            extraDetails = [],
+            height,
+        }) => {
+            drawBox(left, top, contentWidth, height);
+            doc.moveTo(sectionSplit, top).lineTo(sectionSplit, top + height).stroke(lineColor);
+
+            let checkboxY = top + 12;
+            leftItems.forEach((item) => {
+                drawCheckboxLine(left + 10, checkboxY, item.label, item.checked);
+                checkboxY += 30;
+            });
+
+            const detailStartY = Math.max(checkboxY - 4, top + 16);
+            if (extraDetails.length) {
+                doc.font(baseFont).fontSize(7.5).fillColor('#374151');
+                extraDetails.forEach((line, index) => {
+                    doc.text(line, left + 10, detailStartY + index * 11, {
+                        width: sectionSplit - left - 20,
+                    });
+                });
+            }
+
+            drawSignatureBlock(
+                sectionSplit,
+                top + Math.max(10, (height - 74) / 2),
+                right - sectionSplit,
+                signatureTitle,
+                signatoryName
+            );
+        };
 
         doc.on('data', (chunk) => chunks.push(chunk));
         doc.on('error', reject);
         doc.on('end', () => resolve(Buffer.concat(chunks)));
 
-        const headerTop = doc.y;
+        drawBox(0, 0, pageWidth, pageHeight, { fillColor: paperBlue, strokeColor: paperBlue });
+        drawBox(left, 28, contentWidth, pageHeight - 56);
+
+        const headerTop = 40;
         if (hasSchoolLogo) {
-            doc.image(SCHOOL_LOGO_PATH, 52, headerTop, { fit: [64, 64], align: 'left' });
+            doc.image(SCHOOL_LOGO_PATH, left + 10, headerTop + 4, { fit: [54, 54], align: 'left' });
         }
-        doc.fontSize(12).fillColor('#111827').text(INSTITUTION_NAME, 120, headerTop + 4, {
-            align: 'center',
+
+        drawCenteredText(INSTITUTION_NAME, left + 72, headerTop + 4, contentWidth - 144, {
+            font: boldFont,
+            size: 18,
         });
-        doc.fontSize(10).text(INSTITUTION_ADDRESS, 120, headerTop + 20, {
-            align: 'center',
+        drawCenteredText(INSTITUTION_ADDRESS, left + 72, headerTop + 28, contentWidth - 144, {
+            size: 10,
         });
-        doc.fontSize(10).text(SCHOLARSHIP_OFFICE_LABEL, 120, headerTop + 34, {
-            align: 'center',
+        drawCenteredText(SCHOLARSHIP_OFFICE_LABEL, left + 72, headerTop + 58, contentWidth - 144, {
+            font: boldFont,
+            size: 9.5,
         });
-        doc.moveTo(48, headerTop + 74).lineTo(doc.page.width - 48, headerTop + 74).strokeColor('#6b7280').stroke();
-        doc.y = headerTop + 82;
-        doc.fontSize(18).fillColor('#111827').text('ENDORSEMENT SLIP', { align: 'center' });
-        doc.fontSize(12).text('APPLICATION FOR SCHOLARSHIP', { align: 'center' });
-        doc.moveDown(0.35);
-        doc.fontSize(10).fillColor('#374151').text(
-            `Semester: ${detail.semester || 'N/A'}    School Year: ${detail.school_year || 'N/A'}`,
-            { align: 'center' }
-        );
-        doc.moveDown(0.2);
-        doc.text(`Slip Code: ${detail.slip_code || deriveSlipCode(detail.slip_id)}`, { align: 'center' });
-        doc.fillColor('#111827');
-        doc.moveDown(1);
 
-        doc.fontSize(10).text(`NAME: ${detail.student_name || 'N/A'}`);
-        doc.text(
-            `COURSE: ${detail.course_code || 'N/A'}    YEAR: ${detail.year_level || 'N/A'}    PDM ID: ${detail.pdm_id || 'N/A'}`
-        );
-        doc.moveDown(0.8);
+        doc.font(baseFont).fontSize(9).text('PMA-OSFA', right - 96, headerTop + 8, { width: 70, align: 'left' });
+        doc.text('Form-02', right - 96, headerTop + 28, { width: 70, align: 'left' });
 
-        doc.text('Respectfully endorsing the above named student under the following circumstances:');
-        doc.moveDown(0.5);
-
-        doc.fontSize(11).text('BASED ON THE RECORD ON FILE', { align: 'center' });
-        doc.moveDown(0.8);
-
-        doc.fontSize(10).text('Program Director');
-        doc.text(drawCheckbox('Good Average Scholastic Standing', officeResults.pd === CHECKBOX_LABELS.pd.approved_good_average));
-        doc.text(drawCheckbox('Average Scholastic Standing', officeResults.pd === CHECKBOX_LABELS.pd.approved_average));
-        doc.text(drawActor('PD Name', officeSignatories.pd || detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name));
-        doc.text(drawActor('PD Signature', officeSignatories.pd || detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name));
-        doc.moveDown(0.7);
-
-        doc.text('Student Disciplinary Office');
-        doc.text(drawCheckbox('No Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.cleared));
-        doc.text(drawCheckbox('Minor Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_minor));
-        doc.text(drawCheckbox('Major Offense', officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_major));
-        doc.text(drawActor('SDO Name', officeSignatories.sdo || detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name));
-        doc.text(drawActor('SDO Signature', officeSignatories.sdo || detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name));
-        if (safeText(detail.sdo_offense_detail?.offense_type)) {
-            doc.text(`Offense Type: ${safeText(detail.sdo_offense_detail?.offense_type)}`);
-        }
-        if (safeText(detail.sdo_offense_detail?.incident_date)) {
-            doc.text(`Date of Incident: ${safeText(detail.sdo_offense_detail?.incident_date)}`);
-        }
-        if (safeText(detail.sdo_offense_detail?.case_reference_number)) {
-            doc.text(`Case Note / Ref No.: ${safeText(detail.sdo_offense_detail?.case_reference_number)}`);
-        }
-        doc.moveDown(0.7);
-
-        doc.text('Guidance Counselor Office');
-        doc.text(drawCheckbox('Good Moral Standing', officeResults.guidance === CHECKBOX_LABELS.guidance.cleared));
-        doc.text(drawCheckbox('For Counseling / Hold', officeResults.guidance === CHECKBOX_LABELS.guidance.held));
-        doc.text(drawCheckbox('Rejected', officeResults.guidance === CHECKBOX_LABELS.guidance.rejected));
-        doc.text(
-            drawActor(
-                'Guidance Name',
-                officeSignatories.guidance || detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name
-            )
-        );
-        doc.text(
-            drawActor(
-                'Guidance Signature',
-                officeSignatories.guidance || detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name
-            )
-        );
-        doc.moveDown(0.8);
-
-        doc.text(`Remarks: ${[
-            detail.stages?.find((stage) => stage.key === 'sdo')?.remarks,
-            detail.stages?.find((stage) => stage.key === 'guidance')?.remarks,
-            detail.stages?.find((stage) => stage.key === 'pd')?.remarks,
-        ].filter((value) => safeText(value)).join(' | ') || 'N/A'}`);
-        doc.text(
-            `Submitted: ${detail.submitted_at ? new Date(detail.submitted_at).toLocaleString('en-PH') : 'N/A'}`
-        );
-        doc.text(
-            `Completed: ${detail.completed_at ? new Date(detail.completed_at).toLocaleString('en-PH') : 'N/A'}`
-        );
-        doc.moveDown(0.8);
-
-        doc.fontSize(10).fillColor('#4b5563').text('Verification');
-        doc.image(qrBuffer, doc.page.width - 180, doc.y - 10, { width: 115, height: 115 });
-        doc.text(`Verification URL: ${verificationUrl}`, { width: doc.page.width - 210 });
-        doc.text('Scan the QR code or open the verification URL to confirm authenticity.', {
-            width: doc.page.width - 210,
+        drawCenteredText('ENDORSEMENT SLIP', left, 126, contentWidth, {
+            font: boldFont,
+            size: 16,
         });
+        drawCenteredText('APPLICATION FOR SCHOLARSHIP', left, 150, contentWidth, {
+            font: boldFont,
+            size: 14,
+        });
+        drawCenteredText(
+            `${detail.semester || 'N/A'} SEMESTER, A.Y ${detail.school_year || 'N/A'}`,
+            left,
+            177,
+            contentWidth,
+            {
+                font: boldFont,
+                size: 11.5,
+            }
+        );
+
+        let cursorY = 214;
+        drawFieldRow(cursorY, 'NAME:', detail.student_name || 'N/A');
+        cursorY += 34;
+
+        const courseWidth = contentWidth * 0.46;
+        const yearWidth = contentWidth * 0.26;
+        const sectionWidth = contentWidth - courseWidth - yearWidth;
+        drawBox(left, cursorY, courseWidth, 34);
+        drawBox(left + courseWidth, cursorY, yearWidth, 34);
+        drawBox(left + courseWidth + yearWidth, cursorY, sectionWidth, 34);
+        doc.font(boldFont).fontSize(9)
+            .text('COURSE:', left + 10, cursorY + 10)
+            .text('YEAR:', left + courseWidth + 10, cursorY + 10)
+            .text('SECTION:', left + courseWidth + yearWidth + 10, cursorY + 10);
+        doc.font(baseFont).fontSize(10)
+            .text(detail.course_code || 'N/A', left + 68, cursorY + 10, { width: courseWidth - 78 })
+            .text(String(detail.year_level || 'N/A'), left + courseWidth + 54, cursorY + 10, { width: yearWidth - 64 })
+            .text(studentSection, left + courseWidth + yearWidth + 64, cursorY + 10, { width: sectionWidth - 74 });
+        cursorY += 34;
+
+        drawBox(left, cursorY, contentWidth, 58);
+        doc.font(baseFont).fontSize(11).text(
+            'Respectfully endorsing the above named student under the following circumstances:',
+            left + 10,
+            cursorY + 13,
+            { width: contentWidth - 20, align: 'left' }
+        );
+        cursorY += 58;
+
+        drawBox(left, cursorY, contentWidth, 28);
+        drawCenteredText('BASED ON THE RECORD ON FILE', left, cursorY + 7, contentWidth, {
+            font: boldFont,
+            size: 11.5,
+        });
+        cursorY += 28;
+
+        drawOfficeSection({
+            top: cursorY,
+            leftItems: [
+                {
+                    label: 'Good Scholastic Standing',
+                    checked: officeResults.pd === CHECKBOX_LABELS.pd.approved_good_average,
+                },
+                {
+                    label: 'Average Scholastic Standing',
+                    checked: officeResults.pd === CHECKBOX_LABELS.pd.approved_average,
+                },
+            ],
+            signatureTitle: 'Name & Signature\nProgram Director',
+            signatoryName: officeSignatories.pd || detail.stages?.find((stage) => stage.key === 'pd')?.acted_by_name,
+            height: 92,
+        });
+        cursorY += 92;
+
+        drawOfficeSection({
+            top: cursorY,
+            leftItems: [
+                {
+                    label: 'No Disciplinary Offense/s',
+                    checked: officeResults.sdo === CHECKBOX_LABELS.sdo.cleared,
+                },
+                {
+                    label: 'With Minor Offense/s',
+                    checked: officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_minor,
+                },
+                {
+                    label: 'With Major Offense/s',
+                    checked: officeResults.sdo === CHECKBOX_LABELS.sdo.disqualified_major,
+                },
+            ],
+            signatureTitle: 'Name & Signature\nStudent Discipline Officer',
+            signatoryName: officeSignatories.sdo || detail.stages?.find((stage) => stage.key === 'sdo')?.acted_by_name,
+            extraDetails: [
+                safeText(detail.sdo_offense_detail?.offense_type)
+                    ? `Offense Type: ${safeText(detail.sdo_offense_detail?.offense_type)}`
+                    : '',
+                safeText(detail.sdo_offense_detail?.incident_date)
+                    ? `Date of Incident: ${safeText(detail.sdo_offense_detail?.incident_date)}`
+                    : '',
+                safeText(detail.sdo_offense_detail?.case_reference_number)
+                    ? `Case Note / Ref No.: ${safeText(detail.sdo_offense_detail?.case_reference_number)}`
+                    : '',
+            ].filter(Boolean),
+            height: 116,
+        });
+        cursorY += 116;
+
+        drawOfficeSection({
+            top: cursorY,
+            leftItems: [
+                {
+                    label: 'Good Moral Standing',
+                    checked: officeResults.guidance === CHECKBOX_LABELS.guidance.cleared,
+                },
+                {
+                    label: 'For Counseling / Hold',
+                    checked: officeResults.guidance === CHECKBOX_LABELS.guidance.held,
+                },
+                {
+                    label: 'Rejected',
+                    checked: officeResults.guidance === CHECKBOX_LABELS.guidance.rejected,
+                },
+            ],
+            signatureTitle: 'Name & Signature\nGuidance Counselor',
+            signatoryName:
+                officeSignatories.guidance || detail.stages?.find((stage) => stage.key === 'guidance')?.acted_by_name,
+            height: 108,
+        });
+        cursorY += 108;
+
+        drawBox(left, cursorY, contentWidth, 54);
+        doc.font(boldFont).fontSize(9).text('REMARKS:', left + 10, cursorY + 10);
+        doc.font(baseFont).fontSize(8.5).text(summaryRemarks, left + 86, cursorY + 10, {
+            width: contentWidth - 96,
+            height: 34,
+        });
+        cursorY += 54;
+
+        drawBox(left, cursorY, contentWidth, 78);
+        doc.font(baseFont).fontSize(sectionLabelFontSize).fillColor('#374151');
+        doc.text(
+            `Submitted: ${detail.submitted_at ? new Date(detail.submitted_at).toLocaleString('en-PH') : 'N/A'}`,
+            left + 10,
+            cursorY + 10
+        );
+        doc.text(
+            `Completed: ${detail.completed_at ? new Date(detail.completed_at).toLocaleString('en-PH') : 'N/A'}`,
+            left + 10,
+            cursorY + 23
+        );
+        doc.text(`Slip Code: ${detail.slip_code || deriveSlipCode(detail.slip_id)}`, left + 10, cursorY + 36);
+        doc.text(`Verification URL: ${verificationUrl}`, left + 10, cursorY + 49, {
+            width: contentWidth - 150,
+        });
+        doc.image(qrBuffer, right - 86, cursorY + 7, { width: 58, height: 58 });
         doc.end();
     });
 }

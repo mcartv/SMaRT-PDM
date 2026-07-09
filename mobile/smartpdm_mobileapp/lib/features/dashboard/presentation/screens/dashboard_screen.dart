@@ -28,22 +28,22 @@ class DashboardScreen extends StatelessWidget {
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
-        toolbarHeight: 62,
-        titleSpacing: 16,
+        toolbarHeight: 74,
+        titleSpacing: 18,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
               'assets/images/school_logo.png',
-              height: 38,
+              height: 42,
               fit: BoxFit.contain,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Text(
               'SMaRT PDM',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: isDark ? Colors.white : AppColors.darkBrown,
-                fontSize: 20,
+                color: isDark ? Colors.white : AppColors.black,
+                fontSize: 24,
                 fontWeight: FontWeight.w900,
                 height: 1,
               ),
@@ -60,14 +60,18 @@ class DashboardScreen extends StatelessWidget {
           Consumer<NotificationProvider>(
             builder: (context, provider, _) {
               return Padding(
-                padding: const EdgeInsets.only(right: 10),
+                padding: const EdgeInsets.only(right: 16),
                 child: Badge(
                   isLabelVisible: provider.unreadCount > 0,
-                  label: Text('${provider.unreadCount}'),
-                  backgroundColor: Colors.red,
+                  alignment: const AlignmentDirectional(8, -8),
+                  smallSize: 10,
+                  backgroundColor: AppColors.gold,
                   child: IconButton(
                     tooltip: 'Notifications',
-                    icon: const Icon(Icons.notifications_none_rounded),
+                    icon: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 28,
+                    ),
                     onPressed: () {
                       Navigator.pushNamed(context, AppRoutes.notifications);
                     },
@@ -96,7 +100,8 @@ class DashboardContent extends StatefulWidget {
 
 class _DashboardContentState extends State<DashboardContent> {
   final TextEditingController _searchController = TextEditingController();
-  final ApplicantDocumentsService _documentsService = ApplicantDocumentsService();
+  final ApplicantDocumentsService _documentsService =
+      ApplicantDocumentsService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
 
   String _studentId = 'Student';
@@ -107,7 +112,6 @@ class _DashboardContentState extends State<DashboardContent> {
 
   bool _isLoadingOpenings = true;
   bool _isLoadingRequirements = true;
-  final bool _isGeneratingPdf = false;
   List<ProgramOpening> _latestOpenings = [];
   ApplicantDocumentsPackage? _requirementsPackage;
   bool _needsBaseApplication = false;
@@ -121,7 +125,7 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   Color get _background =>
-      _isDark ? const Color(0xFF17110B) : const Color(0xFFFFFCF6);
+      _isDark ? const Color(0xFF17110B) : const Color(0xFFFFFEFB);
 
   Color get _surface => _isDark ? const Color(0xFF241A11) : Colors.white;
 
@@ -217,7 +221,9 @@ class _DashboardContentState extends State<DashboardContent> {
         _requirementsPackage = null;
         _needsBaseApplication =
             error.statusCode == 404 || error.statusCode == 409;
-        _requirementsError = _needsBaseApplication ? null : error.message.trim();
+        _requirementsError = _needsBaseApplication
+            ? null
+            : error.message.trim();
         _isLoadingRequirements = false;
       });
     } catch (error) {
@@ -226,7 +232,10 @@ class _DashboardContentState extends State<DashboardContent> {
       setState(() {
         _requirementsPackage = null;
         _needsBaseApplication = false;
-        _requirementsError = error.toString().replaceFirst('Exception: ', '').trim();
+        _requirementsError = error
+            .toString()
+            .replaceFirst('Exception: ', '')
+            .trim();
         _isLoadingRequirements = false;
       });
     }
@@ -367,9 +376,12 @@ class _DashboardContentState extends State<DashboardContent> {
   }
 
   List<ApplicantRequirementDocument> _filteredRequirements() {
-    final documents = _requirementsPackage?.documents ?? const <ApplicantRequirementDocument>[];
+    final documents =
+        _requirementsPackage?.documents ??
+        const <ApplicantRequirementDocument>[];
     return _filterItems(
-      sectionLabel: 'Requirements prerequisites qualifications conditions documents uploads',
+      sectionLabel:
+          'Requirements prerequisites qualifications conditions documents uploads',
       items: documents,
       textForItem: _requirementSearchText,
     );
@@ -403,6 +415,14 @@ class _DashboardContentState extends State<DashboardContent> {
             ),
           ]
         : [
+            _QuickAction(
+              icon: Icons.campaign_outlined,
+              title: 'Updates',
+              subtitle: 'Office updates',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.notifications),
+              isLoading: false,
+            ),
             _QuickAction(
               icon: Icons.school_rounded,
               title: 'Apply',
@@ -497,9 +517,7 @@ class _DashboardContentState extends State<DashboardContent> {
 
   List<_MenuAction> _filteredToolActions() {
     return _filterItems(
-      sectionLabel: _hasScholarAccess
-          ? 'Scholar Tools'
-          : 'Applicant Tools',
+      sectionLabel: _hasScholarAccess ? 'Scholar Tools' : 'Applicant Tools',
       items: _toolActions(),
       textForItem: _menuActionSearchText,
     );
@@ -576,7 +594,7 @@ class _DashboardContentState extends State<DashboardContent> {
     VoidCallback? onTap,
   }) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 2, 2, 9),
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 12),
       child: Row(
         children: [
           Expanded(
@@ -584,7 +602,7 @@ class _DashboardContentState extends State<DashboardContent> {
               title,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: _primaryText,
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
                 height: 1.1,
               ),
@@ -594,7 +612,7 @@ class _DashboardContentState extends State<DashboardContent> {
             TextButton(
               onPressed: onTap,
               style: TextButton.styleFrom(
-                foregroundColor: _isDark ? AppColors.gold : AppColors.brown,
+                foregroundColor: _isDark ? AppColors.gold : AppColors.gold,
                 minimumSize: const Size(0, 34),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -602,7 +620,7 @@ class _DashboardContentState extends State<DashboardContent> {
               child: Text(
                 actionLabel,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -615,8 +633,11 @@ class _DashboardContentState extends State<DashboardContent> {
   Widget _buildSearchShortcut() {
     return Container(
       decoration: BoxDecoration(
-        color: _isDark ? const Color(0xFF241A11) : const Color(0xFFF7F4EF),
+        color: _isDark ? const Color(0xFF241A11) : Colors.white,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: _isDark ? Colors.white10 : const Color(0xFFE8E4DB),
+        ),
       ),
       child: TextField(
         controller: _searchController,
@@ -637,7 +658,7 @@ class _DashboardContentState extends State<DashboardContent> {
           prefixIcon: Icon(
             Icons.search_rounded,
             size: 20,
-            color: _isDark ? Colors.white60 : const Color(0xFF7A746B),
+            color: _isDark ? Colors.white60 : const Color(0xFFAAA49B),
           ),
           suffixIcon: _hasSearchQuery
               ? IconButton(
@@ -648,7 +669,7 @@ class _DashboardContentState extends State<DashboardContent> {
                   },
                   icon: Icon(
                     Icons.close_rounded,
-                    color: _isDark ? Colors.white60 : const Color(0xFF7A746B),
+                    color: _isDark ? Colors.white60 : const Color(0xFFAAA49B),
                   ),
                 )
               : null,
@@ -664,22 +685,10 @@ class _DashboardContentState extends State<DashboardContent> {
 
   Widget _buildFilterChips() {
     final chips = [
-      (
-        label: 'All',
-        section: _DashboardSection.all,
-      ),
-      (
-        label: 'Openings',
-        section: _DashboardSection.openings,
-      ),
-      (
-        label: 'Updates',
-        section: _DashboardSection.updates,
-      ),
-      (
-        label: 'Requirements',
-        section: _DashboardSection.requirements,
-      ),
+      (label: 'All', section: _DashboardSection.all),
+      (label: 'Openings', section: _DashboardSection.openings),
+      (label: 'Updates', section: _DashboardSection.updates),
+      (label: 'Requirements', section: _DashboardSection.requirements),
     ];
 
     return SingleChildScrollView(
@@ -727,7 +736,7 @@ class _DashboardContentState extends State<DashboardContent> {
                           : 'Welcome, Applicant',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: _secondaryText,
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -736,7 +745,7 @@ class _DashboardContentState extends State<DashboardContent> {
                       _studentId,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: _primaryText,
-                        fontSize: 18,
+                        fontSize: 22,
                         fontWeight: FontWeight.w900,
                         height: 1.1,
                       ),
@@ -750,39 +759,64 @@ class _DashboardContentState extends State<DashboardContent> {
               ),
             ],
           ),
-          const SizedBox(height: 22),
-          SizedBox(
-            width: 150,
-            height: 108,
-            child: CustomPaint(
-              painter: _ScholarshipIllustrationPainter(isDark: _isDark),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _hasScholarAccess
-                ? 'Stay on track with your scholarship'
-                : 'Find your next scholarship',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: _primaryText,
-              fontSize: 22,
-              height: 1.08,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _hasScholarAccess
-                ? 'Track renewals, return obligations, payouts, and office updates in one place.'
-                : 'Apply, upload requirements, and follow office updates without losing your place.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: _secondaryText,
-              fontSize: 13,
-              height: 1.35,
-              fontWeight: FontWeight.w700,
-            ),
+          const SizedBox(height: 26),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _hasScholarAccess
+                          ? 'Stay on track with your scholarship'
+                          : 'Find your next\nscholarship',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: _primaryText,
+                        fontSize: 23,
+                        height: 1.15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _hasScholarAccess
+                          ? 'Track renewals, return obligations, payouts, and office updates in one place.'
+                          : 'Apply, upload requirements, and follow office updates without losing your place.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _secondaryText,
+                        fontSize: 13,
+                        height: 1.45,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Container(
+                width: 150,
+                height: 118,
+                decoration: BoxDecoration(
+                  color: _isDark
+                      ? const Color(0xFF2A221B)
+                      : const Color(0xFFFFFCF6),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: _isDark
+                      ? const []
+                      : const [
+                          BoxShadow(
+                            color: Color(0x12000000),
+                            blurRadius: 18,
+                            offset: Offset(0, 10),
+                          ),
+                        ],
+                ),
+                child: CustomPaint(
+                  painter: _ScholarshipIllustrationPainter(isDark: _isDark),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
           SizedBox(
@@ -793,9 +827,9 @@ class _DashboardContentState extends State<DashboardContent> {
                   : Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.darkBrown,
+                foregroundColor: AppColors.black,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 13),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
                 ),
@@ -803,7 +837,7 @@ class _DashboardContentState extends State<DashboardContent> {
               child: Text(
                 _hasScholarAccess ? 'View scholar tools' : 'View scholarships',
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -819,8 +853,8 @@ class _DashboardContentState extends State<DashboardContent> {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 390;
         final width = isCompact
-            ? constraints.maxWidth
-            : (constraints.maxWidth - 20) / 3;
+            ? (constraints.maxWidth - 10) / 2
+            : (constraints.maxWidth - 30) / 4;
 
         return Wrap(
           spacing: 10,
@@ -907,13 +941,13 @@ class _DashboardContentState extends State<DashboardContent> {
               vertical: 6,
             ),
             leading: Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: AppColors.gold.withOpacity(_isDark ? 0.22 : 0.18),
+                color: AppColors.gold.withValues(alpha: _isDark ? 0.22 : 0.10),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.school_rounded, color: primaryColor),
+              child: const Icon(Icons.school_rounded, color: AppColors.gold),
             ),
             title: Text(
               openingTitle,
@@ -937,9 +971,34 @@ class _DashboardContentState extends State<DashboardContent> {
                 ),
               ),
             ),
-            trailing: Icon(
-              Icons.chevron_right_rounded,
-              color: _isDark ? Colors.white38 : const Color(0xFF8A8378),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _isDark
+                        ? AppColors.gold.withValues(alpha: 0.20)
+                        : const Color(0xFFFFF4D5),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Open',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: _isDark ? const Color(0xFFFFD54F) : AppColors.gold,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: _isDark ? Colors.white38 : const Color(0xFF8A8378),
+                ),
+              ],
             ),
             onTap: () {
               Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
@@ -961,7 +1020,8 @@ class _DashboardContentState extends State<DashboardContent> {
             tags: _officeUpdateTags(notifications[i]),
             isDark: _isDark,
             onTap: () => _openOfficeUpdateArticle(context, notifications[i]),
-            onOpeningsTap: _isOpeningUpdate(notifications[i]) && !_hasScholarAccess
+            onOpeningsTap:
+                _isOpeningUpdate(notifications[i]) && !_hasScholarAccess
                 ? () => _openScholarshipOpenings(context)
                 : null,
           ),
@@ -1051,6 +1111,12 @@ class _DashboardContentState extends State<DashboardContent> {
     final toolActions = _filteredToolActions();
     final requirements = _filteredRequirements();
     final showAll = _selectedSection == _DashboardSection.all;
+    final showSearchResultsOnly = showAll && _hasSearchQuery;
+    final hasSearchResults =
+        quickActions.isNotEmpty ||
+        (!_hasScholarAccess && openings.isNotEmpty) ||
+        updates.isNotEmpty ||
+        toolActions.isNotEmpty;
 
     return Container(
       color: _background,
@@ -1066,18 +1132,28 @@ class _DashboardContentState extends State<DashboardContent> {
                 _buildSearchShortcut(),
                 const SizedBox(height: 12),
                 _buildFilterChips(),
-                if (showAll) ...[
+                if (showAll && !_hasSearchQuery) ...[
                   const SizedBox(height: 18),
                   _buildHero(),
                 ],
                 if (showAll &&
                     (!_hasSearchQuery || quickActions.isNotEmpty)) ...[
                   const SizedBox(height: 20),
-                  _sectionTitle('Quick Actions'),
+                  _sectionTitle(
+                    'Quick Actions',
+                    actionLabel: 'View all',
+                    onTap: () => _hasScholarAccess
+                        ? Navigator.pushNamed(context, AppRoutes.notifications)
+                        : Navigator.pushNamed(
+                            context,
+                            AppRoutes.scholarshipOpenings,
+                          ),
+                  ),
                   _buildQuickActions(quickActions),
                 ],
                 if (_showsSection(_DashboardSection.openings) &&
-                    !_hasScholarAccess) ...[
+                    !_hasScholarAccess &&
+                    (!showSearchResultsOnly || openings.isNotEmpty)) ...[
                   const SizedBox(height: 20),
                   _sectionTitle(
                     'Latest Openings',
@@ -1089,7 +1165,8 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                   _buildLatestOpenings(openings),
                 ],
-                if (_showsSection(_DashboardSection.updates)) ...[
+                if (_showsSection(_DashboardSection.updates) &&
+                    (!showSearchResultsOnly || updates.isNotEmpty)) ...[
                   const SizedBox(height: 20),
                   _sectionTitle(
                     'Office Updates',
@@ -1099,7 +1176,8 @@ class _DashboardContentState extends State<DashboardContent> {
                   ),
                   _buildOfficeUpdates(updates),
                 ],
-                if (_showsSection(_DashboardSection.requirements)) ...[
+                if (_showsSection(_DashboardSection.requirements) &&
+                    !showAll) ...[
                   const SizedBox(height: 20),
                   _sectionTitle(
                     'Requirements',
@@ -1107,7 +1185,8 @@ class _DashboardContentState extends State<DashboardContent> {
                         ? 'Open documents'
                         : null,
                     onTap: !_hasScholarAccess && !_needsBaseApplication
-                        ? () => Navigator.pushNamed(context, AppRoutes.documents)
+                        ? () =>
+                              Navigator.pushNamed(context, AppRoutes.documents)
                         : null,
                   ),
                   _buildRequirementsSection(requirements),
@@ -1119,6 +1198,21 @@ class _DashboardContentState extends State<DashboardContent> {
                     _hasScholarAccess ? 'Scholar Tools' : 'Applicant Tools',
                   ),
                   _buildTools(toolActions),
+                ],
+                if (showSearchResultsOnly && !hasSearchResults) ...[
+                  const SizedBox(height: 20),
+                  _DashboardStateCard(
+                    isDark: _isDark,
+                    icon: Icons.search_off_rounded,
+                    title: 'No results found',
+                    message:
+                        'Try a different scholarship, update, requirement, or tool keyword.',
+                    primaryLabel: 'Clear search',
+                    onPrimaryTap: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  ),
                 ],
               ],
             ),
@@ -1147,10 +1241,10 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isDark
-            ? AppColors.gold.withOpacity(0.18)
-            : AppColors.gold.withOpacity(0.16),
+            ? AppColors.gold.withValues(alpha: 0.18)
+            : AppColors.gold.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.gold.withOpacity(0.35)),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
       ),
       child: Text(
         label,
@@ -1181,12 +1275,12 @@ class _DashboardChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundColor = selected
-        ? AppColors.gold.withOpacity(isDark ? 0.28 : 0.22)
+        ? AppColors.gold.withValues(alpha: isDark ? 0.28 : 0.22)
         : isDark
         ? const Color(0xFF241A11)
         : Colors.white;
     final borderColor = selected
-        ? AppColors.gold.withOpacity(0.55)
+        ? AppColors.gold.withValues(alpha: 0.55)
         : isDark
         ? Colors.white12
         : const Color(0xFFE7E0D5);
@@ -1257,10 +1351,10 @@ class _ScholarshipIllustrationPainter extends CustomPainter {
       ..color = isDark ? const Color(0xFF3B2A18) : const Color(0xFFFFF4CB)
       ..style = PaintingStyle.fill;
     final goldFill = Paint()
-      ..color = AppColors.gold.withOpacity(isDark ? 0.75 : 0.85)
+      ..color = AppColors.gold.withValues(alpha: isDark ? 0.75 : 0.85)
       ..style = PaintingStyle.fill;
     final paleFill = Paint()
-      ..color = AppColors.gold.withOpacity(isDark ? 0.20 : 0.18)
+      ..color = AppColors.gold.withValues(alpha: isDark ? 0.20 : 0.18)
       ..style = PaintingStyle.fill;
 
     canvas.drawRRect(rounded(26, 22, 134, 78, 13), paleFill);
@@ -1341,14 +1435,17 @@ class _QuickActionCard extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withOpacity(isDark ? 0.22 : 0.18),
+                    color: AppColors.gold.withValues(
+                      alpha: isDark ? 0.22 : 0.10,
+                    ),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: action.isLoading
@@ -1358,46 +1455,40 @@ class _QuickActionCard extends StatelessWidget {
                             strokeWidth: 2,
                             color: isDark
                                 ? const Color(0xFFFFD54F)
-                                : primaryColor,
+                                : AppColors.gold,
                           ),
                         )
                       : Icon(
                           action.icon,
                           color: isDark
                               ? const Color(0xFFFFD54F)
-                              : primaryColor,
-                          size: 21,
+                              : AppColors.gold,
+                          size: 24,
                         ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        action.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: title,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          height: 1.05,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        action.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: subtitle,
-                              fontWeight: FontWeight.w700,
-                              height: 1.05,
-                            ),
-                      ),
-                    ],
+                const SizedBox(height: 14),
+                Text(
+                  action.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: title,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  action.subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: subtitle,
+                    fontWeight: FontWeight.w700,
+                    height: 1.15,
                   ),
                 ),
               ],
@@ -1441,7 +1532,7 @@ class _OfficeUpdateCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
@@ -1451,37 +1542,71 @@ class _OfficeUpdateCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ChipLabel(label: label, isDark: isDark, filled: true),
-                  ...tags.map((tag) => _ChipLabel(label: tag, isDark: isDark)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label.toUpperCase(),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: AppColors.gold,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.4,
+                              ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                color: titleColor,
+                                fontSize: 16,
+                                height: 1.15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          preview,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: bodyColor,
+                                fontSize: 13,
+                                height: 1.35,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Container(
+                    width: 92,
+                    height: 92,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : const Color(0xFFFFFCF4),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(
+                      onOpeningsTap != null
+                          ? Icons.campaign_rounded
+                          : Icons.notifications_active_outlined,
+                      color: AppColors.gold.withValues(alpha: 0.9),
+                      size: 46,
+                    ),
+                  ),
                 ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: titleColor,
-                  fontSize: 16,
-                  height: 1.15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                preview,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: bodyColor,
-                  fontSize: 13,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
-                ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -1514,7 +1639,7 @@ class _OfficeUpdateCard extends StatelessWidget {
                               ? Colors.white
                               : AppColors.brown,
                           side: BorderSide(
-                            color: AppColors.gold.withOpacity(0.75),
+                            color: AppColors.gold.withValues(alpha: 0.75),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -1522,7 +1647,7 @@ class _OfficeUpdateCard extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          'Apply',
+                          'Apply now',
                           style: TextStyle(fontWeight: FontWeight.w900),
                         ),
                       ),
@@ -1585,10 +1710,10 @@ class _DashboardStateCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isDark ? Colors.white10 : const Color(0xFFF0E8DA),
         ),
@@ -1597,44 +1722,45 @@ class _DashboardStateCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: AppColors.gold.withOpacity(isDark ? 0.22 : 0.18),
-              borderRadius: BorderRadius.circular(14),
+              color: AppColors.gold.withValues(alpha: isDark ? 0.22 : 0.18),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
               color: isDark ? const Color(0xFFFFD54F) : primaryColor,
+              size: 20,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Text(
             title,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: titleColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             message,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: bodyColor,
-              fontSize: 13,
-              height: 1.35,
+              fontSize: 12.5,
+              height: 1.3,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           FilledButton(
             onPressed: onPrimaryTap,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.darkBrown,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 11),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(999),
               ),
@@ -1691,7 +1817,11 @@ class _RequirementsCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _ChipLabel(label: package.documentStatus, isDark: isDark, filled: true),
+              _ChipLabel(
+                label: package.documentStatus,
+                isDark: isDark,
+                filled: true,
+              ),
               _ChipLabel(label: package.applicationStatus, isDark: isDark),
               _ChipLabel(
                 label: '$uploadedCount/$totalCount Uploaded',
@@ -1777,7 +1907,7 @@ class _RequirementsCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isDark ? Colors.white : AppColors.brown,
                     side: BorderSide(
-                      color: AppColors.gold.withOpacity(0.75),
+                      color: AppColors.gold.withValues(alpha: 0.75),
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -1817,7 +1947,7 @@ class _RequirementRow extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: AppColors.gold.withOpacity(isDark ? 0.22 : 0.16),
+            color: AppColors.gold.withValues(alpha: isDark ? 0.22 : 0.16),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
@@ -1856,7 +1986,11 @@ class _RequirementRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        _ChipLabel(label: statusLabel, isDark: isDark, filled: document.isSubmitted),
+        _ChipLabel(
+          label: statusLabel,
+          isDark: isDark,
+          filled: document.isSubmitted,
+        ),
       ],
     );
   }
@@ -1879,13 +2013,13 @@ class _ChipLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: filled
-            ? AppColors.gold.withOpacity(isDark ? 0.35 : 0.22)
+            ? AppColors.gold.withValues(alpha: isDark ? 0.35 : 0.22)
             : isDark
-            ? Colors.white.withOpacity(0.08)
+            ? Colors.white.withValues(alpha: 0.08)
             : const Color(0xFFFFF6D8),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: AppColors.gold.withOpacity(filled ? 0.55 : 0.25),
+          color: AppColors.gold.withValues(alpha: filled ? 0.55 : 0.25),
         ),
       ),
       child: Text(
@@ -1912,10 +2046,19 @@ class _ActionGroupCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF241A11) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isDark ? Colors.white10 : const Color(0xFFF0E8DA),
         ),
+        boxShadow: isDark
+            ? const []
+            : const [
+                BoxShadow(
+                  color: Color(0x0F000000),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
       ),
       child: Column(
         children: [
@@ -1925,7 +2068,8 @@ class _ActionGroupCard extends StatelessWidget {
               Divider(
                 height: 1,
                 indent: 68,
-                color: isDark ? Colors.white10 : const Color(0xFFEFE5D8),
+                endIndent: 14,
+                color: isDark ? Colors.white10 : const Color(0xFFF1E9DC),
               ),
           ],
         ],
@@ -1950,18 +2094,19 @@ class _MenuAction {
   Widget build(BuildContext context, bool isDark) {
     return ListTile(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      minLeadingWidth: 42,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       leading: Container(
-        width: 38,
-        height: 38,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
-          color: AppColors.gold.withOpacity(isDark ? 0.22 : 0.16),
+          color: AppColors.gold.withValues(alpha: isDark ? 0.22 : 0.10),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Icon(
           icon,
-          color: isDark ? const Color(0xFFFFD54F) : primaryColor,
-          size: 21,
+          color: isDark ? const Color(0xFFFFD54F) : AppColors.gold,
+          size: 22,
         ),
       ),
       title: Text(
@@ -1986,7 +2131,7 @@ class _MenuAction {
       ),
       trailing: Icon(
         Icons.chevron_right_rounded,
-        color: isDark ? Colors.white38 : Colors.black38,
+        color: isDark ? Colors.white38 : const Color(0xFF9A958C),
       ),
     );
   }

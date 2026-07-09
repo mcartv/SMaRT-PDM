@@ -20,6 +20,7 @@ import {
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
 import PortalQuickTools from './PortalQuickTools';
+import usePortalNotifications from '../../hooks/usePortalNotifications';
 
 // Theme Colors
 const SB_BASE = '#7c4a2e';
@@ -63,7 +64,17 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
-  const [notifs, setNotifs] = useState([]);
+  const {
+    notifications: notifs,
+    unreadCount,
+    loading: notificationsLoading,
+    markingAll,
+    markAllAsRead,
+    openNotification,
+  } = usePortalNotifications({
+    tokenStorageKey: 'adminToken',
+    portalRootPath: '/admin',
+  });
 
   useEffect(() => {
     const initializeLayout = () => {
@@ -82,8 +93,6 @@ export default function AdminLayout() {
           setAdminData(null);
         }
       }
-
-      setNotifs([]);
     };
 
     initializeLayout();
@@ -233,7 +242,7 @@ export default function AdminLayout() {
                 className="relative rounded-full border border-stone-200 bg-white p-2 transition-colors hover:bg-stone-100"
               >
                 <Bell className="h-4 w-4 text-stone-600" />
-                {notifs.length > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute right-1 top-1 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
                 )}
               </button>
@@ -247,9 +256,16 @@ export default function AdminLayout() {
                   <div className="max-h-64 overflow-y-auto">
                     {notifs.length > 0 ? (
                       notifs.map((n) => (
-                        <div
-                          key={n.id}
-                          className="cursor-pointer border-b border-stone-50 px-4 py-3 hover:bg-amber-50/40"
+                        <button
+                          key={n.notification_id}
+                          type="button"
+                          onClick={() => {
+                            setNotifOpen(false);
+                            openNotification(n, navigate);
+                          }}
+                          className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-amber-50/40 ${
+                            n.is_read ? 'bg-white' : 'bg-amber-50/30'
+                          }`}
                         >
                           <p className="text-xs font-semibold text-stone-800">
                             {n.title || 'Notification'}
@@ -257,14 +273,27 @@ export default function AdminLayout() {
                           <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
                             {n.message}
                           </p>
-                        </div>
+                        </button>
                       ))
                     ) : (
                       <div className="p-8 text-center text-xs text-stone-400">
-                        No new notifications
+                        {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
                       </div>
                     )}
                   </div>
+
+                  {notifs.length > 0 ? (
+                    <div className="border-t border-stone-100 bg-stone-50/60 px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={markAllAsRead}
+                        disabled={markingAll || unreadCount === 0}
+                        className="text-[11px] font-semibold text-stone-600 transition hover:text-stone-900 disabled:cursor-not-allowed disabled:text-stone-400"
+                      >
+                        {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

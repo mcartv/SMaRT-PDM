@@ -60,6 +60,9 @@ const socketEvents = {
 
     // Notification Events
     notificationCreated: (io, userId, data) => emitToUser(io, userId, 'notification:created', data),
+    notificationUpdated: (io, userId, data) => emitToUser(io, userId, 'notification:updated', data),
+    notificationReadAll: (io, userId, data) => emitToUser(io, userId, 'notification:read-all', data),
+    notificationDeleted: (io, userId, data) => emitToUser(io, userId, 'notification:deleted', data),
 
     // Message Events
     messageCreated: (io, data) => emitEvent(io, 'message:created', data),

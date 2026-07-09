@@ -80,6 +80,7 @@ class SavedApplicationPrintModel {
     required this.studentNumber,
     required this.learnersReferenceNumber,
     required this.currentCourse,
+    required this.gwa,
     required this.financialSupport,
     required this.financialSupportOther,
     required this.supportParents,
@@ -177,6 +178,7 @@ class SavedApplicationPrintModel {
   final String studentNumber;
   final String learnersReferenceNumber;
   final String currentCourse;
+  final String gwa;
   final String financialSupport;
   final String financialSupportOther;
   final bool supportParents;
@@ -328,6 +330,7 @@ class SavedApplicationPrintModel {
       studentNumber: _string(student['pdm_id']),
       learnersReferenceNumber: _string(profile['learners_reference_number']),
       currentCourse: _string(student['course_code']),
+      gwa: _firstNonEmpty([_string(student['gwa']), _string(profile['gwa'])]),
       financialSupport: financialSupport,
       financialSupportOther: _string(profile['financial_support_other']),
       supportParents: financialSupport.toLowerCase() == 'parents',
@@ -546,6 +549,7 @@ class SavedApplicationPrintModel {
         _string(academic['current_course_code']),
         _string(academic['current_course']),
       ]),
+      gwa: _string(academic['gwa']),
       financialSupport: financialSupport,
       financialSupportOther: _firstNonEmpty([
         _string(support['financial_support_other']),

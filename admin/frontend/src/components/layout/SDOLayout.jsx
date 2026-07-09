@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
+import usePortalNotifications from '../../hooks/usePortalNotifications';
 
 const SB_BASE = '#2e4b43';
 const SB_TEXT = '#ecfdf5';
@@ -51,7 +52,17 @@ export default function SDOLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [notifs, setNotifs] = useState([]);
+  const {
+    notifications: notifs,
+    unreadCount,
+    loading: notificationsLoading,
+    markingAll,
+    markAllAsRead,
+    openNotification,
+  } = usePortalNotifications({
+    tokenStorageKey: 'sdoToken',
+    portalRootPath: '/sdo',
+  });
 
   useEffect(() => {
     const token = sessionStorage.getItem('sdoToken');
@@ -67,18 +78,6 @@ export default function SDOLayout() {
       } catch {
         setProfile(null);
       }
-    }
-
-    const savedNotifs = sessionStorage.getItem('sdoNotifications');
-    if (savedNotifs) {
-      try {
-        const parsed = JSON.parse(savedNotifs);
-        setNotifs(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        setNotifs([]);
-      }
-    } else {
-      setNotifs([]);
     }
   }, [navigate]);
 
@@ -136,15 +135,7 @@ export default function SDOLayout() {
 
   const handleNotificationClick = (notif) => {
     setNotifOpen(false);
-
-    if (notif?.link) {
-      navigate(notif.link);
-      return;
-    }
-
-    if (notif?.path) {
-      navigate(notif.path);
-    }
+    openNotification(notif, navigate);
   };
 
   return (
@@ -247,7 +238,7 @@ export default function SDOLayout() {
                 title="Notifications"
               >
                 <Bell className="w-4 h-4 text-stone-600" />
-                {notifs.length > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
                 )}
               </button>
@@ -262,9 +253,11 @@ export default function SDOLayout() {
                     {notifs.length > 0 ? (
                       notifs.map((n, index) => (
                         <button
-                          key={n.id || index}
+                          key={n.notification_id || index}
                           onClick={() => handleNotificationClick(n)}
-                          className="w-full text-left px-4 py-3 hover:bg-emerald-50/60 border-b border-stone-50 transition-colors"
+                          className={`w-full text-left px-4 py-3 hover:bg-emerald-50/60 border-b border-stone-50 transition-colors ${
+                            n.is_read ? 'bg-white' : 'bg-emerald-50/30'
+                          }`}
                         >
                           <p className="text-xs font-semibold text-stone-800">
                             {n.title || 'Notification'}
@@ -276,10 +269,23 @@ export default function SDOLayout() {
                       ))
                     ) : (
                       <div className="p-8 text-center text-xs text-stone-400">
-                        No new notifications
+                        {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}
                       </div>
                     )}
                   </div>
+
+                  {notifs.length > 0 ? (
+                    <div className="px-4 py-3 border-t border-stone-100 bg-stone-50/60">
+                      <button
+                        type="button"
+                        onClick={markAllAsRead}
+                        disabled={markingAll || unreadCount === 0}
+                        className="text-[11px] font-semibold text-stone-600 transition hover:text-stone-900 disabled:cursor-not-allowed disabled:text-stone-400"
+                      >
+                        {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

@@ -41,11 +41,14 @@ const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
 
 // Services
 const {
-  runAnnouncementScheduler,
   runDepartmentDigestScheduler,
 } = require('../services/schedulerService');
 
+const announcementService = require('../services/announcementService');
+const socketEvents = require('../utils/socketEvents');
+
 const app = express();
+app.set('trust proxy', 1);
 
 // =========================
 // CORS SETUP
@@ -328,12 +331,55 @@ server.listen(PORT, () => {
 if (!global._announcementSchedulerRunning) {
   global._announcementSchedulerRunning = true;
 
-  setInterval(async () => {
+  let schedulerBusy = false;
+
+  const runSchedulers = async () => {
+    if (schedulerBusy) return;
+
+    schedulerBusy = true;
+
     try {
-      await runAnnouncementScheduler();
+      const publishedAnnouncements =
+        await announcementService.publishDueAnnouncements();
+
+      if (
+        Array.isArray(publishedAnnouncements) &&
+        publishedAnnouncements.length > 0
+      ) {
+        for (const announcement of publishedAnnouncements) {
+          socketEvents.announcementCreated(io, {
+            announcement_id: announcement.id,
+            title: announcement.title,
+            status: announcement.status,
+            audience: announcement.audienceKey || announcement.audience,
+            published_at: announcement.date || new Date().toISOString(),
+            source: 'scheduled-publish',
+          });
+
+          socketEvents.announcementUpdated(io, {
+            announcement_id: announcement.id,
+            title: announcement.title,
+            status: announcement.status,
+            audience: announcement.audienceKey || announcement.audience,
+            updated_at: announcement.date || new Date().toISOString(),
+            source: 'scheduled-publish',
+          });
+        }
+
+        console.log(
+          `[Scheduler] Published ${publishedAnnouncements.length} scheduled announcement(s).`
+        );
+      }
+
       await runDepartmentDigestScheduler();
     } catch (err) {
       console.error('Scheduler Error:', err.message);
+    } finally {
+      schedulerBusy = false;
     }
-  }, 30000);
+  };
+
+  runSchedulers();
+
+  setInterval(runSchedulers, 30000);
 }

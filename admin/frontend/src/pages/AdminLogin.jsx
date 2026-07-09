@@ -40,8 +40,32 @@ const ROLE_PORTALS = {
   },
 };
 
-function clearSessionKeys(keys) {
-  keys.forEach((key) => sessionStorage.removeItem(key));
+const AUTH_STORAGE_KEYS = [
+  'adminToken',
+  'adminProfile',
+  'pdToken',
+  'pdProfile',
+  'guidanceToken',
+  'guidanceProfile',
+  'sdoToken',
+  'sdoProfile',
+];
+
+function clearAuthStorage() {
+  AUTH_STORAGE_KEYS.forEach((key) => {
+    sessionStorage.removeItem(key);
+
+    // Cleanup old remembered-login leftovers.
+    localStorage.removeItem(key);
+  });
+}
+
+function saveAuthSession({ tokenKey, profileKey, token, user }) {
+  sessionStorage.setItem(tokenKey, token);
+
+  if (user) {
+    sessionStorage.setItem(profileKey, JSON.stringify(user));
+  }
 }
 
 export default function AdminLogin() {
@@ -50,7 +74,6 @@ export default function AdminLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -65,7 +88,7 @@ export default function AdminLogin() {
       const response = await fetch(LOGIN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password, rememberMe }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
 
       const data = await response.json();
@@ -77,31 +100,26 @@ export default function AdminLogin() {
       const nextRole = data?.user?.role;
       const rolePortal = ROLE_PORTALS[nextRole];
 
-      clearSessionKeys([
-        'adminToken',
-        'adminProfile',
-        'pdToken',
-        'pdProfile',
-        'guidanceToken',
-        'guidanceProfile',
-        'sdoToken',
-        'sdoProfile',
-      ]);
+      clearAuthStorage();
 
       if (rolePortal) {
-        sessionStorage.setItem(rolePortal.tokenStorageKey, data.token);
-        if (data.user) {
-          sessionStorage.setItem(rolePortal.profileStorageKey, JSON.stringify(data.user));
-        }
+        saveAuthSession({
+          tokenKey: rolePortal.tokenStorageKey,
+          profileKey: rolePortal.profileStorageKey,
+          token: data.token,
+          user: data.user,
+        });
+
         navigate(rolePortal.redirectPath);
         return;
       }
 
-      sessionStorage.setItem('adminToken', data.token);
-
-      if (data.user) {
-        sessionStorage.setItem('adminProfile', JSON.stringify(data.user));
-      }
+      saveAuthSession({
+        tokenKey: 'adminToken',
+        profileKey: 'adminProfile',
+        token: data.token,
+        user: data.user,
+      });
 
       navigate('/admin/dashboard');
     } catch (err) {
@@ -248,24 +266,6 @@ export default function AdminLogin() {
                 </button>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setRememberMe((prev) => !prev)}
-              className="flex items-center gap-2 cursor-pointer group w-max"
-            >
-              <div
-                className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${rememberMe
-                    ? 'bg-orange-800 border-orange-800'
-                    : 'bg-white border-stone-300 group-hover:border-stone-400'
-                  }`}
-              >
-                {rememberMe && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-              </div>
-              <span className="text-xs text-stone-600 font-medium select-none">
-                Remember for 30 days
-              </span>
-            </button>
 
             <button
               type="submit"

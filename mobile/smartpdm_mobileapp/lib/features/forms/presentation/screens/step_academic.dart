@@ -172,9 +172,6 @@ class _StepAcademicState extends State<StepAcademic> {
 
   String? _sectionError() {
     if (!widget.showErrors) return null;
-    if ((selectedSection ?? '').trim().isEmpty) {
-      return 'Section is required.';
-    }
     return null;
   }
 
@@ -454,7 +451,7 @@ class _StepAcademicState extends State<StepAcademic> {
           const SizedBox(height: 16),
           _row([
             _field(
-              'Course',
+              'Course *',
               DropdownButtonFormField<String>(
                 initialValue: selectedCourse,
                 decoration: _dec('Course').copyWith(errorText: _courseError()),
@@ -474,7 +471,7 @@ class _StepAcademicState extends State<StepAcademic> {
               ),
             ),
             _field(
-              'Year Level',
+              'Year Level *',
               DropdownButtonFormField<String>(
                 initialValue: selectedYearLevel,
                 decoration: _dec(
@@ -521,7 +518,7 @@ class _StepAcademicState extends State<StepAcademic> {
           const SizedBox(height: 16),
           _row([
             _field(
-              'Student Number',
+              'Student Number *',
               TextFormField(
                 controller: studentNumberController,
                 readOnly: true,
@@ -533,7 +530,7 @@ class _StepAcademicState extends State<StepAcademic> {
           ]),
           const SizedBox(height: 24),
           Text(
-            'FINANCIAL SUPPORT',
+            'FINANCIAL SUPPORT *',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: Colors.brown,
@@ -580,7 +577,7 @@ class _StepAcademicState extends State<StepAcademic> {
           ],
           const SizedBox(height: 24),
           Text(
-            'SCHOLARSHIP HISTORY',
+            'SCHOLARSHIP HISTORY *',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: Colors.brown,
@@ -675,7 +672,7 @@ class _StepAcademicState extends State<StepAcademic> {
           ],
           const SizedBox(height: 24),
           Text(
-            'DISCIPLINARY ACTION',
+            'DISCIPLINARY ACTION *',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: Colors.brown,

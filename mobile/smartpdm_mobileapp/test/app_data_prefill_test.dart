@@ -52,7 +52,7 @@ void main() {
             'first_name': 'Pedro',
             'middle_name': 'Reyes',
             'mobile_number': '09180000001',
-            'highest_educational_attainment': 'College',
+            'highest_educational_attainment': 'Post Graduate',
             'occupation': 'Driver',
             'company_name_address': 'Marilao Transport',
           },
@@ -124,6 +124,7 @@ void main() {
       expect(data.currentCourse, 'BSIT');
       expect(data.currentYearLevel, '2');
       expect(data.currentSection, 'B');
+      expect(data.fatherEducationalAttainment, 'Post-Graduate');
       expect(data.gwa, '1.75');
       expect(data.scholarshipHistory, isTrue);
       expect(data.scholarshipElementary, isTrue);

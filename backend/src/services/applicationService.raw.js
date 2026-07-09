@@ -179,6 +179,7 @@ function normalizeEducationalAttainment(value) {
     'senior high school': 'Senior High School',
     vocational: 'Vocational',
     college: 'College',
+    'post graduate': 'Post-Graduate',
     'post-graduate': 'Post-Graduate',
     postgraduate: 'Post-Graduate',
   };

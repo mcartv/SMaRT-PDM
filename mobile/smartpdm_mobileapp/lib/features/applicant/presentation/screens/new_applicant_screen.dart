@@ -398,12 +398,27 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         return 'Mobile number is too long.';
       }
 
+      final address = [
+        _data.unitBldgNo,
+        _data.houseLotBlockNo,
+        _data.street,
+        _data.subdivision,
+        _data.barangay,
+        _data.city,
+        _data.province,
+        _data.zipCode,
+      ].any((value) => value.trim().isNotEmpty);
+      if (!address) {
+        return 'Address is required.';
+      }
+
       final email = _data.email.trim();
-      if (email.isNotEmpty) {
-        final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-        if (!emailRegex.hasMatch(email)) {
-          return 'Please enter a valid email address.';
-        }
+      if (email.isEmpty) {
+        return 'Email address is required.';
+      }
+      final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+      if (!emailRegex.hasMatch(email)) {
+        return 'Please enter a valid email address.';
       }
 
       return null;
@@ -425,15 +440,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         return 'Year level must be 1, 2, 3, or 4.';
       }
 
-      if (_data.currentSection.trim().isEmpty) {
-        return 'Section is required.';
-      }
       if (_data.studentNumber.trim().isEmpty) {
         return 'Student number is required.';
       }
       if (_data.accountStudentId.isNotEmpty &&
           _data.studentNumber.trim() != _data.accountStudentId.trim()) {
         return 'Student number must match your logged-in account.';
+      }
+      if (_data.financialSupport.trim().isEmpty) {
+        return 'Financial support is required.';
       }
       if (_data.financialSupport == 'Other' &&
           _data.scholarshipOthersSpecify.trim().isEmpty) {

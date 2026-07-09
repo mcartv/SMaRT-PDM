@@ -1273,11 +1273,9 @@ function numericOrNull(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseRequiredGwa(value) {
+function parseOptionalGwa(value) {
     const parsed = numericOrNull(value);
-    if (parsed === null) {
-        throw createHttpError(400, 'GWA is required and must be a valid number.');
-    }
+    if (parsed === null) return null;
     if (parsed < 1 || parsed > 5) {
         throw createHttpError(400, 'GWA must be between 1.00 and 5.00.');
     }
@@ -1426,7 +1424,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
     const support = payload.support || {};
     const discipline = payload.discipline || {};
     const essays = payload.essays || {};
-    const submittedGwa = parseRequiredGwa(academic.gwa);
+    const submittedGwa = parseOptionalGwa(academic.gwa);
 
     const profilePayload = {
         student_id: student.student_id,
@@ -1569,7 +1567,9 @@ async function submitMyApplicationForm(userId, payload = {}) {
         updated_at: new Date().toISOString(),
     };
 
-    studentUpdatePayload.gwa = submittedGwa;
+    if (submittedGwa !== null) {
+        studentUpdatePayload.gwa = submittedGwa;
+    }
 
     const { data: existingApplication, error: existingApplicationError } =
         await supabase

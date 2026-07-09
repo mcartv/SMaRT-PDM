@@ -686,7 +686,6 @@ class _DashboardContentState extends State<DashboardContent> {
   Widget _buildFilterChips() {
     final chips = [
       (label: 'All', section: _DashboardSection.all),
-      (label: 'Openings', section: _DashboardSection.openings),
       (label: 'Updates', section: _DashboardSection.updates),
       (label: 'Requirements', section: _DashboardSection.requirements),
     ];

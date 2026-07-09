@@ -7,11 +7,11 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
-import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_academic.dart';
-import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essay.dart';
-import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_family.dart';
-import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_personal.dart';
-import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_submit.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_academic_intake.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essay_intake.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_family_intake.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_personal_intake.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_submit_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
@@ -560,6 +560,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             setState(() {});
             _queueAutosave();
           },
+          onEditStep: (step) {
+            setState(() => _step = step);
+            _queueAutosave();
+            _scrollCtrl.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          },
           showErrors: _showValidationErrors,
         );
       default:
@@ -579,13 +588,14 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     final provider = context.watch<NewScholarProvider>();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F1E8),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.darkBrown, AppColors.brown, AppColors.gold],
-            stops: [0.0, 0.6, 1.0],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFBF5EA), Color(0xFFF7F1E5), Color(0xFFFDFCF8)],
+            stops: [0.0, 0.55, 1.0],
           ),
         ),
         child: SafeArea(
@@ -593,187 +603,46 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Card(
-                margin: const EdgeInsets.all(16),
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppColors.gold, width: 2),
+                  borderRadius: BorderRadius.circular(28),
+                  side: const BorderSide(color: Color(0xFFF0D59A), width: 1.2),
                 ),
-                elevation: 24,
-                shadowColor: Colors.black87,
+                elevation: 10,
+                shadowColor: Colors.black26,
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
-                    const AppHeader(subtitle: 'Student Profile Intake Form'),
+                    AppHeader(
+                      subtitle: 'Student Profile Intake Form',
+                      onBack: () => Navigator.maybePop(context),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                      child: StepIndicator(
+                        currentStep: _step,
+                        labels: _stepLabels,
+                      ),
+                    ),
                     Expanded(
                       child: SingleChildScrollView(
                         controller: _scrollCtrl,
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                         child: Column(
                           children: [
-                            StepIndicator(
-                              currentStep: _step,
-                              labels: _stepLabels,
-                            ),
-                            const SizedBox(height: 24),
                             if (_isBootstrapping)
                               const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 48),
+                                padding: EdgeInsets.symmetric(vertical: 72),
                                 child: CircularProgressIndicator(),
                               )
                             else if (!_hasSelectedOpening)
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF7F1E5),
-                                  border: Border.all(
-                                    color: AppColors.gold,
-                                    width: 1.2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Choose an opening first',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.darkBrown,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'This application form is now tied to one admin-posted scholarship opening. Select the opening you want to apply for before continuing.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            height: 1.45,
-                                            color: AppColors.brown,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: GoldButton(
-                                        label: 'View Scholarship Openings',
-                                        onTap: () =>
-                                            Navigator.pushReplacementNamed(
-                                              context,
-                                              AppRoutes.scholarshipOpenings,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
+                              _buildOpeningReminder(context)
                             else
                               Column(
                                 children: [
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF7F1E5),
-                                      border: Border.all(
-                                        color: AppColors.gold,
-                                        width: 1.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Selected Opening',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.brown,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          _data.openingTitle.isNotEmpty
-                                              ? _data.openingTitle
-                                              : 'Scholarship Opening',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleLarge
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.darkBrown,
-                                              ),
-                                        ),
-                                        if (_data.openingProgramName.isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
-                                            ),
-                                            child: Text(
-                                              _data.openingProgramName,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                    color: AppColors.brown,
-                                                  ),
-                                            ),
-                                          ),
-                                        const SizedBox(height: 10),
-                                        ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            minHeight: 34,
-                                          ),
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  top: 1,
-                                                ),
-                                                child: Icon(
-                                                  _isAutosaving
-                                                      ? Icons.sync
-                                                      : Icons.save_outlined,
-                                                  size: 16,
-                                                  color: AppColors.brown,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  _isAutosaving
-                                                      ? 'Saving draft...'
-                                                      : _autosaveError == null
-                                                      ? 'Draft autosaves as you complete the form.'
-                                                      : _autosaveError!,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .labelMedium
-                                                      ?.copyWith(
-                                                        color: AppColors.brown,
-                                                      ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
+                                  _buildSelectedOpeningCard(context),
                                   AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 250),
+                                    duration: const Duration(milliseconds: 220),
                                     child: KeyedSubtree(
                                       key: ValueKey(_step),
                                       child: _buildStep(),
@@ -781,51 +650,192 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                                   ),
                                 ],
                               ),
-                            const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                if (_step > 0) ...[
-                                  Expanded(
-                                    child: GhostButton(
-                                      label: 'Back',
-                                      onTap: _back,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                ],
-                                Expanded(
-                                  flex: 2,
-                                  child: !_hasSelectedOpening
-                                      ? const SizedBox.shrink()
-                                      : _step < 4
-                                      ? NavyButton(label: 'Next', onTap: _next)
-                                      : provider.isLoading
-                                      ? const Center(
-                                          child: SizedBox(
-                                            height: 24,
-                                            width: 24,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          ),
-                                        )
-                                      : GoldButton(
-                                          label: 'Submit Application',
-                                          onTap: _submitApplication,
-                                        ),
-                                ),
-                              ],
-                            ),
                           ],
                         ),
                       ),
                     ),
+                    _buildFooter(provider),
                   ],
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildOpeningReminder(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFF0D59A), width: 1.2),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Choose an opening first',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.darkBrown,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'This application form is tied to one scholarship opening. Select the opening you want to apply for before continuing.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              height: 1.45,
+              color: AppColors.brown,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: GoldButton(
+              label: 'View Scholarship Openings',
+              onTap: () => Navigator.pushReplacementNamed(
+                context,
+                AppRoutes.scholarshipOpenings,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedOpeningCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF0D59A), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1C9),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Selected Opening',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.brown,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _data.openingTitle.isNotEmpty
+                ? _data.openingTitle
+                : 'Scholarship Opening',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.darkBrown,
+              height: 1.15,
+            ),
+          ),
+          if (_data.openingProgramName.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              _data.openingProgramName,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.brown,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF9EE),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _isAutosaving ? Icons.sync : Icons.save_outlined,
+                  size: 18,
+                  color: AppColors.brown,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _isAutosaving
+                        ? 'Saving draft...'
+                        : _autosaveError == null
+                        ? 'Draft autosaves as you complete the form.'
+                        : _autosaveError!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.brown,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter(NewScholarProvider provider) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFDFCF8),
+        border: Border(top: BorderSide(color: Color(0xFFE9DED2))),
+      ),
+      child: Row(
+        children: [
+          if (_step > 0) ...[
+            Expanded(
+              child: GhostButton(label: 'Back', onTap: _back),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            flex: 2,
+            child: !_hasSelectedOpening
+                ? const SizedBox.shrink()
+                : _step < 4
+                ? NavyButton(label: 'Next', onTap: _next)
+                : provider.isLoading
+                ? const Center(
+                    child: SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : GoldButton(
+                    label: 'Submit Application',
+                    onTap: _submitApplication,
+                  ),
+          ),
+        ],
       ),
     );
   }

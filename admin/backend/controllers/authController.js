@@ -13,26 +13,43 @@ const RESET_RESEND_SECONDS = Number(process.env.RESET_RESEND_SECONDS || 60);
 const MAX_RESET_ATTEMPTS = Number(process.env.MAX_RESET_ATTEMPTS || 5);
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
 
-const ADMIN_USER_QUERY = `
-    SELECT
-        u.user_id,
-        u.email,
-        u.username,
-        u.role AS user_role,
-        u.password_hash,
-        u.phone_number,
-        a.admin_id,
-        a.first_name,
-        a.last_name,
-        a.department,
-        a.position,
-        a.profile_photo_url
-    FROM users u
-    LEFT JOIN admin_profiles a ON u.user_id = a.user_id
-    WHERE LOWER(u.email) = LOWER($1)
-      AND (a.user_id IS NULL OR a.is_archived = false)
-    LIMIT 1
-`;
+async function hasAdminProfilePhotoColumn() {
+    const result = await db.query(
+        `
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'admin_profiles'
+          AND column_name = 'profile_photo_url'
+        LIMIT 1
+        `
+    );
+
+    return result.rows.length > 0;
+}
+
+function buildAdminUserQuery(photoEnabled = false) {
+    return `
+        SELECT
+            u.user_id,
+            u.email,
+            u.username,
+            u.role AS user_role,
+            u.password_hash,
+            u.phone_number,
+            a.admin_id,
+            a.first_name,
+            a.last_name,
+            a.department,
+            a.position,
+            ${photoEnabled ? 'a.profile_photo_url' : 'NULL::text AS profile_photo_url'}
+        FROM users u
+        LEFT JOIN admin_profiles a ON u.user_id = a.user_id
+        WHERE LOWER(u.email) = LOWER($1)
+          AND (a.user_id IS NULL OR a.is_archived = false)
+        LIMIT 1
+    `;
+}
 
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
@@ -95,8 +112,9 @@ function validatePasswordPolicy(password) {
 
 async function findStaffByEmail(email) {
     const normalizedEmail = normalizeEmail(email);
+    const photoEnabled = await hasAdminProfilePhotoColumn();
 
-    const result = await db.query(ADMIN_USER_QUERY, [normalizedEmail]);
+    const result = await db.query(buildAdminUserQuery(photoEnabled), [normalizedEmail]);
 
     return result.rows[0] || null;
 }

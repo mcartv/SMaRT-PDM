@@ -70,15 +70,11 @@ function Toggle({ value, onChange, labels = ['Enabled', 'Disabled'], activeColor
   );
 }
 
-function GeneralPanel({
+function useDepartmentAccountManager({
   config,
-  palette,
   tokenStorageKey,
   profileStorageKey,
 }) {
-  const [saved, setSaved] = useState(false);
-  const [featureOpen, setFeatureOpen] = useState(true);
-  const [instName, setInstName] = useState('Pambayang Dalubhasaan ng Marilao');
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountFeedback, setAccountFeedback] = useState('');
@@ -195,20 +191,14 @@ function GeneralPanel({
   }, [photoPreview]);
 
   useEffect(() => {
-    if (!saved && !accountFeedback) return undefined;
+    if (!accountFeedback) return undefined;
 
     const timer = window.setTimeout(() => {
-      setSaved(false);
       setAccountFeedback('');
     }, 4000);
 
     return () => window.clearTimeout(timer);
-  }, [accountFeedback, saved]);
-
-  const handleSaveGeneral = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  }, [accountFeedback]);
 
   const resetAccount = () => {
     setAccount(initialAccount || {
@@ -374,13 +364,46 @@ function GeneralPanel({
     }
   };
 
+  return {
+    loadingProfile,
+    savingAccount,
+    accountFeedback,
+    account,
+    currentProfileImage,
+    displayName,
+    feedbackIsError,
+    initials,
+    uploadingPhoto,
+    fileInputRef,
+    handlePhotoSelection,
+    handleUploadPhoto,
+    handleSaveAccount,
+    handleFieldChange,
+    resetAccount,
+    photoFile,
+  };
+}
+
+function GeneralPanel({
+  config,
+  palette,
+}) {
+  const [saved, setSaved] = useState(false);
+  const [featureOpen, setFeatureOpen] = useState(true);
+  const [instName, setInstName] = useState('Pambayang Dalubhasaan ng Marilao');
+
+  const handleSaveGeneral = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-stone-900">General Configuration</h2>
           <p className="text-sm text-stone-500">
-            System-wide preferences, office identity, and {config.shortName} account settings
+            System-wide preferences and office identity for {config.shortName}
           </p>
         </div>
 
@@ -448,13 +471,53 @@ function GeneralPanel({
           </div>
         </GroupCard>
       </div>
+    </div>
+  );
+}
+
+function AccountPanel({
+  config,
+  palette,
+  tokenStorageKey,
+  profileStorageKey,
+}) {
+  const {
+    loadingProfile,
+    savingAccount,
+    accountFeedback,
+    account,
+    currentProfileImage,
+    feedbackIsError,
+    initials,
+    uploadingPhoto,
+    fileInputRef,
+    handlePhotoSelection,
+    handleUploadPhoto,
+    handleSaveAccount,
+    handleFieldChange,
+    resetAccount,
+    photoFile,
+  } = useDepartmentAccountManager({
+    config,
+    tokenStorageKey,
+    profileStorageKey,
+  });
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-stone-900">Account Management</h2>
+        <p className="text-sm text-stone-500">
+          Update the active {config.shortName} account details, profile photo, and display information
+        </p>
+      </div>
 
       <GroupCard title={`${config.shortName} Account Management`} icon={User}>
         <div className="space-y-5">
           <div className={`rounded-xl border px-4 py-3 ${palette.infoBox}`}>
-            <p className="text-sm font-medium">Profile editing is managed here under General Maintenance.</p>
+            <p className="text-sm font-medium">Manage the current office account in one place.</p>
             <p className="mt-1 text-xs">
-              Use this section to update the current {config.shortName} account information shown in the portal.
+              Changes here update the profile used across the {config.shortName} portal.
             </p>
           </div>
 
@@ -739,6 +802,7 @@ export default function DepartmentMaintenancePage({
   const [tab, setTab] = useState('general');
   const tabs = [
     { key: 'general', label: 'General', icon: SlidersHorizontal },
+    { key: 'account', label: 'Account', icon: User },
     { key: 'audit', label: 'Audit', icon: ClipboardList },
   ];
 
@@ -772,6 +836,12 @@ export default function DepartmentMaintenancePage({
         <div className="p-5">
           {tab === 'general' && (
             <GeneralPanel
+              config={config}
+              palette={palette}
+            />
+          )}
+          {tab === 'account' && (
+            <AccountPanel
               config={config}
               palette={palette}
               tokenStorageKey={tokenStorageKey}

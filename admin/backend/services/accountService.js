@@ -62,6 +62,27 @@ function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
 }
 
+async function hasAdminProfilePhotoColumn(client = db) {
+    const result = await client.query(
+        `
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'admin_profiles'
+          AND column_name = 'profile_photo_url'
+        LIMIT 1
+        `
+    );
+
+    return result.rows.length > 0;
+}
+
+function buildProfilePhotoSelect(alias = 'a', enabled = false) {
+    return enabled
+        ? `${alias}.profile_photo_url AS profile_photo_url`
+        : `NULL::text AS profile_photo_url`;
+}
+
 function mapStaffAccount(row) {
     const role = resolveStaffRole(row);
     const name = [row.first_name, row.last_name].filter(Boolean).join(' ');
@@ -123,6 +144,7 @@ async function buildUniqueUsername(client, email) {
 }
 
 async function listStaffAccounts() {
+    const photoEnabled = await hasAdminProfilePhotoColumn();
     const result = await db.query(`
         SELECT
             u.user_id,
@@ -136,7 +158,7 @@ async function listStaffAccounts() {
             a.last_name,
             a.department,
             a.position,
-            a.profile_photo_url
+            ${buildProfilePhotoSelect('a', photoEnabled)}
         FROM users u
         INNER JOIN admin_profiles a ON a.user_id = u.user_id
         WHERE COALESCE(a.is_archived, false) = false
@@ -153,6 +175,7 @@ async function getCurrentStaffProfile(userId) {
         throw createHttpError(400, 'User ID is required.');
     }
 
+    const photoEnabled = await hasAdminProfilePhotoColumn();
     const result = await db.query(
         `
         SELECT
@@ -167,7 +190,7 @@ async function getCurrentStaffProfile(userId) {
             a.last_name,
             a.department,
             a.position,
-            a.profile_photo_url
+            ${buildProfilePhotoSelect('a', photoEnabled)}
         FROM users u
         INNER JOIN admin_profiles a ON a.user_id = u.user_id
         WHERE u.user_id = $1
@@ -220,6 +243,7 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
 
     try {
         await client.query('BEGIN');
+        const photoEnabled = await hasAdminProfilePhotoColumn(client);
 
         const currentProfileResult = await client.query(
             `
@@ -235,7 +259,7 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
                 a.last_name,
                 a.department,
                 a.position,
-                a.profile_photo_url
+                ${buildProfilePhotoSelect('a', photoEnabled)}
             FROM users u
             INNER JOIN admin_profiles a ON a.user_id = u.user_id
             WHERE u.user_id = $1
@@ -333,6 +357,7 @@ async function createStaffAccount(payload) {
 
     try {
         await client.query('BEGIN');
+        const photoEnabled = await hasAdminProfilePhotoColumn(client);
 
         const duplicateEmail = await client.query(
             'SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
@@ -359,7 +384,9 @@ async function createStaffAccount(payload) {
             `
                 INSERT INTO admin_profiles (user_id, first_name, last_name, department, position, is_archived)
                 VALUES ($1, $2, $3, $4, $5, false)
-                RETURNING admin_id, first_name, last_name, department, position, profile_photo_url
+                RETURNING admin_id, first_name, last_name, department, position, ${
+                    photoEnabled ? 'profile_photo_url' : 'NULL::text AS profile_photo_url'
+                }
             `,
             [user.user_id, firstName, lastName, department, position]
         );
@@ -395,6 +422,11 @@ async function uploadCurrentStaffProfilePhoto(userId, file) {
     const mimeType = safeText(file.mimetype).toLowerCase();
     if (!mimeType.startsWith('image/')) {
         throw createHttpError(400, 'Only image files are allowed for profile photos.');
+    }
+
+    const photoEnabled = await hasAdminProfilePhotoColumn();
+    if (!photoEnabled) {
+        throw createHttpError(400, 'Profile photo upload is not enabled yet for staff accounts.');
     }
 
     const currentProfile = await getCurrentStaffProfile(userId);

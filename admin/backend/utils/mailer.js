@@ -47,31 +47,29 @@ async function sendAdminResetOtp({ to, otp, expiresMinutes }) {
     const config = getMailConfig();
     const transporter = createTransporter();
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
         from: `SMaRT-PDM OSFA <${config.from}>`,
         to,
         subject: 'SMaRT-PDM Admin Password Reset Code',
         text: `Your SMaRT-PDM admin password reset code is ${otp}. It expires in ${expiresMinutes} minutes. If you did not request this, ignore this email.`,
         html: `
-            <div style="font-family: Arial, sans-serif; color: #292524; line-height: 1.6;">
-                <h2 style="color: #7c4a2e; margin-bottom: 8px;">
-                    SMaRT-PDM Admin Recovery
-                </h2>
-
-                <p>Your password reset code is:</p>
-
-                <div style="font-size: 28px; font-weight: 700; letter-spacing: 8px; color: #7c4a2e; margin: 16px 0;">
-                    ${otp}
-                </div>
-
-                <p>This code expires in <strong>${expiresMinutes} minutes</strong>.</p>
-
-                <p style="font-size: 12px; color: #78716c;">
-                    If you did not request this, ignore this email.
-                </p>
+        <div style="font-family: Arial, sans-serif; color: #292524; line-height: 1.6;">
+            <h2 style="color: #7c4a2e; margin-bottom: 8px;">SMaRT-PDM Admin Recovery</h2>
+            <p>Your password reset code is:</p>
+            <div style="font-size: 28px; font-weight: 700; letter-spacing: 8px; color: #7c4a2e; margin: 16px 0;">
+                ${otp}
             </div>
-        `,
+            <p>This code expires in <strong>${expiresMinutes} minutes</strong>.</p>
+            <p style="font-size: 12px; color: #78716c;">If you did not request this, ignore this email.</p>
+        </div>
+    `,
     });
+
+    console.log('[MAILER] accepted:', info.accepted);
+    console.log('[MAILER] rejected:', info.rejected);
+    console.log('[MAILER] response:', info.response);
+
+    return info;
 }
 
 module.exports = { sendAdminResetOtp };

@@ -19,6 +19,7 @@ const ADMIN_USER_QUERY = `
         u.username,
         u.role AS user_role,
         u.password_hash,
+        u.phone_number,
         a.admin_id,
         a.first_name,
         a.last_name,
@@ -46,12 +47,12 @@ function buildToken(profile, role) {
             sub: profile.user_id,
             userId: profile.user_id,
             user_id: profile.user_id,
-            adminId: profile.admin_id,
+            adminId: profile.admin_id || null,
             role,
             name: fallbackName,
             email: profile.email,
-            department: profile.department,
-            position: profile.position,
+            department: profile.department || null,
+            position: profile.position || null,
         },
         process.env.JWT_SECRET,
         { expiresIn: '1d' }
@@ -94,6 +95,7 @@ async function findStaffByEmail(email) {
     const normalizedEmail = normalizeEmail(email);
 
     const result = await db.query(ADMIN_USER_QUERY, [normalizedEmail]);
+
     return result.rows[0] || null;
 }
 
@@ -149,7 +151,10 @@ async function loginWithRole(req, res, role) {
         const resolvedRole = resolveStaffRole(user);
 
         if (role === 'admin') {
-            if (!resolvedRole || !['admin', 'pd', 'guidance', 'sdo'].includes(resolvedRole)) {
+            if (
+                !resolvedRole ||
+                !['admin', 'pd', 'guidance', 'sdo'].includes(resolvedRole)
+            ) {
                 return res.status(403).json({
                     message: 'This account is not authorized for the admin portal',
                 });
@@ -176,16 +181,16 @@ async function loginWithRole(req, res, role) {
             });
         }
 
-        const token = buildToken(user, tokenRole);
-
         const displayName =
             [user.first_name, user.last_name].filter(Boolean).join(' ') ||
             user.username ||
             user.email;
 
+        const token = buildToken(user, tokenRole);
+
         const portalTitle = departmentPortalLabels[role];
 
-        return res.json({
+        return res.status(200).json({
             token,
             message: portalTitle ? `Welcome to the ${portalTitle} panel` : 'Welcome back',
             user: {
@@ -196,10 +201,14 @@ async function loginWithRole(req, res, role) {
                 last_name: user.last_name || '',
                 email: user.email,
                 phone_number: user.phone_number || '',
-                position: user.position || (tokenRole === 'sdo' ? 'SDO Officer' : 'Staff'),
+                position:
+                    user.position ||
+                    (tokenRole === 'sdo' ? 'SDO Officer' : 'Staff'),
                 department:
                     user.department ||
-                    (tokenRole === 'sdo' ? 'Student Disciplinary Office' : null),
+                    (tokenRole === 'sdo'
+                        ? 'Student Disciplinary Office'
+                        : null),
                 role: tokenRole,
             },
         });
@@ -274,7 +283,7 @@ exports.startAdminPasswordReset = async (req, res) => {
         const otp = makeOtp();
         const otpHash = hashSecret(otp);
 
-        await db.query(
+        const insertResult = await db.query(
             `
             INSERT INTO password_reset_otps (
                 user_id,
@@ -288,26 +297,37 @@ exports.startAdminPasswordReset = async (req, res) => {
                 now() + ($3 || ' minutes')::interval,
                 now() + ($4 || ' seconds')::interval
             )
+            RETURNING reset_otp_id
             `,
             [user.user_id, otpHash, RESET_OTP_TTL_MINUTES, RESET_RESEND_SECONDS]
         );
 
-        // await sendAdminResetOtp({
-        //     to: user.email,
-        //     otp,
-        //     expiresMinutes: RESET_OTP_TTL_MINUTES,
-        // });
+        const resetOtpId = insertResult.rows[0]?.reset_otp_id;
 
-        // For testing purpose.
         const resetEmailRecipient =
             process.env.ADMIN_RESET_EMAIL_TO ||
             user.email;
 
-        await sendAdminResetOtp({
-            to: resetEmailRecipient,
-            otp,
-            expiresMinutes: RESET_OTP_TTL_MINUTES,
-        });
+        try {
+            await sendAdminResetOtp({
+                to: resetEmailRecipient,
+                otp,
+                expiresMinutes: RESET_OTP_TTL_MINUTES,
+            });
+        } catch (mailErr) {
+            if (resetOtpId) {
+                await db.query(
+                    `
+                    UPDATE password_reset_otps
+                    SET used_at = now()
+                    WHERE reset_otp_id = $1
+                    `,
+                    [resetOtpId]
+                );
+            }
+
+            throw mailErr;
+        }
 
         return res.status(200).json(genericResponse);
     } catch (err) {
@@ -475,7 +495,10 @@ exports.resetAdminPassword = async (req, res) => {
             });
         }
 
-        const isSameAsOld = await bcrypt.compare(newPassword, resetRow.password_hash);
+        const isSameAsOld = await bcrypt.compare(
+            newPassword,
+            resetRow.password_hash
+        );
 
         if (isSameAsOld) {
             return res.status(400).json({

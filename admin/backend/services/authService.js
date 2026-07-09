@@ -1,5 +1,16 @@
 import { buildApiUrl } from '@/api';
 
+const AUTH_STORAGE_KEYS = [
+  'adminToken',
+  'adminProfile',
+  'pdToken',
+  'pdProfile',
+  'guidanceToken',
+  'guidanceProfile',
+  'sdoToken',
+  'sdoProfile',
+];
+
 async function parseJsonResponse(response, fallbackMessage) {
   const data = await response.json().catch(() => ({}));
 
@@ -10,20 +21,24 @@ async function parseJsonResponse(response, fallbackMessage) {
   return data;
 }
 
-export const authService = {
-  login: async (email, password, rememberMe) => {
-    try {
-      const response = await fetch(buildApiUrl('/api/auth/login'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, rememberMe }),
-      });
+function clearAuthStorage() {
+  AUTH_STORAGE_KEYS.forEach((key) => {
+    sessionStorage.removeItem(key);
 
-      return await parseJsonResponse(response, 'Invalid credentials');
-    } catch (error) {
-      console.error('Auth Service Error:', error);
-      throw error;
-    }
+    // Keep this only to clean old remembered-login leftovers.
+    localStorage.removeItem(key);
+  });
+}
+
+export const authService = {
+  login: async (email, password) => {
+    const response = await fetch(buildApiUrl('/api/auth/login'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    return await parseJsonResponse(response, 'Invalid credentials');
   },
 
   startAdminPasswordReset: async (email) => {
@@ -65,12 +80,10 @@ export const authService = {
     return await parseJsonResponse(response, 'Unable to reset password');
   },
 
-  logout: () => {
-    sessionStorage.removeItem('adminToken');
-    sessionStorage.removeItem('adminProfile');
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminProfile');
+  clearAuthStorage,
 
+  logout: () => {
+    clearAuthStorage();
     window.location.href = '/admin/login';
   },
 };

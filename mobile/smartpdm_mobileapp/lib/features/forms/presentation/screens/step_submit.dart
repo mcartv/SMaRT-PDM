@@ -264,7 +264,7 @@ class _StepSubmitState extends State<StepSubmit> {
           _previewRow('Age', widget.data.age, required: true),
           _previewRow('Sex', widget.data.sex, required: true),
           _previewRow('Religion', widget.data.religion, required: true),
-          _previewRow('Civil Status', widget.data.civilStatus),
+          _previewRow('Civil Status', widget.data.civilStatus, required: true),
           _previewRow('Place of Birth', widget.data.placeOfBirth),
           _previewRow('Citizenship', widget.data.citizenship),
           _previewRow(
@@ -272,10 +272,10 @@ class _StepSubmitState extends State<StepSubmit> {
             widget.data.mobileNumber,
             required: true,
           ),
-          _previewRow('Email', widget.data.email),
+          _previewRow('Email', widget.data.email, required: true),
         ]),
         _previewSection('Permanent Address', [
-          _previewRow('Address', _address()),
+          _previewRow('Address', _address(), required: true),
         ]),
         _previewSection('Family Information', [
           _previewRow(
@@ -322,7 +322,7 @@ class _StepSubmitState extends State<StepSubmit> {
             widget.data.currentYearLevel,
             required: true,
           ),
-          _previewRow('Section', widget.data.currentSection, required: true),
+          _previewRow('Section', widget.data.currentSection),
           _previewRow(
             'Student Number',
             widget.data.studentNumber,
@@ -342,16 +342,18 @@ class _StepSubmitState extends State<StepSubmit> {
           ),
         ]),
         _previewSection('Scholarship / Discipline', [
-          _previewRow('Financial Support', widget.data.financialSupport),
+          _previewRow('Financial Support', widget.data.financialSupport, required: true),
           _previewRow(
             'Scholarship History',
             widget.data.scholarshipHistory ? 'Yes' : 'No',
+            required: true,
           ),
           if (widget.data.scholarshipHistory)
             _previewRow('Scholarship Details', widget.data.scholarshipDetails),
           _previewRow(
             'Disciplinary Action',
             widget.data.disciplinaryAction ? 'Yes' : 'No',
+            required: true,
           ),
           if (widget.data.disciplinaryAction)
             _previewRow(

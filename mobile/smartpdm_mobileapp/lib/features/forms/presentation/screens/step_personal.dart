@@ -393,8 +393,9 @@ class _StepPersonalState extends State<StepPersonal> {
   }
 
   String? _emailError() {
-    if (!widget.showErrors || emailController.text.trim().isEmpty) return null;
     final email = emailController.text.trim();
+    if (!widget.showErrors) return null;
+    if (email.isEmpty) return 'Email address is required.';
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     return emailRegex.hasMatch(email) ? null : 'Please enter a valid email.';
   }
@@ -981,7 +982,7 @@ fontWeight: FontWeight.bold
               ),
             ),
             _field(
-              label: 'Email Address',
+              label: 'Email Address *',
               child: TextFormField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,

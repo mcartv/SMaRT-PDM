@@ -20,7 +20,7 @@ class _StepFamilyState extends State<StepFamily> {
   late final TextEditingController fatherMobileController;
   late final TextEditingController fatherOccupationController;
   late final TextEditingController fatherCompanyController;
-  late String selectedFatherEducation;
+  String? selectedFatherEducation;
 
   late final TextEditingController motherLastNameController;
   late final TextEditingController motherFirstNameController;
@@ -28,7 +28,7 @@ class _StepFamilyState extends State<StepFamily> {
   late final TextEditingController motherMobileController;
   late final TextEditingController motherOccupationController;
   late final TextEditingController motherCompanyController;
-  late String selectedMotherEducation;
+  String? selectedMotherEducation;
 
   late final TextEditingController siblingLastNameController;
   late final TextEditingController siblingFirstNameController;
@@ -41,7 +41,7 @@ class _StepFamilyState extends State<StepFamily> {
   late final TextEditingController guardianMobileController;
   late final TextEditingController guardianOccupationController;
   late final TextEditingController guardianCompanyController;
-  late String selectedGuardianEducation;
+  String? selectedGuardianEducation;
 
   late final TextEditingController parentMarilaoResidencyDurationController;
   late final TextEditingController parentPreviousTownProvinceController;
@@ -112,9 +112,13 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.fatherCompanyNameAndAddress,
     );
 
-    selectedFatherEducation = widget.data.fatherEducationalAttainment.isNotEmpty
-        ? widget.data.fatherEducationalAttainment
-        : educationalOptions[0];
+    final fatherEducation = widget.data.fatherEducationalAttainment.trim();
+    selectedFatherEducation = fatherEducation.isEmpty
+        ? educationalOptions[0]
+        : _educationSelection(fatherEducation);
+    if (fatherEducation.isNotEmpty && selectedFatherEducation != null) {
+      widget.data.fatherEducationalAttainment = selectedFatherEducation!;
+    }
 
     motherLastNameController = TextEditingController(
       text: widget.data.motherLastName,
@@ -135,9 +139,13 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.motherCompanyNameAndAddress,
     );
 
-    selectedMotherEducation = widget.data.motherEducationalAttainment.isNotEmpty
-        ? widget.data.motherEducationalAttainment
-        : educationalOptions[0];
+    final motherEducation = widget.data.motherEducationalAttainment.trim();
+    selectedMotherEducation = motherEducation.isEmpty
+        ? educationalOptions[0]
+        : _educationSelection(motherEducation);
+    if (motherEducation.isNotEmpty && selectedMotherEducation != null) {
+      widget.data.motherEducationalAttainment = selectedMotherEducation!;
+    }
 
     siblingLastNameController = TextEditingController(
       text: widget.data.siblingLastName,
@@ -171,10 +179,13 @@ class _StepFamilyState extends State<StepFamily> {
       text: widget.data.guardianCompanyNameAndAddress,
     );
 
-    selectedGuardianEducation =
-        widget.data.guardianEducationalAttainment.isNotEmpty
-        ? widget.data.guardianEducationalAttainment
-        : educationalOptions[0];
+    final guardianEducation = widget.data.guardianEducationalAttainment.trim();
+    selectedGuardianEducation = guardianEducation.isEmpty
+        ? educationalOptions[0]
+        : _educationSelection(guardianEducation);
+    if (guardianEducation.isNotEmpty && selectedGuardianEducation != null) {
+      widget.data.guardianEducationalAttainment = selectedGuardianEducation!;
+    }
 
     var initialParentNativeStatus = widget.data.parentNativeStatus;
     if (initialParentNativeStatus == 'Father only') {
@@ -369,6 +380,24 @@ fontWeight: FontWeight.bold
       setter(controller.text);
       widget.onChanged();
     });
+  }
+
+  String? _educationSelection(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    final canonical = ApplicationData.normalizeEducationalAttainment(value);
+    if (canonical != null && educationalOptions.contains(canonical)) {
+      return canonical;
+    }
+
+    if (educationalOptions.contains(trimmed)) {
+      return trimmed;
+    }
+
+    return null;
   }
 
   String _buildApplicantAddress() {

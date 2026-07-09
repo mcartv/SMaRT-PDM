@@ -208,6 +208,29 @@ class ApplicationData {
         .join(' ');
   }
 
+  static String? normalizeEducationalAttainment(String value) {
+    final collapsed = value.trim().toLowerCase();
+    if (collapsed.isEmpty) return null;
+
+    final normalized = collapsed
+        .replaceAll(RegExp(r'[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    const lookup = {
+      'none': 'None',
+      'elementary': 'Elementary',
+      'high school': 'High School',
+      'senior high school': 'Senior High School',
+      'vocational': 'Vocational',
+      'college': 'College',
+      'post graduate': 'Post-Graduate',
+      'postgraduate': 'Post-Graduate',
+    };
+
+    return lookup[normalized];
+  }
+
   int? _parseInt(String value) => parseAgeValue(value);
 
   String? _toIsoDate(String value) {
@@ -274,6 +297,16 @@ class ApplicationData {
   void _setBoolIfPresent(void Function(bool value) setter, dynamic value) {
     final parsed = _savedBool(value);
     if (parsed != null) setter(parsed);
+  }
+
+  void _setEducationalAttainment(
+    void Function(String value) setter,
+    String value,
+  ) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+
+    setter(normalizeEducationalAttainment(trimmed) ?? trimmed);
   }
 
   void applySavedForm(Map<String, dynamic> payload) {
@@ -689,7 +722,7 @@ class ApplicationData {
       _firstSavedString(member, ['mobile', 'mobile_number']),
     );
     if (setEducation != null) {
-      _setIfPresent(
+      _setEducationalAttainment(
         setEducation,
         _firstSavedString(member, [
           'educational_attainment',

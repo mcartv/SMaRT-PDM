@@ -186,12 +186,6 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                     case 'Renewal Documents':
                       Navigator.pushNamed(context, AppRoutes.renewalDocuments);
                       break;
-                    case 'RO Assignment':
-                      Navigator.pushNamed(context, AppRoutes.roAssignment);
-                      break;
-                    case 'RO Completion':
-                      Navigator.pushNamed(context, AppRoutes.roCompletion);
-                      break;
                   }
                 },
               ),

@@ -11,6 +11,7 @@ const {
 
 const otpStore = new Map();
 const pendingRegistrationStore = new Map();
+const REGISTRATION_OTP_EXPIRY_MS = 60 * 1000;
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -62,7 +63,7 @@ function ensurePasswordPolicy(password) {
 //         <h2>SMaRT-PDM Verification</h2>
 //         <p>Your OTP code is:</p>
 //         <h1 style="letter-spacing: 4px;">${otp}</h1>
-//         <p>This code will expire in 10 minutes.</p>
+//         <p>This code will expire in 60 seconds.</p>
 //       </div>
 //     `,
 //     });
@@ -90,7 +91,7 @@ async function sendOTPEmail(email, otp) {
                     <h2>SMaRT-PDM Verification</h2>
                     <p>Your OTP code is:</p>
                     <h1 style="letter-spacing: 4px;">${otp}</h1>
-                    <p>This code will expire in 10 minutes.</p>
+                    <p>This code will expire in 60 seconds.</p>
                   </div>
                 `,
         });
@@ -244,7 +245,7 @@ async function register(body = {}) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const otp = generateOTP();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
+    const expiresAt = Date.now() + REGISTRATION_OTP_EXPIRY_MS;
 
     pendingRegistrationStore.set(email, {
         email,

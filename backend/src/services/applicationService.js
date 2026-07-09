@@ -2,6 +2,72 @@ const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
 
 const APPLICATION_DRAFT_TABLE = 'application_form_drafts';
+const ENDORSEMENT_SLIP_BUCKET =
+    process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
+
+const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
+    'certificate_of_registration',
+    'student_grade_forms',
+    'certificate_of_indigency',
+    'letter_of_request',
+    'application_form',
+]);
+
+const REQUIRED_UPLOAD_DOCUMENT_TYPES = Object.freeze([
+    'certificate of registration',
+    'grade report',
+    'certificate of indigency',
+    'letter of request',
+]);
+
+const WORKFLOW_STAGE_LABELS = Object.freeze({
+    application_submitted: 'Application Submitted',
+    requirements_review: 'Requirements Review',
+    endorsement_review: 'Endorsement Review',
+    ready_for_activation: 'Ready for Activation',
+    scholar_activated: 'Scholar Activated',
+});
+
+const REQUIREMENTS_LABELS = Object.freeze({
+    verified: 'Verified',
+    rejected: 'Rejected',
+    reupload_required: 'Re-upload Required',
+    missing: 'Missing Requirements',
+    under_review: 'Under Review',
+});
+
+const ENDORSEMENT_LABELS = Object.freeze({
+    pending_sdo: 'Pending SDO',
+    pending_guidance: 'Pending Guidance',
+    pending_pd: 'Pending Program Director',
+    completed: 'Completed',
+    rejected: 'Rejected',
+    held: 'Held by Guidance',
+    major_offense: 'Major Offense',
+});
+
+const BLOCKER_MESSAGES = Object.freeze({
+    'requirements.rejected':
+        'Your requirements review was rejected. Check the remarks from OSFA for the reason.',
+    'endorsement.major_offense':
+        'Your endorsement review stopped because SDO recorded a major offense.',
+    'endorsement.rejected':
+        'Your endorsement review was rejected by a reviewing office.',
+    'endorsement.held':
+        'Your endorsement review is on hold with Guidance.',
+    'requirements.reupload_required':
+        'One or more requirements need to be re-uploaded before review can continue.',
+    'requirements.missing':
+        'Upload all required scholarship documents to continue review.',
+    'requirements.under_review':
+        'Your submitted requirements are still under OSFA review.',
+    pending_sdo: 'Your endorsement slip is waiting for SDO review.',
+    pending_guidance: 'Your endorsement slip is waiting for Guidance review.',
+    pending_pd: 'Your endorsement slip is waiting for Program Director review.',
+    ready_for_activation:
+        'Requirements and endorsement are complete. Explicit admin activation is still required.',
+    activated: 'Your scholar access has been activated.',
+});
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -301,7 +367,10 @@ async function getStudent(userId) {
       sequence_number,
       is_profile_complete,
       is_active_scholar,
-      scholarship_status
+      scholarship_status,
+      current_application_id,
+      current_program_id,
+      date_awarded
     `)
         .eq('user_id', userId)
         .maybeSingle();
@@ -1113,6 +1182,714 @@ async function getMyDocuments(userId) {
     };
 }
 
+function isMissingSchemaError(error) {
+    const message = String(error?.message || '').toLowerCase();
+
+    return (
+        error?.code === 'PGRST205' ||
+        error?.code === '42P01' ||
+        message.includes('could not find the table') ||
+        message.includes('does not exist') ||
+        message.includes('schema cache')
+    );
+}
+
+function normalizeWorkflowKey(value) {
+    return safeText(value)
+        .toLowerCase()
+        .replace(/[_-]+/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function normalizeDocumentReviewKey(value) {
+    const normalized = normalizeWorkflowKey(value).replace(/\s+/g, '_');
+
+    if (normalized === 'cor' || normalized === 'registration') {
+        return 'certificate_of_registration';
+    }
+
+    if (
+        normalized === 'grade_form' ||
+        normalized === 'grade_forms' ||
+        normalized === 'grades' ||
+        normalized === 'grade_report'
+    ) {
+        return 'student_grade_forms';
+    }
+
+    if (normalized === 'indigency') {
+        return 'certificate_of_indigency';
+    }
+
+    if (normalized === 'lor' || normalized === 'request_letter') {
+        return 'letter_of_request';
+    }
+
+    if (normalized === 'application') {
+        return 'application_form';
+    }
+
+    return normalized;
+}
+
+function normalizeUploadDocumentType(value) {
+    const normalized = normalizeWorkflowKey(value);
+
+    if (normalized === 'cor' || normalized.includes('registration')) {
+        return 'certificate of registration';
+    }
+
+    if (normalized.includes('grade')) {
+        return 'grade report';
+    }
+
+    if (normalized.includes('indigency')) {
+        return 'certificate of indigency';
+    }
+
+    if (normalized.includes('request') || normalized.includes('letter')) {
+        return 'letter of request';
+    }
+
+    return normalized;
+}
+
+function normalizeReviewDecision(value) {
+    const normalized = normalizeWorkflowKey(value);
+
+    if (normalized === 'verified' || normalized === 'approved') {
+        return 'verified';
+    }
+
+    if (
+        normalized === 'requires reupload' ||
+        normalized === 'requires re upload' ||
+        normalized === 'reupload' ||
+        normalized === 're upload' ||
+        normalized === 'needs reupload' ||
+        normalized === 'needs re upload'
+    ) {
+        return 'reupload_required';
+    }
+
+    if (normalized === 'rejected' || normalized === 'denied' || normalized === 'declined') {
+        return 'rejected';
+    }
+
+    if (normalized === 'uploaded' || normalized === 'under review') {
+        return 'under_review';
+    }
+
+    return normalized || 'pending';
+}
+
+function isSubmittedDocument(document = {}) {
+    return (
+        document.is_submitted === true &&
+        Boolean(safeText(document.file_path) || safeText(document.file_url))
+    );
+}
+
+function pickLatestRemark(...rows) {
+    for (const row of rows) {
+        const text = safeText(row?.admin_comment || row?.remarks || row?.notes);
+        if (text) return text;
+    }
+
+    return '';
+}
+
+async function fetchLatestApplication(studentId) {
+    const { data, error } = await supabase
+        .from('applications')
+        .select(`
+      application_id,
+      student_id,
+      opening_id,
+      program_id,
+      application_status,
+      document_status,
+      verification_status,
+      rejection_reason,
+      remarks,
+      is_disqualified,
+      submission_date,
+      created_at,
+      updated_at
+    `)
+        .eq('student_id', studentId)
+        .order('submission_date', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .limit(1);
+
+    if (error) throw error;
+
+    return Array.isArray(data) && data.length > 0 ? data[0] : null;
+}
+
+async function fetchApplicationStatusRows(applicationId) {
+    const [documentsResult, reviewsResult, slipResult] = await Promise.all([
+        supabase
+            .from('application_documents')
+            .select(`
+        document_id,
+        application_id,
+        document_type,
+        is_submitted,
+        file_url,
+        file_name,
+        file_path,
+        review_status,
+        remarks,
+        notes,
+        submitted_at,
+        updated_at
+      `)
+            .eq('application_id', applicationId),
+        supabase
+            .from('application_document_reviews')
+            .select(`
+        review_id,
+        application_id,
+        document_key,
+        document_name,
+        review_status,
+        admin_comment,
+        reviewed_at,
+        updated_at
+      `)
+            .eq('application_id', applicationId),
+        supabase
+            .from('endorsement_slips')
+            .select(`
+        slip_id,
+        application_id,
+        student_id,
+        opening_id,
+        current_stage,
+        overall_status,
+        pd_status,
+        pd_acted_at,
+        pd_remarks,
+        guidance_status,
+        guidance_acted_at,
+        guidance_remarks,
+        sdo_status,
+        sdo_acted_at,
+        sdo_remarks,
+        sdo_offense_type,
+        sdo_incident_date,
+        sdo_case_reference_number,
+        final_pdf_path,
+        final_pdf_url,
+        completed_at,
+        updated_at
+      `)
+            .eq('application_id', applicationId)
+            .maybeSingle(),
+    ]);
+
+    if (documentsResult.error) throw documentsResult.error;
+    if (reviewsResult.error && !isMissingSchemaError(reviewsResult.error)) {
+        throw reviewsResult.error;
+    }
+    if (slipResult.error && !isMissingSchemaError(slipResult.error)) {
+        throw slipResult.error;
+    }
+
+    return {
+        documents: documentsResult.data || [],
+        reviews: reviewsResult.error ? [] : reviewsResult.data || [],
+        slip: slipResult.error ? null : slipResult.data || null,
+    };
+}
+
+async function fetchApplicationProgramContext(application = {}) {
+    const [openingResult, programResult] = await Promise.all([
+        application.opening_id
+            ? supabase
+                .from('program_openings')
+                .select('opening_id, opening_title')
+                .eq('opening_id', application.opening_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        application.program_id
+            ? supabase
+                .from('scholarship_program')
+                .select('program_id, program_name')
+                .eq('program_id', application.program_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    if (openingResult.error) throw openingResult.error;
+    if (programResult.error) throw programResult.error;
+
+    return {
+        opening: openingResult.data || null,
+        program: programResult.data || null,
+    };
+}
+
+function buildRequirementsStatus(application = {}, documents = [], reviews = []) {
+    const requiredReviewKeys = new Set(REQUIRED_REVIEW_DOCUMENT_KEYS);
+    const requiredUploadTypes = new Set(REQUIRED_UPLOAD_DOCUMENT_TYPES);
+    const applicationStatus = normalizeWorkflowKey(application.application_status);
+    const verificationStatus = normalizeWorkflowKey(application.verification_status);
+    const documentStatus = normalizeWorkflowKey(application.document_status);
+    const reviewRows = Array.isArray(reviews) ? reviews : [];
+    const documentRows = Array.isArray(documents) ? documents : [];
+    const uploadedRequiredTypes = new Set();
+    const verifiedReviewKeys = new Set();
+    const rejectedReviews = [];
+    const reuploadReviews = [];
+
+    documentRows.forEach((document) => {
+        const type = normalizeUploadDocumentType(document.document_type);
+
+        if (requiredUploadTypes.has(type) && isSubmittedDocument(document)) {
+            uploadedRequiredTypes.add(type);
+        }
+    });
+
+    reviewRows.forEach((review) => {
+        const key = normalizeDocumentReviewKey(
+            review.document_key || review.document_name
+        );
+
+        if (!requiredReviewKeys.has(key)) {
+            return;
+        }
+
+        const decision = normalizeReviewDecision(review.review_status);
+        if (decision === 'verified') verifiedReviewKeys.add(key);
+        if (decision === 'rejected') rejectedReviews.push(review);
+        if (decision === 'reupload_required') reuploadReviews.push(review);
+    });
+
+    const uploadedCount = uploadedRequiredTypes.size;
+    const verifiedCount = verifiedReviewKeys.size;
+    const requiredUploadCount = REQUIRED_UPLOAD_DOCUMENT_TYPES.length;
+    const requiredReviewCount = REQUIRED_REVIEW_DOCUMENT_KEYS.length;
+    const applicationRejected =
+        application.is_disqualified === true ||
+        applicationStatus === 'rejected' ||
+        applicationStatus === 'disqualified' ||
+        verificationStatus === 'rejected';
+    const applicationReupload =
+        applicationStatus === 'requires reupload' ||
+        applicationStatus === 'requires re upload' ||
+        documentStatus === 'requires reupload' ||
+        documentStatus === 'requires re upload';
+
+    if (applicationRejected) {
+        return {
+            status: 'rejected',
+            status_label: REQUIREMENTS_LABELS.rejected,
+            uploaded_count: uploadedCount,
+            required_upload_count: requiredUploadCount,
+            verified_count: verifiedCount,
+            required_review_count: requiredReviewCount,
+            remarks: firstNonEmpty(
+                application.rejection_reason,
+                application.remarks,
+                pickLatestRemark(...rejectedReviews)
+            ) || null,
+        };
+    }
+
+    if (reuploadReviews.length > 0 || applicationReupload) {
+        return {
+            status: 'reupload_required',
+            status_label: REQUIREMENTS_LABELS.reupload_required,
+            uploaded_count: uploadedCount,
+            required_upload_count: requiredUploadCount,
+            verified_count: verifiedCount,
+            required_review_count: requiredReviewCount,
+            remarks: pickLatestRemark(...reuploadReviews, ...rejectedReviews) || null,
+        };
+    }
+
+    if (uploadedCount < requiredUploadCount) {
+        return {
+            status: 'missing',
+            status_label: REQUIREMENTS_LABELS.missing,
+            uploaded_count: uploadedCount,
+            required_upload_count: requiredUploadCount,
+            verified_count: verifiedCount,
+            required_review_count: requiredReviewCount,
+            remarks: null,
+        };
+    }
+
+    if (verifiedCount >= requiredReviewCount) {
+        return {
+            status: 'verified',
+            status_label: REQUIREMENTS_LABELS.verified,
+            uploaded_count: uploadedCount,
+            required_upload_count: requiredUploadCount,
+            verified_count: verifiedCount,
+            required_review_count: requiredReviewCount,
+            remarks: null,
+        };
+    }
+
+    return {
+        status: 'under_review',
+        status_label: REQUIREMENTS_LABELS.under_review,
+        uploaded_count: uploadedCount,
+        required_upload_count: requiredUploadCount,
+        verified_count: verifiedCount,
+        required_review_count: requiredReviewCount,
+        remarks: null,
+    };
+}
+
+function deriveSlipCode(slipId) {
+    const base = safeText(slipId).split('-')[0].toUpperCase();
+    return base ? `ES-${base}` : 'ES-PENDING';
+}
+
+function buildOfficeReview({
+    office,
+    decision,
+    actedAt,
+    remarks,
+    offenseDetail = null,
+}) {
+    return {
+        office,
+        decision: decision || null,
+        acted_at: actedAt || null,
+        remarks: safeText(remarks) || null,
+        offense_detail: offenseDetail,
+    };
+}
+
+function buildEndorsementStatus(slip = null) {
+    if (!slip) {
+        return {
+            status: 'pending_sdo',
+            status_label: ENDORSEMENT_LABELS.pending_sdo,
+            current_stage: 'pending_sdo',
+            current_office: 'SDO',
+            slip: {
+                available: false,
+                slip_id: null,
+                slip_code: null,
+                download_url: null,
+                file_name: null,
+                completed_at: null,
+            },
+            office_reviews: {
+                sdo: buildOfficeReview({ office: 'SDO' }),
+                guidance: buildOfficeReview({ office: 'Guidance' }),
+                pd: buildOfficeReview({ office: 'Program Director' }),
+            },
+            remarks: null,
+        };
+    }
+
+    const overall = normalizeWorkflowKey(slip.overall_status).replace(/\s+/g, '_');
+    const currentStage = normalizeWorkflowKey(slip.current_stage).replace(/\s+/g, '_');
+    let status = currentStage || overall || 'pending_sdo';
+
+    if (overall === 'completed') {
+        status = 'completed';
+    } else if (overall === 'disqualified_major' || slip.sdo_status === 'disqualified_major') {
+        status = 'major_offense';
+    } else if (
+        overall === 'rejected' ||
+        overall === 'guidance_rejected' ||
+        overall === 'disqualified_minor'
+    ) {
+        status = 'rejected';
+    } else if (overall === 'held') {
+        status = 'held';
+    }
+
+    const currentOffice =
+        status === 'pending_sdo'
+            ? 'SDO'
+            : status === 'pending_guidance' || status === 'held'
+                ? 'Guidance'
+                : status === 'pending_pd'
+                    ? 'Program Director'
+                    : null;
+    const remarks = firstNonEmpty(
+        status === 'major_offense' ? slip.sdo_remarks : '',
+        status === 'held' || overall === 'guidance_rejected' ? slip.guidance_remarks : '',
+        overall === 'rejected' ? slip.pd_remarks : '',
+        slip.guidance_remarks,
+        slip.pd_remarks,
+        slip.sdo_remarks
+    );
+    const slipReady = status === 'completed' && Boolean(safeText(slip.final_pdf_path));
+    const slipCode = deriveSlipCode(slip.slip_id);
+
+    return {
+        status,
+        status_label: ENDORSEMENT_LABELS[status] || ENDORSEMENT_LABELS[currentStage] || status,
+        current_stage: currentStage || status,
+        current_office: currentOffice,
+        completed_at: slip.completed_at || null,
+        remarks: remarks || null,
+        slip: {
+            available: slipReady,
+            slip_id: slip.slip_id || null,
+            slip_code: slipCode,
+            download_url: slipReady ? '/api/applications/me/endorsement-slip/pdf' : null,
+            file_name: slipReady ? `endorsement-slip-${slipCode}.pdf` : null,
+            completed_at: slip.completed_at || null,
+        },
+        office_reviews: {
+            sdo: buildOfficeReview({
+                office: 'SDO',
+                decision: slip.sdo_status,
+                actedAt: slip.sdo_acted_at,
+                remarks: slip.sdo_remarks,
+                offenseDetail: {
+                    offense_type: slip.sdo_offense_type || null,
+                    incident_date: slip.sdo_incident_date || null,
+                    case_reference_number: slip.sdo_case_reference_number || null,
+                },
+            }),
+            guidance: buildOfficeReview({
+                office: 'Guidance',
+                decision: slip.guidance_status,
+                actedAt: slip.guidance_acted_at,
+                remarks: slip.guidance_remarks,
+            }),
+            pd: buildOfficeReview({
+                office: 'Program Director',
+                decision: slip.pd_status,
+                actedAt: slip.pd_acted_at,
+                remarks: slip.pd_remarks,
+            }),
+        },
+    };
+}
+
+function buildWorkflowBlocker(code, source) {
+    return {
+        code,
+        source,
+        message: BLOCKER_MESSAGES[code] || code,
+    };
+}
+
+function buildWorkflowSummary({
+    student,
+    application,
+    requirements,
+    endorsement,
+}) {
+    const applicationStatus = normalizeWorkflowKey(application.application_status);
+    const explicitActivationSucceeded =
+        applicationStatus === 'approved' &&
+        student.is_active_scholar === true &&
+        safeText(student.scholarship_status).toLowerCase() === 'active' &&
+        safeText(student.current_application_id) === safeText(application.application_id);
+    const activated =
+        explicitActivationSucceeded &&
+        requirements.status === 'verified' &&
+        endorsement.status === 'completed';
+    const readyForActivation =
+        !activated &&
+        requirements.status === 'verified' &&
+        endorsement.status === 'completed';
+    const candidates = [];
+
+    if (requirements.status === 'rejected') {
+        candidates.push(buildWorkflowBlocker('requirements.rejected', 'requirements'));
+    }
+    if (endorsement.status === 'major_offense') {
+        candidates.push(buildWorkflowBlocker('endorsement.major_offense', 'endorsement'));
+    }
+    if (endorsement.status === 'rejected') {
+        candidates.push(buildWorkflowBlocker('endorsement.rejected', 'endorsement'));
+    }
+    if (endorsement.status === 'held') {
+        candidates.push(buildWorkflowBlocker('endorsement.held', 'endorsement'));
+    }
+    if (requirements.status === 'reupload_required') {
+        candidates.push(buildWorkflowBlocker('requirements.reupload_required', 'requirements'));
+    }
+    if (requirements.status === 'missing') {
+        candidates.push(buildWorkflowBlocker('requirements.missing', 'requirements'));
+    }
+    if (requirements.status === 'under_review') {
+        candidates.push(buildWorkflowBlocker('requirements.under_review', 'requirements'));
+    }
+    if (['pending_sdo', 'pending_guidance', 'pending_pd'].includes(endorsement.status)) {
+        candidates.push(buildWorkflowBlocker(endorsement.status, 'endorsement'));
+    }
+    if (readyForActivation) {
+        candidates.push(buildWorkflowBlocker('ready_for_activation', 'scholar_activation'));
+    }
+    if (activated) {
+        candidates.push(buildWorkflowBlocker('activated', 'scholar_activation'));
+    }
+
+    const primary = candidates[0] || null;
+    const stage =
+        activated
+            ? 'scholar_activated'
+            : readyForActivation
+                ? 'ready_for_activation'
+                : primary?.source === 'requirements'
+                    ? 'requirements_review'
+                    : primary?.source === 'endorsement'
+                        ? 'endorsement_review'
+                        : 'application_submitted';
+
+    return {
+        stage,
+        stage_label: WORKFLOW_STAGE_LABELS[stage] || stage,
+        requirements,
+        endorsement,
+        scholar_activation: {
+            status: activated ? 'activated' : readyForActivation ? 'ready_for_activation' : 'not_ready',
+            status_label: activated
+                ? 'Activated'
+                : readyForActivation
+                    ? 'Ready for Activation'
+                    : 'Not Ready',
+            activated_at: activated ? student.date_awarded || null : null,
+            explicit_activation_succeeded: explicitActivationSucceeded,
+            active_current_application:
+                safeText(student.current_application_id) === safeText(application.application_id),
+        },
+        blockers: candidates,
+        primary_blocker: primary,
+    };
+}
+
+async function getMyApplicationStatusSummary(userId) {
+    if (!userId) {
+        throw createHttpError(401, 'Authentication required.');
+    }
+
+    const student = await getStudent(userId);
+
+    if (!student?.student_id) {
+        return {
+            has_application: false,
+            hasApplication: false,
+            application: null,
+            workflow: null,
+            message: 'Submit an application first.',
+        };
+    }
+
+    const application = await fetchLatestApplication(student.student_id);
+
+    if (!application) {
+        return {
+            has_application: false,
+            hasApplication: false,
+            application: null,
+            workflow: null,
+            message: 'Submit an application first.',
+        };
+    }
+
+    const [{ documents, reviews, slip }, context] = await Promise.all([
+        fetchApplicationStatusRows(application.application_id),
+        fetchApplicationProgramContext(application),
+    ]);
+    const requirements = buildRequirementsStatus(application, documents, reviews);
+    const endorsement = buildEndorsementStatus(slip);
+    const workflow = buildWorkflowSummary({
+        student,
+        application,
+        requirements,
+        endorsement,
+    });
+
+    return {
+        has_application: true,
+        hasApplication: true,
+        application: {
+            application_id: application.application_id,
+            student_id: application.student_id,
+            opening_id: application.opening_id,
+            opening_title: context.opening?.opening_title || null,
+            program_id: application.program_id,
+            program_name: context.program?.program_name || null,
+            application_status: application.application_status || null,
+            document_status: application.document_status || null,
+            verification_status: application.verification_status || null,
+            submission_date: application.submission_date || null,
+            created_at: application.created_at || null,
+            updated_at: application.updated_at || null,
+        },
+        workflow,
+    };
+}
+
+async function downloadMyEndorsementSlipPdf(userId) {
+    if (!userId) {
+        throw createHttpError(401, 'Authentication required.');
+    }
+
+    const student = await getStudent(userId);
+
+    if (!student?.student_id) {
+        throw createHttpError(404, 'Student profile not found.');
+    }
+
+    const application = await fetchLatestApplication(student.student_id);
+
+    if (!application) {
+        throw createHttpError(404, 'Application not found.');
+    }
+
+    const { documents, reviews, slip } = await fetchApplicationStatusRows(
+        application.application_id
+    );
+    const requirements = buildRequirementsStatus(application, documents, reviews);
+    const endorsement = buildEndorsementStatus(slip);
+
+    if (requirements.status !== 'verified' || endorsement.status !== 'completed') {
+        throw createHttpError(
+            409,
+            'Endorsement slip PDF is only available after verified requirements and completed endorsement.'
+        );
+    }
+
+    if (!safeText(slip?.final_pdf_path)) {
+        throw createHttpError(404, 'Final endorsement slip PDF is not available yet.');
+    }
+
+    const { data, error } = await supabase.storage
+        .from(ENDORSEMENT_SLIP_BUCKET)
+        .download(slip.final_pdf_path);
+
+    if (error) {
+        throw createHttpError(500, error.message || 'Failed to download endorsement slip PDF.');
+    }
+
+    let buffer;
+    if (Buffer.isBuffer(data)) {
+        buffer = data;
+    } else if (data instanceof ArrayBuffer) {
+        buffer = Buffer.from(data);
+    } else if (data?.arrayBuffer) {
+        buffer = Buffer.from(await data.arrayBuffer());
+    } else {
+        throw createHttpError(500, 'Unexpected endorsement slip PDF payload.');
+    }
+
+    return {
+        fileName: `endorsement-slip-${deriveSlipCode(slip.slip_id)}.pdf`,
+        contentType: data?.type || 'application/pdf',
+        buffer,
+    };
+}
+
 async function uploadMyDocument(userId, file, body = {}, params = {}) {
     if (!userId) throw createHttpError(401, 'Authentication required.');
     if (!file) throw createHttpError(400, 'File is required.');
@@ -1379,6 +2156,35 @@ async function createRequiredDocumentSlots(applicationId, studentId) {
     if (error) throw error;
 }
 
+async function ensureApplicationEndorsementSlip(application = {}) {
+    if (!application?.application_id || !application?.student_id) return;
+
+    const { error } = await supabase
+        .from('endorsement_slips')
+        .insert({
+            application_id: application.application_id,
+            student_id: application.student_id,
+            opening_id: application.opening_id || null,
+            current_stage: 'pending_sdo',
+            overall_status: 'pending_sdo',
+        });
+
+    if (!error) return;
+
+    if (error.code === '23505') {
+        return;
+    }
+
+    if (isMissingSchemaError(error)) {
+        throw createHttpError(
+            500,
+            'Endorsement slip schema is not installed for application tracking.'
+        );
+    }
+
+    throw error;
+}
+
 async function submitMyApplicationForm(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
@@ -1622,6 +2428,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
     }
 
     await createRequiredDocumentSlots(application.application_id, student.student_id);
+    await ensureApplicationEndorsementSlip(application);
 
     await supabase
         .from('students')
@@ -1644,6 +2451,8 @@ module.exports = {
     getMyFormData,
     saveMyFormData,
     getMyDocuments,
+    getMyApplicationStatusSummary,
+    downloadMyEndorsementSlipPdf,
     uploadMyDocument,
     submitMyApplicationForm,
 };

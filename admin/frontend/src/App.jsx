@@ -24,7 +24,6 @@ import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/maintenance/Maintenance';
 import AdminMessages from './pages/AdminMessages';
-import SupportTickets from './pages/SupportTickets';
 import ProfilePhotoQueue from './pages/ProfilePhotoQueue';
 import EndorsementSlipDetail from './pages/EndorsementSlipDetail';
 import EndorsementVerification from './pages/EndorsementVerification';
@@ -126,7 +125,6 @@ export default function App() {
           <Route path="reports" element={<ReportGeneration />} />
           <Route path="messages" element={<AdminMessages />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
-          <Route path="support-tickets" element={<SupportTickets />} />
           <Route path="profile-photos" element={<ProfilePhotoQueue />} />
           <Route path="profile-photos/:reviewId" element={<ProfilePhotoQueue />} />
           <Route path="adminprofile" element={<AdminProfile />} />

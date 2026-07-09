@@ -7,7 +7,7 @@ const { sendAdminResetOtp } = require('../utils/mailer');
 
 const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
 
-const RESET_OTP_TTL_MINUTES = Number(process.env.RESET_OTP_TTL_MINUTES || 10);
+const RESET_OTP_TTL_SECONDS = Number(process.env.RESET_OTP_TTL_SECONDS || 60);
 const RESET_RESEND_SECONDS = Number(process.env.RESET_RESEND_SECONDS || 60);
 const MAX_RESET_ATTEMPTS = Number(process.env.MAX_RESET_ATTEMPTS || 5);
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
@@ -294,12 +294,12 @@ exports.startAdminPasswordReset = async (req, res) => {
             VALUES (
                 $1,
                 $2,
-                now() + ($3 || ' minutes')::interval,
+                now() + ($3 || ' seconds')::interval,
                 now() + ($4 || ' seconds')::interval
             )
             RETURNING reset_otp_id
             `,
-            [user.user_id, otpHash, RESET_OTP_TTL_MINUTES, RESET_RESEND_SECONDS]
+            [user.user_id, otpHash, RESET_OTP_TTL_SECONDS, RESET_RESEND_SECONDS]
         );
 
         const resetOtpId = insertResult.rows[0]?.reset_otp_id;
@@ -312,7 +312,7 @@ exports.startAdminPasswordReset = async (req, res) => {
             await sendAdminResetOtp({
                 to: resetEmailRecipient,
                 otp,
-                expiresMinutes: RESET_OTP_TTL_MINUTES,
+                expiresSeconds: RESET_OTP_TTL_SECONDS,
             });
         } catch (mailErr) {
             if (resetOtpId) {

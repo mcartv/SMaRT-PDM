@@ -5,7 +5,6 @@ const pool = require('../config/db');
 const supabase = require('../config/supabase');
 const { transporter } = require('../config/mailer');
 const notificationService = require('./notificationService');
-const applicationService = require('./applicationService');
 const { resolveStaffRole } = require('../utils/staffRoles');
 
 const STORAGE_BUCKET =
@@ -382,13 +381,18 @@ function mapQueueRow(row) {
     };
 }
 
-async function loadSlipRows({ stage = null } = {}) {
+async function loadSlipRows({ stage = null, stages = null } = {}) {
     const params = [];
-    const whereClause = stage
-        ? `where es.current_stage = $1`
-        : '';
+    const normalizedStages = Array.isArray(stages)
+        ? stages.map((value) => safeText(value)).filter(Boolean)
+        : [];
+    let whereClause = '';
 
-    if (stage) {
+    if (normalizedStages.length > 0) {
+        whereClause = `where es.current_stage = any($1::text[])`;
+        params.push(normalizedStages);
+    } else if (stage) {
+        whereClause = `where es.current_stage = $1`;
         params.push(stage);
     }
 
@@ -464,6 +468,10 @@ async function loadSlipRows({ stage = null } = {}) {
 
 async function fetchQueue(queueKey, actor) {
     const config = ensureQueueAccess(queueKey, actor);
+    if (queueKey === 'guidance') {
+        return loadSlipRows({ stages: ['pending_guidance', 'held'] });
+    }
+
     return loadSlipRows({ stage: config.stage });
 }
 
@@ -1166,7 +1174,7 @@ function buildStageUpdate(queueKey, payload, actorUserId) {
                     overall_status = $7,
                     updated_at = now()
                 where slip_id = $1
-                  and current_stage = 'pending_guidance'
+                  and current_stage in ('pending_guidance', 'held')
                 returning *
             `,
             values: [
@@ -1245,7 +1253,13 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
         }
 
         const currentSlip = currentResult.rows[0];
-        if (currentSlip.current_stage !== config.stage) {
+        const isHeldGuidanceResolution =
+            queueKey === 'guidance' &&
+            currentSlip.current_stage === 'held' &&
+            ['clear', 'reject'].includes(action);
+        const isCurrentQueueStage = currentSlip.current_stage === config.stage;
+
+        if (!isCurrentQueueStage && !isHeldGuidanceResolution) {
             throw createHttpError(409, 'This endorsement slip is no longer pending in your queue.');
         }
 
@@ -1257,6 +1271,15 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             throw createHttpError(409, 'Unable to update endorsement slip.');
         }
 
+        await client.query(
+            `
+            update applications
+            set updated_at = now()
+            where application_id = $1
+            `,
+            [updated.rows[0].application_id]
+        );
+
         await client.query('commit');
 
         const notifications = await notifyNextStage({
@@ -1267,17 +1290,12 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
 
         let finalizedDetail = await fetchSlipDetail(slipId, actor);
         let pdfError = null;
-        let activation = null;
         if (queueKey === 'pd' && finalizedDetail.overall_status === 'completed') {
             try {
                 finalizedDetail = await finalizeCompletedSlip(slipId);
             } catch (error) {
                 pdfError = error.message || 'Failed to generate final PDF.';
             }
-
-            activation = await applicationService.attemptScholarActivationIfReady(
-                finalizedDetail.application_id
-            );
         }
 
         return {
@@ -1286,7 +1304,6 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             emittedStage: finalizedDetail.current_stage,
             action,
             pdfError,
-            activation,
         };
     } catch (error) {
         await client.query('rollback');

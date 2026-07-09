@@ -2556,7 +2556,7 @@ async function sendOTPEmail(userEmail, otpCode) {
         <h2>Welcome to SMaRT-PDM!</h2>
         <p>Your 6-digit verification code is:</p>
         <h1 style="letter-spacing: 5px; color: #7C4A2E;">${otpCode}</h1>
-        <p>Please enter this code in the app to verify your account. It will expire in 10 minutes.</p>
+        <p>Please enter this code in the app to verify your account. It will expire in 60 seconds.</p>
       </div>
     `
   };
@@ -2591,7 +2591,7 @@ router.post('/api/auth/resend-otp', async (req, res) => {
     }
 
     const otp = generateOTP();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
+    const expiresAt = Date.now() + 60 * 1000;
 
     pendingRegistrationStore.set(email, {
       ...pendingRegistration,

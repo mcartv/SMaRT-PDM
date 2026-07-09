@@ -9,7 +9,6 @@ import {
   Settings,
   GraduationCap,
   CalendarRange,
-  Clock3,
   UsersRound,
 } from 'lucide-react';
 
@@ -18,7 +17,6 @@ import StudentRegistryPanel from './StudentRegistryPanel';
 import BenefactorsPanel from './BenefactorsPanel';
 import ProgramsPanel from './ProgramsPanel';
 import CoursesPanel from './CoursesPanel';
-import ROSettingsPanel from './ROSettingsPanel';
 import SystemPanel from './SystemPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
@@ -36,7 +34,6 @@ const TABS = [
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
   { key: 'courses', label: 'Courses', icon: BookOpen },
   { key: 'registry', label: 'Student Registry', icon: Database },
-  { key: 'ro-settings', label: 'RO Settings', icon: Clock3 },
   { key: 'system', label: 'System', icon: Cpu },
   { key: 'audit', label: 'Audit', icon: ClipboardList },
 ];
@@ -90,8 +87,6 @@ export default function Maintenance() {
         return <AcademicYearPanel />;
       case 'courses':
         return <CoursesPanel />;
-      case 'ro-settings':
-        return <ROSettingsPanel />;
       case 'registry':
         return <StudentRegistryPanel />;
       case 'system':

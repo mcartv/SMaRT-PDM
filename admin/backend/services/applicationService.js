@@ -236,16 +236,53 @@ function deriveSlipCode(slipId) {
 }
 
 function buildReadinessFlags(row = {}) {
-    const requirementsComplete =
+    const verificationStatus = normalizeLookupValue(row.verification_status);
+    const applicationStatus = normalizeLookupValue(row.application_status);
+    const documentStatus = normalizeLookupValue(row.document_status);
+    const endorsementStatusRaw = String(row.endorsement_overall_status || row.overall_status || '').trim().toLowerCase();
+    const requirementsVerifiedByReviews =
         Number(row.verified_review_count || 0) >= REQUIRED_REVIEW_DOCUMENT_KEYS.length &&
         Number(row.uploaded_required_count || 0) >= REQUIRED_UPLOAD_DOCUMENT_NAMES.length;
     const endorsementComplete =
-        String(row.endorsement_overall_status || row.overall_status || '').trim().toLowerCase() === 'completed';
-    const scholarActivationReady = requirementsComplete && endorsementComplete;
+        endorsementStatusRaw === 'completed';
     const blockers = [];
+    let requirementsStatus = 'under_review';
+    let endorsementStatus = endorsementStatusRaw || null;
 
-    if (!requirementsComplete) blockers.push('requirements_incomplete');
-    if (!endorsementComplete) blockers.push('endorsement_pending');
+    if (
+        verificationStatus === 'rejected' ||
+        applicationStatus === 'rejected' ||
+        applicationStatus === 'disqualified'
+    ) {
+        requirementsStatus = 'rejected';
+    } else if (
+        applicationStatus === 'requires reupload' ||
+        documentStatus === 'requires reupload'
+    ) {
+        requirementsStatus = 'reupload_required';
+    } else if (Number(row.uploaded_required_count || 0) < REQUIRED_UPLOAD_DOCUMENT_NAMES.length) {
+        requirementsStatus = 'missing';
+    } else if (requirementsVerifiedByReviews) {
+        requirementsStatus = 'verified';
+    }
+
+    const requirementsComplete = requirementsStatus === 'verified';
+    const scholarActivationReady = requirementsComplete && endorsementComplete;
+
+    if (endorsementStatusRaw === 'disqualified_major') {
+        endorsementStatus = 'major_offense';
+    } else if (['rejected', 'guidance_rejected', 'disqualified_minor'].includes(endorsementStatusRaw)) {
+        endorsementStatus = 'rejected';
+    }
+
+    if (requirementsStatus !== 'verified') blockers.push(`requirements.${requirementsStatus}`);
+    if (!endorsementComplete && endorsementStatus) {
+        blockers.push(
+            ['pending_sdo', 'pending_guidance', 'pending_pd'].includes(endorsementStatus)
+                ? endorsementStatus
+                : `endorsement.${endorsementStatus}`
+        );
+    }
 
     return {
         requirements_complete: requirementsComplete,
@@ -257,7 +294,9 @@ function buildReadinessFlags(row = {}) {
         blockers,
         verified_review_count: Number(row.verified_review_count || 0),
         uploaded_required_count: Number(row.uploaded_required_count || 0),
+        requirements_status: requirementsStatus,
         endorsement_status: row.endorsement_overall_status || row.overall_status || null,
+        normalized_endorsement_status: endorsementStatus,
         endorsement_slip_id: row.endorsement_slip_id || row.slip_id || null,
         endorsement_slip_code: deriveSlipCode(row.endorsement_slip_id || row.slip_id || null),
         endorsement_current_stage: row.endorsement_current_stage || row.current_stage || null,
@@ -302,6 +341,9 @@ async function fetchApplicationReadinessMap(applicationIds = []) {
         )
         select
             a.application_id,
+            a.application_status,
+            a.document_status,
+            a.verification_status,
             es.slip_id as endorsement_slip_id,
             es.overall_status as endorsement_overall_status,
             es.current_stage as endorsement_current_stage,
@@ -1842,39 +1884,16 @@ exports.markApplicationDisqualified = async (id, reason) => {
 exports.attemptScholarActivationIfReady = async (applicationId) => {
     const readiness = await fetchApplicationReadiness(applicationId);
 
-    if (!readiness.scholar_activation_ready) {
-        return {
-            activated: false,
-            readiness,
-            outcome: 'pending_activation',
-            application: null,
-            scholar: null,
-            notification: null,
-        };
-    }
-
-    const approvalResult = await exports.approveApplicationWithSlotCheck(applicationId);
-    let notification = null;
-
-    if (approvalResult.notificationShouldSend && approvalResult.student_user_id) {
-        notification = await deliverVerificationOutcomeNotification({
-            outcome: approvalResult.outcome,
-            applicationId,
-            userId: approvalResult.student_user_id,
-            scholarId: approvalResult.scholar?.scholar_id || null,
-        });
-    }
-
     return {
-        activated:
-            approvalResult.outcome === 'approved' ||
-            approvalResult.outcome === 'already_approved',
+        activated: false,
         readiness,
-        outcome: approvalResult.outcome || null,
-        application: approvalResult.application || approvalResult,
-        scholar: approvalResult.scholar || null,
-        notification,
-        opening_auto_closed: !!approvalResult.opening_auto_closed,
+        outcome: readiness.scholar_activation_ready
+            ? 'ready_for_explicit_activation'
+            : 'pending_activation',
+        application: null,
+        scholar: null,
+        notification: null,
+        opening_auto_closed: false,
     };
 };
 
@@ -1974,6 +1993,10 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
         document_status: nextDocumentStatus,
     };
 
+    if (verification_status) {
+        applicationUpdatePayload.verification_status = verification_status;
+    }
+
     if (verification_status === 'rejected') {
         applicationUpdatePayload.application_status = 'Rejected';
         applicationUpdatePayload.is_disqualified = true;
@@ -1999,11 +2022,7 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
     let activation = null;
 
     if (verification_status === 'verified') {
-        activation = await exports.attemptScholarActivationIfReady(applicationId);
-        finalizedApplication = activation.application || updatedApplication;
-        scholar = activation.scholar || null;
-        notification = activation.notification || null;
-        finalOutcome = activation.activated ? activation.outcome || 'approved' : 'requirements_complete';
+        finalOutcome = 'requirements_complete';
     } else if (verification_status === 'rejected') {
         if (updatedApplication?.student_id) {
             const { data: studentRow } = await supabase
@@ -2176,6 +2195,103 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
 
         if (openingIsArchived) {
             throw new Error('This opening is already archived.');
+        }
+
+        const readinessResult = await client.query(
+            `
+            with latest_application as (
+                select latest.application_id
+                from applications latest
+                where latest.student_id = $4
+                order by latest.submission_date desc nulls last,
+                         latest.created_at desc nulls last
+                limit 1
+            ),
+            review_summary as (
+                select
+                    adr.application_id,
+                    count(distinct case
+                        when lower(coalesce(adr.document_key, '')) = any($2::text[])
+                         and lower(coalesce(adr.review_status, '')) = 'verified'
+                        then lower(adr.document_key)
+                    end) as verified_review_count
+                from application_document_reviews adr
+                where adr.application_id = $1
+                group by adr.application_id
+            ),
+            upload_summary as (
+                select
+                    ad.application_id,
+                    count(distinct case
+                        when lower(coalesce(ad.document_type, '')) = any($3::text[])
+                         and coalesce(ad.is_submitted, false) = true
+                         and (
+                            nullif(trim(coalesce(ad.file_path, '')), '') is not null
+                            or nullif(trim(coalesce(ad.file_url, '')), '') is not null
+                         )
+                        then lower(ad.document_type)
+                    end) as uploaded_required_count
+                from application_documents ad
+                where ad.application_id = $1
+                group by ad.application_id
+            )
+            select
+                la.application_id as latest_application_id,
+                a.application_status,
+                a.verification_status,
+                coalesce(rs.verified_review_count, 0) as verified_review_count,
+                coalesce(us.uploaded_required_count, 0) as uploaded_required_count,
+                es.overall_status as endorsement_overall_status
+            from applications a
+            left join latest_application la on true
+            left join review_summary rs on rs.application_id = a.application_id
+            left join upload_summary us on us.application_id = a.application_id
+            left join endorsement_slips es on es.application_id = a.application_id
+            where a.application_id = $1
+            limit 1
+            `,
+            [
+                applicationId,
+                REQUIRED_REVIEW_DOCUMENT_KEYS,
+                REQUIRED_UPLOAD_DOCUMENT_NAMES,
+                row.student_id,
+            ]
+        );
+        const readiness = readinessResult.rows[0] || {};
+        const isLatestSubmittedApplication =
+            String(readiness.latest_application_id || '') === String(applicationId);
+        const readinessApplicationStatus = normalizeLookupValue(readiness.application_status);
+        const readinessVerificationStatus = normalizeLookupValue(readiness.verification_status);
+        const requirementsRejected =
+            readinessVerificationStatus === 'rejected' ||
+            readinessApplicationStatus === 'rejected' ||
+            readinessApplicationStatus === 'disqualified';
+        const requirementsVerified =
+            !requirementsRejected &&
+            Number(readiness.verified_review_count || 0) >= REQUIRED_REVIEW_DOCUMENT_KEYS.length &&
+            Number(readiness.uploaded_required_count || 0) >= REQUIRED_UPLOAD_DOCUMENT_NAMES.length;
+        const endorsementCompleted =
+            String(readiness.endorsement_overall_status || '').trim().toLowerCase() === 'completed';
+
+        if (!isLatestSubmittedApplication) {
+            throw buildHttpError(
+                409,
+                'Only the latest submitted application can be activated as the current scholar application.'
+            );
+        }
+
+        if (!requirementsVerified) {
+            throw buildHttpError(
+                409,
+                'Application is not ready for scholar activation: requirements.status must be verified.'
+            );
+        }
+
+        if (!endorsementCompleted) {
+            throw buildHttpError(
+                409,
+                'Application is not ready for scholar activation: endorsement.status must be completed.'
+            );
         }
 
         // ✅ STUDENT-BASED EXISTING SCHOLAR CHECK

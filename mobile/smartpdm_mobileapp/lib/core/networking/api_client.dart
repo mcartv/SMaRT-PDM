@@ -8,6 +8,18 @@ import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
+class ApiDownload {
+  const ApiDownload({
+    required this.bytes,
+    required this.fileName,
+    required this.contentType,
+  });
+
+  final Uint8List bytes;
+  final String fileName;
+  final String contentType;
+}
+
 class ApiClient {
   ApiClient({http.Client? httpClient})
     : _httpClient = httpClient ?? http.Client();
@@ -16,7 +28,10 @@ class ApiClient {
   final SessionService _sessionService = const SessionService();
 
   Uri buildUri(String path) {
-    final normalizedBaseUrl = AppConfig.apiBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final normalizedBaseUrl = AppConfig.apiBaseUrl.replaceFirst(
+      RegExp(r'/+$'),
+      '',
+    );
     final normalizedPath = path.startsWith('/') ? path : '/$path';
     return Uri.parse('$normalizedBaseUrl$normalizedPath');
   }
@@ -27,7 +42,7 @@ class ApiClient {
   }) async {
     final headers = <String, String>{...extra};
 
-    headers['Accept'] = 'application/json';
+    headers.putIfAbsent('Accept', () => 'application/json');
 
     if (contentType != null) {
       headers['Content-Type'] = contentType;
@@ -126,6 +141,46 @@ class ApiClient {
     } on TimeoutException {
       throw const ApiException(
         'Request timed out. Please check your connection and try again.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Network connection error. Please check your internet connection.',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'Connection error. Please ensure your backend is running and accessible.',
+      );
+    }
+  }
+
+  Future<ApiDownload> downloadBytes(
+    String path, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    try {
+      final response = await _httpClient
+          .get(
+            buildUri(path),
+            headers: await _buildHeaders(
+              extra: const {'Accept': 'application/pdf'},
+            ),
+          )
+          .timeout(timeout);
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw _buildApiException(response);
+      }
+
+      return ApiDownload(
+        bytes: response.bodyBytes,
+        fileName: _fileNameFromDisposition(
+          response.headers['content-disposition'],
+        ),
+        contentType: response.headers['content-type'] ?? 'application/pdf',
+      );
+    } on TimeoutException {
+      throw const ApiException(
+        'Download timed out. Please check your connection and try again.',
       );
     } on SocketException {
       throw const ApiException(
@@ -327,5 +382,24 @@ class ApiClient {
       'Request failed with status ${response.statusCode}.',
       statusCode: response.statusCode,
     );
+  }
+
+  String _fileNameFromDisposition(String? value) {
+    final header = value ?? '';
+    final starMatch = RegExp(
+      r"filename\*=UTF-8''([^;]+)",
+      caseSensitive: false,
+    ).firstMatch(header);
+    if (starMatch != null) {
+      return Uri.decodeComponent(starMatch.group(1) ?? '').trim();
+    }
+
+    final match = RegExp(
+      r'filename="?([^";]+)"?',
+      caseSensitive: false,
+    ).firstMatch(header);
+    final parsed = match?.group(1)?.trim();
+
+    return parsed?.isNotEmpty == true ? parsed! : 'endorsement-slip.pdf';
   }
 }

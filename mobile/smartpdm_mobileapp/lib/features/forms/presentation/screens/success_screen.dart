@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -45,26 +44,24 @@ class _SuccessScreenState extends State<SuccessScreen> {
       File generatedFile;
       if (submissionPayload != null) {
         debugPrint('Generating PDF from raw submission payload...');
-        generatedFile = await _printableApplicationService.generateFromSubmissionPayload(
-          submissionPayload,
-        );
+        generatedFile = await _printableApplicationService
+            .generateFromSubmissionPayload(submissionPayload);
       } else {
         debugPrint('Generating PDF from application ID: $applicationId...');
-        generatedFile = await _printableApplicationService.generateFromApplicationId(
-          applicationId,
-        );
+        generatedFile = await _printableApplicationService
+            .generateFromApplicationId(applicationId);
       }
       debugPrint('PDF generation successful. Copying to downloads...');
 
       final safeAppId = applicationId.isNotEmpty ? applicationId : 'Guest';
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       String fileName = 'Scholarship_Application_${safeAppId}_$timestamp.pdf';
-      
+
       final directory = await getApplicationDocumentsDirectory();
-      
+
       final exportFile = File('${directory.path}/$fileName');
       await generatedFile.copy(exportFile.path);
-      
+
       // Cleanup temporary file
       if (generatedFile.existsSync()) {
         await generatedFile.delete();
@@ -78,17 +75,18 @@ class _SuccessScreenState extends State<SuccessScreen> {
           action: SnackBarAction(
             label: 'Share',
             onPressed: () async {
-              await Share.shareXFiles([XFile(exportFile.path)],
-                  text: 'SMaRT-PDM Scholarship Application');
+              await Share.shareXFiles([
+                XFile(exportFile.path),
+              ], text: 'SMaRT-PDM Scholarship Application');
             },
           ),
         ),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to export PDF: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to export PDF: $error')));
     } finally {
       if (mounted) {
         setState(() => _isGeneratingPdf = false);
@@ -125,7 +123,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       color: Colors.black.withOpacity(0.04),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
-                    )
+                    ),
                   ]
                 : [],
           ),
@@ -136,7 +134,9 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: iconColor),
+                        strokeWidth: 2,
+                        color: iconColor,
+                      ),
                     )
                   : Icon(icon, color: iconColor),
               const SizedBox(width: 16),
@@ -164,7 +164,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
     final payload = args is Map<String, dynamic> ? args : const {};
     final rawTitle =
         payload['title']?.toString() ?? 'Application Submitted Successfully!';
-    
+
     // Format the title to split nicely like in the design if it's the default string
     String title = rawTitle;
     if (title == 'Application Submitted Successfully!') {
@@ -203,9 +203,13 @@ class _SuccessScreenState extends State<SuccessScreen> {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: AppColors.gold, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            color: AppColors.gold,
+            size: 20,
+          ),
           onPressed: () {
-             Navigator.maybePop(context);
+            Navigator.maybePop(context);
           },
         ),
       ),
@@ -260,7 +264,11 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       const Positioned(
                         top: 20,
                         left: 40,
-                        child: Icon(Icons.star, color: AppColors.gold, size: 14),
+                        child: Icon(
+                          Icons.star,
+                          color: AppColors.gold,
+                          size: 14,
+                        ),
                       ),
                       Positioned(
                         top: 45,
@@ -277,7 +285,11 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       const Positioned(
                         top: 30,
                         right: 40,
-                        child: Icon(Icons.star_border, color: AppColors.gold, size: 18),
+                        child: Icon(
+                          Icons.star_border,
+                          color: AppColors.gold,
+                          size: 18,
+                        ),
                       ),
                       Positioned(
                         top: 70,
@@ -294,14 +306,18 @@ class _SuccessScreenState extends State<SuccessScreen> {
                       const Positioned(
                         bottom: 25,
                         left: 45,
-                        child: Icon(Icons.star_border, color: AppColors.gold, size: 16),
+                        child: Icon(
+                          Icons.star_border,
+                          color: AppColors.gold,
+                          size: 16,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 30),
-              
+
               // Title
               Text(
                 title,
@@ -314,7 +330,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              
+
               // Subtitle
               Text(
                 message,
@@ -326,12 +342,14 @@ class _SuccessScreenState extends State<SuccessScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Action Buttons
               if (canGeneratePdf)
                 _buildActionTile(
                   icon: Icons.file_download_outlined,
-                  title: _isGeneratingPdf ? 'Generating PDF...' : 'Export Application Form',
+                  title: _isGeneratingPdf
+                      ? 'Generating PDF...'
+                      : 'Export Application Form',
                   backgroundColor: AppColors.gold,
                   textColor: Colors.black,
                   iconColor: Colors.black,
@@ -339,11 +357,11 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   onTap: _isGeneratingPdf
                       ? null
                       : () => _handleGeneratePdf(
-                            applicationId: applicationId,
-                            submissionPayload: submissionPayload,
-                          ),
+                          applicationId: applicationId,
+                          submissionPayload: submissionPayload,
+                        ),
                 ),
-                
+
               if (canUploadRequirements)
                 _buildActionTile(
                   icon: Icons.description_outlined,
@@ -365,7 +383,19 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     );
                   },
                 ),
-                
+
+              _buildActionTile(
+                icon: Icons.fact_check_outlined,
+                title: 'Track Application Status',
+                backgroundColor: Colors.white,
+                textColor: Colors.black,
+                iconColor: AppColors.gold,
+                borderColor: Colors.grey.shade200,
+                onTap: () {
+                  Navigator.pushNamed(context, AppRoutes.status);
+                },
+              ),
+
               _buildActionTile(
                 icon: Icons.home_outlined,
                 title: 'Back to Dashboard',
@@ -381,18 +411,15 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   );
                 },
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Bottom Banner
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFFFF9E6),
-                      Color(0xFFFFF0C2),
-                    ],
+                    colors: [Color(0xFFFFF9E6), Color(0xFFFFF0C2)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -412,11 +439,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                             color: Colors.white,
                           ),
                         ),
-                        const Icon(
-                          Icons.info,
-                          color: AppColors.gold,
-                          size: 24,
-                        ),
+                        const Icon(Icons.info, color: AppColors.gold, size: 24),
                       ],
                     ),
                     const SizedBox(width: 12),
@@ -432,7 +455,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                     ),
                     const SizedBox(width: 12),
                     Icon(
-                      Icons.fact_check_outlined, 
+                      Icons.fact_check_outlined,
                       color: AppColors.gold.withOpacity(0.8),
                       size: 48,
                     ),

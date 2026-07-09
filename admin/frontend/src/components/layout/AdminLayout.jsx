@@ -52,7 +52,6 @@ const navItems = [
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/profile-photos', icon: Image, label: 'Profile Photos' },
-  { path: '/admin/support-tickets', icon: LifeBuoy, label: 'Support Tickets' },
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
 ];
 

@@ -316,7 +316,7 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
             size="sm"
             variant="outline"
             className="border-amber-200 text-amber-700"
-            disabled={loading}
+            disabled={loading || row.current_stage === 'held'}
             onClick={() => onSubmit(row, 'hold')}
           >
             For Counseling / Hold

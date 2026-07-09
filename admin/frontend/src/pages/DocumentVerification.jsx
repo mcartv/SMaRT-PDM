@@ -1674,10 +1674,10 @@ export default function DocumentVerification() {
 
       alert(
         finalOutcome === 'approved'
-          ? 'Requirements review saved successfully. The student is now scholar-ready and has been approved.'
+          ? 'Requirements review saved successfully.'
           : finalVerificationStatus === 'verified'
             ? readiness?.endorsement_complete
-              ? 'Requirements review saved successfully. Scholar activation is waiting for the backend refresh.'
+              ? 'Requirements review saved successfully. The application is ready for explicit admin scholar activation.'
               : 'Requirements review saved successfully. Endorsement slip completion is still required before scholar activation.'
             : 'Requirements review completed. Application marked as rejected and ready for archiving.'
       );

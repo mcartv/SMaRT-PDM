@@ -16,8 +16,6 @@ class ScholarNavChips extends StatelessWidget {
   static const List<String> _labels = [
     'Payout Schedule',
     'Renewal Documents',
-    'RO Assignment',
-    'RO Completion',
   ];
 
   @override

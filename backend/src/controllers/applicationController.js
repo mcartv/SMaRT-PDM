@@ -75,6 +75,46 @@ async function getMyDocuments(req, res) {
     }
 }
 
+async function getMyApplicationStatusSummary(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
+
+        const result = await applicationService.getMyApplicationStatusSummary(userId);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('APPLICATION STATUS SUMMARY ROUTE ERROR:', error);
+
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to load application status summary.',
+        });
+    }
+}
+
+async function downloadMyEndorsementSlipPdf(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
+
+        const pdf = await applicationService.downloadMyEndorsementSlipPdf(userId);
+        res.setHeader('Content-Type', pdf.contentType || 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${pdf.fileName}"`);
+        return res.status(200).send(pdf.buffer);
+    } catch (error) {
+        console.error('APPLICATION ENDORSEMENT SLIP PDF ROUTE ERROR:', error);
+
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to download endorsement slip PDF.',
+        });
+    }
+}
+
 async function uploadMyDocument(req, res) {
     try {
         const userId = getRequestUserId(req);
@@ -131,6 +171,8 @@ module.exports = {
     getMyFormData,
     saveMyFormData,
     getMyDocuments,
+    getMyApplicationStatusSummary,
+    downloadMyEndorsementSlipPdf,
     uploadMyDocument,
     submitMyApplicationForm,
 };

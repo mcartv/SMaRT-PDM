@@ -104,12 +104,6 @@ class _ScholarRenewalRequirementsScreenState
         break;
       case 'Renewal Documents':
         break;
-      case 'RO Assignment':
-        Navigator.pushNamed(context, AppRoutes.roAssignment);
-        break;
-      case 'RO Completion':
-        Navigator.pushNamed(context, AppRoutes.roCompletion);
-        break;
     }
   }
 

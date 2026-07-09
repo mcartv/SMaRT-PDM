@@ -6,7 +6,7 @@ const { mailFrom, transporter } = require('../config/mailer');
 const OTP_TABLE = 'password_reset_otps';
 const ACTIVITY_TABLE = 'password_reset_activity_log';
 const OTP_LENGTH = 6;
-const OTP_EXPIRY_MINUTES = 10;
+const OTP_EXPIRY_SECONDS = 60;
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_VERIFY_ATTEMPTS = 5;
 const MAX_REQUESTS_PER_HOUR = 3;
@@ -120,7 +120,7 @@ async function sendPasswordResetEmail(email, otp, displayName) {
               <h2>Password reset for ${displayName || 'your SMaRT-PDM account'}</h2>
               <p>Your 6-digit password reset code is:</p>
               <h1 style="letter-spacing: 5px; color: #7C4A2E;">${otp}</h1>
-              <p>Enter this code in the SMaRT-PDM app to reset your password. The code expires in ${OTP_EXPIRY_MINUTES} minutes.</p>
+              <p>Enter this code in the SMaRT-PDM app to reset your password. The code expires in ${OTP_EXPIRY_SECONDS} seconds.</p>
               <p>If you did not request this, you can safely ignore this email.</p>
             </div>
         `,
@@ -306,7 +306,7 @@ async function forgotPassword(body = {}, req = {}) {
 
     const resetOtpId = crypto.randomUUID();
     const otp = generateOtp();
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_SECONDS * 1000).toISOString();
     const resendAvailableAt = new Date(
         Date.now() + RESEND_COOLDOWN_SECONDS * 1000
     ).toISOString();

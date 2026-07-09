@@ -9,7 +9,7 @@ async function sendOTPEmail(userEmail, otpCode) {
         <h2>Welcome to SMaRT-PDM!</h2>
         <p>Your 6-digit verification code is:</p>
         <h1 style="letter-spacing: 5px; color: #7C4A2E;">${otpCode}</h1>
-        <p>Please enter this code in the app to verify your account. It will expire in 10 minutes.</p>
+        <p>Please enter this code in the app to verify your account. It will expire in 60 seconds.</p>
       </div>
     `
   };

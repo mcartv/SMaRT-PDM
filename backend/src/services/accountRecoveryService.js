@@ -6,7 +6,7 @@ const twilio = require('twilio');
 
 const RECOVERY_TABLE = 'account_recovery_sessions';
 const RECOVERY_CODE_LENGTH = 6;
-const RECOVERY_CODE_EXPIRY_MINUTES = 10;
+const RECOVERY_CODE_EXPIRY_SECONDS = 60;
 const RESEND_COOLDOWN_SECONDS = 30;
 const MAX_VERIFY_ATTEMPTS = 5;
 const RESET_TOKEN_EXPIRY = '10m';
@@ -403,7 +403,7 @@ function createAccountRecoveryService({
           <h2>Password recovery for ${displayName || 'your SMaRT-PDM account'}</h2>
           <p>Your 6-digit recovery code is:</p>
           <h1 style="letter-spacing: 5px; color: #7C4A2E;">${code}</h1>
-          <p>Enter this code in the SMaRT-PDM app to continue resetting your password. The code expires in ${RECOVERY_CODE_EXPIRY_MINUTES} minutes.</p>
+          <p>Enter this code in the SMaRT-PDM app to continue resetting your password. The code expires in ${RECOVERY_CODE_EXPIRY_SECONDS} seconds.</p>
         </div>
       `,
     };
@@ -418,7 +418,7 @@ function createAccountRecoveryService({
     }
 
     const message = await twilioClient.messages.create({
-      body: `Your SMaRT-PDM recovery code is ${code}. It expires in ${RECOVERY_CODE_EXPIRY_MINUTES} minutes.`,
+      body: `Your SMaRT-PDM recovery code is ${code}. It expires in ${RECOVERY_CODE_EXPIRY_SECONDS} seconds.`,
       from: process.env.TWILIO_FROM_PHONE,
       to: toE164(phoneNumber),
     });
@@ -462,7 +462,7 @@ function createAccountRecoveryService({
     const sessionId = crypto.randomUUID();
     const code = generateRecoveryCode();
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + RECOVERY_CODE_EXPIRY_MINUTES * 60 * 1000);
+    const expiresAt = new Date(now.getTime() + RECOVERY_CODE_EXPIRY_SECONDS * 1000);
     const resendAvailableAt = new Date(now.getTime() + RESEND_COOLDOWN_SECONDS * 1000);
     const destinationSnapshot = {
       email: isValidEmail(normalizedEmail) ? normalizedEmail : null,
@@ -615,7 +615,7 @@ function createAccountRecoveryService({
 
     const code = generateRecoveryCode();
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + RECOVERY_CODE_EXPIRY_MINUTES * 60 * 1000);
+    const expiresAt = new Date(now.getTime() + RECOVERY_CODE_EXPIRY_SECONDS * 1000);
     const resendAvailableAt = new Date(now.getTime() + RESEND_COOLDOWN_SECONDS * 1000);
 
     const { data: updatedSession, error: updateError } = await supabase

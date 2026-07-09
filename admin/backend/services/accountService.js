@@ -463,10 +463,40 @@ async function uploadCurrentStaffProfilePhoto(userId, file) {
     return getCurrentStaffProfile(userId);
 }
 
+async function removeCurrentStaffProfilePhoto(userId) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const photoEnabled = await hasAdminProfilePhotoColumn();
+    if (!photoEnabled) {
+        throw createHttpError(400, 'Profile photo removal is not enabled yet for staff accounts.');
+    }
+
+    const currentProfile = await getCurrentStaffProfile(userId);
+    const oldPath = extractAvatarStoragePath(currentProfile.profile_photo_url);
+
+    if (oldPath) {
+        await supabase.storage.from('avatars').remove([oldPath]).catch(() => null);
+    }
+
+    await db.query(
+        `
+        UPDATE admin_profiles
+        SET profile_photo_url = NULL
+        WHERE user_id = $1
+        `,
+        [userId]
+    );
+
+    return getCurrentStaffProfile(userId);
+}
+
 module.exports = {
     createStaffAccount,
     getCurrentStaffProfile,
     listStaffAccounts,
+    removeCurrentStaffProfilePhoto,
     updateCurrentStaffProfile,
     uploadCurrentStaffProfilePhoto,
 };

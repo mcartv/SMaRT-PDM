@@ -14,6 +14,7 @@ const upload = multer({
 router.get('/me', protect, accountController.getCurrentStaffProfile);
 router.patch('/me', protect, accountController.updateCurrentStaffProfile);
 router.patch('/me/profile-photo', protect, upload.single('file'), accountController.uploadCurrentStaffProfilePhoto);
+router.delete('/me/profile-photo', protect, accountController.removeCurrentStaffProfilePhoto);
 router.get('/staff', protect, authorizeRoles('admin'), accountController.getStaffAccounts);
 router.post('/staff', protect, authorizeRoles('admin'), accountController.createStaffAccount);
 

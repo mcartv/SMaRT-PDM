@@ -83,6 +83,7 @@ function useDepartmentAccountManager({
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const fileInputRef = useRef(null);
   const [account, setAccount] = useState({
     first_name: config.account.first_name,
@@ -308,6 +309,58 @@ function useDepartmentAccountManager({
     }
   };
 
+  const handleRemovePhoto = async () => {
+    try {
+      setRemovingPhoto(true);
+      setAccountFeedback('');
+
+      const token = sessionStorage.getItem(tokenStorageKey);
+      if (!token) {
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      const response = await fetch(buildApiUrl('/api/accounts/me/profile-photo'), {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.message || 'Failed to remove profile photo.');
+      }
+
+      const savedProfile = payload?.data || {};
+      setProfileData(savedProfile);
+      setPhotoFile(null);
+      if (photoPreview) {
+        window.URL.revokeObjectURL(photoPreview);
+      }
+      setPhotoPreview('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      sessionStorage.setItem(
+        profileStorageKey,
+        JSON.stringify({
+          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
+          ...savedProfile,
+          name: savedProfile.name || `${savedProfile.first_name || account.first_name} ${savedProfile.last_name || account.last_name}`.trim(),
+        })
+      );
+
+      setAccountFeedback(`${config.shortName} profile photo removed successfully.`);
+    } catch (err) {
+      console.error(`${config.shortName.toUpperCase()} PROFILE PHOTO REMOVE ERROR:`, err);
+      setAccountFeedback(err.message || `Failed to remove ${config.shortName} profile photo.`);
+    } finally {
+      setRemovingPhoto(false);
+    }
+  };
+
   const handleSaveAccount = async () => {
     try {
       setSavingAccount(true);
@@ -374,8 +427,10 @@ function useDepartmentAccountManager({
     feedbackIsError,
     initials,
     uploadingPhoto,
+    removingPhoto,
     fileInputRef,
     handlePhotoSelection,
+    handleRemovePhoto,
     handleUploadPhoto,
     handleSaveAccount,
     handleFieldChange,
@@ -487,11 +542,14 @@ function AccountPanel({
     accountFeedback,
     account,
     currentProfileImage,
+    displayName,
     feedbackIsError,
     initials,
     uploadingPhoto,
+    removingPhoto,
     fileInputRef,
     handlePhotoSelection,
+    handleRemovePhoto,
     handleUploadPhoto,
     handleSaveAccount,
     handleFieldChange,
@@ -559,7 +617,7 @@ function AccountPanel({
                 variant="outline"
                 className="h-9 rounded-lg border-stone-200 text-xs"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingPhoto}
+                disabled={uploadingPhoto || removingPhoto}
               >
                 <Camera className="mr-2 h-4 w-4" />
                 Choose Photo
@@ -569,10 +627,20 @@ function AccountPanel({
                 className="h-9 rounded-lg border-none text-xs text-white"
                 style={{ background: palette.base }}
                 onClick={handleUploadPhoto}
-                disabled={!photoFile || uploadingPhoto}
+                disabled={!photoFile || uploadingPhoto || removingPhoto}
               >
                 {uploadingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Upload Photo
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-lg border-stone-200 text-xs text-stone-700"
+                onClick={handleRemovePhoto}
+                disabled={!currentProfileImage || uploadingPhoto || removingPhoto}
+              >
+                {removingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2 h-4 w-4" />}
+                Remove Photo
               </Button>
             </div>
           </div>

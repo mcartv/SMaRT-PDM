@@ -11,9 +11,21 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -144,6 +156,81 @@ function getQueueDecisionTone(value) {
     return 'bg-red-50 text-red-700 border-red-200';
   }
   return 'bg-stone-100 text-stone-700 border-stone-200';
+}
+
+function shouldConfirmAction(action) {
+  return ['approve', 'reject', 'hold', 'disqualify_minor', 'disqualify_major'].includes(action);
+}
+
+function getConfirmationMeta(queueKey, row, action) {
+  const studentName = row?.student_name || 'this applicant';
+
+  if (queueKey === 'sdo') {
+    if (action === 'disqualify_minor') {
+      return {
+        tone: 'amber',
+        title: 'Confirm minor offense decision',
+        description: `Mark ${studentName} with a minor offense and forward the slip to Guidance for the next review stage?`,
+        confirmLabel: 'Confirm Minor Offense',
+      };
+    }
+
+    if (action === 'disqualify_major') {
+      return {
+        tone: 'red',
+        title: 'Confirm major offense decision',
+        description: `Mark ${studentName} with a major offense and stop the endorsement flow in SDO?`,
+        confirmLabel: 'Confirm Major Offense',
+      };
+    }
+  }
+
+  if (queueKey === 'guidance') {
+    if (action === 'hold') {
+      return {
+        tone: 'amber',
+        title: 'Confirm counseling hold',
+        description: `Place ${studentName} on hold for counseling and pause movement to Program Director?`,
+        confirmLabel: 'Confirm Hold',
+      };
+    }
+
+    if (action === 'reject') {
+      return {
+        tone: 'red',
+        title: 'Confirm guidance rejection',
+        description: `Reject ${studentName} in Guidance and stop the endorsement slip at this stage?`,
+        confirmLabel: 'Confirm Rejection',
+      };
+    }
+  }
+
+  if (queueKey === 'pd') {
+    if (action === 'approve') {
+      return {
+        tone: 'green',
+        title: 'Confirm PD approval',
+        description: `Approve ${studentName} in Program Director and complete the endorsement slip?`,
+        confirmLabel: 'Confirm Approval',
+      };
+    }
+
+    if (action === 'reject') {
+      return {
+        tone: 'red',
+        title: 'Confirm PD rejection',
+        description: `Reject ${studentName} in Program Director and stop final endorsement approval?`,
+        confirmLabel: 'Confirm Rejection',
+      };
+    }
+  }
+
+  return {
+    tone: 'amber',
+    title: 'Confirm action',
+    description: `Continue with this endorsement decision for ${studentName}?`,
+    confirmLabel: 'Confirm',
+  };
 }
 
 function QueueSummary({ queueKey, rows }) {
@@ -444,11 +531,12 @@ export default function EndorsementQueue({
   const [refreshing, setRefreshing] = useState(false);
   const [savingSlipId, setSavingSlipId] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [success, setSuccess] = useState(null);
   const [search, setSearch] = useState('');
   const [programFilter, setProgramFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
   const [actionState, setActionState] = useState({});
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const hasAccess = meta.allowedRoles.includes(profile.role);
 
@@ -490,6 +578,16 @@ export default function EndorsementQueue({
     [queueKey, hasAccess]
   );
 
+  useEffect(() => {
+    if (!success) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setSuccess(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [success]);
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
@@ -513,7 +611,7 @@ export default function EndorsementQueue({
     [rows]
   );
 
-  const handleSubmit = async (row, action) => {
+  const executeSubmit = async (row, action) => {
     const state = actionState[row.slip_id] || { remarks: '', sdoReason: 'clear' };
     const remarks =
       queueKey === 'sdo' && !state.remarks
@@ -538,7 +636,8 @@ export default function EndorsementQueue({
     try {
       setSavingSlipId(row.slip_id);
       setError('');
-      setSuccess('');
+      setSuccess(null);
+      setConfirmAction(null);
 
       const response = await fetch(buildApiUrl(meta.actionEndpoint(row.slip_id)), {
         method: 'POST',
@@ -580,7 +679,15 @@ export default function EndorsementQueue({
 
         const actionLabel = actionLabelMap[action] || 'saved successfully';
         setSuccess(
-          `${row.student_name} ${actionLabel}${nextStageLabel ? `. Status: ${nextStageLabel}.` : '.'}`
+          {
+            slipId: row.slip_id,
+            title: 'Decision saved successfully',
+            studentName: row.student_name,
+            actionLabel,
+            detail: nextStageLabel
+              ? `Status updated to ${nextStageLabel}.`
+              : 'The endorsement slip was updated successfully.',
+          }
         );
       }
 
@@ -591,6 +698,19 @@ export default function EndorsementQueue({
       setSavingSlipId('');
     }
   };
+
+  const handleSubmit = (row, action) => {
+    if (shouldConfirmAction(action)) {
+      setConfirmAction({ row, action });
+      return;
+    }
+
+    executeSubmit(row, action);
+  };
+
+  const confirmMeta = confirmAction
+    ? getConfirmationMeta(queueKey, confirmAction.row, confirmAction.action)
+    : null;
 
   if (!hasAccess) {
     return (
@@ -615,6 +735,78 @@ export default function EndorsementQueue({
 
   return (
     <div className="space-y-5 py-2">
+      <AlertDialog
+        open={Boolean(confirmAction)}
+        onOpenChange={(open) => {
+          if (!open && !savingSlipId) {
+            setConfirmAction(null);
+          }
+        }}
+      >
+        {confirmAction && confirmMeta ? (
+          <AlertDialogContent size="default" className="rounded-3xl border-stone-200 bg-white p-0">
+            <AlertDialogHeader className="px-6 pt-6">
+              <AlertDialogMedia
+                className={`${
+                  confirmMeta.tone === 'red'
+                    ? 'bg-red-50 text-red-700'
+                    : confirmMeta.tone === 'green'
+                      ? 'bg-green-50 text-green-700'
+                      : 'bg-amber-50 text-amber-700'
+                }`}
+              >
+                {confirmMeta.tone === 'red' ? (
+                  <AlertTriangle className="h-5 w-5" />
+                ) : confirmMeta.tone === 'green' ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <Hourglass className="h-5 w-5" />
+                )}
+              </AlertDialogMedia>
+              <AlertDialogTitle>{confirmMeta.title}</AlertDialogTitle>
+              <AlertDialogDescription>{confirmMeta.description}</AlertDialogDescription>
+              <div className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Applicant</p>
+                <p className="mt-1 text-sm font-semibold text-stone-900">
+                  {confirmAction.row.student_name}
+                </p>
+                <p className="mt-1 text-xs text-stone-500">
+                  {confirmAction.row.pdm_id || 'No PDM ID'} {confirmAction.row.slip_code ? `• ${confirmAction.row.slip_code}` : ''}
+                </p>
+              </div>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={Boolean(savingSlipId)}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={Boolean(savingSlipId)}
+                className={`${
+                  confirmMeta.tone === 'red'
+                    ? 'bg-red-700 text-white hover:bg-red-800'
+                    : confirmMeta.tone === 'green'
+                      ? 'bg-green-700 text-white hover:bg-green-800'
+                      : 'bg-amber-600 text-white hover:bg-amber-700'
+                }`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  executeSubmit(confirmAction.row, confirmAction.action);
+                }}
+              >
+                {savingSlipId === confirmAction.row.slip_id ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  confirmMeta.confirmLabel
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        ) : null}
+      </AlertDialog>
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-stone-900">{meta.title}</h1>
@@ -669,8 +861,40 @@ export default function EndorsementQueue({
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
           {success ? (
-            <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800">
-              {success}
+            <div className="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-4 text-green-900 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-2xl bg-green-100 p-2 text-green-700">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">{success.title}</p>
+                    <p className="mt-1 text-sm text-green-800">
+                      {success.studentName} {success.actionLabel}.
+                    </p>
+                    <p className="mt-1 text-xs text-green-700">{success.detail}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-green-200 bg-white text-green-800 hover:bg-green-50"
+                    onClick={() => navigate(`${detailBasePath}/${success.slipId}`)}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    View Slip
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setSuccess(null)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-green-200 bg-white text-green-700 transition hover:bg-green-50"
+                    title="Dismiss success message"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
         </CardHeader>

@@ -160,6 +160,17 @@ function GeneralPanel({
     loadProfile();
   }, [loadProfile]);
 
+  useEffect(() => {
+    if (!saved && !accountFeedback) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setSaved(false);
+      setAccountFeedback('');
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [accountFeedback, saved]);
+
   const handleSaveGeneral = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -260,6 +271,12 @@ function GeneralPanel({
           {saved ? 'Saved' : 'Save Changes'}
         </Button>
       </div>
+
+      {saved ? (
+        <div className="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 text-sm text-green-900 shadow-sm">
+          General configuration changes were saved for {config.shortName}.
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <GroupCard title="Institution Info" icon={Globe}>

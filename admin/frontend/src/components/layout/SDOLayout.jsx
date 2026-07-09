@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
 import {
   BarChart3,
   LayoutDashboard,
@@ -47,6 +47,7 @@ const navItems = [
 
 export default function SDOLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const notifRef = useRef(null);
 
   const [collapsed, setCollapsed] = useState(false);
@@ -138,6 +139,21 @@ export default function SDOLayout() {
     openNotification(notif, navigate);
   };
 
+  const handleNavRefresh = (event, path) => {
+    if (location.pathname !== path) return;
+
+    event.preventDefault();
+    navigate(path, {
+      replace: true,
+      state: {
+        ...(location.state || {}),
+        refreshAt: Date.now(),
+      },
+    });
+  };
+
+  const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: MAIN_BG }}>
       {/* Sidebar */}
@@ -169,6 +185,7 @@ export default function SDOLayout() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={(event) => handleNavRefresh(event, item.path)}
               className={({ isActive }) =>
                 `flex items-center ${
                   collapsed ? 'justify-center' : 'gap-3'
@@ -327,7 +344,7 @@ export default function SDOLayout() {
 
         {/* Viewport */}
         <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: MAIN_BG }}>
-          <div className="max-w-7xl mx-auto">
+          <div key={outletKey} className="max-w-7xl mx-auto">
             <Outlet />
           </div>
         </main>

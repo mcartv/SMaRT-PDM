@@ -109,13 +109,13 @@ function deriveSlipCode(slipId) {
     return base ? `ES-${base}` : 'ES-PENDING';
 }
 
-async function getSignedFileUrl(filePath, fileName = null) {
+async function getSignedFileUrl(filePath) {
     if (!filePath) return null;
 
     const { data, error } = await supabase.storage
         .from(STORAGE_BUCKET)
         .createSignedUrl(filePath, 60 * 60, {
-            download: fileName || false,
+            download: false,
         });
 
     if (error) {
@@ -405,8 +405,7 @@ function mapQueueRow(row) {
 
 async function mapQueueRowWithSignedGrade(row) {
     const signedGradeUrl = await getSignedFileUrl(
-        row.grade_document_path,
-        row.grade_document_name || null
+        row.grade_document_path
     );
 
     return mapQueueRow({
@@ -605,7 +604,7 @@ async function fetchSlipDetail(slipId, actor = null) {
         documentRows.rows.map(async (document) => ({
             ...document,
             file_url:
-                (await getSignedFileUrl(document.file_path, document.file_name || null)) ||
+                (await getSignedFileUrl(document.file_path)) ||
                 document.file_url ||
                 null,
         }))

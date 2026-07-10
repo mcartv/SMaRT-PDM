@@ -1099,12 +1099,59 @@ class _EndorsementSlipCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: slip.available
+                    ? const Color(0xFFE8F1FF)
+                    : const Color(0xFFF6F6F4),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: slip.available
+                      ? const Color(0xFFB8D4FF)
+                      : const Color(0xFFE7E5E4),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Endorsement Slip PDF',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    slip.available
+                        ? 'Your printable slip is ready to download.'
+                        : 'This becomes downloadable after all endorsement offices finish the slip.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: slip.available && !isDownloadingSlip
                     ? onDownloadSlip
                     : null,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  backgroundColor: const Color(0xFF0F766E),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFFE7E5E4),
+                  disabledForegroundColor: const Color(0xFF78716C),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
                 icon: isDownloadingSlip
                     ? const SizedBox(
                         width: 18,
@@ -1116,8 +1163,8 @@ class _EndorsementSlipCard extends StatelessWidget {
                   isDownloadingSlip
                       ? 'Downloading Endorsement Slip...'
                       : slip.available
-                          ? 'Download Endorsement Slip PDF'
-                          : 'PDF will be available after completion',
+                          ? 'Download My Endorsement Slip'
+                          : 'PDF Available After Completion',
                 ),
               ),
             ),

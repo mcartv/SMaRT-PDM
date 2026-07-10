@@ -4,9 +4,12 @@ import {
   AlertTriangle,
   AlertOctagon,
   CheckCircle2,
+  Download,
   Eye,
+  ExternalLink,
   FileText,
   Hourglass,
+  Image as ImageIcon,
   Loader2,
   RefreshCw,
   Search,
@@ -123,6 +126,15 @@ function formatDate(value) {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function getDocumentPreviewType(row = {}) {
+  const source = row.grade_document?.file_name || row.grade_document?.url || '';
+  const lower = source.toLowerCase();
+
+  if (lower.endsWith('.pdf')) return 'pdf';
+  if (/\.(png|jpg|jpeg|webp|gif)$/i.test(lower)) return 'image';
+  return 'file';
 }
 
 function getQueueDecisionValue(queueKey, row) {
@@ -711,6 +723,10 @@ export default function EndorsementQueue({
   const confirmMeta = confirmAction
     ? getConfirmationMeta(queueKey, confirmAction.row, confirmAction.action)
     : null;
+  const openExternalFile = (url) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   if (!hasAccess) {
     return (
@@ -907,9 +923,9 @@ export default function EndorsementQueue({
             filteredRows.map((row) => (
               <div
                 key={row.slip_id}
-                className="rounded-[22px] border border-stone-200 bg-white p-4 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
+                className="rounded-[24px] border border-stone-200 bg-white p-5 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
               >
-                <div className="grid gap-4 xl:grid-cols-[1.15fr_0.9fr_1fr]">
+                <div className="grid gap-4 xl:grid-cols-[1.1fr_0.95fr_1fr]">
                   <div className="space-y-3">
                   <div className="flex flex-col gap-3 border-b border-stone-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -953,6 +969,9 @@ export default function EndorsementQueue({
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Quick Grade Status</p>
                       <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
                       <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
+                      {row.grade_document?.file_name ? (
+                        <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
+                      ) : null}
                       {!row.grade_document?.url ? (
                         <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
                           PD approval is blocked until the applicant uploads the grade document.
@@ -996,15 +1015,110 @@ export default function EndorsementQueue({
                     </p>
                     {queueKey === 'pd' ? (
                       row.grade_document?.url ? (
-                        <a
-                          href={row.grade_document.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-                        >
-                          <FileText className="h-4 w-4" />
-                          {row.grade_document.file_name || 'Open grade file'}
-                        </a>
+                        <div className="mt-3 space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              className="border-none bg-stone-900 text-white hover:bg-stone-800"
+                              onClick={() => openExternalFile(row.grade_document.url)}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              Preview Grade
+                            </Button>
+                            <a
+                              href={row.grade_document.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              download={row.grade_document.file_name || 'grade-document'}
+                              className="inline-flex"
+                            >
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
+                                title="Download grade file"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </a>
+                            <a
+                              href={row.grade_document.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex"
+                            >
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
+                                title="Open in new tab"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          </div>
+
+                          <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                            <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2">
+                              <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-stone-700">
+                                {getDocumentPreviewType(row) === 'image' ? (
+                                  <ImageIcon className="h-4 w-4 shrink-0 text-stone-500" />
+                                ) : (
+                                  <FileText className="h-4 w-4 shrink-0 text-stone-500" />
+                                )}
+                                <span className="truncate">
+                                  {row.grade_document.file_name || 'Grade document'}
+                                </span>
+                              </div>
+                              <span className="text-[11px] uppercase tracking-wide text-stone-400">
+                                {getDocumentPreviewType(row) === 'pdf'
+                                  ? 'PDF Preview'
+                                  : getDocumentPreviewType(row) === 'image'
+                                    ? 'Image Preview'
+                                    : 'File'}
+                              </span>
+                            </div>
+
+                            {getDocumentPreviewType(row) === 'image' ? (
+                              <div className="flex h-[300px] items-center justify-center bg-stone-50 p-3">
+                                <img
+                                  src={row.grade_document.url}
+                                  alt={row.grade_document.file_name || 'Grade document'}
+                                  className="max-h-full max-w-full rounded-xl object-contain"
+                                />
+                              </div>
+                            ) : getDocumentPreviewType(row) === 'pdf' ? (
+                              <object
+                                data={row.grade_document.url}
+                                type="application/pdf"
+                                className="h-[300px] w-full bg-white"
+                              >
+                                <iframe
+                                  src={row.grade_document.url}
+                                  title={row.grade_document.file_name || 'Grade document'}
+                                  className="h-[300px] w-full bg-white"
+                                />
+                              </object>
+                            ) : (
+                              <div className="flex h-[220px] flex-col items-center justify-center gap-3 bg-stone-50 px-4 text-center">
+                                <FileText className="h-8 w-8 text-stone-400" />
+                                <p className="text-sm text-stone-600">
+                                  This file type cannot be previewed here.
+                                </p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-stone-200 bg-white"
+                                  onClick={() => openExternalFile(row.grade_document.url)}
+                                >
+                                  Open File
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       ) : (
                         <p className="mt-3 text-sm text-red-600">No uploaded grade document</p>
                       )
@@ -1016,11 +1130,11 @@ export default function EndorsementQueue({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="mt-3 w-full border-stone-200 bg-white"
+                      className="mt-3 w-full border-blue-200 bg-blue-50 font-medium text-blue-800 hover:bg-blue-100"
                       onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
                     >
                       <Eye className="mr-2 h-4 w-4" />
-                      Open Full Slip
+                      View Full Slip
                     </Button>
                   </div>
                   </div>

@@ -1259,6 +1259,31 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             ['clear', 'reject'].includes(action);
         const isCurrentQueueStage = currentSlip.current_stage === config.stage;
 
+        if (queueKey === 'pd' && action === 'approve') {
+            const gradeDocumentResult = await client.query(
+                `
+                select ad.document_id
+                from application_documents ad
+                where ad.application_id = $1
+                  and lower(coalesce(ad.document_type, '')) = 'grade report'
+                  and coalesce(ad.is_submitted, false) = true
+                  and (
+                    nullif(trim(coalesce(ad.file_path, '')), '') is not null
+                    or nullif(trim(coalesce(ad.file_url, '')), '') is not null
+                  )
+                limit 1
+                `,
+                [currentSlip.application_id]
+            );
+
+            if (!gradeDocumentResult.rows.length) {
+                throw createHttpError(
+                    409,
+                    'Program Director cannot approve this endorsement slip until the applicant uploads the grade document.'
+                );
+            }
+        }
+
         if (!isCurrentQueueStage && !isHeldGuidanceResolution) {
             throw createHttpError(409, 'This endorsement slip is no longer pending in your queue.');
         }

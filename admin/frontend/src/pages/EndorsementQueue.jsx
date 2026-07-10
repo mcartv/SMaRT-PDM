@@ -953,6 +953,11 @@ export default function EndorsementQueue({
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Quick Grade Status</p>
                       <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
                       <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
+                      {!row.grade_document?.url ? (
+                        <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                          PD approval is blocked until the applicant uploads the grade document.
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                   {queueKey !== 'sdo' ? (
@@ -1005,7 +1010,7 @@ export default function EndorsementQueue({
                       )
                     ) : (
                       <p className="mt-3 text-sm text-stone-600">
-                        SDO and Guidance can continue without a grade upload. Only PD needs to review it.
+                        SDO and Guidance can continue first, but the applicant must upload the grade document before PD can approve the slip.
                       </p>
                     )}
                     <Button

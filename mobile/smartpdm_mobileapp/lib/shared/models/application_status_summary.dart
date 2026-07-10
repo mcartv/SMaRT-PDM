@@ -199,6 +199,7 @@ class OfficeReviewSummary {
     this.office,
     this.decision,
     this.actedAt,
+    this.actedByName,
     this.remarks,
     this.offenseDetail = const {},
   });
@@ -206,6 +207,7 @@ class OfficeReviewSummary {
   final String? office;
   final String? decision;
   final DateTime? actedAt;
+  final String? actedByName;
   final String? remarks;
   final Map<String, dynamic> offenseDetail;
 
@@ -214,6 +216,7 @@ class OfficeReviewSummary {
       office: _nullableString(json['office']),
       decision: _nullableString(json['decision']),
       actedAt: DateTime.tryParse(json['acted_at']?.toString() ?? ''),
+      actedByName: _nullableString(json['acted_by_name']),
       remarks: _nullableString(json['remarks']),
       offenseDetail: _asMap(json['offense_detail']),
     );

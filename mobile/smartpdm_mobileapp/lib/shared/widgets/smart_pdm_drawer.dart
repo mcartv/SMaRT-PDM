@@ -60,6 +60,13 @@ class SmartPdmDrawer extends StatelessWidget {
               onTap: () => _openRoute(context, AppRoutes.status),
             ),
             _DrawerMenuItem(
+              icon: Icons.verified_user_outlined,
+              title: 'Endorsement',
+              subtitle: 'Track your office endorsement slip',
+              isDark: isDark,
+              onTap: () => _openRoute(context, AppRoutes.endorsement),
+            ),
+            _DrawerMenuItem(
               icon: Icons.help_outline,
               title: 'FAQs',
               subtitle: 'Get answers to common questions',

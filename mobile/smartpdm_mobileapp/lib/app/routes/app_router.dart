@@ -17,6 +17,7 @@ import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_pass
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/reset_password_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/splash_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/faqs_screen.dart';
+import 'package:smartpdm_mobileapp/features/forms/presentation/screens/endorsement_screen.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/status_tracking_screen.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/success_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/messaging_screen.dart';
@@ -86,6 +87,7 @@ class AppRouter {
         return _buildProtectedRoute(
           settings,
           (context) => ApplicantAccessGate(
+            routeName: AppRoutes.newApplicant,
             child: _buildNewApplicantScreen(context, settings),
           ),
         );
@@ -94,6 +96,7 @@ class AppRouter {
         return _buildProtectedRoute(
           settings,
           (context) => ApplicantAccessGate(
+            routeName: AppRoutes.application,
             child: _buildNewApplicantScreen(context, settings),
           ),
         );
@@ -102,6 +105,7 @@ class AppRouter {
         return _buildProtectedRoute(
           settings,
           (context) => ApplicantAccessGate(
+            routeName: AppRoutes.documents,
             child: _buildApplicantDocumentsScreen(context, settings),
           ),
         );
@@ -115,7 +119,19 @@ class AppRouter {
       case AppRoutes.status:
         return _buildProtectedRoute(
           settings,
-          (_) => const ApplicantAccessGate(child: StatusTrackingScreen()),
+          (_) => const ApplicantAccessGate(
+            routeName: AppRoutes.status,
+            child: StatusTrackingScreen(),
+          ),
+        );
+
+      case AppRoutes.endorsement:
+        return _buildProtectedRoute(
+          settings,
+          (_) => const ApplicantAccessGate(
+            routeName: AppRoutes.endorsement,
+            child: EndorsementScreen(),
+          ),
         );
 
       case AppRoutes.announcements:
@@ -151,13 +167,19 @@ class AppRouter {
       case AppRoutes.success:
         return _buildProtectedRoute(
           settings,
-          (_) => const ApplicantAccessGate(child: SuccessScreen()),
+          (_) => const ApplicantAccessGate(
+            routeName: AppRoutes.success,
+            child: SuccessScreen(),
+          ),
         );
 
       case AppRoutes.scholarshipOpenings:
         return _buildProtectedRoute(
           settings,
-          (_) => const ApplicantAccessGate(child: ScholarshipOpeningsScreen()),
+          (_) => const ApplicantAccessGate(
+            routeName: AppRoutes.scholarshipOpenings,
+            child: ScholarshipOpeningsScreen(),
+          ),
         );
 
       default:

@@ -43,7 +43,7 @@ function createTransporter() {
     });
 }
 
-async function sendAdminResetOtp({ to, otp, expiresMinutes }) {
+async function sendAdminResetOtp({ to, otp, expiresSeconds }) {
     const config = getMailConfig();
     const transporter = createTransporter();
 
@@ -51,7 +51,7 @@ async function sendAdminResetOtp({ to, otp, expiresMinutes }) {
         from: `SMaRT-PDM OSFA <${config.from}>`,
         to,
         subject: 'SMaRT-PDM Admin Password Reset Code',
-        text: `Your SMaRT-PDM admin password reset code is ${otp}. It expires in ${expiresMinutes} minutes. If you did not request this, ignore this email.`,
+        text: `Your SMaRT-PDM admin password reset code is ${otp}. It expires in ${expiresSeconds} seconds. If you did not request this, ignore this email.`,
         html: `
         <div style="font-family: Arial, sans-serif; color: #292524; line-height: 1.6;">
             <h2 style="color: #7c4a2e; margin-bottom: 8px;">SMaRT-PDM Admin Recovery</h2>
@@ -59,7 +59,7 @@ async function sendAdminResetOtp({ to, otp, expiresMinutes }) {
             <div style="font-size: 28px; font-weight: 700; letter-spacing: 8px; color: #7c4a2e; margin: 16px 0;">
                 ${otp}
             </div>
-            <p>This code expires in <strong>${expiresMinutes} minutes</strong>.</p>
+            <p>This code expires in <strong>${expiresSeconds} seconds</strong>.</p>
             <p style="font-size: 12px; color: #78716c;">If you did not request this, ignore this email.</p>
         </div>
     `,

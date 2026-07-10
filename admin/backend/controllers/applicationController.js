@@ -237,15 +237,6 @@ exports.saveApplicationVerification = async (req, res) => {
             source: 'verification',
         });
 
-        if (data?.activation?.activated) {
-            socketEvents.applicationApproved(io, {
-                application_id: id,
-                status: data.activation.outcome || 'approved',
-                updated_at: new Date().toISOString(),
-                source: 'verification',
-            });
-        }
-
         res.status(200).json({
             message: 'Verification saved successfully',
             data,
@@ -253,7 +244,7 @@ exports.saveApplicationVerification = async (req, res) => {
     } catch (err) {
         console.error('SAVE APPLICATION VERIFICATION CONTROLLER ERROR:', err.message);
 
-        const statusCode = isApprovalStateError(err.message) ? 400 : 500;
+        const statusCode = err.statusCode || (isApprovalStateError(err.message) ? 400 : 500);
 
         res.status(statusCode).json({
             error: err.message || 'Failed to save verification',
@@ -366,14 +357,10 @@ exports.approveApplication = async (req, res) => {
     } catch (err) {
         console.error('APPROVE APPLICATION CONTROLLER ERROR:', err.message);
 
-        if (isApprovalStateError(err.message)) {
-            return res.status(400).json({
-                message: err.message,
-            });
-        }
+        const statusCode = err.statusCode || (isApprovalStateError(err.message) ? 400 : 500);
 
-        res.status(500).json({
-            message: 'Failed to approve application',
+        res.status(statusCode).json({
+            message: statusCode >= 500 ? 'Failed to approve application' : err.message,
             error: err.message,
         });
     }

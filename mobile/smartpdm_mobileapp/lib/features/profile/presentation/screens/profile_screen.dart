@@ -708,12 +708,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => Navigator.pushNamed(context, AppRoutes.payouts),
           ),
           _profileRowCard(
-            icon: Icons.assignment_turned_in_rounded,
-            title: 'RO Assignment',
-            subtitle: 'Check your assigned RO tasks',
-            onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
-          ),
-          _profileRowCard(
             icon: Icons.upload_file_rounded,
             title: 'Submit RO Completion',
             subtitle: 'Upload proof and completion details',

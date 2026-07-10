@@ -111,6 +111,15 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
     final subtitle = _isExisting
         ? 'Enter your Student ID to continue to your account, whether you are an applicant or scholar.'
         : 'Enter your Student ID so we can check your registry record before registration.';
+    final titleStyle = Theme.of(context).textTheme.displayLarge?.copyWith(
+      fontWeight: FontWeight.bold,
+      fontSize: 31,
+    );
+    final bodyStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: Colors.grey.shade700,
+      fontSize: 16,
+      height: 1.35,
+    );
 
     return Scaffold(
       body: Container(
@@ -125,9 +134,9 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+                constraints: const BoxConstraints(maxWidth: 520),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
@@ -158,36 +167,45 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                       const SizedBox(height: 4),
                       Image.asset(
                         'assets/images/school_logo.png',
-                        height: 120,
+                        height: 132,
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 18),
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.darkBrown,
-                        ),
+                        style: titleStyle?.copyWith(color: AppColors.darkBrown),
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
                         subtitle,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade700,
-                          height: 1.4,
-                        ),
+                        style: bodyStyle,
                         textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
                       TextField(
                         controller: _controller,
                         textCapitalization: TextCapitalization.characters,
+                        style: const TextStyle(fontSize: 17),
                         decoration: InputDecoration(
                           labelText: 'Student ID',
                           hintText: 'PDM-2024-000001',
                           prefixIcon: const Icon(Icons.badge_outlined),
                           errorText: _error,
+                          labelStyle: const TextStyle(
+                            color: AppColors.brown,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          floatingLabelStyle: const TextStyle(
+                            color: AppColors.darkBrown,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          focusedBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: AppColors.darkBrown,
+                              width: 2,
+                            ),
+                          ),
                         ),
                         onChanged: (_) {
                           if (_error != null) {
@@ -195,7 +213,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                           }
                         },
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 22),
                       SizedBox(
                         width: double.infinity,
                         child: _loading
@@ -221,9 +239,8 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                       const SizedBox(height: 14),
                       Text(
                         'Use your official Student ID to continue.',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(color: Colors.grey.shade600),
                         textAlign: TextAlign.center,
                       ),
                     ],

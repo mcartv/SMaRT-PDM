@@ -75,25 +75,11 @@ class SmartPdmDrawer extends StatelessWidget {
               onTap: () => _openRoute(context, AppRoutes.payouts),
             ),
             _DrawerMenuItem(
-              icon: Icons.assignment_turned_in,
-              title: 'RO Assignment',
-              subtitle: 'Check assigned return obligations',
-              isDark: isDark,
-              onTap: () => _openRoute(context, AppRoutes.roAssignment),
-            ),
-            _DrawerMenuItem(
               icon: Icons.done_all,
               title: 'Submit RO Completion',
               subtitle: 'Upload proof and track progress',
               isDark: isDark,
               onTap: () => _openRoute(context, AppRoutes.roCompletion),
-            ),
-            _DrawerMenuItem(
-              icon: Icons.support_agent,
-              title: 'Support Ticket',
-              subtitle: 'Report scholarship concerns',
-              isDark: isDark,
-              onTap: () => _openRoute(context, AppRoutes.tickets),
             ),
           ],
           Padding(

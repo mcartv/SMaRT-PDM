@@ -86,23 +86,9 @@ exports.postPdAction = async (req, res) => {
             source: 'endorsement',
         });
 
-        if (result.activation?.activated) {
-            socketEvents.applicationApproved(io, {
-                application_id: result.slip.application_id,
-                status: result.activation.outcome || 'approved',
-                updated_at: new Date().toISOString(),
-                source: 'endorsement',
-            });
-        }
-
         (result.notifications || []).forEach((notification) => {
             socketEvents.notificationCreated(io, notification.target_user_id, notification);
         });
-
-        const activationNotification = result.activation?.notification?.notification;
-        if (activationNotification?.user_id) {
-            socketEvents.notificationCreated(io, activationNotification.user_id, activationNotification);
-        }
 
         res.status(200).json(result);
     } catch (error) {

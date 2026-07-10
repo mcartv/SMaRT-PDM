@@ -62,4 +62,10 @@ class ApplicationService {
 
     return ApplicationStatusSummary.fromJson(response);
   }
+
+  Future<ApiDownload> downloadMyEndorsementSlip() {
+    return _apiClient.downloadBytes(
+      '/api/applications/me/endorsement-slip/pdf',
+    );
+  }
 }

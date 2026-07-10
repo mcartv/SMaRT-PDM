@@ -399,13 +399,6 @@ class _DashboardContentState extends State<DashboardContent> {
               isLoading: false,
             ),
             _QuickAction(
-              icon: Icons.assignment_turned_in_rounded,
-              title: 'RO',
-              subtitle: 'Submit progress',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
-              isLoading: false,
-            ),
-            _QuickAction(
               icon: Icons.school_rounded,
               title: 'Downloads',
               subtitle: 'View notices',
@@ -459,18 +452,6 @@ class _DashboardContentState extends State<DashboardContent> {
   List<_MenuAction> _toolActions() {
     return _hasScholarAccess
         ? [
-            _MenuAction(
-              icon: Icons.assignment_rounded,
-              title: 'View RO Assignment',
-              subtitle: 'Check assigned tasks and required hours',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
-            ),
-            _MenuAction(
-              icon: Icons.done_all_rounded,
-              title: 'Submit RO Completion',
-              subtitle: 'Upload proof and track progress',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.roCompletion),
-            ),
             _MenuAction(
               icon: Icons.upload_file_rounded,
               title: 'Renewal Documents',
@@ -686,7 +667,6 @@ class _DashboardContentState extends State<DashboardContent> {
   Widget _buildFilterChips() {
     final chips = [
       (label: 'All', section: _DashboardSection.all),
-      (label: 'Openings', section: _DashboardSection.openings),
       (label: 'Updates', section: _DashboardSection.updates),
       (label: 'Requirements', section: _DashboardSection.requirements),
     ];
@@ -823,7 +803,7 @@ class _DashboardContentState extends State<DashboardContent> {
             width: double.infinity,
             child: FilledButton(
               onPressed: () => _hasScholarAccess
-                  ? Navigator.pushNamed(context, AppRoutes.roAssignment)
+                  ? Navigator.pushNamed(context, AppRoutes.payouts)
                   : Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,

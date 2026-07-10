@@ -1737,17 +1737,24 @@ export default function DocumentVerification() {
       const finalOutcome = data?.data?.final_outcome;
       const readiness = data?.data?.readiness || {};
 
-      alert(
+      const successMessage =
         finalOutcome === 'approved'
-          ? 'Requirements review saved successfully. The student is now scholar-ready and has been approved.'
+          ? 'Requirements review saved successfully.'
           : finalVerificationStatus === 'verified'
             ? readiness?.endorsement_complete
-              ? 'Requirements review saved successfully. Scholar activation is waiting for the backend refresh.'
+              ? 'Requirements review saved successfully. The application is ready for explicit admin scholar activation.'
               : 'Requirements review saved successfully. Endorsement slip completion is still required before scholar activation.'
-            : 'Requirements review completed. Application marked as rejected and ready for archiving.'
-      );
+            : 'Requirements review completed. Application marked as rejected and ready for archiving.';
 
-      navigate('/admin/applications');
+      navigate('/admin/applications', {
+        state: {
+          verificationFeedback: {
+            tone: 'success',
+            title: 'Verification saved',
+            message: successMessage,
+          },
+        },
+      });
     } catch (err) {
       console.error('COMPLETE VERIFICATION ERROR:', err);
       alert(err.message || 'Failed to complete verification');

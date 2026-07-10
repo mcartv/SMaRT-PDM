@@ -417,7 +417,6 @@ By creating an account, you acknowledge that your information may be stored, rev
                           style: TextStyle(
                             color: Colors.orange,
                             fontWeight: FontWeight.w600,
-                            decoration: TextDecoration.underline,
                           ),
                         ),
                       ),
@@ -438,7 +437,6 @@ By creating an account, you acknowledge that your information may be stored, rev
                           style: TextStyle(
                             color: Colors.orange,
                             fontWeight: FontWeight.w600,
-                            decoration: TextDecoration.underline,
                           ),
                         ),
                       ),
@@ -450,16 +448,6 @@ By creating an account, you acknowledge that your information may be stored, rev
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This agreement is required before creating your account.',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: _acceptedPolicies
-                          ? Colors.green.shade700
-                          : Colors.red.shade400,
-                      height: 1.4,
-                    ),
                   ),
                 ],
               ),
@@ -488,6 +476,15 @@ By creating an account, you acknowledge that your information may be stored, rev
   @override
   Widget build(BuildContext context) {
     final hasRegistryRecord = _studentData != null;
+    final titleStyle = Theme.of(context).textTheme.displayLarge?.copyWith(
+      fontWeight: FontWeight.bold,
+      fontSize: 31,
+    );
+    final bodyStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: Colors.grey.shade700,
+      fontSize: 16,
+      height: 1.35,
+    );
 
     return Scaffold(
       body: Container(
@@ -502,9 +499,9 @@ By creating an account, you acknowledge that your information may be stored, rev
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+                constraints: const BoxConstraints(maxWidth: 520),
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -525,41 +522,53 @@ By creating an account, you acknowledge that your information may be stored, rev
                       children: [
                         Image.asset(
                           'assets/images/school_logo.png',
-                          height: 120,
+                          height: 132,
                           fit: BoxFit.contain,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         Text(
                           'Create an Account',
-                          style: Theme.of(context).textTheme.displayLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.darkBrown,
-                              ),
+                          style: titleStyle?.copyWith(
+                            color: AppColors.darkBrown,
+                          ),
                           textAlign: TextAlign.center,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Text(
                           'Sign up to apply for and manage your SMaRT-PDM scholarships.',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: Colors.grey.shade700),
+                          style: bodyStyle,
                           textAlign: TextAlign.center,
                         ),
                         if (hasRegistryRecord) ...[
                           const SizedBox(height: 20),
                           _buildRegistrySummary(),
                         ],
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 24),
                         TextFormField(
                           controller: _identifierController,
                           readOnly: _isStudentIdReadOnly,
                           textCapitalization: TextCapitalization.characters,
+                          style: const TextStyle(fontSize: 17),
                           decoration: InputDecoration(
                             labelText: 'Student ID',
                             prefixIcon: const Icon(Icons.school_outlined),
                             suffixIcon: _isStudentIdReadOnly
                                 ? const Icon(Icons.lock_outline)
                                 : null,
+                            labelStyle: const TextStyle(
+                              color: AppColors.brown,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            floatingLabelStyle: const TextStyle(
+                              color: AppColors.darkBrown,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            focusedBorder: const UnderlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AppColors.darkBrown,
+                                width: 2,
+                              ),
+                            ),
                           ),
                           validator: _validateStudentId,
                         ),
@@ -567,6 +576,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
+                          style: const TextStyle(fontSize: 17),
                           decoration: const InputDecoration(
                             labelText: 'Email Address',
                             prefixIcon: Icon(Icons.email_outlined),
@@ -592,6 +602,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
+                          style: const TextStyle(fontSize: 17),
                           decoration: InputDecoration(
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
@@ -615,6 +626,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                         TextFormField(
                           controller: _confirmPasswordController,
                           obscureText: _obscureConfirmPassword,
+                          style: const TextStyle(fontSize: 17),
                           decoration: InputDecoration(
                             labelText: 'Confirm Password',
                             prefixIcon: const Icon(Icons.lock_outline),

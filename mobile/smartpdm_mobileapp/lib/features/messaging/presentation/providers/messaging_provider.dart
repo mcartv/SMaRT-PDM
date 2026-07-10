@@ -5,15 +5,59 @@ import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 
+typedef MessagingSocketHandler = void Function(dynamic data);
+
+abstract class MessagingSocket {
+  bool get connected;
+  void connect();
+  void disconnect();
+  void dispose();
+  void onConnect(void Function(dynamic) handler);
+  void on(String event, MessagingSocketHandler handler);
+}
+
+class _IoMessagingSocket implements MessagingSocket {
+  _IoMessagingSocket(this._socket);
+
+  final io.Socket _socket;
+
+  @override
+  bool get connected => _socket.connected;
+
+  @override
+  void connect() => _socket.connect();
+
+  @override
+  void disconnect() => _socket.disconnect();
+
+  @override
+  void dispose() => _socket.dispose();
+
+  @override
+  void onConnect(void Function(dynamic) handler) {
+    _socket.onConnect(handler);
+  }
+
+  @override
+  void on(String event, MessagingSocketHandler handler) {
+    _socket.on(event, handler);
+  }
+}
+
+typedef MessagingSocketFactory = MessagingSocket Function(String token);
+
 class MessagingProvider extends ChangeNotifier {
   MessagingProvider({
     MessageService? messageService,
     SessionService? sessionService,
+    MessagingSocketFactory? socketFactory,
   }) : _messageService = messageService ?? MessageService(),
-       _sessionService = sessionService ?? const SessionService();
+       _sessionService = sessionService ?? const SessionService(),
+       _socketFactory = socketFactory ?? _defaultSocketFactory;
 
   final MessageService _messageService;
   final SessionService _sessionService;
+  final MessagingSocketFactory _socketFactory;
 
   List<ChatMessage> _messages = [];
   int _unreadCount = 0;
@@ -26,7 +70,7 @@ class MessagingProvider extends ChangeNotifier {
   String _counterpartyId = '';
   String? _activeGroupId;
   List<ChatRoom> _rooms = [];
-  io.Socket? _socket;
+  MessagingSocket? _socket;
 
   List<ChatMessage> get messages => _messages;
   int get unreadCount => _unreadCount;
@@ -214,11 +258,7 @@ class MessagingProvider extends ChangeNotifier {
       return;
     }
 
-    _socket = io.io(AppConfig.apiBaseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-      'auth': {'token': token},
-    });
+    _socket = _socketFactory(token);
 
     _socket!.connect();
 
@@ -283,7 +323,9 @@ class MessagingProvider extends ChangeNotifier {
         return;
       }
 
-      final messageIds = ((payload['messageIds'] as List<dynamic>?) ?? const [])
+      final messageIds = ((payload['messageIds'] as List<dynamic>?) ??
+              (payload['message_ids'] as List<dynamic>?) ??
+              const [])
           .map((item) => item.toString())
           .where((item) => item.isNotEmpty)
           .toList();
@@ -407,5 +449,15 @@ class MessagingProvider extends ChangeNotifier {
     _socket?.disconnect();
     _socket?.dispose();
     super.dispose();
+  }
+
+  static MessagingSocket _defaultSocketFactory(String token) {
+    final socket = io.io(AppConfig.apiBaseUrl, <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
+      'auth': {'token': token},
+    });
+
+    return _IoMessagingSocket(socket);
   }
 }

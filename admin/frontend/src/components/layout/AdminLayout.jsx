@@ -52,7 +52,6 @@ const navItems = [
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/profile-photos', icon: Image, label: 'Profile Photos' },
-  { path: '/admin/support-tickets', icon: LifeBuoy, label: 'Support Tickets' },
   { path: '/admin/maintenance', icon: Settings, label: 'Maintenance' },
 ];
 
@@ -128,6 +127,21 @@ export default function AdminLayout() {
     navigate('/admin/adminprofile');
   };
 
+  const handleNavRefresh = (event, path) => {
+    if (location.pathname !== path) return;
+
+    event.preventDefault();
+    navigate(path, {
+      replace: true,
+      state: {
+        ...(location.state || {}),
+        refreshAt: Date.now(),
+      },
+    });
+  };
+
+  const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
+
   const isWidePage =
     /^\/admin\/applications\/[^/]+\/documents$/.test(location.pathname) ||
     /^\/admin\/openings\/[^/]+\/applications$/.test(location.pathname) ||
@@ -177,6 +191,7 @@ export default function AdminLayout() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={(event) => handleNavRefresh(event, item.path)}
               end={
                 item.path === '/admin/applications' ||
                 item.path === '/admin/openings'
@@ -334,6 +349,7 @@ export default function AdminLayout() {
 
         <main className="min-h-0 flex-1 overflow-y-auto bg-[#faf7f2] p-5 md:p-6">
           <div
+            key={outletKey}
             className={`${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}
           >
             <Outlet />

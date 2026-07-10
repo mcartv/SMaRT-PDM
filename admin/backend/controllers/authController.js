@@ -4,33 +4,52 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { resolveStaffRole } = require('../utils/staffRoles');
 const { sendAdminResetOtp } = require('../utils/mailer');
+const { resolveAvatarUrl } = require('../services/avatarService');
 
 const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
 
-const RESET_OTP_TTL_MINUTES = Number(process.env.RESET_OTP_TTL_MINUTES || 10);
+const RESET_OTP_TTL_SECONDS = Number(process.env.RESET_OTP_TTL_SECONDS || 60);
 const RESET_RESEND_SECONDS = Number(process.env.RESET_RESEND_SECONDS || 60);
 const MAX_RESET_ATTEMPTS = Number(process.env.MAX_RESET_ATTEMPTS || 5);
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS || 12);
 
-const ADMIN_USER_QUERY = `
-    SELECT
-        u.user_id,
-        u.email,
-        u.username,
-        u.role AS user_role,
-        u.password_hash,
-        u.phone_number,
-        a.admin_id,
-        a.first_name,
-        a.last_name,
-        a.department,
-        a.position
-    FROM users u
-    LEFT JOIN admin_profiles a ON u.user_id = a.user_id
-    WHERE LOWER(u.email) = LOWER($1)
-      AND (a.user_id IS NULL OR a.is_archived = false)
-    LIMIT 1
-`;
+async function hasAdminProfilePhotoColumn() {
+    const result = await db.query(
+        `
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'admin_profiles'
+          AND column_name = 'profile_photo_url'
+        LIMIT 1
+        `
+    );
+
+    return result.rows.length > 0;
+}
+
+function buildAdminUserQuery(photoEnabled = false) {
+    return `
+        SELECT
+            u.user_id,
+            u.email,
+            u.username,
+            u.role AS user_role,
+            u.password_hash,
+            u.phone_number,
+            a.admin_id,
+            a.first_name,
+            a.last_name,
+            a.department,
+            a.position,
+            ${photoEnabled ? 'a.profile_photo_url' : 'NULL::text AS profile_photo_url'}
+        FROM users u
+        LEFT JOIN admin_profiles a ON u.user_id = a.user_id
+        WHERE LOWER(u.email) = LOWER($1)
+          AND (a.user_id IS NULL OR a.is_archived = false)
+        LIMIT 1
+    `;
+}
 
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
@@ -93,8 +112,9 @@ function validatePasswordPolicy(password) {
 
 async function findStaffByEmail(email) {
     const normalizedEmail = normalizeEmail(email);
+    const photoEnabled = await hasAdminProfilePhotoColumn();
 
-    const result = await db.query(ADMIN_USER_QUERY, [normalizedEmail]);
+    const result = await db.query(buildAdminUserQuery(photoEnabled), [normalizedEmail]);
 
     return result.rows[0] || null;
 }
@@ -189,6 +209,7 @@ async function loginWithRole(req, res, role) {
         const token = buildToken(user, tokenRole);
 
         const portalTitle = departmentPortalLabels[role];
+        const avatarUrl = await resolveAvatarUrl(user.profile_photo_url || null);
 
         return res.status(200).json({
             token,
@@ -210,6 +231,8 @@ async function loginWithRole(req, res, role) {
                         ? 'Student Disciplinary Office'
                         : null),
                 role: tokenRole,
+                profile_photo_url: user.profile_photo_url || null,
+                avatar_url: avatarUrl,
             },
         });
     } catch (err) {
@@ -294,12 +317,12 @@ exports.startAdminPasswordReset = async (req, res) => {
             VALUES (
                 $1,
                 $2,
-                now() + ($3 || ' minutes')::interval,
+                now() + ($3 || ' seconds')::interval,
                 now() + ($4 || ' seconds')::interval
             )
             RETURNING reset_otp_id
             `,
-            [user.user_id, otpHash, RESET_OTP_TTL_MINUTES, RESET_RESEND_SECONDS]
+            [user.user_id, otpHash, RESET_OTP_TTL_SECONDS, RESET_RESEND_SECONDS]
         );
 
         const resetOtpId = insertResult.rows[0]?.reset_otp_id;
@@ -312,7 +335,7 @@ exports.startAdminPasswordReset = async (req, res) => {
             await sendAdminResetOtp({
                 to: resetEmailRecipient,
                 otp,
-                expiresMinutes: RESET_OTP_TTL_MINUTES,
+                expiresSeconds: RESET_OTP_TTL_SECONDS,
             });
         } catch (mailErr) {
             if (resetOtpId) {

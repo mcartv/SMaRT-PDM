@@ -67,12 +67,6 @@ class _RenewalRequirementsScreenState extends State<RenewalRequirementsScreen> {
         break;
       case 'Renewal Documents':
         break;
-      case 'RO Assignment':
-        Navigator.pushNamed(context, AppRoutes.roAssignment);
-        break;
-      case 'RO Completion':
-        Navigator.pushNamed(context, AppRoutes.roCompletion);
-        break;
     }
   }
 

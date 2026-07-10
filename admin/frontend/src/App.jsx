@@ -24,7 +24,6 @@ import AnnouncementsManagement from './pages/AnnouncementsManagement';
 import AdminProfile from './pages/AdminProfile';
 import Maintenance from './pages/maintenance/Maintenance';
 import AdminMessages from './pages/AdminMessages';
-import SupportTickets from './pages/SupportTickets';
 import ProfilePhotoQueue from './pages/ProfilePhotoQueue';
 import EndorsementSlipDetail from './pages/EndorsementSlipDetail';
 import EndorsementVerification from './pages/EndorsementVerification';
@@ -32,6 +31,8 @@ import PDLogin from './pages/PDLogin';
 import GuidanceLogin from './pages/GuidanceLogin';
 import PDDashboard from './pages/PDDashboard';
 import GuidanceDashboard from './pages/GuidanceDashboard';
+import PDProfile from './pages/PDProfile';
+import GuidanceProfile from './pages/GuidanceProfile';
 import PDMaintenance from './pages/PDMaintenance';
 import GuidanceMaintenance from './pages/GuidanceMaintenance';
 import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
@@ -126,7 +127,6 @@ export default function App() {
           <Route path="reports" element={<ReportGeneration />} />
           <Route path="messages" element={<AdminMessages />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
-          <Route path="support-tickets" element={<SupportTickets />} />
           <Route path="profile-photos" element={<ProfilePhotoQueue />} />
           <Route path="profile-photos/:reviewId" element={<ProfilePhotoQueue />} />
           <Route path="adminprofile" element={<AdminProfile />} />
@@ -180,6 +180,7 @@ export default function App() {
               />
             }
           />
+          <Route path="profile" element={<PDProfile />} />
           <Route path="maintenance" element={<PDMaintenance />} />
         </Route>
 
@@ -230,6 +231,7 @@ export default function App() {
               />
             }
           />
+          <Route path="profile" element={<GuidanceProfile />} />
           <Route path="maintenance" element={<GuidanceMaintenance />} />
         </Route>
 

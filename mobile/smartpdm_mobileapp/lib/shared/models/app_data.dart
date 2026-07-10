@@ -60,6 +60,9 @@ class ApplicationData {
   String siblingFirstName = '';
   String siblingMiddleName = '';
   String siblingMobile = '';
+  String siblingEducationalAttainment = '';
+  String siblingOccupation = '';
+  String siblingCompanyNameAndAddress = '';
 
   String guardianLastName = '';
   String guardianFirstName = '';

@@ -8,7 +8,6 @@ class ScholarAccessService {
 
   static final Set<String> scholarOnlyRoutes = {
     AppRoutes.payouts,
-    AppRoutes.roAssignment,
     AppRoutes.roCompletion,
     AppRoutes.renewalDocuments,
   };

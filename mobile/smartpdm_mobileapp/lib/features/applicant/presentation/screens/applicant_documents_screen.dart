@@ -1,4 +1,6 @@
 import 'package:file_picker/file_picker.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -32,6 +34,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   final ApplicantDocumentsService _service = ApplicantDocumentsService();
   NotificationProvider? _notificationProvider;
   int _lastApplicationRevision = 0;
+  Timer? _pollingTimer;
 
   ApplicantDocumentsPackage? _package;
   bool _isLoading = true;
@@ -54,6 +57,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   void initState() {
     super.initState();
     _loadPackage();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) {
+        _loadPackage();
+      }
+    });
   }
 
   @override
@@ -118,6 +126,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeUpdates);
     super.dispose();
   }

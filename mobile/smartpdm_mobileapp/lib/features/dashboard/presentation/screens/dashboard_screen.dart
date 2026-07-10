@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -125,6 +127,7 @@ class _DashboardContentState extends State<DashboardContent> {
   NotificationProvider? _notificationProvider;
   int _lastScholarAccessRevision = 0;
   int _lastApplicationRevision = 0;
+  Timer? _pollingTimer;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
@@ -152,6 +155,10 @@ class _DashboardContentState extends State<DashboardContent> {
   void initState() {
     super.initState();
     _loadDashboardData();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted) return;
+      _loadDashboardData();
+    });
   }
 
   @override
@@ -1548,6 +1555,7 @@ class _DashboardContentState extends State<DashboardContent> {
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _notificationProvider?.removeListener(_handleRealtimeUpdates);
     _searchController.dispose();
     super.dispose();

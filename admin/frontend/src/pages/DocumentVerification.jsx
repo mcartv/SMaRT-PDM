@@ -1477,6 +1477,14 @@ export default function DocumentVerification() {
     fetchApplicationDocuments();
   }, [fetchApplicationDocuments]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      fetchApplicationDocuments({ soft: true });
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [fetchApplicationDocuments]);
+
   useEffect(() => () => stopPolling(), [stopPolling]);
 
   const docs = useMemo(() => {

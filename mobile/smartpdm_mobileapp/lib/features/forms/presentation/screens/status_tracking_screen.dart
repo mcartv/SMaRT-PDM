@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -28,11 +29,17 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
   NotificationProvider? _notificationProvider;
   int _lastScholarAccessRevision = 0;
   int _lastApplicationRevision = 0;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _loadStatus();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) {
+        _loadStatus();
+      }
+    });
   }
 
   @override
@@ -177,6 +184,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _notificationProvider?.removeListener(_handleNotificationProviderChange);
     super.dispose();
   }

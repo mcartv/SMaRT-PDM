@@ -1007,6 +1007,14 @@ export default function ApplicationReview() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadData({ soft: true });
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
   useSocketEvent('application:updated', () => loadData({ soft: true }), []);
   useSocketEvent('application:approved', () => loadData({ soft: true }), []);
   useSocketEvent('application:rejected', () => loadData({ soft: true }), []);

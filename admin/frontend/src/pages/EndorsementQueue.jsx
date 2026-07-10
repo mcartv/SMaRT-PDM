@@ -685,6 +685,16 @@ export default function EndorsementQueue({
     loadQueue();
   }, [queueKey]);
 
+  useEffect(() => {
+    if (!hasAccess) return undefined;
+
+    const timer = window.setInterval(() => {
+      loadQueue({ soft: true });
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [queueKey, hasAccess]);
+
   useSocketEvent(
     'endorsement:updated',
     () => {

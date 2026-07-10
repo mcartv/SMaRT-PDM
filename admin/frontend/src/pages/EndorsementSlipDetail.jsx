@@ -168,6 +168,14 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
     loadDetail();
   }, [loadDetail]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      loadDetail({ soft: true });
+    }, 8000);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadDetail]);
+
   useSocketEvent(
     'endorsement:updated',
     (payload) => {

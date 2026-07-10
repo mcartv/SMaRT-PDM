@@ -89,6 +89,14 @@ export default function AllEndorsementsTracker({
     loadRows();
   }, [tokenStorageKey]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      loadRows({ soft: true });
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [tokenStorageKey]);
+
   useSocketEvent(
     'endorsement:updated',
     () => {

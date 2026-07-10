@@ -724,12 +724,12 @@ export default function SDOScholarList() {
         </CardHeader>
 
         <CardContent className="p-0">
-          <Table>
+          <div className="overflow-x-auto">
+          <Table className="min-w-[1120px]">
             <TableHeader className="bg-stone-50/80">
               <TableRow className="border-stone-100 hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-stone-500 py-3 px-5">Scholar</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Student ID</TableHead>
-                <TableHead className="text-xs font-medium text-stone-500 py-3">Batch</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Program</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Section</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 w-[160px]">Probation Status</TableHead>
@@ -741,7 +741,7 @@ export default function SDOScholarList() {
             <TableBody>
               {pageData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-sm text-stone-400">
+                  <TableCell colSpan={7} className="text-center py-12 text-sm text-stone-400">
                     No scholars match the current filters.
                   </TableCell>
                 </TableRow>
@@ -767,10 +767,6 @@ export default function SDOScholarList() {
 
                       <TableCell className="py-3.5 align-top text-sm text-stone-600">
                         {scholar.student_number || '—'}
-                      </TableCell>
-
-                      <TableCell className="py-3.5 align-top text-sm text-stone-600">
-                        {scholar.batch_year || '—'}
                       </TableCell>
 
                       <TableCell className="py-3.5 align-top text-sm text-stone-600">
@@ -851,6 +847,7 @@ export default function SDOScholarList() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

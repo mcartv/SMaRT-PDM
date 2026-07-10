@@ -362,6 +362,11 @@ class NotificationProvider extends ChangeNotifier {
       notifyListeners();
     });
 
+    _socket!.on('endorsement:updated', (_) {
+      _applicationRevision += 1;
+      notifyListeners();
+    });
+
     _socket!.on('application:approved', (_) async {
       _applicationRevision += 1;
       await _refreshScholarAccessFromProfile();

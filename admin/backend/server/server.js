@@ -44,7 +44,9 @@ const {
 } = require('../services/schedulerService');
 
 const announcementService = require('../services/announcementService');
+const { configureRealtimeBridge } = require('../services/realtimeBridgeService');
 const socketEvents = require('../utils/socketEvents');
+const supabase = require('../config/supabase');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -280,6 +282,11 @@ const io = socketIO(server, {
 });
 
 app.set('io', io);
+
+configureRealtimeBridge({
+  io,
+  supabase,
+});
 
 io.on('connection', (socket) => {
   console.log(`[Socket] User connected: ${socket.id}`);

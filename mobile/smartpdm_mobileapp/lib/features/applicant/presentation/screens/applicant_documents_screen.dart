@@ -269,7 +269,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
       return 'All required documents have been uploaded and are ready for review.';
     }
 
-    return 'Upload the four required documents below. Make sure every file is clear and readable.';
+    return 'Upload the four required documents below, including your current grades PDF. Make sure every file is clear and readable.';
   }
 
   String _formatTimestamp(DateTime? value) {
@@ -372,6 +372,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                 ...documents.map((document) {
                   final statusColor = _statusColor(document.status);
                   final isUploading = _uploadingDocuments[document.id] == true;
+                  final isGradeReport = document.documentType
+                      .trim()
+                      .toLowerCase()
+                      .contains('grade');
 
                   return _DocumentCard(
                     document: document,
@@ -381,6 +385,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
                     statusLabel: _statusLabel(document),
                     uploadedText: _formatTimestamp(document.uploadedAt),
                     isUploading: isUploading,
+                    isGradeReport: isGradeReport,
                     onUpload: () => _pickAndUploadDocument(document),
                     onOpen: document.isSubmitted
                         ? () => _openFile(document)
@@ -621,6 +626,7 @@ class _DocumentCard extends StatelessWidget {
     required this.statusLabel,
     required this.uploadedText,
     required this.isUploading,
+    required this.isGradeReport,
     required this.onUpload,
     required this.onOpen,
   });
@@ -632,6 +638,7 @@ class _DocumentCard extends StatelessWidget {
   final String statusLabel;
   final String uploadedText;
   final bool isUploading;
+  final bool isGradeReport;
   final VoidCallback onUpload;
   final VoidCallback? onOpen;
 
@@ -645,7 +652,12 @@ class _DocumentCard extends StatelessWidget {
             ? const Color(0xFF2D1E12)
             : Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: statusColor.withOpacity(0.18)),
+        border: Border.all(
+          color: isGradeReport
+              ? const Color(0xFFC76917).withOpacity(0.45)
+              : statusColor.withOpacity(0.18),
+          width: isGradeReport ? 1.6 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.035),
@@ -657,6 +669,32 @@ class _DocumentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isGradeReport) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC76917).withOpacity(0.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      size: 18, color: Color(0xFFC76917)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Required before Program Director approval',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF8F4E10),
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Row(
             children: [
               CircleAvatar(
@@ -685,6 +723,17 @@ class _DocumentCard extends StatelessWidget {
             'Uploaded: $uploadedText',
             style: TextStyle(color: subtitleColor, height: 1.35),
           ),
+          if (isGradeReport) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Upload your latest grades as a clear PDF file so the Program Director can complete endorsement approval.',
+              style: TextStyle(
+                color: subtitleColor,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           if ((document.adminComment ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(

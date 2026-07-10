@@ -149,6 +149,37 @@ function buildApplicationPayload(row = {}) {
   };
 }
 
+function buildApplicationDocumentPayload(row = {}) {
+  return {
+    document_id: row.document_id?.toString() || '',
+    application_id: row.application_id?.toString() || '',
+    document_type: row.document_type?.toString() || '',
+    review_status: row.review_status?.toString() || row.status?.toString() || '',
+    is_submitted: row.is_submitted === true,
+    updated_at:
+      row.updated_at?.toString() ||
+      row.reviewed_at?.toString() ||
+      row.uploaded_at?.toString() ||
+      row.created_at?.toString() ||
+      new Date().toISOString(),
+  };
+}
+
+function buildEndorsementPayload(row = {}) {
+  return {
+    slip_id: row.slip_id?.toString() || '',
+    application_id: row.application_id?.toString() || '',
+    student_id: row.student_id?.toString() || '',
+    current_stage: row.current_stage?.toString() || '',
+    overall_status: row.overall_status?.toString() || '',
+    updated_at:
+      row.updated_at?.toString() ||
+      row.completed_at?.toString() ||
+      row.created_at?.toString() ||
+      new Date().toISOString(),
+  };
+}
+
 function buildRenewalPayload(row = {}) {
   return {
     renewal_id: row.renewal_id?.toString() || '',
@@ -425,6 +456,56 @@ function handleApplicationChange(io, payload) {
   }
 }
 
+function handleApplicationDocumentChange(io, payload) {
+  const eventType = payload.eventType;
+  const nextRow = payload.new || {};
+  const previousRow = payload.old || {};
+  const document = buildApplicationDocumentPayload(
+    nextRow.document_id ? nextRow : previousRow
+  );
+
+  if (!document.application_id) {
+    return;
+  }
+
+  emitPublic(io, 'application:updated', {
+    application_id: document.application_id,
+    updated_at: document.updated_at,
+    source: 'application_document',
+    document_type: document.document_type,
+    review_status: document.review_status,
+    is_submitted: document.is_submitted,
+    event_type: eventType,
+  });
+}
+
+function handleEndorsementSlipChange(io, payload) {
+  const eventType = payload.eventType;
+  const nextRow = payload.new || {};
+  const previousRow = payload.old || {};
+  const endorsement = buildEndorsementPayload(
+    nextRow.slip_id ? nextRow : previousRow
+  );
+
+  if (!endorsement.application_id) {
+    return;
+  }
+
+  emitPublic(io, 'endorsement:updated', {
+    ...endorsement,
+    event_type: eventType,
+  });
+
+  emitPublic(io, 'application:updated', {
+    application_id: endorsement.application_id,
+    updated_at: endorsement.updated_at,
+    source: 'endorsement',
+    current_stage: endorsement.current_stage,
+    overall_status: endorsement.overall_status,
+    event_type: eventType,
+  });
+}
+
 function handleRenewalChange(io, payload) {
   const eventType = payload.eventType;
   const nextRow = payload.new || {};
@@ -569,6 +650,20 @@ function configureRealtimeBridge({ io, supabase }) {
       { event: '*', schema: 'public', table: 'applications' },
       (payload) => {
         handleApplicationChange(io, payload);
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'application_documents' },
+      (payload) => {
+        handleApplicationDocumentChange(io, payload);
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'endorsement_slips' },
+      (payload) => {
+        handleEndorsementSlipChange(io, payload);
       }
     )
     .on(

@@ -26,6 +26,7 @@ class ScholarAccessService {
     if (route == AppRoutes.scholarshipOpenings) return false;
     if (route == AppRoutes.documents) return false;
     if (route == AppRoutes.status) return false;
+    if (route == AppRoutes.endorsement) return false;
 
     return scholarOnlyRoutes.contains(route);
   }

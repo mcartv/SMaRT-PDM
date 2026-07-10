@@ -59,6 +59,8 @@ const BLOCKER_MESSAGES = Object.freeze({
         'One or more requirements need to be re-uploaded before review can continue.',
     'requirements.missing':
         'Upload all required scholarship documents to continue review.',
+    'endorsement.grade_document_missing':
+        'Upload your current grades PDF before the Program Director can approve your endorsement slip.',
     'requirements.under_review':
         'Your submitted requirements are still under OSFA review.',
     pending_sdo: 'Your endorsement slip is waiting for SDO review.',
@@ -1393,12 +1395,15 @@ async function fetchApplicationStatusRows(applicationId) {
         current_stage,
         overall_status,
         pd_status,
+        pd_acted_by_user_id,
         pd_acted_at,
         pd_remarks,
         guidance_status,
+        guidance_acted_by_user_id,
         guidance_acted_at,
         guidance_remarks,
         sdo_status,
+        sdo_acted_by_user_id,
         sdo_acted_at,
         sdo_remarks,
         sdo_offense_type,
@@ -1425,6 +1430,41 @@ async function fetchApplicationStatusRows(applicationId) {
         documents: documentsResult.data || [],
         reviews: reviewsResult.error ? [] : reviewsResult.data || [],
         slip: slipResult.error ? null : slipResult.data || null,
+    };
+}
+
+async function enrichSlipActorNames(slip) {
+    if (!slip) return null;
+
+    const actorUserIds = [
+        slip.sdo_acted_by_user_id,
+        slip.guidance_acted_by_user_id,
+        slip.pd_acted_by_user_id,
+    ].filter(Boolean);
+
+    if (!actorUserIds.length) {
+        return slip;
+    }
+
+    const { data, error } = await supabase
+        .from('admin_profiles')
+        .select('user_id, first_name, last_name')
+        .in('user_id', [...new Set(actorUserIds)]);
+
+    if (error) throw error;
+
+    const nameMap = new Map(
+        (data || []).map((row) => [
+            row.user_id,
+            [row.first_name, row.last_name].filter(Boolean).join(' ').trim(),
+        ])
+    );
+
+    return {
+        ...slip,
+        sdo_acted_by_name: nameMap.get(slip.sdo_acted_by_user_id) || null,
+        guidance_acted_by_name: nameMap.get(slip.guidance_acted_by_user_id) || null,
+        pd_acted_by_name: nameMap.get(slip.pd_acted_by_user_id) || null,
     };
 }
 
@@ -1578,6 +1618,7 @@ function buildOfficeReview({
     office,
     decision,
     actedAt,
+    actedByName,
     remarks,
     offenseDetail = null,
 }) {
@@ -1585,6 +1626,7 @@ function buildOfficeReview({
         office,
         decision: decision || null,
         acted_at: actedAt || null,
+        acted_by_name: safeText(actedByName) || null,
         remarks: safeText(remarks) || null,
         offense_detail: offenseDetail,
     };
@@ -1671,6 +1713,7 @@ function buildEndorsementStatus(slip = null) {
                 office: 'SDO',
                 decision: slip.sdo_status,
                 actedAt: slip.sdo_acted_at,
+                actedByName: slip.sdo_acted_by_name,
                 remarks: slip.sdo_remarks,
                 offenseDetail: {
                     offense_type: slip.sdo_offense_type || null,
@@ -1682,12 +1725,14 @@ function buildEndorsementStatus(slip = null) {
                 office: 'Guidance',
                 decision: slip.guidance_status,
                 actedAt: slip.guidance_acted_at,
+                actedByName: slip.guidance_acted_by_name,
                 remarks: slip.guidance_remarks,
             }),
             pd: buildOfficeReview({
                 office: 'Program Director',
                 decision: slip.pd_status,
                 actedAt: slip.pd_acted_at,
+                actedByName: slip.pd_acted_by_name,
                 remarks: slip.pd_remarks,
             }),
         },
@@ -1707,6 +1752,7 @@ function buildWorkflowSummary({
     application,
     requirements,
     endorsement,
+    documents = [],
 }) {
     const applicationStatus = normalizeWorkflowKey(application.application_status);
     const explicitActivationSucceeded =
@@ -1722,6 +1768,14 @@ function buildWorkflowSummary({
         !activated &&
         requirements.status === 'verified' &&
         endorsement.status === 'completed';
+    const gradeDocumentUploaded = (documents || []).some((document) => {
+        const type = safeText(document?.document_type).toLowerCase();
+        return (
+            type === 'grade report' &&
+            document?.is_submitted === true &&
+            (safeText(document?.file_path) || safeText(document?.file_url))
+        );
+    });
     const candidates = [];
 
     if (requirements.status === 'rejected') {
@@ -1735,6 +1789,17 @@ function buildWorkflowSummary({
     }
     if (endorsement.status === 'held') {
         candidates.push(buildWorkflowBlocker('endorsement.held', 'endorsement'));
+    }
+    if (
+        endorsement.current_office === 'Program Director' &&
+        !gradeDocumentUploaded
+    ) {
+        candidates.push(
+            buildWorkflowBlocker(
+                'endorsement.grade_document_missing',
+                'endorsement'
+            )
+        );
     }
     if (requirements.status === 'reupload_required') {
         candidates.push(buildWorkflowBlocker('requirements.reupload_required', 'requirements'));
@@ -1818,10 +1883,11 @@ async function getMyApplicationStatusSummary(userId) {
         };
     }
 
-    const [{ documents, reviews, slip }, context] = await Promise.all([
+    const [{ documents, reviews, slip: rawSlip }, context] = await Promise.all([
         fetchApplicationStatusRows(application.application_id),
         fetchApplicationProgramContext(application),
     ]);
+    const slip = await enrichSlipActorNames(rawSlip);
     const requirements = buildRequirementsStatus(application, documents, reviews);
     const endorsement = buildEndorsementStatus(slip);
     const workflow = buildWorkflowSummary({
@@ -1829,6 +1895,7 @@ async function getMyApplicationStatusSummary(userId) {
         application,
         requirements,
         endorsement,
+        documents,
     });
 
     return {
@@ -1869,9 +1936,10 @@ async function downloadMyEndorsementSlipPdf(userId) {
         throw createHttpError(404, 'Application not found.');
     }
 
-    const { documents, reviews, slip } = await fetchApplicationStatusRows(
+    const { documents, reviews, slip: rawSlip } = await fetchApplicationStatusRows(
         application.application_id
     );
+    const slip = await enrichSlipActorNames(rawSlip);
     const requirements = buildRequirementsStatus(application, documents, reviews);
     const endorsement = buildEndorsementStatus(slip);
 

@@ -7,9 +7,11 @@ import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
+import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
+import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/app_settings_sheet.dart';
@@ -103,6 +105,7 @@ class _DashboardContentState extends State<DashboardContent> {
   final ApplicantDocumentsService _documentsService =
       ApplicantDocumentsService();
   final ProgramOpeningService _openingService = ProgramOpeningService();
+  final ApplicationService _applicationService = ApplicationService();
 
   String _studentId = 'Student';
   String _userName = 'Scholar';
@@ -114,8 +117,14 @@ class _DashboardContentState extends State<DashboardContent> {
   bool _isLoadingRequirements = true;
   List<ProgramOpening> _latestOpenings = [];
   ApplicantDocumentsPackage? _requirementsPackage;
+  ApplicationStatusSummary? _statusSummary;
   bool _needsBaseApplication = false;
   String? _requirementsError;
+  bool _isLoadingStatus = true;
+  String? _statusError;
+  NotificationProvider? _notificationProvider;
+  int _lastScholarAccessRevision = 0;
+  int _lastApplicationRevision = 0;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
@@ -145,12 +154,46 @@ class _DashboardContentState extends State<DashboardContent> {
     _loadDashboardData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<NotificationProvider>();
+    if (_notificationProvider == provider) {
+      return;
+    }
+
+    _notificationProvider?.removeListener(_handleRealtimeUpdates);
+    _notificationProvider = provider;
+    _lastScholarAccessRevision = provider.scholarAccessRevision;
+    _lastApplicationRevision = provider.applicationRevision;
+    _notificationProvider?.addListener(_handleRealtimeUpdates);
+  }
+
+  void _handleRealtimeUpdates() {
+    final provider = _notificationProvider;
+    if (provider == null) return;
+
+    if (provider.scholarAccessRevision == _lastScholarAccessRevision &&
+        provider.applicationRevision == _lastApplicationRevision) {
+      return;
+    }
+
+    _lastScholarAccessRevision = provider.scholarAccessRevision;
+    _lastApplicationRevision = provider.applicationRevision;
+
+    if (mounted) {
+      _loadDashboardData();
+    }
+  }
+
   Future<void> _loadDashboardData() async {
     if (mounted) {
       setState(() {
         _isLoadingOpenings = true;
         _isLoadingRequirements = true;
+        _isLoadingStatus = true;
         _requirementsError = null;
+        _statusError = null;
         _needsBaseApplication = false;
       });
     }
@@ -159,6 +202,7 @@ class _DashboardContentState extends State<DashboardContent> {
       _loadUserData(),
       _loadLatestOpenings(),
       _loadRequirements(),
+      _loadApplicantStatus(),
     ]);
   }
 
@@ -237,6 +281,28 @@ class _DashboardContentState extends State<DashboardContent> {
             .replaceFirst('Exception: ', '')
             .trim();
         _isLoadingRequirements = false;
+      });
+    }
+  }
+
+  Future<void> _loadApplicantStatus() async {
+    try {
+      final summary = await _applicationService.fetchMyApplicationStatusSummary();
+
+      if (!mounted) return;
+
+      setState(() {
+        _statusSummary = summary;
+        _statusError = null;
+        _isLoadingStatus = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _statusSummary = null;
+        _statusError = error.toString().replaceFirst('Exception: ', '').trim();
+        _isLoadingStatus = false;
       });
     }
   }
@@ -438,6 +504,14 @@ class _DashboardContentState extends State<DashboardContent> {
               onTap: () => Navigator.pushNamed(context, AppRoutes.status),
               isLoading: false,
             ),
+            _QuickAction(
+              icon: Icons.verified_user_outlined,
+              title: 'Endorsement',
+              subtitle: 'Office review',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.endorsement),
+              isLoading: false,
+            ),
           ];
   }
 
@@ -480,6 +554,13 @@ class _DashboardContentState extends State<DashboardContent> {
               title: 'Upload Scholarship Requirements',
               subtitle: 'Submit documents for your application',
               onTap: () => Navigator.pushNamed(context, AppRoutes.documents),
+            ),
+            _MenuAction(
+              icon: Icons.verified_user_outlined,
+              title: 'Track Endorsement',
+              subtitle: 'Follow SDO, Guidance, and PD review',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.endorsement),
             ),
             _MenuAction(
               icon: Icons.help_outline_rounded,
@@ -551,6 +632,192 @@ class _DashboardContentState extends State<DashboardContent> {
     }
 
     return tags.take(4).toList();
+  }
+
+  Color _flowStatusColor(String status) {
+    final normalized = status.toLowerCase();
+
+    if (normalized.contains('rejected') ||
+        normalized.contains('major') ||
+        normalized.contains('offense')) {
+      return const Color(0xFFD14343);
+    }
+    if (normalized.contains('held') ||
+        normalized.contains('missing') ||
+        normalized.contains('reupload')) {
+      return const Color(0xFFC76917);
+    }
+    if (normalized.contains('verified') ||
+        normalized.contains('completed') ||
+        normalized.contains('activated') ||
+        normalized.contains('approved')) {
+      return const Color(0xFF2E8B57);
+    }
+    if (normalized.contains('ready')) {
+      return const Color(0xFF3366CC);
+    }
+
+    return AppColors.gold;
+  }
+
+  IconData _flowStatusIcon(String status) {
+    final normalized = status.toLowerCase();
+
+    if (normalized.contains('rejected') ||
+        normalized.contains('major') ||
+        normalized.contains('offense')) {
+      return Icons.cancel_rounded;
+    }
+    if (normalized.contains('held')) return Icons.pause_circle_filled_rounded;
+    if (normalized.contains('missing') || normalized.contains('reupload')) {
+      return Icons.upload_file_rounded;
+    }
+    if (normalized.contains('verified') ||
+        normalized.contains('completed') ||
+        normalized.contains('activated') ||
+        normalized.contains('approved')) {
+      return Icons.check_circle_rounded;
+    }
+    if (normalized.contains('ready')) return Icons.verified_user_rounded;
+
+    return Icons.schedule_rounded;
+  }
+
+  _ApplicantFlowAction _resolveApplicantFlowAction() {
+    final summary = _statusSummary;
+    final workflow = summary?.workflow;
+    final blocker = workflow?.primaryBlocker;
+    final blockerCode = blocker?.code ?? '';
+
+    if (summary == null || summary.hasApplication == false) {
+      return const _ApplicantFlowAction(
+        title: 'Start your scholarship application',
+        message:
+            'Browse the current openings, submit your application, then upload your required documents.',
+        primaryLabel: 'View Scholarships',
+        primaryRoute: AppRoutes.scholarshipOpenings,
+        secondaryLabel: 'Open Updates',
+        secondaryRoute: AppRoutes.notifications,
+        tone: _ApplicantFlowTone.info,
+      );
+    }
+
+    if (blockerCode == 'requirements.missing') {
+      return const _ApplicantFlowAction(
+        title: 'Upload your remaining requirements',
+        message:
+            'Your application is already submitted. Complete the missing requirements so the review can continue.',
+        primaryLabel: 'Open Documents',
+        primaryRoute: AppRoutes.documents,
+        secondaryLabel: 'Open Status',
+        secondaryRoute: AppRoutes.status,
+        tone: _ApplicantFlowTone.warning,
+      );
+    }
+
+    if (blockerCode == 'requirements.reupload_required') {
+      return const _ApplicantFlowAction(
+        title: 'Re-upload the flagged document',
+        message:
+            'A requirement needs a clearer or corrected file before your application can move forward.',
+        primaryLabel: 'Fix Documents',
+        primaryRoute: AppRoutes.documents,
+        secondaryLabel: 'Open Status',
+        secondaryRoute: AppRoutes.status,
+        tone: _ApplicantFlowTone.warning,
+      );
+    }
+
+    if (blockerCode == 'endorsement.grade_document_missing') {
+      return const _ApplicantFlowAction(
+        title: 'Upload your current grades PDF',
+        message:
+            'SDO and Guidance can continue, but Program Director approval is blocked until your grade report is uploaded.',
+        primaryLabel: 'Upload Grade Report',
+        primaryRoute: AppRoutes.documents,
+        secondaryLabel: 'Open Endorsement',
+        secondaryRoute: AppRoutes.endorsement,
+        tone: _ApplicantFlowTone.warning,
+      );
+    }
+
+    if (blockerCode == 'endorsement.held') {
+      return const _ApplicantFlowAction(
+        title: 'Guidance placed your endorsement on hold',
+        message:
+            'Check the endorsement remarks and follow the Guidance office instructions before the slip can continue.',
+        primaryLabel: 'Open Endorsement',
+        primaryRoute: AppRoutes.endorsement,
+        secondaryLabel: 'Open Status',
+        secondaryRoute: AppRoutes.status,
+        tone: _ApplicantFlowTone.warning,
+      );
+    }
+
+    if (blockerCode == 'endorsement.major_offense' ||
+        blockerCode == 'endorsement.rejected' ||
+        blockerCode == 'requirements.rejected') {
+      return const _ApplicantFlowAction(
+        title: 'Your application needs attention',
+        message:
+            'A rejection or major issue was recorded. Review the remarks carefully to understand the result and next steps.',
+        primaryLabel: 'Review Endorsement',
+        primaryRoute: AppRoutes.endorsement,
+        secondaryLabel: 'Open Status',
+        secondaryRoute: AppRoutes.status,
+        tone: _ApplicantFlowTone.danger,
+      );
+    }
+
+    if (workflow?.stage == 'ready_for_activation') {
+      return const _ApplicantFlowAction(
+        title: 'You are ready for final scholar activation',
+        message:
+            'Your requirements and endorsement are complete. OSFA only needs to perform the final scholar activation step.',
+        primaryLabel: 'Open Status',
+        primaryRoute: AppRoutes.status,
+        secondaryLabel: 'Open Endorsement',
+        secondaryRoute: AppRoutes.endorsement,
+        tone: _ApplicantFlowTone.success,
+      );
+    }
+
+    if (workflow?.stage == 'scholar_activated') {
+      return const _ApplicantFlowAction(
+        title: 'Scholar access is now active',
+        message:
+            'Your applicant flow is complete. You can now use scholar tools, notices, and the next scholar-side modules.',
+        primaryLabel: 'Open Notices',
+        primaryRoute: AppRoutes.notifications,
+        secondaryLabel: 'View Payouts',
+        primaryScholarRoute: AppRoutes.payouts,
+        tone: _ApplicantFlowTone.success,
+      );
+    }
+
+    if (workflow?.endorsement.currentOffice?.trim().isNotEmpty == true) {
+      return _ApplicantFlowAction(
+        title: 'Your endorsement is in progress',
+        message:
+            'Your slip is currently waiting in ${workflow!.endorsement.currentOffice}. You can keep tracking the office flow and remarks from one screen.',
+        primaryLabel: 'Open Endorsement',
+        primaryRoute: AppRoutes.endorsement,
+        secondaryLabel: 'Open Status',
+        secondaryRoute: AppRoutes.status,
+        tone: _ApplicantFlowTone.info,
+      );
+    }
+
+    return const _ApplicantFlowAction(
+      title: 'Your application is moving forward',
+      message:
+          'Keep your documents complete and watch your status for the next office movement or admin update.',
+      primaryLabel: 'Open Status',
+      primaryRoute: AppRoutes.status,
+      secondaryLabel: 'Open Documents',
+      secondaryRoute: AppRoutes.documents,
+      tone: _ApplicantFlowTone.info,
+    );
   }
 
   AppNotification _fallbackUpdate() {
@@ -1082,6 +1349,78 @@ class _DashboardContentState extends State<DashboardContent> {
     );
   }
 
+  Widget _buildApplicantFlowSection() {
+    if (_hasScholarAccess) {
+      return const SizedBox.shrink();
+    }
+
+    if (_isLoadingStatus) {
+      return _DashboardLoadingCard(isDark: _isDark);
+    }
+
+    if (_statusError != null && _statusSummary == null) {
+      return _DashboardStateCard(
+        isDark: _isDark,
+        icon: Icons.error_outline_rounded,
+        title: 'Unable to load application progress',
+        message: _statusError!,
+        primaryLabel: 'Try Again',
+        onPrimaryTap: _loadApplicantStatus,
+      );
+    }
+
+    final action = _resolveApplicantFlowAction();
+    final summary = _statusSummary;
+    final workflow = summary?.workflow;
+    final applicationTitle = _safeText(
+      summary?.openingTitle,
+      fallback: _safeText(summary?.programName, fallback: 'Scholarship Application'),
+    );
+
+    return _ApplicantProgressCard(
+      isDark: _isDark,
+      title: action.title,
+      message: action.message,
+      applicationTitle: applicationTitle,
+      hasApplication: summary?.hasApplication == true,
+      applicationId: _safeText(summary?.applicationId),
+      primaryLabel: action.primaryLabel,
+      onPrimaryTap: () => Navigator.pushNamed(
+        context,
+        _hasScholarAccess && action.primaryScholarRoute != null
+            ? action.primaryScholarRoute!
+            : action.primaryRoute,
+      ),
+      secondaryLabel: action.secondaryLabel,
+      onSecondaryTap: action.secondaryRoute == null
+          ? null
+          : () => Navigator.pushNamed(context, action.secondaryRoute!),
+      tone: action.tone,
+      items: workflow == null
+          ? const []
+          : [
+              _ApplicantProgressItem(
+                label: 'Requirements',
+                value: workflow.requirements.statusLabel,
+                color: _flowStatusColor(workflow.requirements.status),
+                icon: _flowStatusIcon(workflow.requirements.status),
+              ),
+              _ApplicantProgressItem(
+                label: 'Endorsement',
+                value: workflow.endorsement.statusLabel,
+                color: _flowStatusColor(workflow.endorsement.status),
+                icon: _flowStatusIcon(workflow.endorsement.status),
+              ),
+              _ApplicantProgressItem(
+                label: 'Activation',
+                value: workflow.scholarActivation.statusLabel,
+                color: _flowStatusColor(workflow.scholarActivation.status),
+                icon: _flowStatusIcon(workflow.scholarActivation.status),
+              ),
+            ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
@@ -1115,6 +1454,11 @@ class _DashboardContentState extends State<DashboardContent> {
                 if (showAll && !_hasSearchQuery) ...[
                   const SizedBox(height: 18),
                   _buildHero(),
+                  if (!_hasScholarAccess) ...[
+                    const SizedBox(height: 18),
+                    _sectionTitle('What To Do Next'),
+                    _buildApplicantFlowSection(),
+                  ],
                 ],
                 if (showAll &&
                     (!_hasSearchQuery || quickActions.isNotEmpty)) ...[
@@ -1204,6 +1548,7 @@ class _DashboardContentState extends State<DashboardContent> {
 
   @override
   void dispose() {
+    _notificationProvider?.removeListener(_handleRealtimeUpdates);
     _searchController.dispose();
     super.dispose();
   }
@@ -1661,6 +2006,287 @@ class _DashboardLoadingCard extends StatelessWidget {
         ),
       ),
       child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
+enum _ApplicantFlowTone { info, warning, success, danger }
+
+class _ApplicantFlowAction {
+  const _ApplicantFlowAction({
+    required this.title,
+    required this.message,
+    required this.primaryLabel,
+    required this.primaryRoute,
+    required this.tone,
+    this.secondaryLabel,
+    this.secondaryRoute,
+    this.primaryScholarRoute,
+  });
+
+  final String title;
+  final String message;
+  final String primaryLabel;
+  final String primaryRoute;
+  final String? primaryScholarRoute;
+  final String? secondaryLabel;
+  final String? secondaryRoute;
+  final _ApplicantFlowTone tone;
+}
+
+class _ApplicantProgressItem {
+  const _ApplicantProgressItem({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+}
+
+class _ApplicantProgressCard extends StatelessWidget {
+  const _ApplicantProgressCard({
+    required this.isDark,
+    required this.title,
+    required this.message,
+    required this.applicationTitle,
+    required this.hasApplication,
+    required this.applicationId,
+    required this.primaryLabel,
+    required this.onPrimaryTap,
+    required this.tone,
+    required this.items,
+    this.secondaryLabel,
+    this.onSecondaryTap,
+  });
+
+  final bool isDark;
+  final String title;
+  final String message;
+  final String applicationTitle;
+  final bool hasApplication;
+  final String applicationId;
+  final String primaryLabel;
+  final VoidCallback onPrimaryTap;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondaryTap;
+  final _ApplicantFlowTone tone;
+  final List<_ApplicantProgressItem> items;
+
+  Color get _accentColor {
+    switch (tone) {
+      case _ApplicantFlowTone.warning:
+        return const Color(0xFFC76917);
+      case _ApplicantFlowTone.success:
+        return const Color(0xFF2E8B57);
+      case _ApplicantFlowTone.danger:
+        return const Color(0xFFD14343);
+      case _ApplicantFlowTone.info:
+        return const Color(0xFF3366CC);
+    }
+  }
+
+  IconData get _leadingIcon {
+    switch (tone) {
+      case _ApplicantFlowTone.warning:
+        return Icons.warning_amber_rounded;
+      case _ApplicantFlowTone.success:
+        return Icons.verified_rounded;
+      case _ApplicantFlowTone.danger:
+        return Icons.report_gmailerrorred_rounded;
+      case _ApplicantFlowTone.info:
+        return Icons.explore_outlined;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = isDark ? const Color(0xFF241A11) : Colors.white;
+    final titleColor = isDark ? Colors.white : textColor;
+    final bodyColor = isDark ? Colors.white70 : const Color(0xFF4F4942);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _accentColor.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _accentColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(_leadingIcon, color: _accentColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: titleColor,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      message,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: bodyColor,
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ChipLabel(
+                label: hasApplication ? 'Application active' : 'No application yet',
+                isDark: isDark,
+                filled: hasApplication,
+              ),
+              if (applicationTitle.isNotEmpty)
+                _ChipLabel(label: applicationTitle, isDark: isDark),
+              if (applicationId.isNotEmpty)
+                _ChipLabel(label: 'ID $applicationId', isDark: isDark),
+            ],
+          ),
+          if (items.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: items.map((item) {
+                return SizedBox(
+                  width: 160,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.04)
+                          : const Color(0xFFFFFCF4),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: item.color.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: item.color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(item.icon, color: item.color, size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: bodyColor,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                item.value,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      color: titleColor,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: onPrimaryTap,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _accentColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: Text(
+                    primaryLabel,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+              if (secondaryLabel != null && onSecondaryTap != null) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onSecondaryTap,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isDark ? Colors.white : AppColors.brown,
+                      side: BorderSide(
+                        color: _accentColor.withValues(alpha: 0.5),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    child: Text(
+                      secondaryLabel!,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

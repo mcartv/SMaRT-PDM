@@ -109,6 +109,28 @@ function deriveSlipCode(slipId) {
     return base ? `ES-${base}` : 'ES-PENDING';
 }
 
+async function getSignedFileUrl(filePath) {
+    if (!filePath) return null;
+
+    const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrl(filePath, 60 * 60, {
+            download: false,
+        });
+
+    if (error) {
+        console.error(
+            'ENDORSEMENT SIGNED URL ERROR:',
+            `bucket=${STORAGE_BUCKET}`,
+            `path=${filePath}`,
+            error.message
+        );
+        return null;
+    }
+
+    return data?.signedUrl || null;
+}
+
 function derivePdCheckboxResult(gwa) {
     const numericGwa = Number(gwa);
     if (!Number.isFinite(numericGwa)) {
@@ -381,6 +403,17 @@ function mapQueueRow(row) {
     };
 }
 
+async function mapQueueRowWithSignedGrade(row) {
+    const signedGradeUrl = await getSignedFileUrl(
+        row.grade_document_path
+    );
+
+    return mapQueueRow({
+        ...row,
+        grade_document_url: signedGradeUrl || row.grade_document_url || '',
+    });
+}
+
 async function loadSlipRows({ stage = null, stages = null } = {}) {
     const params = [];
     const normalizedStages = Array.isArray(stages)
@@ -432,6 +465,7 @@ async function loadSlipRows({ stage = null, stages = null } = {}) {
             po.opening_title,
             ay.label as school_year,
             ap.term as semester,
+            grade_doc.file_path as grade_document_path,
             grade_doc.file_url as grade_document_url,
             grade_doc.file_name as grade_document_name,
             grade_doc.submitted_at as grade_document_submitted_at
@@ -444,7 +478,7 @@ async function loadSlipRows({ stage = null, stages = null } = {}) {
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
         left join academic_period ap on ap.period_id = po.period_id
         left join lateral (
-            select ad.file_url, ad.file_name, ad.submitted_at
+            select ad.file_path, ad.file_url, ad.file_name, ad.submitted_at
             from application_documents ad
             where ad.application_id = a.application_id
               and lower(coalesce(ad.document_type, '')) = 'grade report'
@@ -463,7 +497,7 @@ async function loadSlipRows({ stage = null, stages = null } = {}) {
         params
     );
 
-    return rows.map(mapQueueRow);
+    return Promise.all(rows.map(mapQueueRowWithSignedGrade));
 }
 
 async function fetchQueue(queueKey, actor) {
@@ -555,6 +589,7 @@ async function fetchSlipDetail(slipId, actor = null) {
             document_id,
             document_type,
             file_name,
+            file_path,
             file_url,
             submitted_at,
             notes
@@ -563,6 +598,16 @@ async function fetchSlipDetail(slipId, actor = null) {
         order by submitted_at desc nulls last, document_type asc
         `,
         [row.application_id]
+    );
+
+    const documents = await Promise.all(
+        documentRows.rows.map(async (document) => ({
+            ...document,
+            file_url:
+                (await getSignedFileUrl(document.file_path)) ||
+                document.file_url ||
+                null,
+        }))
     );
 
     return {
@@ -595,7 +640,7 @@ async function fetchSlipDetail(slipId, actor = null) {
         final_pdf_url: row.final_pdf_url || null,
         verification_token: row.verification_token,
         completed_at: row.completed_at,
-        documents: documentRows.rows,
+        documents,
         office_results: officeResults,
         office_signatories: officeSignatories,
         sdo_offense_detail: {
@@ -1258,6 +1303,31 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             currentSlip.current_stage === 'held' &&
             ['clear', 'reject'].includes(action);
         const isCurrentQueueStage = currentSlip.current_stage === config.stage;
+
+        if (queueKey === 'pd' && action === 'approve') {
+            const gradeDocumentResult = await client.query(
+                `
+                select ad.document_id
+                from application_documents ad
+                where ad.application_id = $1
+                  and lower(coalesce(ad.document_type, '')) = 'grade report'
+                  and coalesce(ad.is_submitted, false) = true
+                  and (
+                    nullif(trim(coalesce(ad.file_path, '')), '') is not null
+                    or nullif(trim(coalesce(ad.file_url, '')), '') is not null
+                  )
+                limit 1
+                `,
+                [currentSlip.application_id]
+            );
+
+            if (!gradeDocumentResult.rows.length) {
+                throw createHttpError(
+                    409,
+                    'Program Director cannot approve this endorsement slip until the applicant uploads the grade document.'
+                );
+            }
+        }
 
         if (!isCurrentQueueStage && !isHeldGuidanceResolution) {
             throw createHttpError(409, 'This endorsement slip is no longer pending in your queue.');

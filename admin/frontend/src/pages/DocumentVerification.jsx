@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -1406,6 +1407,70 @@ export default function DocumentVerification() {
       }
     },
     [id]
+  );
+
+  const refreshCurrentDocumentVerification = useCallback(
+    (data = {}) => {
+      const eventApplicationId =
+        data?.application_id?.toString?.() ||
+        data?.applicationId?.toString?.() ||
+        '';
+
+      if (eventApplicationId && id && eventApplicationId !== id) {
+        return;
+      }
+
+      fetchApplicationDocuments({ soft: true });
+    },
+    [id, fetchApplicationDocuments]
+  );
+
+  useSocketEvent(
+    'application:updated',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
+  );
+
+  useSocketEvent(
+    'application-document:uploaded',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
+  );
+
+  useSocketEvent(
+    'application-document:reviewed',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
+  );
+
+  useSocketEvent(
+    'application-ocr:queued',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
+  );
+
+  useSocketEvent(
+    'application-ocr:snapshot-saved',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
+  );
+
+  useSocketEvent(
+    'application:approved',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
+  );
+
+  useSocketEvent(
+    'application:rejected',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
+  );
+
+  useSocketEvent(
+    'application:disqualified',
+    refreshCurrentDocumentVerification,
+    [refreshCurrentDocumentVerification]
   );
 
   useEffect(() => {

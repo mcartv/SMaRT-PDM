@@ -96,6 +96,19 @@ async function ensureRoomMembership(userId, roomId) {
   }
 }
 
+exports.fetchRoomMemberUserIds = async (roomId) => {
+  const result = await db.query(
+    `
+    SELECT user_id
+    FROM chat_room_members
+    WHERE room_id = $1;
+    `,
+    [roomId]
+  );
+
+  return result.rows.map((row) => row.user_id);
+};
+
 exports.fetchConversations = async (currentUserId) => {
   const result = await db.query(
     `

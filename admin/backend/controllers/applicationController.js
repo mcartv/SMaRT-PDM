@@ -70,6 +70,25 @@ exports.uploadStudentDocument = async (req, res) => {
             user: req.user,
         });
 
+        const io = req.app.get('io');
+
+        socketEvents.applicationDocumentUploaded(io, {
+            application_id: id,
+            document_key: result?.document_key || null,
+            document_name: result?.document_name || null,
+            file_name: result?.file_name || null,
+            document_status: result?.document_status || null,
+            uploaded_at: new Date().toISOString(),
+            source: 'document_upload',
+        });
+
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            document_status: result?.document_status || null,
+            updated_at: new Date().toISOString(),
+            source: 'document_upload',
+        });
+
         res.status(200).json({
             message: 'Document uploaded successfully',
             data: result,
@@ -92,9 +111,29 @@ exports.runApplicationDocumentIotOcr = async (req, res) => {
                 null,
         });
 
+        const io = req.app.get('io');
+        const payload = result.request || result;
+
+        socketEvents.applicationOcrQueued(io, {
+            application_id: req.params.id,
+            document_key: req.params.documentKey,
+            document_name: result?.document_name || payload?.document_type || null,
+            request_id: payload?.request_id || payload?.id || null,
+            status: payload?.status || 'queued',
+            updated_at: new Date().toISOString(),
+            source: 'iot_ocr',
+        });
+
+        socketEvents.applicationUpdated(io, {
+            application_id: req.params.id,
+            document_key: req.params.documentKey,
+            updated_at: new Date().toISOString(),
+            source: 'iot_ocr',
+        });
+
         return res.status(result?.created ? 202 : 200).json({
             message: 'IoT OCR scanner trigger started successfully',
-            data: result.request || result,
+            data: payload,
         });
     } catch (error) {
         console.error('RUN APPLICATION DOCUMENT IOT OCR ERROR:', error);
@@ -135,7 +174,30 @@ exports.saveApplicationDocumentOcrSnapshot = async (req, res) => {
             applicationId: id,
             documentKey,
             rawText: req.body?.raw_text || '',
+            ocrConfidence: req.body?.ocr_confidence ?? null,
+            extractedFields: req.body?.extracted_fields || null,
+            scannedViaIot: req.body?.scanned_via_iot ?? null,
+            iotDeviceId: req.body?.iot_device_id || null,
+            scannedAt: req.body?.scanned_at || null,
             user: req.user,
+        });
+
+        const io = req.app.get('io');
+
+        socketEvents.applicationOcrSnapshotSaved(io, {
+            application_id: id,
+            document_key: documentKey,
+            document_id: result?.document_id || null,
+            ocr_confidence: result?.ocr_confidence ?? null,
+            updated_at: new Date().toISOString(),
+            source: 'ocr_snapshot',
+        });
+
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            document_key: documentKey,
+            updated_at: new Date().toISOString(),
+            source: 'ocr_snapshot',
         });
 
         res.status(200).json({
@@ -162,15 +224,15 @@ exports.saveApplicationVerification = async (req, res) => {
         );
 
         const io = req.app.get('io');
-        socketEvents.applicationUpdated(io, {
+        socketEvents.applicationDocumentReviewed(io, {
             application_id: id,
-            status:
-                data?.application?.application_status ??
-                data?.application_detail?.application_status ??
-                data?.status ??
-                data?.application_status ??
-                null,
             verification_status: data?.verification_status ?? req.body?.verification_status ?? null,
+            document_reviews: Array.isArray(req.body?.document_reviews)
+                ? req.body.document_reviews.map((doc) => ({
+                    document_key: doc.document_key || doc.document_id || doc.id || null,
+                    status: doc.status || 'pending',
+                }))
+                : [],
             updated_at: new Date().toISOString(),
             source: 'verification',
         });
@@ -325,11 +387,30 @@ exports.disqualifyApplication = async (req, res) => {
         const data = await applicationService.markApplicationDisqualified(id, reason);
 
         const io = req.app.get('io');
+
         socketEvents.applicationRejected(io, {
             application_id: id,
             status: 'rejected',
             reason: reason,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            source: 'disqualification',
+        });
+
+        socketEvents.applicationDisqualified(io, {
+            application_id: id,
+            status: 'rejected',
+            reason: reason,
+            updated_at: new Date().toISOString(),
+            source: 'disqualification',
+        });
+
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            status: 'rejected',
+            is_disqualified: true,
+            reason: reason,
+            updated_at: new Date().toISOString(),
+            source: 'disqualification',
         });
 
         res.status(200).json({

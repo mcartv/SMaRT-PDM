@@ -722,12 +722,12 @@ function OpeningCard({
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="text-[13px] font-semibold text-stone-900">
+                                <h3 className="text-sm font-semibold text-stone-900">
                                     {opening.opening_title || 'Untitled Opening'}
                                 </h3>
 
                                 <span
-                                    className="rounded-full px-2.5 py-1 text-[9px] font-medium"
+                                    className="rounded-full px-2.5 py-1 text-[10px] font-medium"
                                     style={{ color: meta.color, background: meta.bg }}
                                 >
                                     {meta.label}
@@ -735,13 +735,13 @@ function OpeningCard({
                             </div>
 
                             <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <Badge variant="outline" className="border-stone-200 bg-white text-[9px] text-stone-600">
+                                <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
                                     {opening.program_name || 'No Program'}
                                 </Badge>
 
                                 <Badge
                                     variant="outline"
-                                    className={`text-[9px] ${audience === 'Both'
+                                    className={`text-[10px] ${audience === 'Both'
                                             ? 'border-purple-200 bg-purple-50 text-purple-700'
                                             : audience === 'Scholars'
                                                 ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
@@ -753,31 +753,31 @@ function OpeningCard({
                                 </Badge>
                             </div>
 
-                            <p className="mt-2 text-[11px] text-stone-500">
+                            <p className="mt-2 text-xs text-stone-500">
                                 {opening.benefactor_name || 'No Benefactor'}
                             </p>
 
                             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[9px] uppercase tracking-wide text-stone-500">AY</p>
-                                    <p className="mt-0.5 text-[11px] font-semibold text-stone-900">{opening.academic_year || 'N/A'}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">AY</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{opening.academic_year || 'N/A'}</p>
                                 </div>
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[9px] uppercase tracking-wide text-stone-500">Slots</p>
-                                    <p className="mt-0.5 text-[11px] font-semibold text-stone-900">{allocatedSlots}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Slots</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{allocatedSlots}</p>
                                 </div>
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[9px] uppercase tracking-wide text-stone-500">Filled</p>
-                                    <p className="mt-0.5 text-[11px] font-semibold text-stone-900">{filledSlots}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Filled</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{filledSlots}</p>
                                 </div>
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[9px] uppercase tracking-wide text-stone-500">Per Scholar</p>
-                                    <p className="mt-0.5 text-[11px] font-semibold text-stone-900">{fmtMoney(perScholar)}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Per Scholar</p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{fmtMoney(perScholar)}</p>
                                 </div>
                             </div>
 
                             {opening.announcement_text && (
-                                <details className="mt-3 text-[11px]">
+                                <details className="mt-3 text-xs">
                                     <summary className="cursor-pointer text-stone-500 hover:text-stone-700">
                                         View notes
                                     </summary>

@@ -137,6 +137,9 @@ const socketEvents = {
     renewalUpdated: (io, data) => emitEvent(io, 'renewal:updated', data),
     renewalApproved: (io, data) => emitEvent(io, 'renewal:approved', data),
 
+    // Endorsement Events
+    endorsementUpdated: (io, data) => emitEvent(io, 'endorsement:updated', data),
+
     // RO Events
     roUpdated: (io, data) => emitEvent(io, 'ro:updated', data),
 

@@ -18,9 +18,41 @@ function normalizeNotification(raw = {}) {
 
 function sortNotifications(items = []) {
   return [...items].sort((a, b) => {
+    const aUnread = a.is_read !== true ? 1 : 0;
+    const bUnread = b.is_read !== true ? 1 : 0;
+    if (aUnread !== bUnread) {
+      return bUnread - aUnread;
+    }
+
     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bTime - aTime;
+  });
+}
+
+function formatNotificationTime(value) {
+  if (!value) return 'Unknown time';
+
+  const date = new Date(value);
+  const timestamp = date.getTime();
+  if (Number.isNaN(timestamp)) return 'Unknown time';
+
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  if (diffHours < 48) return 'Yesterday';
+
+  return date.toLocaleString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 }
 
@@ -220,5 +252,6 @@ export default function usePortalNotifications({
     markAsRead,
     markAllAsRead,
     openNotification,
+    formatNotificationTime,
   };
 }

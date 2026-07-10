@@ -70,6 +70,7 @@ export default function AdminLayout() {
     markingAll,
     markAllAsRead,
     openNotification,
+    formatNotificationTime,
   } = usePortalNotifications({
     tokenStorageKey: 'adminToken',
     portalRootPath: '/admin',
@@ -279,14 +280,24 @@ export default function AdminLayout() {
                             openNotification(n, navigate);
                           }}
                           className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-amber-50/40 ${
-                            n.is_read ? 'bg-white' : 'bg-amber-50/30'
+                            n.is_read ? 'bg-white' : 'border-l-4 border-l-amber-400 bg-amber-50/70'
                           }`}
                         >
-                          <p className="text-xs font-semibold text-stone-800">
-                            {n.title || 'Notification'}
-                          </p>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className={`text-xs font-semibold ${n.is_read ? 'text-stone-800' : 'text-stone-900'}`}>
+                              {n.title || 'Notification'}
+                            </p>
+                            {n.is_read ? null : (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                New
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
-                            {n.message}
+                            {n.message || 'Open notification'}
+                          </p>
+                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            {formatNotificationTime(n.created_at)}
                           </p>
                         </button>
                       ))

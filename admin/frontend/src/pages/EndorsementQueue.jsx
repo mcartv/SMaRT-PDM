@@ -1075,19 +1075,9 @@ export default function EndorsementQueue({
                       {row.program_name}
                     </Badge>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl bg-stone-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Submitted</p>
-                      <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-stone-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Current Decision</p>
-                      <span
-                        className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs ${getQueueDecisionTone(getQueueDecisionValue(queueKey, row))}`}
-                      >
-                        {getQueueDecisionLabel(queueKey, row)}
-                      </span>
-                    </div>
+                  <div className="rounded-2xl bg-stone-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Submitted</p>
+                    <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
                   </div>
                   {queueKey === 'pd' ? (
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">

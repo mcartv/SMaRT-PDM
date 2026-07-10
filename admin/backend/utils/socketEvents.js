@@ -65,7 +65,10 @@ const socketEvents = {
     notificationDeleted: (io, userId, data) => emitToUser(io, userId, 'notification:deleted', data),
 
     // Message Events
-    messageCreated: (io, data) => emitEvent(io, 'message:created', data),
+    messageCreated: (io, data) => {
+        emitEvent(io, 'message:new', data);
+        emitEvent(io, 'message:created', data);
+    },
 
     // Scholarship Opening Events
     openingCreated: (io, data) => emitEvent(io, 'opening:created', data),

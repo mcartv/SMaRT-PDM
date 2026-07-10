@@ -933,12 +933,12 @@ export default function EndorsementQueue({
               </AlertDialogCancel>
               <AlertDialogAction
                 disabled={Boolean(savingSlipId)}
-                className={`h-10 min-w-40 px-4 ${
+                className={`h-10 min-w-40 border-transparent px-4 font-semibold !text-white shadow-sm ${
                   confirmMeta.tone === 'red'
-                    ? 'bg-red-700 text-white hover:bg-red-800'
+                    ? '!bg-red-700 hover:!bg-red-800'
                     : confirmMeta.tone === 'green'
-                      ? 'bg-green-700 text-white hover:bg-green-800'
-                      : 'bg-amber-600 text-white hover:bg-amber-700'
+                      ? '!bg-green-700 hover:!bg-green-800'
+                      : '!bg-amber-600 hover:!bg-amber-700'
                 }`}
                 onClick={(event) => {
                   event.preventDefault();

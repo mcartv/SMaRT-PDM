@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router';
 import {
   BarChart3,
   Bell,
@@ -13,6 +13,7 @@ import {
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
+import { useSocketEvent } from '../../hooks/useSocket';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -43,6 +44,7 @@ export default function DepartmentPortalLayout({
   officeName,
   loginPath,
   dashboardPath,
+  profilePath = '',
   tokenStorageKey,
   profileStorageKey,
   colors,
@@ -52,6 +54,7 @@ export default function DepartmentPortalLayout({
   maintenancePath = '',
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const notifRef = useRef(null);
 
   const [collapsed, setCollapsed] = useState(false);
@@ -94,10 +97,38 @@ export default function DepartmentPortalLayout({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [notifOpen]);
 
+  useSocketEvent(
+    'maintenance:updated',
+    () => {
+      const latestProfile = sessionStorage.getItem(profileStorageKey);
+      if (!latestProfile) return;
+
+      try {
+        setProfile(JSON.parse(latestProfile));
+      } catch {
+        setProfile(null);
+      }
+    },
+    [profileStorageKey]
+  );
+
   const handleLogout = () => {
     sessionStorage.removeItem(tokenStorageKey);
     sessionStorage.removeItem(profileStorageKey);
     navigate(loginPath);
+  };
+
+  const handleNavRefresh = (event, path) => {
+    if (location.pathname !== path) return;
+
+    event.preventDefault();
+    navigate(path, {
+      replace: true,
+      state: {
+        ...(location.state || {}),
+        refreshAt: Date.now(),
+      },
+    });
   };
 
   const profileImage = resolveProfileImage(profile);
@@ -110,6 +141,7 @@ export default function DepartmentPortalLayout({
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
     ...(maintenancePath ? [{ path: maintenancePath, label: 'Maintenance', icon: Settings }] : []),
   ];
+  const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: colors.mainBg }}>
@@ -139,6 +171,7 @@ export default function DepartmentPortalLayout({
             <NavLink
               key={item.label}
               to={item.path}
+              onClick={(event) => handleNavRefresh(event, item.path)}
               className={({ isActive }) =>
                 `group flex items-center ${
                   collapsed ? 'justify-center' : 'gap-3'
@@ -259,9 +292,9 @@ export default function DepartmentPortalLayout({
 
             <button
               type="button"
-              onClick={() => navigate(dashboardPath)}
+              onClick={() => navigate(profilePath || dashboardPath)}
               className="flex cursor-pointer items-center gap-3 rounded-full border border-stone-200 bg-stone-50/80 py-1.5 pl-1.5 pr-3 transition-colors hover:bg-stone-100"
-              title="Open dashboard"
+              title="Open Profile"
             >
               {profileImage ? (
                 <img
@@ -287,7 +320,7 @@ export default function DepartmentPortalLayout({
         </header>
 
         <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: colors.mainBg }}>
-          <div className="mx-auto max-w-7xl">
+          <div key={outletKey} className="mx-auto max-w-7xl">
             <Outlet />
           </div>
         </main>

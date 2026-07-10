@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -17,6 +17,8 @@ import {
   Loader2,
   Eye,
   RotateCcw,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -142,6 +144,7 @@ export default function ReportGeneration({
   const [previewSummary, setPreviewSummary] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [hasPreviewed, setHasPreviewed] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
   const visibleReportTypes = useMemo(() => {
     if (!Array.isArray(allowedReportTypes) || allowedReportTypes.length === 0) {
@@ -152,23 +155,21 @@ export default function ReportGeneration({
   }, [allowedReportTypes, reportTypes]);
 
   useEffect(() => {
-    loadMetadata();
-  }, [tokenStorageKey]);
-
-  useSocketEvent('maintenance:updated', () => {
-    loadMetadata();
-  }, []);
-
-  useSocketEvent('report:updated', () => {
-    loadMetadata();
-  }, []);
-
-  useEffect(() => {
     setPreviewRows([]);
     setPreviewTotal(0);
     setPreviewSummary(null);
     setHasPreviewed(false);
   }, [selected, academicYearId, semester, programId, benefactorId, reviewResult, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (!feedback) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setFeedback(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
 
   const selectedReport = useMemo(
     () => visibleReportTypes.find((r) => r.id === selected) || visibleReportTypes[0],
@@ -212,7 +213,7 @@ export default function ReportGeneration({
     return { year, term, program, benefactor, result };
   }, [academicYears, semesters, programs, benefactors, academicYearId, semester, programId, benefactorId, officeFilterOptions, reviewResult]);
 
-  async function loadMetadata() {
+  const loadMetadata = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -248,11 +249,19 @@ export default function ReportGeneration({
       }
     } catch (error) {
       console.error('REPORT METADATA LOAD ERROR:', error);
-      alert(error.message || 'Failed to load reports.');
+      setFeedback({
+        tone: 'error',
+        title: 'Failed to load reports',
+        message: error.message || 'Failed to load reports.',
+      });
     } finally {
       setLoading(false);
     }
-  }
+  }, [allowedReportTypes, defaultReportType, tokenStorageKey]);
+
+  useEffect(() => {
+    loadMetadata();
+  }, [loadMetadata]);
 
   function buildParams() {
     return new URLSearchParams({
@@ -281,7 +290,7 @@ export default function ReportGeneration({
     setHasPreviewed(false);
   }
 
-  async function handlePreviewReport() {
+  const handlePreviewReport = useCallback(async () => {
     try {
       setPreviewLoading(true);
 
@@ -299,13 +308,41 @@ export default function ReportGeneration({
       setPreviewTotal(Number(data.total || data.rows?.length || 0));
       setPreviewSummary(data.summary || null);
       setHasPreviewed(true);
+      setFeedback({
+        tone: 'success',
+        title: 'Preview updated',
+        message: `Showing ${Number(data.total || data.rows?.length || 0)} matching record(s) for ${selectedReport?.name || 'this report'}.`,
+      });
     } catch (error) {
       console.error('REPORT PREVIEW ERROR:', error);
-      alert(error.message || 'Failed to preview report.');
+      setFeedback({
+        tone: 'error',
+        title: 'Preview failed',
+        message: error.message || 'Failed to preview report.',
+      });
     } finally {
       setPreviewLoading(false);
     }
-  }
+  }, [academicYearId, benefactorId, dateFrom, dateTo, programId, reviewResult, selected, selectedReport?.name, semester, tokenStorageKey]);
+
+  useSocketEvent('maintenance:updated', () => {
+    loadMetadata();
+  }, [loadMetadata]);
+
+  useSocketEvent('report:updated', () => {
+    loadMetadata();
+    if (hasPreviewed) {
+      handlePreviewReport();
+    }
+  }, [handlePreviewReport, hasPreviewed, loadMetadata]);
+
+  useSocketEvent('endorsement:updated', () => {
+    if (isOfficeEndorsementReport) {
+      if (hasPreviewed) {
+        handlePreviewReport();
+      }
+    }
+  }, [handlePreviewReport, hasPreviewed, isOfficeEndorsementReport]);
 
   async function handleGenerateReport() {
     await handleDownloadByFormat('xlsx');
@@ -342,9 +379,18 @@ export default function ReportGeneration({
       link.remove();
 
       window.URL.revokeObjectURL(url);
+      setFeedback({
+        tone: 'success',
+        title: `${format === 'csv' ? 'CSV' : 'Excel'} download started`,
+        message: `${filename} is being downloaded.`,
+      });
     } catch (error) {
       console.error('REPORT GENERATE ERROR:', error);
-      alert(error.message || 'Failed to generate report.');
+      setFeedback({
+        tone: 'error',
+        title: 'Report export failed',
+        message: error.message || 'Failed to generate report.',
+      });
     } finally {
       setGenerating(false);
     }
@@ -392,6 +438,46 @@ export default function ReportGeneration({
 
   return (
     <div className="space-y-5 py-2">
+      {feedback ? (
+        <div
+          className={`rounded-2xl border px-4 py-4 shadow-sm ${
+            feedback.tone === 'success'
+              ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
+              : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div
+                className={`rounded-2xl p-2 ${
+                  feedback.tone === 'success'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}
+              >
+                {feedback.tone === 'success' ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <FileText className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{feedback.title}</p>
+                <p className="mt-1 text-sm opacity-90">{feedback.message}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-current/15 bg-white/70 transition hover:bg-white"
+              title="Dismiss message"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <Card className="overflow-hidden border-stone-200 bg-white shadow-none xl:col-span-4">
           <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-4">

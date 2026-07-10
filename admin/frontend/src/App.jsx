@@ -31,6 +31,8 @@ import PDLogin from './pages/PDLogin';
 import GuidanceLogin from './pages/GuidanceLogin';
 import PDDashboard from './pages/PDDashboard';
 import GuidanceDashboard from './pages/GuidanceDashboard';
+import PDProfile from './pages/PDProfile';
+import GuidanceProfile from './pages/GuidanceProfile';
 import PDMaintenance from './pages/PDMaintenance';
 import GuidanceMaintenance from './pages/GuidanceMaintenance';
 import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
@@ -178,6 +180,7 @@ export default function App() {
               />
             }
           />
+          <Route path="profile" element={<PDProfile />} />
           <Route path="maintenance" element={<PDMaintenance />} />
         </Route>
 
@@ -228,6 +231,7 @@ export default function App() {
               />
             }
           />
+          <Route path="profile" element={<GuidanceProfile />} />
           <Route path="maintenance" element={<GuidanceMaintenance />} />
         </Route>
 

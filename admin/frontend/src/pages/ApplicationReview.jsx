@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ import {
   SlidersHorizontal,
   Download,
   CheckCircle2,
+  X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -835,6 +836,7 @@ function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
 
 export default function ApplicationReview() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [registryRows, setRegistryRows] = useState([]);
   const [viewType, setViewType] = useState('table');
@@ -847,6 +849,31 @@ export default function ApplicationReview() {
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
   const [openings, setOpenings] = useState([]);
   const [approvalLoadingId, setApprovalLoadingId] = useState('');
+  const [feedback, setFeedback] = useState(null);
+
+  useEffect(() => {
+    if (!feedback) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setFeedback(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
+
+  useEffect(() => {
+    const incoming = location.state?.verificationFeedback;
+    if (!incoming) return;
+
+    setFeedback(incoming);
+    navigate(location.pathname, {
+      replace: true,
+      state: {
+        ...(location.state || {}),
+        verificationFeedback: null,
+      },
+    });
+  }, [location.pathname, location.state, navigate]);
 
   const downloadSlipPdf = async (row) => {
     if (!row?.endorsement_slip_id) return;
@@ -871,6 +898,11 @@ export default function ApplicationReview() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      setFeedback({
+        tone: 'success',
+        title: 'Slip download started',
+        message: `${row.endorsement_slip_code || 'Endorsement slip'} is being downloaded.`,
+      });
     } catch (err) {
       alert(err.message || 'Failed to download endorsement slip PDF');
     }
@@ -892,6 +924,11 @@ export default function ApplicationReview() {
       }
 
       await loadData({ soft: true });
+      setFeedback({
+        tone: 'success',
+        title: 'Scholar activation completed',
+        message: `${row.applicant_name || 'Applicant'} was moved successfully from Readiness to final scholar handling.`,
+      });
     } catch (err) {
       alert(err.message || 'Failed to finalize scholar activation');
     } finally {
@@ -1130,6 +1167,42 @@ export default function ApplicationReview() {
 
   return (
     <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
+      {feedback ? (
+        <div
+          className={`rounded-2xl border px-4 py-4 shadow-sm ${
+            feedback.tone === 'success'
+              ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
+              : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div
+                className={`rounded-2xl p-2 ${
+                  feedback.tone === 'success'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}
+              >
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{feedback.title}</p>
+                <p className="mt-1 text-sm opacity-90">{feedback.message}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-current/15 bg-white/70 transition hover:bg-white"
+              title="Dismiss message"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <Toolbar
         search={search}
         setSearch={setSearch}

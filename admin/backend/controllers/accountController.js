@@ -93,3 +93,60 @@ exports.updateCurrentStaffProfile = async (req, res) => {
         });
     }
 };
+
+exports.uploadCurrentStaffProfilePhoto = async (req, res) => {
+    try {
+        const profile = await accountService.uploadCurrentStaffProfilePhoto(
+            req.user?.user_id || req.user?.userId || null,
+            req.file
+        );
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            entity: 'staff_profile_photo',
+            action: 'updated',
+            profile,
+        });
+
+        res.status(200).json({
+            success: true,
+            data: profile,
+            message: 'Profile photo updated successfully.',
+        });
+    } catch (err) {
+        console.error('UPLOAD CURRENT STAFF PROFILE PHOTO ERROR:', err);
+        res.status(err.statusCode || 500).json({
+            success: false,
+            error: {
+                message: err.message || 'Failed to update profile photo',
+            },
+        });
+    }
+};
+
+exports.removeCurrentStaffProfilePhoto = async (req, res) => {
+    try {
+        const profile = await accountService.removeCurrentStaffProfilePhoto(
+            req.user?.user_id || req.user?.userId || null
+        );
+        const io = req.app.get('io');
+        socketEvents.maintenanceUpdated(io, {
+            entity: 'staff_profile_photo',
+            action: 'removed',
+            profile,
+        });
+
+        res.status(200).json({
+            success: true,
+            data: profile,
+            message: 'Profile photo removed successfully.',
+        });
+    } catch (err) {
+        console.error('REMOVE CURRENT STAFF PROFILE PHOTO ERROR:', err);
+        res.status(err.statusCode || 500).json({
+            success: false,
+            error: {
+                message: err.message || 'Failed to remove profile photo',
+            },
+        });
+    }
+};

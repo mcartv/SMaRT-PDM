@@ -9,6 +9,7 @@ export default function GuidanceLayout() {
       officeName="Guidance Office"
       loginPath="/guidance/login"
       dashboardPath="/guidance/dashboard"
+      profilePath="/guidance/profile"
       queuePath="/guidance/queue"
       trackerPath="/guidance/tracker"
       reportsPath="/guidance/reports"

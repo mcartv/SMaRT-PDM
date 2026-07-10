@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import {
   ArrowLeft,
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const STAGE_META = {
   completed: 'bg-green-50 text-green-700',
@@ -131,10 +132,12 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
   const meta = portalMeta(tokenStorageKey);
   const isAdminView = tokenStorageKey === 'adminToken';
 
-  useEffect(() => {
-    const loadDetail = async () => {
+  const loadDetail = useCallback(
+    async ({ soft = false } = {}) => {
       try {
-        setLoading(true);
+        if (!soft) {
+          setLoading(true);
+        }
         setError('');
 
         const response = await fetch(buildApiUrl(`/api/endorsement-slips/${slipId}`), {
@@ -153,12 +156,28 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
       } catch (err) {
         setError(err.message || 'Failed to load endorsement slip.');
       } finally {
-        setLoading(false);
+        if (!soft) {
+          setLoading(false);
+        }
       }
-    };
+    },
+    [slipId, tokenStorageKey]
+  );
 
+  useEffect(() => {
     loadDetail();
-  }, [slipId, tokenStorageKey]);
+  }, [loadDetail]);
+
+  useSocketEvent(
+    'endorsement:updated',
+    (payload) => {
+      const updatedSlipId = payload?.slip_id?.toString?.() || '';
+      if (updatedSlipId && updatedSlipId === String(slipId)) {
+        loadDetail({ soft: true });
+      }
+    },
+    [loadDetail, slipId]
+  );
 
   const historyItems = useMemo(() => {
     if (!slip) return [];

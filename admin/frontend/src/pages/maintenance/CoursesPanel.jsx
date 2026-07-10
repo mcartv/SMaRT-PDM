@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,13 +8,13 @@ import {
     Edit,
     RefreshCw,
     Archive,
+    ArchiveRestore,
     Search,
     Loader2,
     Save,
     X,
-    SlidersHorizontal,
 } from 'lucide-react';
-import { C, EmptyState, FieldLabel, Toggle } from './components/MaintenanceShared';
+import { C, EmptyState, FieldLabel } from './components/MaintenanceShared';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 
@@ -32,31 +31,41 @@ function CourseModal({
 
     const isEdit = mode === 'edit';
 
+    const canSubmit =
+        String(form.course_code || '').trim() &&
+        String(form.course_name || '').trim();
+
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
             onClick={onClose}
         >
             <Card
-                className="w-full max-w-2xl border-stone-200 shadow-xl overflow-hidden"
+                className="w-full max-w-2xl overflow-hidden border-stone-200 shadow-xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-stone-800">
-                        {isEdit ? 'Edit Academic Course' : 'Add Academic Course'}
-                    </h3>
+                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
+                    <div>
+                        <h3 className="text-sm font-semibold text-stone-800">
+                            {isEdit ? 'Edit Academic Course' : 'Add Academic Course'}
+                        </h3>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                            Manage the course code and course name used in student records.
+                        </p>
+                    </div>
 
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-1.5 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+                        className="rounded-md p-1.5 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
+                        disabled={saving}
                     >
                         <X size={14} />
                     </button>
                 </div>
 
-                <CardContent className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <CardContent className="space-y-3 p-4">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="space-y-1.5">
                             <FieldLabel>Course Code</FieldLabel>
                             <Input
@@ -69,6 +78,7 @@ function CourseModal({
                                 }
                                 placeholder="e.g. BSIT"
                                 className="h-9 rounded-lg border-stone-200 text-sm"
+                                disabled={saving}
                             />
                         </div>
 
@@ -84,121 +94,34 @@ function CourseModal({
                                 }
                                 placeholder="e.g. Bachelor of Science in Information Technology"
                                 className="h-9 rounded-lg border-stone-200 text-sm"
+                                disabled={saving}
                             />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <FieldLabel>Archive Status</FieldLabel>
-                            <div className="h-9 px-3 rounded-lg border border-stone-200 flex items-center bg-white">
-                                <Toggle
-                                    value={!form.is_archived}
-                                    onChange={(value) =>
-                                        setForm((prev) => ({
-                                            ...prev,
-                                            is_archived: !value,
-                                        }))
-                                    }
-                                    labels={['Active', 'Archived']}
-                                />
-                            </div>
                         </div>
                     </div>
                 </CardContent>
 
-                <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
+                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
                     <Button
                         variant="outline"
                         onClick={onClose}
                         className="h-8 rounded-lg border-stone-200 text-xs"
+                        disabled={saving}
                     >
                         Cancel
                     </Button>
 
                     <Button
                         onClick={onSave}
-                        disabled={
-                            saving ||
-                            !form.course_code ||
-                            !form.course_name
-                        }
-                        className="h-8 rounded-lg text-white text-xs border-none disabled:opacity-50"
+                        disabled={saving || !canSubmit}
+                        className="h-8 rounded-lg border-none text-xs text-white disabled:opacity-50"
                         style={{ background: C.brownMid }}
                     >
                         {saving ? (
-                            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         ) : (
-                            <Save className="w-3.5 h-3.5 mr-1.5" />
+                            <Save className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        {isEdit ? 'Save' : 'Create'}
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    );
-}
-
-function CoursesFilterModal({
-    open,
-    onClose,
-    archiveFilter,
-    setArchiveFilter,
-    onApply,
-    onClear,
-}) {
-    if (!open) return null;
-
-    return (
-        <div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
-            onClick={onClose}
-        >
-            <Card
-                className="w-full max-w-md border-stone-200 shadow-xl overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="px-4 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-stone-800">Filter Courses</h3>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="p-1.5 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
-                    >
-                        <X size={14} />
-                    </button>
-                </div>
-
-                <CardContent className="p-4 space-y-3">
-                    <div className="space-y-1.5">
-                        <FieldLabel>Archive Status</FieldLabel>
-                        <Select value={archiveFilter} onValueChange={setArchiveFilter}>
-                            <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Active">Active</SelectItem>
-                                <SelectItem value="Archived">Archived</SelectItem>
-                                <SelectItem value="All">All</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </CardContent>
-
-                <div className="px-4 py-3 border-t border-stone-100 bg-stone-50 flex items-center justify-end gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={onClear}
-                        className="h-8 rounded-lg border-stone-200 text-xs"
-                    >
-                        Clear
-                    </Button>
-
-                    <Button
-                        onClick={onApply}
-                        className="h-8 rounded-lg text-white text-xs border-none"
-                        style={{ background: C.brownMid }}
-                    >
-                        Apply
+                        {isEdit ? 'Save Changes' : 'Create Course'}
                     </Button>
                 </div>
             </Card>
@@ -208,15 +131,12 @@ function CoursesFilterModal({
 
 export default function CoursesPanel() {
     const [courses, setCourses] = useState([]);
-
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [actionLoadingId, setActionLoadingId] = useState(null);
 
     const [search, setSearch] = useState('');
-    const [archiveFilter, setArchiveFilter] = useState('Active');
-
-    const [draftArchiveFilter, setDraftArchiveFilter] = useState('Active');
-    const [filterOpen, setFilterOpen] = useState(false);
+    const [pageTab, setPageTab] = useState('current');
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('create');
@@ -225,12 +145,11 @@ export default function CoursesPanel() {
     const emptyForm = {
         course_code: '',
         course_name: '',
-        is_archived: false,
     };
 
     const [form, setForm] = useState(emptyForm);
 
-    const fetchCourses = async () => {
+    const fetchCourses = useCallback(async () => {
         const res = await fetch(buildApiUrl('/api/courses'), {
             headers: {
                 Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
@@ -238,53 +157,85 @@ export default function CoursesPanel() {
             },
         });
 
+        const data = await res.json().catch(() => []);
+
         if (!res.ok) {
-            throw new Error('Failed to load courses');
+            throw new Error(data.error || data.message || 'Failed to load courses');
         }
 
-        const data = await res.json();
         setCourses(Array.isArray(data) ? data : []);
-    };
+    }, []);
 
-    const loadAll = async () => {
+    const loadAll = useCallback(async () => {
         try {
             setLoading(true);
             await fetchCourses();
         } catch (err) {
             console.error('COURSES FETCH ERROR:', err);
-            alert(err.message || 'Failed to load maintenance data');
+            alert(err.message || 'Failed to load courses');
         } finally {
             setLoading(false);
         }
-    };
+    }, [fetchCourses]);
 
     useEffect(() => {
         loadAll();
-    }, []);
+    }, [loadAll]);
 
-    useSocketEvent('maintenance:updated', () => {
-        loadAll();
-    }, []);
+    useSocketEvent(
+        'maintenance:updated',
+        (payload = {}) => {
+            if (!payload?.module || payload.module === 'courses') {
+                loadAll();
+            }
+        },
+        [loadAll]
+    );
+
+    const currentCount = useMemo(
+        () => courses.filter((course) => course.is_archived !== true).length,
+        [courses]
+    );
+
+    const archivedCount = useMemo(
+        () => courses.filter((course) => course.is_archived === true).length,
+        [courses]
+    );
 
     const filteredCourses = useMemo(() => {
         const q = search.trim().toLowerCase();
 
-        return courses.filter((c) => {
-            const matchSearch =
-                !q ||
-                (c.course_code || '').toLowerCase().includes(q) ||
-                (c.course_name || '').toLowerCase().includes(q);
+        return courses
+            .filter((course) => {
+                const isArchived = course.is_archived === true;
 
-            const matchArchive =
-                archiveFilter === 'All' ||
-                (archiveFilter === 'Active' && !c.is_archived) ||
-                (archiveFilter === 'Archived' && !!c.is_archived);
+                if (pageTab === 'current' && isArchived) return false;
+                if (pageTab === 'archived' && !isArchived) return false;
 
-            return matchSearch && matchArchive;
-        });
-    }, [courses, search, archiveFilter]);
+                if (!q) return true;
 
-    const hasActiveFilters = archiveFilter !== 'Active';
+                return (
+                    String(course.course_code || '').toLowerCase().includes(q) ||
+                    String(course.course_name || '').toLowerCase().includes(q)
+                );
+            })
+            .sort((a, b) => {
+                if ((a.is_archived ? 1 : 0) !== (b.is_archived ? 1 : 0)) {
+                    return (a.is_archived ? 1 : 0) - (b.is_archived ? 1 : 0);
+                }
+
+                return String(a.course_code || '').localeCompare(
+                    String(b.course_code || '')
+                );
+            });
+    }, [courses, search, pageTab]);
+
+    const resetModal = () => {
+        setModalOpen(false);
+        setModalMode('create');
+        setEditingCourseId(null);
+        setForm(emptyForm);
+    };
 
     const openCreateModal = () => {
         setModalMode('create');
@@ -299,25 +250,8 @@ export default function CoursesPanel() {
         setForm({
             course_code: course.course_code || '',
             course_name: course.course_name || '',
-            is_archived: !!course.is_archived,
         });
         setModalOpen(true);
-    };
-
-    const openFilterModal = () => {
-        setDraftArchiveFilter(archiveFilter);
-        setFilterOpen(true);
-    };
-
-    const applyFilters = () => {
-        setArchiveFilter(draftArchiveFilter);
-        setFilterOpen(false);
-    };
-
-    const clearFilters = () => {
-        setArchiveFilter('Active');
-        setDraftArchiveFilter('Active');
-        setFilterOpen(false);
     };
 
     const handleSave = async () => {
@@ -327,7 +261,6 @@ export default function CoursesPanel() {
             const payload = {
                 course_code: form.course_code.trim().toUpperCase(),
                 course_name: form.course_name.trim(),
-                is_archived: !!form.is_archived,
             };
 
             if (!payload.course_code) {
@@ -360,10 +293,9 @@ export default function CoursesPanel() {
                 throw new Error(data.error || data.message || 'Failed to save course');
             }
 
-            setModalOpen(false);
-            setEditingCourseId(null);
-            setForm(emptyForm);
+            resetModal();
             await fetchCourses();
+            setPageTab('current');
         } catch (err) {
             console.error('SAVE COURSE ERROR:', err);
             alert(err.message || 'Failed to save course');
@@ -372,29 +304,64 @@ export default function CoursesPanel() {
         }
     };
 
-    const handleArchiveToggle = async (course) => {
+    const handleArchive = async (course) => {
         try {
-            const res = await fetch(buildApiUrl(`/api/courses/${course.course_id}`), {
-                method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    is_archived: !course.is_archived,
-                }),
-            });
+            setActionLoadingId(course.course_id);
+
+            const res = await fetch(
+                buildApiUrl(`/api/courses/${course.course_id}/archive`),
+                {
+                    method: 'PATCH',
+                    headers: {
+                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
 
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to update course status');
+                throw new Error(data.error || data.message || 'Failed to archive course');
             }
 
             await fetchCourses();
         } catch (err) {
             console.error('ARCHIVE COURSE ERROR:', err);
-            alert(err.message || 'Failed to update course status');
+            alert(err.message || 'Failed to archive course');
+        } finally {
+            setActionLoadingId(null);
+        }
+    };
+
+    const handleRestore = async (course) => {
+        try {
+            setActionLoadingId(course.course_id);
+
+            const res = await fetch(
+                buildApiUrl(`/api/courses/${course.course_id}/restore`),
+                {
+                    method: 'PATCH',
+                    headers: {
+                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                throw new Error(data.error || data.message || 'Failed to restore course');
+            }
+
+            await fetchCourses();
+            setPageTab('current');
+        } catch (err) {
+            console.error('RESTORE COURSE ERROR:', err);
+            alert(err.message || 'Failed to restore course');
+        } finally {
+            setActionLoadingId(null);
         }
     };
 
@@ -405,150 +372,188 @@ export default function CoursesPanel() {
                 mode={modalMode}
                 form={form}
                 setForm={setForm}
-                onClose={() => {
-                    setModalOpen(false);
-                    setEditingCourseId(null);
-                }}
+                onClose={resetModal}
                 onSave={handleSave}
                 saving={saving}
             />
 
-            <CoursesFilterModal
-                open={filterOpen}
-                onClose={() => setFilterOpen(false)}
-                archiveFilter={draftArchiveFilter}
-                setArchiveFilter={setDraftArchiveFilter}
-                onApply={applyFilters}
-                onClear={clearFilters}
-            />
+            <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Course Records
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                                {currentCount} active · {archivedCount} archived
+                            </p>
+                        </div>
 
-            <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-stone-900">Academic Courses</h2>
+                        <div className="relative w-full md:w-[320px]">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                placeholder="Search course..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
+                            />
+                        </div>
+                    </div>
 
-                <div className="flex items-center gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={loadAll}
-                        className="h-8 rounded-lg text-xs border-stone-200 text-stone-600"
-                    >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1" />
-                        Refresh
-                    </Button>
+                    <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('current')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
+                                        ? 'bg-[#7c4a2e] text-white'
+                                        : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Current ({currentCount})
+                            </button>
 
-                    <Button
-                        size="sm"
-                        className="h-8 rounded-lg text-white text-xs border-none"
-                        style={{ background: C.brownMid }}
-                        onClick={openCreateModal}
-                    >
-                        <Plus className="w-3.5 h-3.5 mr-1" />
-                        Add
-                    </Button>
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('archived')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
+                                        ? 'bg-[#7c4a2e] text-white'
+                                        : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Archived ({archivedCount})
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={loadAll}
+                                className="h-8 rounded-lg border-stone-200 text-xs text-stone-600"
+                            >
+                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                                Refresh
+                            </Button>
+
+                            <Button
+                                size="sm"
+                                className="h-8 rounded-lg border-none text-xs text-white"
+                                style={{ background: C.brownMid }}
+                                onClick={openCreateModal}
+                            >
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                Add
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[220px]">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-                    <Input
-                        placeholder="Search course..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8 h-8 text-xs rounded-lg border-stone-200"
-                    />
-                </div>
-
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={openFilterModal}
-                    className="h-8 rounded-lg text-xs border-stone-200"
-                >
-                    <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
-                    Filters
-                    {hasActiveFilters && (
-                        <span className="ml-1 rounded-full bg-stone-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                            Active
-                        </span>
-                    )}
-                </Button>
-
-                {(search || hasActiveFilters) && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            setSearch('');
-                            setArchiveFilter('Active');
-                            setDraftArchiveFilter('Active');
-                        }}
-                        className="h-8 rounded-lg text-xs border-stone-200"
-                    >
-                        Reset
-                    </Button>
-                )}
-            </div>
-
-            <div className="rounded-lg border border-stone-200 overflow-hidden">
+            <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
                 {loading ? (
-                    <div className="flex items-center justify-center h-[220px]">
-                        <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
+                    <div className="flex h-[220px] items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
                     </div>
                 ) : filteredCourses.length === 0 ? (
                     <div className="p-4">
                         <EmptyState
                             icon={BookOpen}
-                            title="No courses found"
-                            subtitle="Add a course to start."
+                            title={
+                                pageTab === 'archived'
+                                    ? 'No archived courses found'
+                                    : 'No courses found'
+                            }
+                            subtitle={
+                                pageTab === 'archived'
+                                    ? 'Archived courses will appear here.'
+                                    : 'Add a course to start.'
+                            }
                         />
                     </div>
                 ) : (
                     <div className="divide-y">
-                        {filteredCourses.map((course) => (
-                            <div
-                                key={course.course_id}
-                                className="flex items-center justify-between px-4 py-3 hover:bg-stone-50"
-                            >
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <h3 className="text-sm font-medium text-stone-900">
-                                            {course.course_code}
-                                        </h3>
+                        {filteredCourses.map((course) => {
+                            const isArchived = course.is_archived === true;
+                            const isBusy = actionLoadingId === course.course_id;
 
-                                        {course.is_archived && (
-                                            <span className="text-[10px] px-2 py-0.5 rounded bg-red-50 text-red-700">
-                                                Archived
-                                            </span>
-                                        )}
+                            return (
+                                <div
+                                    key={course.course_id}
+                                    className={`flex flex-col gap-3 px-4 py-3 transition md:flex-row md:items-center md:justify-between ${isArchived ? 'bg-stone-50' : 'hover:bg-stone-50'
+                                        }`}
+                                >
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-sm font-semibold text-stone-900">
+                                                {course.course_code}
+                                            </h3>
+
+                                            {isArchived ? (
+                                                <span className="rounded bg-red-50 px-2 py-0.5 text-[10px] text-red-700">
+                                                    Archived
+                                                </span>
+                                            ) : (
+                                                <span className="rounded bg-green-50 px-2 py-0.5 text-[10px] text-green-700">
+                                                    Active
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <p className="mt-1 truncate text-xs text-stone-500">
+                                            {course.course_name}
+                                        </p>
                                     </div>
 
-                                    <p className="text-xs text-stone-400 mt-1 truncate">
-                                        {course.course_name}
-                                    </p>
-                                </div>
+                                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                                        {isArchived ? (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 rounded-lg border-green-200 px-2 text-xs text-green-700 hover:bg-green-50"
+                                                onClick={() => handleRestore(course)}
+                                                disabled={isBusy}
+                                            >
+                                                {isBusy ? (
+                                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                                                )}
+                                                Restore
+                                            </Button>
+                                        ) : (
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 rounded-lg border-stone-200 px-2 text-xs"
+                                                    onClick={() => openEditModal(course)}
+                                                    disabled={isBusy}
+                                                >
+                                                    <Edit className="mr-1.5 h-3.5 w-3.5" />
+                                                    Edit
+                                                </Button>
 
-                                <div className="flex gap-1">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => openEditModal(course)}
-                                    >
-                                        <Edit size={12} />
-                                    </Button>
-
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleArchiveToggle(course)}
-                                    >
-                                        <Archive size={12} />
-                                    </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 rounded-lg border-red-200 px-2 text-xs text-red-700 hover:bg-red-50"
+                                                    onClick={() => handleArchive(course)}
+                                                    disabled={isBusy}
+                                                >
+                                                    {isBusy ? (
+                                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                    ) : (
+                                                        <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                                    )}
+                                                    Archive
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

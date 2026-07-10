@@ -175,8 +175,8 @@ function AcademicYearModal({
 
                     <div
                         className={`rounded-xl border px-4 py-4 ${form.is_active
-                                ? 'border-green-200 bg-green-50'
-                                : 'border-stone-200 bg-white'
+                            ? 'border-green-200 bg-green-50'
+                            : 'border-stone-200 bg-white'
                             }`}
                     >
                         <label className="flex cursor-pointer items-start gap-3">
@@ -576,19 +576,8 @@ export default function AcademicYearsPanel() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex min-h-[320px] flex-col items-center justify-center gap-3">
-                <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-                <p className="text-xs uppercase tracking-widest text-stone-400">
-                    Loading academic years.
-                </p>
-            </div>
-        );
-    }
-
     return (
-        <div className="space-y-4 py-1" style={{ background: C.bg }}>
+        <div className="space-y-4 py-1">
             <AcademicYearModal
                 open={modalOpen}
                 mode={modalMode}
@@ -600,37 +589,8 @@ export default function AcademicYearsPanel() {
                 onSave={handleSave}
             />
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h2 className="text-sm font-semibold text-stone-900">
-                        Academic Years
-                    </h2>
-                    <p className="mt-0.5 text-xs text-stone-500">
-                        Manage school years and select the active academic year used by the system.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={fetchAcademicYears}
-                        className="rounded-lg border-stone-200 text-xs text-stone-600"
-                    >
-                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                        Refresh
-                    </Button>
-
-                    <Button
-                        size="sm"
-                        onClick={openCreateModal}
-                        className="rounded-lg border-none text-xs text-white"
-                        style={{ background: C.brownMid }}
-                    >
-                        <Plus className="mr-1.5 h-3.5 w-3.5" />
-                        Add
-                    </Button>
-                </div>
+            <div>
+                <h2 className="text-sm font-semibold text-stone-900">Academic Years</h2>
             </div>
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
@@ -658,7 +618,7 @@ export default function AcademicYearsPanel() {
                             )}
                         </div>
 
-                        <div className="relative w-full md:w-[300px]">
+                        <div className="relative w-full md:w-[320px]">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                             <Input
                                 placeholder="Search academic year..."
@@ -669,167 +629,198 @@ export default function AcademicYearsPanel() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 border-t border-stone-100 pt-3">
-                        <button
-                            type="button"
-                            onClick={() => setPageTab('current')}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
+                    <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('current')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
                                     ? 'bg-[#7c4a2e] text-white'
                                     : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                                }`}
-                        >
-                            Current ({currentCount})
-                        </button>
+                                    }`}
+                            >
+                                Current ({currentCount})
+                            </button>
 
-                        <button
-                            type="button"
-                            onClick={() => setPageTab('archived')}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('archived')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
                                     ? 'bg-[#7c4a2e] text-white'
                                     : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                                }`}
-                        >
-                            Archived ({archivedCount})
-                        </button>
+                                    }`}
+                            >
+                                Archived ({archivedCount})
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={fetchAcademicYears}
+                                className="h-8 rounded-lg border-stone-200 text-xs text-stone-600"
+                            >
+                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                                Refresh
+                            </Button>
+
+                            <Button
+                                size="sm"
+                                onClick={openCreateModal}
+                                className="h-8 rounded-lg border-none text-xs text-white"
+                                style={{ background: C.brownMid }}
+                            >
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                Add
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {filteredRows.length === 0 ? (
-                <EmptyState archived={pageTab === 'archived'} />
-            ) : (
-                <div className="space-y-3">
-                    {filteredRows.map((row) => {
-                        const label = row.label || `${row.start_year}-${row.end_year}`;
-                        const isBusy = actionLoadingId === row.academic_year_id;
-                        const isArchived = row.is_archived === true;
+            <div className="rounded-xl border border-stone-200 bg-white p-4">
+                {loading ? (
+                    <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Loading academic years...
+                    </div>
+                ) : filteredRows.length === 0 ? (
+                    <EmptyState archived={pageTab === 'archived'} />
+                ) : (
+                    <div className="space-y-3">
+                        {filteredRows.map((row) => {
+                            const label = row.label || `${row.start_year}-${row.end_year}`;
+                            const isBusy = actionLoadingId === row.academic_year_id;
+                            const isArchived = row.is_archived === true;
 
-                        return (
-                            <div
-                                key={row.academic_year_id}
-                                className={`rounded-xl border bg-white px-4 py-4 transition-colors ${row.is_active
-                                        ? 'border-green-200'
-                                        : isArchived
-                                            ? 'border-stone-200 bg-stone-50'
-                                            : 'border-stone-200 hover:border-stone-300'
-                                    }`}
-                            >
-                                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                    <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="text-sm font-semibold text-stone-900">
-                                                {label}
-                                            </h3>
+                            return (
+                                <div
+                                    key={row.academic_year_id}
+                                    className={`rounded-xl border bg-white px-4 py-4 transition-colors ${row.is_active
+                                            ? 'border-green-200'
+                                            : isArchived
+                                                ? 'border-stone-200 bg-stone-50'
+                                                : 'border-stone-200 hover:border-stone-300'
+                                        }`}
+                                >
+                                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="text-sm font-semibold text-stone-900">
+                                                    {label}
+                                                </h3>
 
-                                            {isArchived ? (
-                                                <Badge
-                                                    variant="outline"
-                                                    className="border-stone-300 bg-white text-stone-600"
-                                                >
-                                                    Archived
-                                                </Badge>
-                                            ) : row.is_active ? (
-                                                <Badge className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50">
-                                                    Active
-                                                </Badge>
-                                            ) : (
-                                                <Badge
-                                                    variant="outline"
-                                                    className="border-stone-200 bg-white text-stone-600"
-                                                >
-                                                    Inactive
-                                                </Badge>
+                                                {isArchived ? (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="border-stone-300 bg-white text-stone-600"
+                                                    >
+                                                        Archived
+                                                    </Badge>
+                                                ) : row.is_active ? (
+                                                    <Badge className="border-green-200 bg-green-50 text-green-700 hover:bg-green-50">
+                                                        Active
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="border-stone-200 bg-white text-stone-600"
+                                                    >
+                                                        Inactive
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            <p className="mt-1 text-xs text-stone-500">
+                                                Start: {row.start_year} · End: {row.end_year}
+                                            </p>
+
+                                            {row.is_active && !isArchived && (
+                                                <p className="mt-2 text-xs text-green-700">
+                                                    This school year is currently used as the active academic year.
+                                                </p>
+                                            )}
+
+                                            {isArchived && (
+                                                <p className="mt-2 text-xs text-stone-500">
+                                                    This school year is archived and hidden from active selection.
+                                                </p>
                                             )}
                                         </div>
 
-                                        <p className="mt-1 text-xs text-stone-500">
-                                            Start: {row.start_year} · End: {row.end_year}
-                                        </p>
-
-                                        {row.is_active && !isArchived && (
-                                            <p className="mt-2 text-xs text-green-700">
-                                                This school year is currently used as the active academic year.
-                                            </p>
-                                        )}
-
-                                        {isArchived && (
-                                            <p className="mt-2 text-xs text-stone-500">
-                                                This school year is archived and hidden from active selection.
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                        {isArchived ? (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleRestore(row)}
-                                                className="rounded-lg border-green-200 text-xs text-green-700 hover:bg-green-50"
-                                                disabled={isBusy}
-                                            >
-                                                {isBusy ? (
-                                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                ) : (
-                                                    <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
-                                                )}
-                                                Restore
-                                            </Button>
-                                        ) : (
-                                            <>
-                                                {!row.is_active && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleSetActive(row)}
-                                                        className="rounded-lg border-green-200 text-xs text-green-700 hover:bg-green-50"
-                                                        disabled={isBusy}
-                                                    >
-                                                        {isBusy ? (
-                                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                        ) : (
-                                                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                                                        )}
-                                                        Set Active
-                                                    </Button>
-                                                )}
-
+                                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                            {isArchived ? (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    onClick={() => openEditModal(row)}
-                                                    className="rounded-lg border-stone-200 text-xs"
+                                                    onClick={() => handleRestore(row)}
+                                                    className="rounded-lg border-green-200 text-xs text-green-700 hover:bg-green-50"
                                                     disabled={isBusy}
                                                 >
-                                                    <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                                                    Edit
+                                                    {isBusy ? (
+                                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                    ) : (
+                                                        <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                                                    )}
+                                                    Restore
                                                 </Button>
+                                            ) : (
+                                                <>
+                                                    {!row.is_active && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleSetActive(row)}
+                                                            className="rounded-lg border-green-200 text-xs text-green-700 hover:bg-green-50"
+                                                            disabled={isBusy}
+                                                        >
+                                                            {isBusy ? (
+                                                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                            ) : (
+                                                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                                                            )}
+                                                            Set Active
+                                                        </Button>
+                                                    )}
 
-                                                {!row.is_active && (
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        onClick={() => handleArchive(row)}
-                                                        className="rounded-lg border-red-200 text-xs text-red-700 hover:bg-red-50"
+                                                        onClick={() => openEditModal(row)}
+                                                        className="rounded-lg border-stone-200 text-xs"
                                                         disabled={isBusy}
                                                     >
-                                                        {isBusy ? (
-                                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                        ) : (
-                                                            <Archive className="mr-1.5 h-3.5 w-3.5" />
-                                                        )}
-                                                        Archive
+                                                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                                                        Edit
                                                     </Button>
-                                                )}
-                                            </>
-                                        )}
+
+                                                    {!row.is_active && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleArchive(row)}
+                                                            className="rounded-lg border-red-200 text-xs text-red-700 hover:bg-red-50"
+                                                            disabled={isBusy}
+                                                        >
+                                                            {isBusy ? (
+                                                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                                            )}
+                                                            Archive
+                                                        </Button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

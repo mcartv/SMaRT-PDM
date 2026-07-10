@@ -1,109 +1,165 @@
 const courseService = require('../services/courseService');
 const socketEvents = require('../utils/socketEvents');
 
+function sendError(res, error, fallbackMessage) {
+    const message = error?.message || fallbackMessage || 'Unknown backend error';
+
+    if (
+        message === 'Course code is required' ||
+        message === 'Course name is required'
+    ) {
+        return res.status(400).json({
+            message,
+            error: message,
+        });
+    }
+
+    if (message === 'Course code already exists') {
+        return res.status(409).json({
+            message,
+            error: message,
+        });
+    }
+
+    return res.status(500).json({
+        message: fallbackMessage,
+        error: message,
+    });
+}
+
+function emitCourseUpdate(req, action, course = null) {
+    const io = req.app.get('io');
+
+    const payload = {
+        module: 'courses',
+        action,
+        id: course?.course_id || null,
+        course,
+        updated_at: new Date().toISOString(),
+    };
+
+    if (socketEvents?.maintenanceUpdated) {
+        socketEvents.maintenanceUpdated(io, payload);
+        return;
+    }
+
+    if (io) {
+        io.emit('maintenance:updated', payload);
+    }
+}
+
 const getCourses = async (req, res) => {
     try {
         const courses = await courseService.fetchCourses();
-        res.status(200).json(courses);
+        return res.status(200).json(courses);
     } catch (error) {
         console.error('GET COURSES CONTROLLER ERROR:', error);
-        res.status(500).json({
-            error: 'Failed to fetch courses',
-        });
+        return sendError(res, error, 'Failed to fetch courses');
     }
 };
 
 const createCourse = async (req, res) => {
     try {
-        const {
-            course_code,
-            course_name,
-            is_archived,
-        } = req.body;
-
         const createdCourse = await courseService.createCourse({
-            course_code,
-            course_name,
-            is_archived,
+            course_code: req.body.course_code,
+            course_name: req.body.course_name,
+            is_archived: req.body.is_archived,
         });
 
-        const io = req.app.get('io');
-        socketEvents.maintenanceUpdated(io, {
-            module: 'courses',
-            action: 'create',
-            id: createdCourse?.course_id ?? createdCourse?.id ?? null,
-            updated_at: new Date().toISOString(),
-        });
-        res.status(201).json(createdCourse);
+        emitCourseUpdate(req, 'create', createdCourse);
+
+        return res.status(201).json(createdCourse);
     } catch (error) {
         console.error('CREATE COURSE CONTROLLER ERROR:', error);
-
-        if (
-            error.message === 'Course code is required' ||
-            error.message === 'Course name is required' ||
-            error.message === 'Department is required' ||
-            error.message === 'Department not found' ||
-            error.message === 'Department is archived'
-        ) {
-            return res.status(400).json({ error: error.message });
-        }
-
-        if (error.message === 'Course code already exists') {
-            return res.status(409).json({ error: error.message });
-        }
-
-        res.status(500).json({
-            error: 'Failed to create course',
-        });
+        return sendError(res, error, 'Failed to create course');
     }
 };
 
 const updateCourse = async (req, res) => {
     try {
-        const { id } = req.params;
-        const {
-            course_code,
-            course_name,
-            is_archived,
-        } = req.body;
-
-        const updatedCourse = await courseService.updateCourse(id, {
-            course_code,
-            course_name,
-            is_archived,
+        const updatedCourse = await courseService.updateCourse(req.params.id, {
+            course_code: req.body.course_code,
+            course_name: req.body.course_name,
+            is_archived: req.body.is_archived,
         });
 
         if (!updatedCourse) {
             return res.status(404).json({
+                message: 'Course not found',
                 error: 'Course not found',
             });
         }
 
-        const io = req.app.get('io');
-        socketEvents.maintenanceUpdated(io, {
-            module: 'courses',
-            action: 'update',
-            id,
-            updated_at: new Date().toISOString(),
-        });
-        res.status(200).json(updatedCourse);
+        emitCourseUpdate(req, 'update', updatedCourse);
+
+        return res.status(200).json(updatedCourse);
     } catch (error) {
         console.error('UPDATE COURSE CONTROLLER ERROR:', error);
+        return sendError(res, error, 'Failed to update course');
+    }
+};
 
-        if (
-            error.message === 'Course code is required' ||
-            error.message === 'Course name is required'
-        ) {
-            return res.status(400).json({ error: error.message });
+const archiveCourse = async (req, res) => {
+    try {
+        const archivedCourse = await courseService.archiveCourse(req.params.id);
+
+        if (!archivedCourse) {
+            return res.status(404).json({
+                message: 'Course not found',
+                error: 'Course not found',
+            });
         }
 
-        if (error.message === 'Course code already exists') {
-            return res.status(409).json({ error: error.message });
+        emitCourseUpdate(req, 'archive', archivedCourse);
+
+        return res.status(200).json(archivedCourse);
+    } catch (error) {
+        console.error('ARCHIVE COURSE CONTROLLER ERROR:', error);
+        return sendError(res, error, 'Failed to archive course');
+    }
+};
+
+const restoreCourse = async (req, res) => {
+    try {
+        const restoredCourse = await courseService.restoreCourse(req.params.id);
+
+        if (!restoredCourse) {
+            return res.status(404).json({
+                message: 'Course not found',
+                error: 'Course not found',
+            });
         }
 
-        res.status(500).json({
-            error: 'Failed to update course',
+        emitCourseUpdate(req, 'restore', restoredCourse);
+
+        return res.status(200).json(restoredCourse);
+    } catch (error) {
+        console.error('RESTORE COURSE CONTROLLER ERROR:', error);
+        return sendError(res, error, 'Failed to restore course');
+    }
+};
+
+// Safe delete alias: archives instead of hard-deleting.
+const deleteCourse = async (req, res) => {
+    try {
+        const archivedCourse = await courseService.archiveCourse(req.params.id);
+
+        if (!archivedCourse) {
+            return res.status(404).json({
+                message: 'Course not found',
+                error: 'Course not found',
+            });
+        }
+
+        emitCourseUpdate(req, 'delete', archivedCourse);
+
+        return res.status(200).json({
+            message: 'Course archived successfully',
+            course: archivedCourse,
         });
+    } catch (error) {
+        console.error('DELETE COURSE CONTROLLER ERROR:', error);
+        return sendError(res, error, 'Failed to delete course');
     }
 };
 
@@ -111,4 +167,7 @@ module.exports = {
     getCourses,
     createCourse,
     updateCourse,
+    archiveCourse,
+    restoreCourse,
+    deleteCourse,
 };

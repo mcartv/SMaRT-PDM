@@ -274,6 +274,7 @@ export default function ProgramsPanel() {
     const [benefactors, setBenefactors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [pageTab, setPageTab] = useState('current');
 
     const [search, setSearch] = useState('');
 
@@ -359,17 +360,44 @@ export default function ProgramsPanel() {
     const filteredPrograms = useMemo(() => {
         const q = search.trim().toLowerCase();
 
-        return programs.filter((p) => {
-            const benefactorName = p.benefactor_name || benefactorNameMap[p.benefactor_id] || '';
+        return programs
+            .filter((p) => {
+                const isArchived = p.is_archived === true;
 
-            return (
-                !q ||
-                (p.program_name || '').toLowerCase().includes(q) ||
-                benefactorName.toLowerCase().includes(q) ||
-                (p.description || '').toLowerCase().includes(q)
-            );
-        });
-    }, [programs, benefactorNameMap, search]);
+                if (pageTab === 'current' && isArchived) return false;
+                if (pageTab === 'archived' && !isArchived) return false;
+
+                const benefactorName =
+                    p.benefactor_name || benefactorNameMap[p.benefactor_id] || '';
+
+                if (!q) return true;
+
+                return (
+                    (p.program_name || '').toLowerCase().includes(q) ||
+                    benefactorName.toLowerCase().includes(q) ||
+                    (p.description || '').toLowerCase().includes(q)
+                );
+            })
+            .sort((a, b) => {
+                if ((a.is_archived ? 1 : 0) !== (b.is_archived ? 1 : 0)) {
+                    return (a.is_archived ? 1 : 0) - (b.is_archived ? 1 : 0);
+                }
+
+                return String(a.program_name || '').localeCompare(
+                    String(b.program_name || '')
+                );
+            });
+    }, [programs, benefactorNameMap, search, pageTab]);
+
+    const currentCount = useMemo(
+        () => programs.filter((program) => program.is_archived !== true).length,
+        [programs]
+    );
+
+    const archivedCount = useMemo(
+        () => programs.filter((program) => program.is_archived === true).length,
+        [programs]
+    );
 
     const openCreateModal = () => {
         setModalMode('create');
@@ -509,56 +537,95 @@ export default function ProgramsPanel() {
                 benefactors={benefactors}
             />
 
-            <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-stone-900">Programs</h2>
+            <div>
+                <h2 className="text-sm font-semibold text-stone-900">Scholarship Programs</h2>
+            </div>
 
-                <div className="flex items-center gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={loadAll}
-                        className="h-8 rounded-lg text-xs border-stone-200 text-stone-600"
-                    >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1" />
-                        Refresh
-                    </Button>
+            <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                Program Records
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                                {currentCount} active · {archivedCount} archived
+                            </p>
+                        </div>
 
-                    <Button
-                        size="sm"
-                        className="h-8 rounded-lg text-white text-xs border-none"
-                        style={{ background: C.brownMid }}
-                        onClick={openCreateModal}
-                    >
-                        <Plus className="w-3.5 h-3.5 mr-1" />
-                        Add
-                    </Button>
+                        <div className="relative w-full md:w-[320px]">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                placeholder="Search program..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('current')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
+                                    ? 'bg-[#7c4a2e] text-white'
+                                    : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Current ({currentCount})
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('archived')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'archived'
+                                    ? 'bg-[#7c4a2e] text-white'
+                                    : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Archived ({archivedCount})
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {search && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSearch('')}
+                                    className="h-8 rounded-lg border-stone-200 text-xs"
+                                >
+                                    Reset
+                                </Button>
+                            )}
+
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={loadAll}
+                                className="h-8 rounded-lg border-stone-200 text-xs text-stone-600"
+                            >
+                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                                Refresh
+                            </Button>
+
+                            <Button
+                                size="sm"
+                                className="h-8 rounded-lg border-none text-xs text-white"
+                                style={{ background: C.brownMid }}
+                                onClick={openCreateModal}
+                            >
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                Add
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[240px]">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-                    <Input
-                        placeholder="Search..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8 h-8 text-xs rounded-lg border-stone-200"
-                    />
-                </div>
-
-                {search && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSearch('')}
-                        className="h-8 rounded-lg text-xs border-stone-200"
-                    >
-                        Reset
-                    </Button>
-                )}
-            </div>
-
-            <div className="rounded-lg border border-stone-200 overflow-hidden">
+            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                 {loading ? (
                     <div className="flex items-center justify-center h-[220px]">
                         <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
@@ -594,8 +661,8 @@ export default function ProgramsPanel() {
 
                                             <span
                                                 className={`text-[10px] px-2 py-0.5 rounded ${String(p.visibility_status).toLowerCase() === 'published'
-                                                        ? 'bg-green-50 text-green-700'
-                                                        : 'bg-amber-50 text-amber-700'
+                                                    ? 'bg-green-50 text-green-700'
+                                                    : 'bg-amber-50 text-amber-700'
                                                     }`}
                                             >
                                                 {p.visibility_status}
@@ -634,6 +701,9 @@ export default function ProgramsPanel() {
                                             onClick={() => handleArchiveToggle(p)}
                                         >
                                             <Archive size={12} />
+                                            <span className="ml-1">
+                                                {p.is_archived ? 'Restore' : 'Archive'}
+                                            </span>
                                         </Button>
                                     </div>
                                 </div>

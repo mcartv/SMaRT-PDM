@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Eye, Loader2, RefreshCw, Search } from 'lucide-react';
+import { ArrowRight, Eye, Loader2, RefreshCw, Search } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/button';
@@ -197,17 +197,22 @@ export default function AllEndorsementsTracker({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="border-stone-200"
+                      className="h-10 rounded-xl border-blue-200 bg-blue-50 px-4 font-medium text-blue-800 hover:bg-blue-100"
                       onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
                     >
                       <Eye className="mr-2 h-4 w-4" />
                       View Slip
+                      <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl bg-stone-50 p-4">
-                  <EndorsementProgressTracker tracker={row.tracker} />
+                <div className="mt-4 rounded-2xl bg-stone-50 px-4 py-3">
+                  <EndorsementProgressTracker
+                    tracker={row.tracker}
+                    compact
+                    className="space-y-2"
+                  />
                 </div>
               </div>
             ))

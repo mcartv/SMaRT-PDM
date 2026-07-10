@@ -760,7 +760,7 @@ export default function EndorsementQueue({
         }}
       >
         {confirmAction && confirmMeta ? (
-          <AlertDialogContent size="default" className="rounded-3xl border-stone-200 bg-white p-0">
+          <AlertDialogContent size="lg" className="rounded-3xl border border-stone-200 bg-white p-0">
             <AlertDialogHeader className="px-6 pt-6">
               <AlertDialogMedia
                 className={`${
@@ -781,23 +781,54 @@ export default function EndorsementQueue({
               </AlertDialogMedia>
               <AlertDialogTitle>{confirmMeta.title}</AlertDialogTitle>
               <AlertDialogDescription>{confirmMeta.description}</AlertDialogDescription>
-              <div className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-left">
+              <div className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-left">
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Applicant</p>
                 <p className="mt-1 text-sm font-semibold text-stone-900">
                   {confirmAction.row.student_name}
                 </p>
-                <p className="mt-1 text-xs text-stone-500">
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-xl bg-white px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">PDM ID</p>
+                    <p className="mt-1 text-sm text-stone-700">
+                      {confirmAction.row.pdm_id || 'No PDM ID'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-white px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Slip Code</p>
+                    <p className="mt-1 font-mono text-sm text-stone-700">
+                      {confirmAction.row.slip_code || 'Not available'}
+                    </p>
+                  </div>
+                </div>
+                {queueKey === 'pd' ? (
+                  <div className="mt-3 rounded-xl border border-stone-200 bg-white px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">PD Check</p>
+                    <p className="mt-1 text-sm text-stone-700">
+                      Grade file:{' '}
+                      <span className="font-semibold text-stone-900">
+                        {confirmAction.row.grade_document?.url ? 'Uploaded' : 'Missing'}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-stone-700">
+                      GWA:{' '}
+                      <span className="font-semibold text-stone-900">
+                        {confirmAction.row.grade_summary?.gwa ?? 'N/A'}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
+                <p className="hidden">
                   {confirmAction.row.pdm_id || 'No PDM ID'} {confirmAction.row.slip_code ? `• ${confirmAction.row.slip_code}` : ''}
                 </p>
               </div>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={Boolean(savingSlipId)}>
+              <AlertDialogCancel disabled={Boolean(savingSlipId)} className="min-w-28 border-stone-200">
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
                 disabled={Boolean(savingSlipId)}
-                className={`${
+                className={`min-w-36 ${
                   confirmMeta.tone === 'red'
                     ? 'bg-red-700 text-white hover:bg-red-800'
                     : confirmMeta.tone === 'green'

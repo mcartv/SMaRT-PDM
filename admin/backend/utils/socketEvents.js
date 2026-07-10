@@ -141,7 +141,8 @@ const socketEvents = {
     roUpdated: (io, data) => emitEvent(io, 'ro:updated', data),
 
     // Maintenance / Report Events
-    maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
+    maintenanceUpdated: (io, data) =>
+        emitEvent(io, 'maintenance:updated', data),
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
 
     // Notification Events

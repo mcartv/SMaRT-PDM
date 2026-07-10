@@ -11,6 +11,8 @@ const AUTH_STORAGE_KEYS = [
   'sdoProfile',
 ];
 
+const OFFICIAL_ADMIN_EMAIL = 'smartpdm.system@gmail.com';
+
 async function parseJsonResponse(response, fallbackMessage) {
   const data = await response.json().catch(() => ({}));
 
@@ -41,7 +43,7 @@ export const authService = {
     return await parseJsonResponse(response, 'Invalid credentials');
   },
 
-  startAdminPasswordReset: async (email) => {
+  startAdminPasswordReset: async (email = OFFICIAL_ADMIN_EMAIL) => {
     const response = await fetch(
       buildApiUrl('/api/auth/admin/forgot-password/start'),
       {
@@ -54,7 +56,7 @@ export const authService = {
     return await parseJsonResponse(response, 'Unable to send recovery code');
   },
 
-  verifyAdminPasswordResetOtp: async (email, otp) => {
+  verifyAdminPasswordResetOtp: async (otp, email = OFFICIAL_ADMIN_EMAIL) => {
     const response = await fetch(
       buildApiUrl('/api/auth/admin/forgot-password/verify'),
       {
@@ -67,7 +69,7 @@ export const authService = {
     return await parseJsonResponse(response, 'Invalid or expired recovery code');
   },
 
-  resetAdminPassword: async (email, resetToken, newPassword) => {
+  resetAdminPassword: async (resetToken, newPassword, email = OFFICIAL_ADMIN_EMAIL) => {
     const response = await fetch(
       buildApiUrl('/api/auth/admin/forgot-password/reset'),
       {

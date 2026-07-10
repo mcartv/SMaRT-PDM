@@ -137,6 +137,108 @@ function getDocumentPreviewType(row = {}) {
   return 'file';
 }
 
+function GradePreviewModal({ row, open, onClose }) {
+  if (!open || !row?.grade_document?.url) return null;
+
+  const previewType = getDocumentPreviewType(row);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="flex h-[min(92vh,860px)] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+              Grade Preview
+            </p>
+            <p className="mt-1 truncate text-base font-semibold text-stone-900">
+              {row.grade_document.file_name || 'Grade document'}
+            </p>
+            <p className="mt-1 text-sm text-stone-500">
+              {row.student_name} • {row.pdm_id || 'No PDM ID'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <a
+              href={row.grade_document.url}
+              target="_blank"
+              rel="noreferrer"
+              download={row.grade_document.file_name || 'grade-document'}
+              className="inline-flex"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-stone-200 bg-white"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            </a>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-stone-200 bg-white"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 bg-stone-50 p-4">
+          {previewType === 'image' ? (
+            <div className="flex h-full items-center justify-center overflow-auto rounded-2xl border border-stone-200 bg-white p-4">
+              <img
+                src={row.grade_document.url}
+                alt={row.grade_document.file_name || 'Grade document'}
+                className="max-h-full max-w-full rounded-2xl object-contain"
+              />
+            </div>
+          ) : previewType === 'pdf' ? (
+            <object
+              data={row.grade_document.url}
+              type="application/pdf"
+              className="h-full w-full rounded-2xl border border-stone-200 bg-white"
+            >
+              <iframe
+                src={row.grade_document.url}
+                title={row.grade_document.file_name || 'Grade document'}
+                className="h-full w-full rounded-2xl border border-stone-200 bg-white"
+              />
+            </object>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 text-center">
+              <FileText className="h-10 w-10 text-stone-400" />
+              <p className="mt-4 text-base font-semibold text-stone-800">
+                Preview is not available for this file type.
+              </p>
+              <p className="mt-2 text-sm text-stone-500">
+                Open or download the file instead.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <a
+                  href={row.grade_document.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex"
+                >
+                  <Button type="button" size="sm" className="border-none bg-stone-900 text-white hover:bg-stone-800">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open File
+                  </Button>
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getQueueDecisionValue(queueKey, row) {
   if (queueKey === 'sdo') {
     return row.sdo_decision || 'pending';
@@ -547,6 +649,7 @@ export default function EndorsementQueue({
   const [search, setSearch] = useState('');
   const [programFilter, setProgramFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
+  const [previewRow, setPreviewRow] = useState(null);
   const [actionState, setActionState] = useState({});
   const [confirmAction, setConfirmAction] = useState(null);
 
@@ -751,6 +854,11 @@ export default function EndorsementQueue({
 
   return (
     <div className="space-y-5 py-2">
+      <GradePreviewModal
+        row={previewRow}
+        open={Boolean(previewRow)}
+        onClose={() => setPreviewRow(null)}
+      />
       <AlertDialog
         open={Boolean(confirmAction)}
         onOpenChange={(open) => {
@@ -817,18 +925,15 @@ export default function EndorsementQueue({
                     </p>
                   </div>
                 ) : null}
-                <p className="hidden">
-                  {confirmAction.row.pdm_id || 'No PDM ID'} {confirmAction.row.slip_code ? `• ${confirmAction.row.slip_code}` : ''}
-                </p>
               </div>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={Boolean(savingSlipId)} className="min-w-28 border-stone-200">
+            <AlertDialogFooter className="mt-2">
+              <AlertDialogCancel disabled={Boolean(savingSlipId)} className="h-10 min-w-28 border-stone-200 bg-white px-4">
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
                 disabled={Boolean(savingSlipId)}
-                className={`min-w-36 ${
+                className={`h-10 min-w-40 px-4 ${
                   confirmMeta.tone === 'red'
                     ? 'bg-red-700 text-white hover:bg-red-800'
                     : confirmMeta.tone === 'green'
@@ -964,21 +1069,10 @@ export default function EndorsementQueue({
                       <p className="mt-1 text-sm text-stone-500">{row.pdm_id}</p>
                       <p className="mt-2 font-mono text-[11px] text-stone-400">{row.slip_code}</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge className={STAGE_TONE[row.current_stage] || 'bg-stone-100 text-stone-700'}>
-                        {row.current_stage_label || row.overall_status_label}
-                      </Badge>
-                      <Badge variant="outline" className="border-stone-200 text-stone-700">
-                        {row.overall_status_label}
-                      </Badge>
-                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="border-stone-200 text-stone-700">
                       {row.program_name}
-                    </Badge>
-                    <Badge variant="outline" className="border-stone-200 text-stone-700">
-                      {row.opening_title || 'Opening not set'}
                     </Badge>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1051,7 +1145,7 @@ export default function EndorsementQueue({
                             <Button
                               size="sm"
                               className="border-none bg-stone-900 text-white hover:bg-stone-800"
-                              onClick={() => openExternalFile(row.grade_document.url)}
+                              onClick={() => setPreviewRow(row)}
                             >
                               <Eye className="mr-2 h-4 w-4" />
                               Preview Grade

@@ -2099,7 +2099,7 @@ class _ApplicantProgressCard extends StatelessWidget {
       case _ApplicantFlowTone.danger:
         return Icons.report_gmailerrorred_rounded;
       case _ApplicantFlowTone.info:
-        return Icons.assistant_navigation_rounded;
+        return Icons.explore_outlined;
     }
   }
 

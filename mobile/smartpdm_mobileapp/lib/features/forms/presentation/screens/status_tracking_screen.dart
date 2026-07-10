@@ -316,6 +316,11 @@ class _StatusSummaryView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+        _WorkflowStageTracker(
+          activeStage: workflow?.stage ?? _fallbackStage(),
+          blockerCode: workflow?.primaryBlocker?.code,
+        ),
+        const SizedBox(height: 16),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -412,6 +417,185 @@ class _StatusSummaryView extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  String _fallbackStage() {
+    final appStatus = (summary.applicationStatus ?? '').toLowerCase();
+    final documentStatus = (summary.documentStatus ?? '').toLowerCase();
+
+    if (appStatus == 'approved') return 'scholar_activated';
+    if (documentStatus.contains('missing')) return 'requirements_review';
+    if (documentStatus.contains('under review')) return 'requirements_review';
+    if (documentStatus.contains('ready')) return 'endorsement_review';
+
+    return 'application_submitted';
+  }
+}
+
+class _WorkflowStageTracker extends StatelessWidget {
+  const _WorkflowStageTracker({required this.activeStage, this.blockerCode});
+
+  final String activeStage;
+  final String? blockerCode;
+
+  static const _steps = [
+    _WorkflowStep(
+      key: 'application_submitted',
+      label: 'Submitted',
+      icon: Icons.assignment_turned_in_outlined,
+    ),
+    _WorkflowStep(
+      key: 'requirements_review',
+      label: 'Requirements',
+      icon: Icons.fact_check_outlined,
+    ),
+    _WorkflowStep(
+      key: 'endorsement_review',
+      label: 'Endorsement',
+      icon: Icons.groups_2_outlined,
+    ),
+    _WorkflowStep(
+      key: 'ready_for_activation',
+      label: 'Ready',
+      icon: Icons.verified_user_outlined,
+    ),
+    _WorkflowStep(
+      key: 'scholar_activated',
+      label: 'Activated',
+      icon: Icons.workspace_premium_outlined,
+    ),
+  ];
+
+  bool get _isStopped =>
+      blockerCode == 'requirements.rejected' ||
+      blockerCode == 'endorsement.major_offense' ||
+      blockerCode == 'endorsement.rejected';
+
+  bool get _isHeld =>
+      blockerCode == 'endorsement.held' ||
+      blockerCode == 'requirements.reupload_required' ||
+      blockerCode == 'requirements.missing';
+
+  @override
+  Widget build(BuildContext context) {
+    final activeIndex = _steps.indexWhere((step) => step.key == activeStage);
+    final resolvedIndex = activeIndex < 0 ? 0 : activeIndex;
+    final activeColor = _isStopped
+        ? Colors.red
+        : _isHeld
+        ? Colors.orange
+        : Colors.green;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Application Tracker',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < _steps.length; i++) ...[
+                  Expanded(
+                    child: _WorkflowStepMarker(
+                      step: _steps[i],
+                      isComplete: i < resolvedIndex,
+                      isActive: i == resolvedIndex,
+                      activeColor: activeColor,
+                    ),
+                  ),
+                  if (i < _steps.length - 1)
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 18),
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: i < resolvedIndex
+                              ? activeColor
+                              : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkflowStep {
+  const _WorkflowStep({
+    required this.key,
+    required this.label,
+    required this.icon,
+  });
+
+  final String key;
+  final String label;
+  final IconData icon;
+}
+
+class _WorkflowStepMarker extends StatelessWidget {
+  const _WorkflowStepMarker({
+    required this.step,
+    required this.isComplete,
+    required this.isActive,
+    required this.activeColor,
+  });
+
+  final _WorkflowStep step;
+  final bool isComplete;
+  final bool isActive;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isComplete || isActive ? activeColor : Colors.grey.shade400;
+    final background = isComplete || isActive
+        ? activeColor.withValues(alpha: 0.12)
+        : Colors.grey.shade100;
+
+    return Column(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: background,
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: isActive ? 2 : 1),
+          ),
+          child: Icon(
+            isComplete ? Icons.check : step.icon,
+            size: 19,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          step.label,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: isActive ? activeColor : Colors.grey.shade700,
+            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            height: 1.15,
+          ),
+        ),
       ],
     );
   }

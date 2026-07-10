@@ -98,6 +98,28 @@ function normalizeFamilyRelation(value) {
     return safeText(value);
 }
 
+function normalizeEducationalAttainment(value) {
+    const normalized = normalizeLookupKey(value);
+
+    if (!normalized) return null;
+
+    if (normalized.includes('elementary')) return 'Elementary';
+    if (normalized.includes('senior high')) return 'Senior High School';
+    if (normalized.includes('high school')) return 'High School';
+    if (normalized.includes('college')) return 'College';
+    if (normalized.includes('vocational')) return 'Vocational';
+    if (normalized.includes('post graduate') || normalized.includes('postgraduate')) {
+        return 'Post-Graduate';
+    }
+    if (normalized === 'none') return 'None';
+
+    const lookup = {
+        none: 'None',
+    };
+
+    return lookup[normalized] || null;
+}
+
 function splitFamilyName(row = {}) {
     return [
         safeText(row.first_name),
@@ -2092,6 +2114,10 @@ function educationPayload(studentId, level, data = {}) {
 }
 
 function familyPayload(studentId, relation, data = {}, extra = {}) {
+    const highestEducationalAttainment = normalizeEducationalAttainment(
+        data.highest_educational_attainment || data.educational_attainment
+    );
+
     return {
         student_id: studentId,
         relation,
@@ -2100,9 +2126,7 @@ function familyPayload(studentId, relation, data = {}, extra = {}) {
         middle_name: safeText(data.middle_name),
         mobile_number: safeText(data.mobile_number || data.mobile),
         address: safeText(data.address || extra.parent_guardian_address),
-        highest_educational_attainment: safeText(
-            data.highest_educational_attainment || data.educational_attainment
-        ) || null,
+        highest_educational_attainment: highestEducationalAttainment,
         occupation: safeText(data.occupation),
         company_name_address: safeText(
             data.company_name_address || data.company_name_and_address

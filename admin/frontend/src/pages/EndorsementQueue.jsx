@@ -85,6 +85,24 @@ const STAGE_TONE = {
   guidance_rejected: 'bg-red-50 text-red-700',
 };
 
+const QUEUE_ACCENT = {
+  sdo: {
+    card: 'from-orange-50 via-white to-white',
+    border: 'border-orange-200',
+    badge: 'bg-orange-100 text-orange-800',
+  },
+  guidance: {
+    card: 'from-blue-50 via-white to-white',
+    border: 'border-blue-200',
+    badge: 'bg-blue-100 text-blue-800',
+  },
+  pd: {
+    card: 'from-emerald-50 via-white to-white',
+    border: 'border-emerald-200',
+    badge: 'bg-emerald-100 text-emerald-800',
+  },
+};
+
 const QUEUE_RESULT_FILTERS = {
   sdo: [
     { value: 'all', label: 'All SDO Results' },
@@ -665,6 +683,7 @@ export default function EndorsementQueue({
   const [confirmAction, setConfirmAction] = useState(null);
 
   const hasAccess = meta.allowedRoles.includes(profile.role);
+  const accent = QUEUE_ACCENT[queueKey] || QUEUE_ACCENT.pd;
 
   const loadQueue = async ({ soft = false } = {}) => {
     if (!hasAccess) return;
@@ -1093,88 +1112,114 @@ export default function EndorsementQueue({
             filteredRows.map((row) => (
               <div
                 key={row.slip_id}
-                className="rounded-[26px] border border-stone-200 bg-white p-5 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
+                className={`overflow-hidden rounded-[28px] border bg-gradient-to-br p-0 shadow-sm transition-all hover:shadow-md ${accent.card} ${accent.border}`}
               >
-                <div className="grid gap-4 xl:grid-cols-[1.12fr_0.92fr_1fr]">
-                  <div className="space-y-3">
-                  <div className="flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="border-b border-stone-200/70 px-5 py-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
-                      <p className="text-lg font-semibold text-stone-900">{row.student_name}</p>
-                      <p className="mt-1 text-sm text-stone-500">{row.pdm_id || 'No PDM ID'}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Badge variant="outline" className="border-stone-200 text-stone-700">
-                          {row.program_name || 'No program'}
-                        </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${accent.badge}`}>
+                          {meta.title}
+                        </span>
                         <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getCurrentStageTone(row)}`}>
                           {getCurrentStageLabel(row)}
                         </span>
-                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getQueueDecisionTone(getQueueDecisionValue(queueKey, row))}`}>
-                          {getQueueDecisionLabel(queueKey, row)}
-                        </span>
+                      </div>
+
+                      <p className="mt-4 text-xl font-semibold text-stone-900">{row.student_name}</p>
+                      <p className="mt-1 text-sm text-stone-500">{row.pdm_id || 'No PDM ID'}</p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="border-stone-200 bg-white/80 text-stone-700">
+                          {row.program_name || 'No program'}
+                        </Badge>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-stone-200 bg-stone-50/80 px-3 py-3 text-right">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Slip Code</p>
-                      <p className="mt-1 font-mono text-xs text-stone-700">{row.slip_code || 'Not available'}</p>
+                    <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
+                      <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Slip Code</p>
+                        <p className="mt-1 font-mono text-xs text-stone-700">{row.slip_code || 'Not available'}</p>
+                      </div>
+                      <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Submitted</p>
+                        <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Action Owner</p>
+                        <p className="mt-1 text-sm font-medium text-stone-800">{meta.title}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl bg-stone-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Submitted</p>
-                      <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-stone-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Current Review</p>
-                      <p className="mt-1 text-sm font-medium text-stone-800">{meta.title}</p>
-                    </div>
-                  </div>
-                  {queueKey === 'pd' ? (
-                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
-                      <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
-                      <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
-                      {row.grade_document?.file_name ? (
-                        <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
-                      ) : null}
-                      {!row.grade_document?.url ? (
-                        <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                          PD approval is blocked until the applicant uploads the grade document.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {queueKey !== 'sdo' ? (
-                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Previous SDO Review</p>
-                      <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
-                      {row.sdo_offense_detail?.offense_type ? (
-                        <p className="mt-2 text-xs leading-5 text-stone-500">
-                          {row.sdo_offense_detail.offense_type}
-                          {row.sdo_offense_detail.incident_date ? ` | ${row.sdo_offense_detail.incident_date}` : ''}
-                          {row.sdo_offense_detail.case_reference_number ? ` | ${row.sdo_offense_detail.case_reference_number}` : ''}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">SDO Rule</p>
-                      <p className="mt-2">Minor offense still proceeds to Guidance. Major offense stops the slip here.</p>
-                    </div>
-                  )}
-                  {queueKey === 'pd' ? (
-                    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Review</p>
-                      <p className="mt-2 font-medium text-stone-900">{row.office_results?.guidance || 'Pending Guidance review'}</p>
-                    </div>
-                  ) : null}
-                  <div className="rounded-2xl bg-stone-50 p-3">
-                    <EndorsementProgressTracker tracker={row.tracker} compact />
                   </div>
                 </div>
 
-                  <div className="space-y-3">
-                  <div className="rounded-[24px] border border-stone-200 bg-stone-50/70 p-4">
+                <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+                    <div className="space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Progress Tracker</p>
+                          <div className="mt-3 rounded-2xl bg-stone-50 p-3">
+                            <EndorsementProgressTracker tracker={row.tracker} compact />
+                          </div>
+                        </div>
+
+                        {queueKey === 'pd' ? (
+                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
+                            <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
+                            <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
+                            {row.grade_document?.file_name ? (
+                              <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
+                            ) : null}
+                            {!row.grade_document?.url ? (
+                              <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                                PD approval is blocked until the applicant uploads the grade document.
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Current Review</p>
+                            <p className="mt-2 font-medium text-stone-900">{meta.title}</p>
+                            <p className="mt-1 text-xs text-stone-500">
+                              {queueKey === 'sdo'
+                                ? 'Review the offense record and route the slip correctly.'
+                                : 'Review the slip and decide the next office action.'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {queueKey !== 'sdo' ? (
+                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Previous SDO Review</p>
+                          <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
+                          {row.sdo_offense_detail?.offense_type ? (
+                            <p className="mt-2 text-xs leading-5 text-stone-500">
+                              {row.sdo_offense_detail.offense_type}
+                              {row.sdo_offense_detail.incident_date ? ` | ${row.sdo_offense_detail.incident_date}` : ''}
+                              {row.sdo_offense_detail.case_reference_number ? ` | ${row.sdo_offense_detail.case_reference_number}` : ''}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">SDO Rule</p>
+                          <p className="mt-2">Minor offense still proceeds to Guidance. Major offense stops the slip here.</p>
+                        </div>
+                      )}
+
+                      {queueKey === 'pd' ? (
+                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Review</p>
+                          <p className="mt-2 font-medium text-stone-900">{row.office_results?.guidance || 'Pending Guidance review'}</p>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="rounded-[24px] border border-stone-200 bg-white/85 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
@@ -1310,16 +1355,19 @@ export default function EndorsementQueue({
                       View Full Slip
                     </Button>
                   </div>
+                    </div>
                   </div>
 
-                  <ActionPanel
-                    queueKey={queueKey}
-                    row={row}
-                    actionState={actionState}
-                    setActionState={setActionState}
-                    onSubmit={handleSubmit}
-                    loading={savingSlipId === row.slip_id}
-                  />
+                  <div className="xl:pl-1">
+                    <ActionPanel
+                      queueKey={queueKey}
+                      row={row}
+                      actionState={actionState}
+                      setActionState={setActionState}
+                      onSubmit={handleSubmit}
+                      loading={savingSlipId === row.slip_id}
+                    />
+                  </div>
                 </div>
               </div>
             ))

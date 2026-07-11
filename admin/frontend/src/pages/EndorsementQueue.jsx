@@ -1117,16 +1117,7 @@ export default function EndorsementQueue({
                 <div className="border-b border-stone-200/70 px-5 py-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${accent.badge}`}>
-                          {meta.title}
-                        </span>
-                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getCurrentStageTone(row)}`}>
-                          {getCurrentStageLabel(row)}
-                        </span>
-                      </div>
-
-                      <p className="mt-4 text-xl font-semibold text-stone-900">{row.student_name}</p>
+                      <p className="text-xl font-semibold text-stone-900">{row.student_name}</p>
                       <p className="mt-1 text-sm text-stone-500">{row.pdm_id || 'No PDM ID'}</p>
 
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -1136,7 +1127,7 @@ export default function EndorsementQueue({
                       </div>
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[280px]">
                       <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Slip Code</p>
                         <p className="mt-1 font-mono text-xs text-stone-700">{row.slip_code || 'Not available'}</p>
@@ -1144,10 +1135,6 @@ export default function EndorsementQueue({
                       <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Submitted</p>
                         <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
-                      </div>
-                      <div className="rounded-2xl border border-stone-200 bg-white/90 px-3 py-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Action Owner</p>
-                        <p className="mt-1 text-sm font-medium text-stone-800">{meta.title}</p>
                       </div>
                     </div>
                   </div>
@@ -1164,36 +1151,21 @@ export default function EndorsementQueue({
 
                     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
                     <div className="space-y-3">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {queueKey === 'pd' ? (
-                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
-                            <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
-                            <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
-                            {row.grade_document?.file_name ? (
-                              <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
-                            ) : null}
-                            {!row.grade_document?.url ? (
-                              <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                                PD approval is blocked until the applicant uploads the grade document.
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : null}
-
+                      {queueKey === 'pd' ? (
                         <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
-                            {queueKey === 'sdo' ? 'SDO Rule' : queueKey === 'guidance' ? 'Guidance Focus' : 'PD Focus'}
-                          </p>
-                          <p className="mt-2">
-                            {queueKey === 'sdo'
-                              ? 'Minor offense still proceeds to Guidance. Major offense stops the slip here.'
-                              : queueKey === 'guidance'
-                                ? 'Clear students with good moral standing, hold them for counseling, or reject them with remarks.'
-                                : 'Check the grade file, prior office reviews, and scholastic standing before final approval.'}
-                          </p>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
+                          <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
+                          <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
+                          {row.grade_document?.file_name ? (
+                            <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
+                          ) : null}
+                          {!row.grade_document?.url ? (
+                            <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                              PD approval is blocked until the applicant uploads the grade document.
+                            </p>
+                          ) : null}
                         </div>
-                      </div>
+                      ) : null}
 
                       {queueKey !== 'sdo' ? (
                         <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
@@ -1219,15 +1191,10 @@ export default function EndorsementQueue({
 
                     <div className="space-y-3">
                       <div className="rounded-[24px] border border-stone-200 bg-white/85 p-4">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
                       {queueKey === 'pd' ? 'PD Grade Review' : 'Slip Access'}
-                        </p>
-                        <p className="mt-1 text-sm text-stone-600">
-                          {queueKey === 'pd'
-                            ? 'Check the uploaded grade file before making the final PD decision.'
-                            : 'Open the endorsement slip for the full office record and printable view.'}
                         </p>
                       </div>
                     </div>
@@ -1340,14 +1307,11 @@ export default function EndorsementQueue({
                       ) : (
                         <p className="mt-3 text-sm text-red-600">No uploaded grade document</p>
                       )
-                    ) : (
-                      <p className="mt-3 text-sm text-stone-600">
-                        SDO and Guidance can continue first, but the applicant must upload the grade document before PD can approve the slip.
-                      </p>
-                    )}
+                    ) : null}
                     <Button
                       variant="outline"
                       className="mt-3 h-10 w-full border-blue-200 bg-blue-50 font-medium text-blue-800 hover:bg-blue-100"
+                      title="Open the full endorsement slip"
                       onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
                     >
                       <Eye className="mr-2 h-4 w-4" />

@@ -56,6 +56,53 @@ const FINISHED_STATUSES = new Set([
 
 const READY_FOR_PD_STATUSES = new Set(['pending_pd']);
 
+function getActiveRowsForOffice(rows, tokenStorageKey) {
+  if (tokenStorageKey === 'sdoToken') {
+    return rows.filter((row) => row.current_stage === 'pending_sdo');
+  }
+
+  if (tokenStorageKey === 'guidanceToken') {
+    return rows.filter((row) => row.current_stage === 'pending_guidance');
+  }
+
+  if (tokenStorageKey === 'pdToken') {
+    return rows.filter((row) => row.current_stage === 'pending_pd');
+  }
+
+  return rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status));
+}
+
+function getOfficeConfig(tokenStorageKey) {
+  if (tokenStorageKey === 'sdoToken') {
+    return {
+      stage: 'pending_sdo',
+      resultKey: 'sdo',
+      processedLabel: 'Cleared / Routed by SDO',
+      processedDescription: 'Applicants already handled by SDO and moved out of the active queue.',
+    };
+  }
+
+  if (tokenStorageKey === 'guidanceToken') {
+    return {
+      stage: 'pending_guidance',
+      resultKey: 'guidance',
+      processedLabel: 'Processed by Guidance',
+      processedDescription: 'Applicants already handled by Guidance and moved out of the active queue.',
+    };
+  }
+
+  if (tokenStorageKey === 'pdToken') {
+    return {
+      stage: 'pending_pd',
+      resultKey: 'pd',
+      processedLabel: 'Processed by Program Director',
+      processedDescription: 'Applicants already handled by Program Director and moved out of the active queue.',
+    };
+  }
+
+  return null;
+}
+
 export default function AllEndorsementsTracker({
   tokenStorageKey = 'adminToken',
   detailBasePath,
@@ -124,13 +171,47 @@ export default function AllEndorsementsTracker({
       return rows.filter((row) => FINISHED_STATUSES.has(row.overall_status));
     }
 
-    return rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status));
-  }, [rows, viewMode]);
+    return getActiveRowsForOffice(rows, tokenStorageKey);
+  }, [rows, tokenStorageKey, viewMode]);
 
-  const statuses = useMemo(
-    () => ['all', ...new Set(filteredSourceRows.map((row) => row.overall_status).filter(Boolean))],
-    [filteredSourceRows]
-  );
+  const officeProcessedRows = useMemo(() => {
+    const officeConfig = getOfficeConfig(tokenStorageKey);
+
+    if (!officeConfig || viewMode !== 'active') {
+      return [];
+    }
+
+    return rows.filter((row) => {
+      const hasOfficeDecision = Boolean(row.office_results?.[officeConfig.resultKey]);
+      return hasOfficeDecision && row.current_stage !== officeConfig.stage;
+    });
+  }, [rows, tokenStorageKey, viewMode]);
+
+  const filteredOfficeProcessedRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return officeProcessedRows.filter((row) => {
+      const matchesSearch =
+        !query ||
+        (row.student_name || '').toLowerCase().includes(query) ||
+        (row.pdm_id || '').toLowerCase().includes(query) ||
+        (row.program_name || '').toLowerCase().includes(query);
+
+      const matchesStatus =
+        statusFilter === 'all' || row.overall_status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [officeProcessedRows, search, statusFilter]);
+
+  const statuses = useMemo(() => {
+    const source =
+      viewMode === 'active' && officeProcessedRows.length
+        ? [...filteredSourceRows, ...officeProcessedRows]
+        : filteredSourceRows;
+
+    return ['all', ...new Set(source.map((row) => row.overall_status).filter(Boolean))];
+  }, [filteredSourceRows, officeProcessedRows, viewMode]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -151,15 +232,18 @@ export default function AllEndorsementsTracker({
 
   const trackerSummary = useMemo(
     () => ({
-      active: rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status)).length,
+      active: getActiveRowsForOffice(rows, tokenStorageKey).length,
+      processed: viewMode === 'active' ? officeProcessedRows.length : 0,
       finished: rows.filter((row) => FINISHED_STATUSES.has(row.overall_status)).length,
       completed: rows.filter((row) => row.overall_status === 'completed').length,
       rejected: rows.filter((row) => ['rejected', 'guidance_rejected', 'disqualified_major'].includes(row.overall_status)).length,
       readyForPD: rows.filter((row) => row.current_stage === 'pending_pd').length,
-      visible: filteredRows.length,
+      visible: filteredRows.length + filteredOfficeProcessedRows.length,
     }),
-    [rows, filteredRows]
+    [rows, filteredRows, filteredOfficeProcessedRows, officeProcessedRows, tokenStorageKey, viewMode]
   );
+
+  const officeConfig = getOfficeConfig(tokenStorageKey);
 
   if (loading) {
     return (
@@ -189,7 +273,10 @@ export default function AllEndorsementsTracker({
             {[
               { label: 'Visible Slips', value: trackerSummary.visible },
               { label: 'Active', value: trackerSummary.active },
-              { label: 'Completed', value: trackerSummary.completed },
+              {
+                label: officeConfig && viewMode === 'active' ? 'Processed by Office' : 'Completed',
+                value: officeConfig && viewMode === 'active' ? trackerSummary.processed : trackerSummary.completed,
+              },
               { label: 'Rejected / Stopped', value: trackerSummary.rejected },
             ].map((item) => (
               <div key={item.label} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
@@ -243,7 +330,13 @@ export default function AllEndorsementsTracker({
             </button>
             <span className="text-xs text-stone-500">
               {viewMode === 'active'
-                ? 'Current endorsement applicants still moving through SDO, Guidance, or PD.'
+                ? tokenStorageKey === 'sdoToken'
+                  ? 'Applicants currently waiting for SDO endorsement.'
+                  : tokenStorageKey === 'guidanceToken'
+                    ? 'Applicants currently waiting for Guidance endorsement.'
+                    : tokenStorageKey === 'pdToken'
+                      ? 'Applicants currently waiting for Program Director endorsement.'
+                      : 'Current endorsement applicants still moving through SDO, Guidance, or PD.'
                 : viewMode === 'ready_pd'
                   ? 'Applicants already forwarded and currently waiting for Program Director review.'
                   : 'Applicants with finished endorsement outcomes.'}
@@ -278,7 +371,13 @@ export default function AllEndorsementsTracker({
           {filteredRows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
               {viewMode === 'active'
-                ? 'No active applicants match the current filters.'
+                ? tokenStorageKey === 'sdoToken'
+                  ? 'No applicants are currently waiting in SDO.'
+                  : tokenStorageKey === 'guidanceToken'
+                    ? 'No applicants are currently waiting in Guidance.'
+                    : tokenStorageKey === 'pdToken'
+                      ? 'No applicants are currently waiting in Program Director.'
+                      : 'No active applicants match the current filters.'
                 : viewMode === 'ready_pd'
                   ? 'No applicants are currently waiting for PD.'
                   : 'No completed or rejected applicants match the current filters.'}
@@ -332,6 +431,63 @@ export default function AllEndorsementsTracker({
               </div>
             ))
           )}
+
+          {viewMode === 'active' && officeConfig ? (
+            <div className="space-y-4 border-t border-stone-100 pt-5">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-base font-semibold text-stone-900">{officeConfig.processedLabel}</h2>
+                <p className="text-sm text-stone-500">{officeConfig.processedDescription}</p>
+              </div>
+
+              {filteredOfficeProcessedRows.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-stone-200 px-5 py-8 text-center text-sm text-stone-500">
+                  No processed applicants match the current filters.
+                </div>
+              ) : (
+                filteredOfficeProcessedRows.map((row) => (
+                  <div
+                    key={`processed-${row.slip_id}`}
+                    className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4"
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-base font-semibold text-stone-900">{row.student_name}</p>
+                          <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
+                            {row.overall_status_label}
+                          </Badge>
+                          {row.slip_code ? (
+                            <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
+                              {row.slip_code}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="text-sm text-stone-600">
+                          {row.pdm_id} - {row.program_name}
+                        </p>
+                        <p className="text-xs text-stone-500">
+                          Latest stage: {row.current_stage_label || row.overall_status_label || 'Processed'}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-10 rounded-xl border-blue-200 bg-blue-50 px-4 font-medium text-blue-800 hover:bg-blue-100"
+                          onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Slip
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

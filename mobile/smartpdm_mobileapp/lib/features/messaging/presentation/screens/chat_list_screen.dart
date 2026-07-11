@@ -20,7 +20,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<MessagingProvider>().refresh();
+      context.read<MessagingProvider>().initializeChat().then((_) {
+        if (!mounted) return;
+        context.read<MessagingProvider>().refresh();
+      });
     });
   }
 

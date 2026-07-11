@@ -140,6 +140,53 @@ class _MessagingScreenState extends State<MessagingScreen> {
     );
   }
 
+  Widget _buildThreadHeader(BuildContext context, MessagingProvider provider) {
+    final title = widget.title ?? 'OSFA Support Admin';
+    final subtitle = widget.roomId != null
+        ? 'Group conversation'
+        : 'Direct support conversation';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0x14000000)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _buildConnectionChip(context, provider.isConnected),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
@@ -154,20 +201,12 @@ class _MessagingScreenState extends State<MessagingScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => AppNavigator.goBackOrHome(context),
         ),
-        titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.title ?? 'OSFA Support Admin',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 4),
-            _buildConnectionChip(context, provider.isConnected),
-          ],
+        title: Text(
+          'Messages',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
         ),
       ),
       selectedIndex: 0,
@@ -175,6 +214,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
       applyPadding: false,
       child: Column(
         children: [
+          _buildThreadHeader(context, provider),
           Expanded(
             child: provider.isLoading && messages.isEmpty
                 ? const Center(child: CircularProgressIndicator())

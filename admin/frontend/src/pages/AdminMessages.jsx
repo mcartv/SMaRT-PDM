@@ -1318,6 +1318,11 @@ export default function AdminMessages() {
     [token]
   )
 
+  const refreshThreadCollections = useCallback(async () => {
+    if (!token || !currentUserId) return
+    await Promise.all([fetchConversations(), fetchRooms()])
+  }, [token, currentUserId, fetchConversations, fetchRooms])
+
   const fetchScholarMembers = useCallback(async () => {
     try {
       setLoadingScholars(true)
@@ -1742,17 +1747,16 @@ export default function AdminMessages() {
   }
 
   useEffect(() => {
-    if (!isOpen) return
-
     if (!token || !currentUserId) {
-      setError('Admin authentication is required to open messaging.')
-      setLoadingConversations(false)
+      if (isOpen) {
+        setError('Admin authentication is required to open messaging.')
+        setLoadingConversations(false)
+      }
       return
     }
 
-    fetchConversations()
-    fetchRooms()
-  }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
+    refreshThreadCollections()
+  }, [isOpen, token, currentUserId, refreshThreadCollections])
 
   useEffect(() => {
     if (isOpen) {
@@ -1833,9 +1837,9 @@ export default function AdminMessages() {
   }, [filteredItems, selectedItem, searchTerm])
 
   const handleRealtimeMessage = useCallback(async (data) => {
-    if (!isOpen) return
+    await refreshThreadCollections()
 
-    await Promise.all([fetchConversations(), fetchRooms()])
+    if (!isOpen) return
 
     const senderId = data?.sender_id?.toString?.() || ''
     const receiverId = data?.receiver_id?.toString?.() || ''
@@ -1861,8 +1865,7 @@ export default function AdminMessages() {
     activeRoomId,
     activeConversationId,
     currentUserId,
-    fetchConversations,
-    fetchRooms,
+    refreshThreadCollections,
     fetchConversationMessages,
     fetchRoomMessages,
   ])
@@ -1879,10 +1882,9 @@ export default function AdminMessages() {
       setMessages((current) => markMessagesRead(current, messageIds))
     }
 
-    await Promise.all([fetchConversations(), fetchRooms()])
+    await refreshThreadCollections()
   }, [
-    fetchConversations,
-    fetchRooms,
+    refreshThreadCollections,
   ])
 
   useSocketEvent('message:unread', async (data) => {
@@ -1894,16 +1896,15 @@ export default function AdminMessages() {
       setMessages((current) => markMessagesUnread(current, messageIds))
     }
 
-    await Promise.all([fetchConversations(), fetchRooms()])
+    await refreshThreadCollections()
   }, [
-    fetchConversations,
-    fetchRooms,
+    refreshThreadCollections,
   ])
 
   useSocketEvent('message:thread-archived', async () => {
-    if (!isOpen && !archivedOpen) return
+    await refreshThreadCollections()
 
-    await Promise.all([fetchConversations(), fetchRooms()])
+    if (!isOpen && !archivedOpen) return
 
     if (archivedOpen) {
       await fetchArchivedThreads()
@@ -1911,15 +1912,14 @@ export default function AdminMessages() {
   }, [
     isOpen,
     archivedOpen,
-    fetchConversations,
-    fetchRooms,
+    refreshThreadCollections,
     fetchArchivedThreads,
   ])
 
   useSocketEvent('message:thread-restored', async () => {
-    if (!isOpen && !archivedOpen) return
+    await refreshThreadCollections()
 
-    await Promise.all([fetchConversations(), fetchRooms()])
+    if (!isOpen && !archivedOpen) return
 
     if (archivedOpen) {
       await fetchArchivedThreads()
@@ -1927,21 +1927,23 @@ export default function AdminMessages() {
   }, [
     isOpen,
     archivedOpen,
-    fetchConversations,
-    fetchRooms,
+    refreshThreadCollections,
     fetchArchivedThreads,
   ])
 
   useSocketEvent('room:created', async (data) => {
+    await refreshThreadCollections()
     if (!isOpen) return
     await fetchRooms(data?.room_id || activeRoomId)
   }, [
     isOpen,
     activeRoomId,
+    refreshThreadCollections,
     fetchRooms,
   ])
 
   useSocketEvent('room:members-added', async (data) => {
+    await refreshThreadCollections()
     if (!isOpen) return
 
     await fetchRooms(activeRoomId)
@@ -1955,11 +1957,13 @@ export default function AdminMessages() {
     isOpen,
     activeType,
     activeRoomId,
+    refreshThreadCollections,
     fetchRooms,
     fetchRoomMessages,
   ])
 
   useSocketEvent('room:updated', async (data) => {
+    await refreshThreadCollections()
     if (!isOpen) return
 
     const roomId = data?.room_id?.toString?.() || activeRoomId
@@ -1972,6 +1976,7 @@ export default function AdminMessages() {
     isOpen,
     activeType,
     activeRoomId,
+    refreshThreadCollections,
     fetchRooms,
     fetchRoomMessages,
   ])

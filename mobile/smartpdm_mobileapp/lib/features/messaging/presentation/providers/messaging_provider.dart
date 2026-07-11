@@ -157,6 +157,7 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    await initializeChat();
     await _refreshThread();
     await refreshUnreadCount();
     await fetchGroups();
@@ -312,10 +313,13 @@ class MessagingProvider extends ChangeNotifier {
         }
         notifyListeners();
       } else if (isGroupMessage) {
-        _incrementGroupUnreadCount(roomId);
-        notifyListeners();
+        if (_incrementGroupUnreadCount(roomId)) {
+          notifyListeners();
+        } else {
+          fetchGroups();
+        }
       } else {
-        refreshUnreadCount(notify: false);
+        refreshUnreadCount();
       }
 
       final shouldAutoRead =
@@ -440,14 +444,14 @@ class MessagingProvider extends ChangeNotifier {
     _syncTotalUnreadCount();
   }
 
-  void _incrementGroupUnreadCount(String roomId) {
+  bool _incrementGroupUnreadCount(String roomId) {
     if (roomId.isEmpty) {
-      return;
+      return false;
     }
 
     final index = _rooms.indexWhere((room) => room.roomId == roomId);
     if (index < 0) {
-      return;
+      return false;
     }
 
     final room = _rooms[index];
@@ -457,6 +461,7 @@ class MessagingProvider extends ChangeNotifier {
       unreadCount: room.unreadCount + 1,
     );
     _syncTotalUnreadCount();
+    return true;
   }
 
   void _setGroupUnreadCount(String roomId, int count) {

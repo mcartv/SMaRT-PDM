@@ -1,8 +1,8 @@
 const MESSAGE_FIELDS =
   'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url';
 
-const DEFAULT_ADMIN_EMAIL = process.env.MESSAGE_ADMIN_EMAIL || 'admin@pdm.edu.ph';
 const FETCH_PAGE_SIZE = 1000;
+const ALLOWED_ADMIN_ROLES = new Set(['admin']);
 
 let ioRef = null;
 let supabaseRef = null;
@@ -68,11 +68,27 @@ async function resolveFixedAdminUserId({ forceRefresh = false } = {}) {
   }
 
   fixedAdminUserIdPromise = (async () => {
+    const configuredUserId = String(process.env.MESSAGING_ADMIN_USER_ID || '').trim();
+
+    if (!configuredUserId) {
+      throw createHttpError(500, 'MESSAGING_ADMIN_USER_ID is not configured.');
+    }
+
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('users')
-      .select('user_id, email')
-      .ilike('email', DEFAULT_ADMIN_EMAIL)
+      .select(`
+        user_id,
+        email,
+        role,
+        admin_profiles (
+          user_id,
+          department,
+          position,
+          is_archived
+        )
+      `)
+      .eq('user_id', configuredUserId)
       .maybeSingle();
 
     if (error) {
@@ -81,9 +97,39 @@ async function resolveFixedAdminUserId({ forceRefresh = false } = {}) {
     }
 
     if (!data?.user_id) {
+      throw createHttpError(500, 'Configured messaging admin user was not found.');
+    }
+
+    const adminProfile = Array.isArray(data.admin_profiles)
+      ? data.admin_profiles[0]
+      : data.admin_profiles || null;
+
+    if (!adminProfile || adminProfile.is_archived === true) {
       throw createHttpError(
         500,
-        `Fixed admin messaging user not found for ${DEFAULT_ADMIN_EMAIL}.`
+        'Configured messaging admin user is inactive or archived.'
+      );
+    }
+
+    const normalizedRole = String(data.role || '').trim().toLowerCase();
+    const normalizedDepartment = String(adminProfile.department || '').trim().toLowerCase();
+    const normalizedPosition = String(adminProfile.position || '').trim().toLowerCase();
+    const inferredRole =
+      normalizedRole ||
+      (normalizedDepartment.includes('osfa') || normalizedPosition.includes('admin')
+        ? 'admin'
+        : '');
+    const looksLikeAdmin =
+      inferredRole === 'admin' ||
+      normalizedDepartment.includes('osfa') ||
+      normalizedDepartment.includes('admin') ||
+      normalizedPosition.includes('admin') ||
+      normalizedPosition.includes('officer');
+
+    if (!looksLikeAdmin || !ALLOWED_ADMIN_ROLES.has(inferredRole)) {
+      throw createHttpError(
+        500,
+        'Configured messaging user is not an authorized administrator.'
       );
     }
 

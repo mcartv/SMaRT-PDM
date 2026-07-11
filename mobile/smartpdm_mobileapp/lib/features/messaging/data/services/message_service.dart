@@ -1,5 +1,6 @@
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 
 class MessageThreadResult {
   final String counterpartyId;
@@ -63,7 +64,11 @@ class MessageService {
         counterpartyId: response['counterpartyId']?.toString() ?? '',
         items: _parseItems(response['items']),
       );
-    } catch (_) {
+    } on ApiException catch (error) {
+      if (!_shouldFallbackToConversationList(error)) {
+        rethrow;
+      }
+
       final conversations = await _fetchConversationList();
       if (conversations.isEmpty) {
         return const MessageThreadResult(counterpartyId: '', items: []);
@@ -96,7 +101,11 @@ class MessageService {
       );
 
       return ChatMessage.fromJson(response);
-    } catch (_) {
+    } on ApiException catch (error) {
+      if (!_shouldFallbackToConversationList(error)) {
+        rethrow;
+      }
+
       final conversations = await _fetchConversationList();
       if (conversations.isEmpty) {
         rethrow;
@@ -128,7 +137,11 @@ class MessageService {
             .where((item) => item.isNotEmpty)
             .toList(),
       );
-    } catch (_) {
+    } on ApiException catch (error) {
+      if (!_shouldFallbackToConversationList(error)) {
+        rethrow;
+      }
+
       final candidateId = (counterpartyId ?? '').trim();
       final targetCounterpartyId = candidateId.isNotEmpty
           ? candidateId
@@ -262,5 +275,9 @@ class MessageService {
       final items = response['items'] as List<dynamic>?;
       return items ?? const [];
     }
+  }
+
+  bool _shouldFallbackToConversationList(ApiException error) {
+    return error.statusCode == 404 || error.statusCode == 405;
   }
 }

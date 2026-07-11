@@ -9,7 +9,7 @@ function configureSocket(server) {
                 'http://localhost:5173',
                 'http://localhost:5000',
                 'http://192.168.100.9:5000',
-                'https://smart-pdm-mipx.onrender.com',
+                'https://smart-pdm-3tbv.onrender.com',
             ],
             methods: ['GET', 'POST'],
             credentials: true,

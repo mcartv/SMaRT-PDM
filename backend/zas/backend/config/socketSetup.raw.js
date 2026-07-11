@@ -26,7 +26,7 @@ const io = new Server(server, {
     origin: [
       "http://localhost:3000",
       "http://localhost:5000",
-      "https://smart-pdm-mipx.onrender.com"
+      "https://smart-pdm-3tbv.onrender.com"
     ],
     methods: ["GET", "POST"],
     credentials: true

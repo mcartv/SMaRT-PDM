@@ -5,8 +5,8 @@ class AppConfig {
 
   // Use deployed backend in release, local LAN backend in debug.
   static const String _defaultReleaseBaseUrl =
-      'https://smart-pdm-mipx.onrender.com';
-  static const String _defaultDebugBaseUrl = 'https://smart-pdm-mipx.onrender.com';
+      'https://smart-pdm-3tbv.onrender.com';
+  static const String _defaultDebugBaseUrl = 'https://smart-pdm-3tbv.onrender.com';
 
 
   static String get apiBaseUrl {

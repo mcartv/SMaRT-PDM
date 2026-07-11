@@ -18,7 +18,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { initializeSocket, useSocketEvent } from '@/hooks/useSocket'
+import { useSocketEvent } from '@/hooks/useSocket'
 import API_BASE_URL from '@/api'
 
 const MESSAGING_API_BASE = API_BASE_URL
@@ -1092,7 +1092,6 @@ export default function AdminMessages() {
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
-  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false)
 
   const [createRoomOpen, setCreateGroupOpen] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
@@ -1206,23 +1205,6 @@ export default function AdminMessages() {
     return [...matchedThreads, ...scholarSearchItems]
   }, [mergedItems, scholarSearchItems, searchTerm, showUnreadOnly])
 
-  useEffect(() => {
-    const socket = initializeSocket()
-
-    const syncConnectedState = () => {
-      setIsRealtimeConnected(socket.connected)
-    }
-
-    syncConnectedState()
-    socket.on('connect', syncConnectedState)
-    socket.on('disconnect', syncConnectedState)
-
-    return () => {
-      socket.off('connect', syncConnectedState)
-      socket.off('disconnect', syncConnectedState)
-    }
-  }, [])
-
   const selectedItem = useMemo(() => {
     if (activeType === 'group') {
       return (
@@ -1317,11 +1299,6 @@ export default function AdminMessages() {
     },
     [token]
   )
-
-  const refreshThreadCollections = useCallback(async () => {
-    if (!token || !currentUserId) return
-    await Promise.all([fetchConversations(), fetchRooms()])
-  }, [token, currentUserId, fetchConversations, fetchRooms])
 
   const fetchScholarMembers = useCallback(async () => {
     try {
@@ -1747,16 +1724,17 @@ export default function AdminMessages() {
   }
 
   useEffect(() => {
+    if (!isOpen) return
+
     if (!token || !currentUserId) {
-      if (isOpen) {
-        setError('Admin authentication is required to open messaging.')
-        setLoadingConversations(false)
-      }
+      setError('Admin authentication is required to open messaging.')
+      setLoadingConversations(false)
       return
     }
 
-    refreshThreadCollections()
-  }, [isOpen, token, currentUserId, refreshThreadCollections])
+    fetchConversations()
+    fetchRooms()
+  }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
 
   useEffect(() => {
     if (isOpen) {
@@ -1836,15 +1814,7 @@ export default function AdminMessages() {
     }
   }, [filteredItems, selectedItem, searchTerm])
 
-<<<<<<< HEAD
   useSocketEvent('message:created', async (data) => {
-=======
-  const handleRealtimeMessage = useCallback(async (data) => {
-    await refreshThreadCollections()
-
-    if (!isOpen) return
-
->>>>>>> 38644ab3e4490352644fdbf8ef7f2e7b1130a406
     const senderId = data?.sender_id?.toString?.() || ''
     const receiverId = data?.receiver_id?.toString?.() || ''
     const roomId = data?.room_id?.toString?.() || ''
@@ -1880,13 +1850,11 @@ export default function AdminMessages() {
     activeRoomId,
     activeConversationId,
     currentUserId,
-    refreshThreadCollections,
+    fetchConversations,
+    fetchRooms,
     fetchConversationMessages,
     fetchRoomMessages,
   ])
-
-  useSocketEvent('message:new', handleRealtimeMessage, [handleRealtimeMessage])
-  useSocketEvent('message:created', handleRealtimeMessage, [handleRealtimeMessage])
 
   useSocketEvent('message:read', async (data) => {
     const messageIds = (data?.message_ids || data?.messageIds || [])
@@ -1897,9 +1865,10 @@ export default function AdminMessages() {
       setMessages((current) => markMessagesRead(current, messageIds))
     }
 
-    await refreshThreadCollections()
+    await Promise.all([fetchConversations(), fetchRooms()])
   }, [
-    refreshThreadCollections,
+    fetchConversations,
+    fetchRooms,
   ])
 
   useSocketEvent('message:unread', async (data) => {
@@ -1911,15 +1880,16 @@ export default function AdminMessages() {
       setMessages((current) => markMessagesUnread(current, messageIds))
     }
 
-    await refreshThreadCollections()
+    await Promise.all([fetchConversations(), fetchRooms()])
   }, [
-    refreshThreadCollections,
+    fetchConversations,
+    fetchRooms,
   ])
 
   useSocketEvent('message:thread-archived', async () => {
-    await refreshThreadCollections()
-
     if (!isOpen && !archivedOpen) return
+
+    await Promise.all([fetchConversations(), fetchRooms()])
 
     if (archivedOpen) {
       await fetchArchivedThreads()
@@ -1927,14 +1897,15 @@ export default function AdminMessages() {
   }, [
     isOpen,
     archivedOpen,
-    refreshThreadCollections,
+    fetchConversations,
+    fetchRooms,
     fetchArchivedThreads,
   ])
 
   useSocketEvent('message:thread-restored', async () => {
-    await refreshThreadCollections()
-
     if (!isOpen && !archivedOpen) return
+
+    await Promise.all([fetchConversations(), fetchRooms()])
 
     if (archivedOpen) {
       await fetchArchivedThreads()
@@ -1942,23 +1913,21 @@ export default function AdminMessages() {
   }, [
     isOpen,
     archivedOpen,
-    refreshThreadCollections,
+    fetchConversations,
+    fetchRooms,
     fetchArchivedThreads,
   ])
 
   useSocketEvent('room:created', async (data) => {
-    await refreshThreadCollections()
     if (!isOpen) return
     await fetchRooms(data?.room_id || activeRoomId)
   }, [
     isOpen,
     activeRoomId,
-    refreshThreadCollections,
     fetchRooms,
   ])
 
   useSocketEvent('room:members-added', async (data) => {
-    await refreshThreadCollections()
     if (!isOpen) return
 
     await fetchRooms(activeRoomId)
@@ -1972,26 +1941,6 @@ export default function AdminMessages() {
     isOpen,
     activeType,
     activeRoomId,
-    refreshThreadCollections,
-    fetchRooms,
-    fetchRoomMessages,
-  ])
-
-  useSocketEvent('room:updated', async (data) => {
-    await refreshThreadCollections()
-    if (!isOpen) return
-
-    const roomId = data?.room_id?.toString?.() || activeRoomId
-    await fetchRooms(roomId)
-
-    if (activeType === 'group' && activeRoomId === roomId) {
-      await fetchRoomMessages(activeRoomId)
-    }
-  }, [
-    isOpen,
-    activeType,
-    activeRoomId,
-    refreshThreadCollections,
     fetchRooms,
     fetchRoomMessages,
   ])
@@ -2001,22 +1950,14 @@ export default function AdminMessages() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-<<<<<<< HEAD
         className={`fixed bottom-6 right-6 z-40 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#7c4a2e] text-white shadow-xl transition hover:bg-[#6f4229] ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
           }`}
         title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
-=======
-        className="fixed bottom-6 right-6 z-40 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#7c4a2e] text-white shadow-xl ring-4 ring-white/70 transition hover:scale-[1.02] hover:bg-[#6f4229]"
->>>>>>> 38644ab3e4490352644fdbf8ef7f2e7b1130a406
       >
         <MessageSquareMore className="h-7 w-7" />
 
         {totalUnreadCount > 0 && (
-<<<<<<< HEAD
           <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-md">
-=======
-          <span className="absolute -right-1 -top-1 min-w-[24px] rounded-full border-2 border-white bg-red-500 px-1.5 py-1 text-center text-[11px] font-bold leading-none text-white shadow-md">
->>>>>>> 38644ab3e4490352644fdbf8ef7f2e7b1130a406
             {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
           </span>
         )}
@@ -2055,25 +1996,7 @@ export default function AdminMessages() {
         <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6">
           <div className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3 sm:px-5">
-              <div>
-                <div className="text-sm font-semibold text-stone-900">Messages</div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${isRealtimeConnected
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-amber-50 text-amber-700'
-                      }`}
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${isRealtimeConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                    />
-                    {isRealtimeConnected ? 'Realtime connected' : 'Reconnecting'}
-                  </span>
-                  <span className="text-stone-500">
-                    {totalUnreadCount} unread
-                  </span>
-                </div>
-              </div>
+              <div className="text-sm font-semibold text-stone-900">Messages</div>
 
               <div className="flex items-center gap-2">
                 {activeType === 'group' && activeRoomId ? (
@@ -2163,10 +2086,6 @@ export default function AdminMessages() {
                       {filteredItems.length} thread{filteredItems.length === 1 ? '' : 's'}
                     </p>
                   </div>
-
-                  <div className="rounded-xl border border-stone-200 bg-stone-50/80 px-3 py-2 text-[11px] text-stone-600">
-                    New messages, read states, and group updates should appear here automatically while this panel is open.
-                  </div>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto">
@@ -2232,24 +2151,11 @@ export default function AdminMessages() {
                         </p>
                       </div>
 
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                        <span>
-                          {selectedItem.type === 'group'
-                            ? 'Group chat'
-                            : selectedItem.studentNumber || 'No student number'}
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${isRealtimeConnected
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-700'
-                            }`}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${isRealtimeConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                          />
-                          {isRealtimeConnected ? 'Live' : 'Syncing'}
-                        </span>
-                      </div>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {selectedItem.type === 'group'
+                          ? 'Group chat'
+                          : selectedItem.studentNumber || 'No student number'}
+                      </p>
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto bg-stone-50/50 px-5 py-4">

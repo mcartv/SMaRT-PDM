@@ -83,72 +83,59 @@ function emitMessageEvent(io, eventName, data, options = {}) {
         return;
     }
 
-    // Backward compatibility. If no targetUserIds are passed,
-    // it still works like your old socketEvents.js.
     emitEvent(io, eventName, data);
 }
 
-// Event emission functions
 const socketEvents = {
-    // Raw helpers
     emitEvent,
     emitToUser,
     emitToUsers,
     emitToRoom,
 
-    // Payout Events
     payoutCreated: (io, data) => emitEvent(io, 'payout:created', data),
     payoutUpdated: (io, data) => emitEvent(io, 'payout:updated', data),
     payoutDeleted: (io, data) => emitEvent(io, 'payout:deleted', data),
     scholarReleased: (io, data) => emitEvent(io, 'scholar:released', data),
 
-    // Announcement Events
     announcementCreated: (io, data) => emitEvent(io, 'announcement:created', data),
     announcementUpdated: (io, data) => emitEvent(io, 'announcement:updated', data),
     announcementDeleted: (io, data) => emitEvent(io, 'announcement:deleted', data),
     announcementPublished: (io, data) => emitEvent(io, 'announcement:published', data),
+    announcementRefresh: (io, data) => emitEvent(io, 'announcement:refresh', data),
 
-    // Application Events
     applicationCreated: (io, data) => emitEvent(io, 'application:created', data),
     applicationUpdated: (io, data) => emitEvent(io, 'application:updated', data),
     applicationApproved: (io, data) => emitEvent(io, 'application:approved', data),
     applicationRejected: (io, data) => emitEvent(io, 'application:rejected', data),
     applicationDisqualified: (io, data) => emitEvent(io, 'application:disqualified', data),
 
-    // Application Document Events
     applicationDocumentUploaded: (io, data) =>
         emitEvent(io, 'application-document:uploaded', data),
 
     applicationDocumentReviewed: (io, data) =>
         emitEvent(io, 'application-document:reviewed', data),
 
-    // OCR Events
     applicationOcrQueued: (io, data) =>
         emitEvent(io, 'application-ocr:queued', data),
 
     applicationOcrSnapshotSaved: (io, data) =>
         emitEvent(io, 'application-ocr:snapshot-saved', data),
 
-    // Scholar Events
     scholarUpdated: (io, data) => emitEvent(io, 'scholar:updated', data),
     scholarCreated: (io, data) => emitEvent(io, 'scholar:created', data),
 
-    // Renewal Events
     renewalUpdated: (io, data) => emitEvent(io, 'renewal:updated', data),
     renewalApproved: (io, data) => emitEvent(io, 'renewal:approved', data),
 
-    // Endorsement Events
     endorsementUpdated: (io, data) => emitEvent(io, 'endorsement:updated', data),
 
-    // RO Events
     roUpdated: (io, data) => emitEvent(io, 'ro:updated', data),
 
-    // Maintenance / Report Events
     maintenanceUpdated: (io, data) =>
         emitEvent(io, 'maintenance:updated', data),
+
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
 
-    // Notification Events
     notificationCreated: (io, userId, data) =>
         emitToUser(io, userId, 'notification:created', data),
 
@@ -161,7 +148,6 @@ const socketEvents = {
     notificationDeleted: (io, userId, data) =>
         emitToUser(io, userId, 'notification:deleted', data),
 
-    // Message Events
     messageCreated: (io, data, options = {}) =>
         emitMessageEvent(io, 'message:created', data, options),
 
@@ -180,12 +166,10 @@ const socketEvents = {
     roomUpdated: (io, data, options = {}) =>
         emitMessageEvent(io, 'room:updated', data, options),
 
-    // Scholarship Opening Events
     openingCreated: (io, data) => emitEvent(io, 'opening:created', data),
     openingUpdated: (io, data) => emitEvent(io, 'opening:updated', data),
     openingClosed: (io, data) => emitEvent(io, 'opening:closed', data),
 
-    // Support Ticket Events
     ticketCreated: (io, data) => emitEvent(io, 'ticket:created', data),
     ticketUpdated: (io, data) => emitEvent(io, 'ticket:updated', data),
     ticketResolved: (io, data) => emitEvent(io, 'ticket:resolved', data),

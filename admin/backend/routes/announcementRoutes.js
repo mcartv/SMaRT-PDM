@@ -4,10 +4,6 @@ const router = express.Router();
 const announcementController = require('../controllers/announcementController');
 const { protect } = require('../middleware/authMiddleware');
 
-console.log('protect:', typeof protect);
-console.log('getAnnouncements:', typeof announcementController.getAnnouncements);
-console.log('getArchivedAnnouncements:', typeof announcementController.getArchivedAnnouncements);
-
 router.get('/', protect, announcementController.getAnnouncements);
 router.get('/archived', protect, announcementController.getArchivedAnnouncements);
 

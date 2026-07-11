@@ -1,23 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  LoaderCircle,
-  MessageSquareMore,
-  SendHorizontal,
-  UserRound,
-  UserPlus,
-  Search,
-  X,
-  Filter,
-  RefreshCw,
-  Users,
-  Plus,
+  Archive,
+  ArchiveRestore,
   Check,
+  Filter,
+  LoaderCircle,
+  MailCheck,
+  MailOpen,
+  MessageSquareMore,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Search,
+  SendHorizontal,
+  UserPlus,
+  UserRound,
+  Users,
+  X,
 } from 'lucide-react'
 import { useSocketEvent } from '@/hooks/useSocket'
-import API_BASE_URL from '@/api';
+import API_BASE_URL from '@/api'
 
-
-const MESSAGING_API_BASE = API_BASE_URL;
+const MESSAGING_API_BASE = API_BASE_URL
 
 function getAdminMessagingToken() {
   return sessionStorage.getItem('adminToken') || ''
@@ -46,30 +50,25 @@ function buildMessagingHeaders(token, options = {}) {
   return headers
 }
 
+async function parseApiResponse(response, fallbackMessage) {
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || fallbackMessage)
+  }
+
+  return payload
+}
+
 function normalizeConversation(raw = {}) {
   return {
-    id:
-      raw.counterpartyId?.toString() ||
-      raw.counterparty_id?.toString() ||
-      '',
+    id: raw.counterpartyId?.toString() || raw.counterparty_id?.toString() || '',
     type: 'private',
     name: raw.name?.toString() || 'Unknown user',
-    studentNumber:
-      raw.studentNumber?.toString() ||
-      raw.student_number?.toString() ||
-      '',
-    lastMessage:
-      raw.lastMessage?.toString() ||
-      raw.last_message?.toString() ||
-      '',
-    lastSentAt:
-      raw.lastSentAt?.toString() ||
-      raw.last_sent_at?.toString() ||
-      '',
-    createdAt:
-      raw.createdAt?.toString() ||
-      raw.created_at?.toString() ||
-      '',
+    studentNumber: raw.studentNumber?.toString() || raw.student_number?.toString() || '',
+    lastMessage: raw.lastMessage?.toString() || raw.last_message?.toString() || '',
+    lastSentAt: raw.lastSentAt?.toString() || raw.last_sent_at?.toString() || '',
+    createdAt: raw.createdAt?.toString() || raw.created_at?.toString() || '',
     avatarUrl:
       raw.avatarUrl?.toString() ||
       raw.profilePhotoUrl?.toString() ||
@@ -88,11 +87,32 @@ function normalizeRoom(raw = {}) {
     studentNumber: `${Number(raw.member_count || 0)} members`,
     lastMessage: raw.last_message?.toString() || '',
     lastSentAt: raw.last_sent_at?.toString() || '',
-    createdAt:
-      raw.createdAt?.toString() ||
-      raw.created_at?.toString() ||
-      '',
-    unreadCount: 0,
+    createdAt: raw.createdAt?.toString() || raw.created_at?.toString() || '',
+    unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
+  }
+}
+
+function normalizeArchivedThread(raw = {}) {
+  const type = raw.thread_type === 'group' ? 'group' : 'private'
+
+  return {
+    archiveId:
+      raw.archiveId?.toString() ||
+      raw.archive_id?.toString() ||
+      `${type}-${raw.room_id || raw.counterparty_id || ''}`,
+    id:
+      type === 'group'
+        ? raw.room_id?.toString() || ''
+        : raw.counterparty_id?.toString() || '',
+    type,
+    name: raw.name?.toString() || (type === 'group' ? 'Untitled Group' : 'Unknown User'),
+    studentNumber:
+      raw.studentNumber?.toString() ||
+      raw.student_number?.toString() ||
+      (type === 'group' ? `${Number(raw.member_count || 0)} members` : ''),
+    lastMessage: raw.lastMessage?.toString() || raw.last_message?.toString() || '',
+    lastSentAt: raw.lastSentAt?.toString() || raw.last_sent_at?.toString() || '',
+    archivedAt: raw.archivedAt?.toString() || raw.archived_at?.toString() || '',
   }
 }
 
@@ -136,40 +156,16 @@ function toScholarSearchItem(raw = {}) {
 
 function normalizeMessage(raw = {}) {
   return {
-    messageId:
-      raw.messageId?.toString() ||
-      raw.message_id?.toString() ||
-      '',
-    senderId:
-      raw.senderId?.toString() ||
-      raw.sender_id?.toString() ||
-      '',
-    receiverId:
-      raw.receiverId?.toString() ||
-      raw.receiver_id?.toString() ||
-      '',
-    roomId:
-      raw.roomId?.toString() ||
-      raw.room_id?.toString() ||
-      '',
-    messageBody:
-      raw.messageBody?.toString() ||
-      raw.message_body?.toString() ||
-      '',
-    sentAt:
-      raw.sentAt?.toString() ||
-      raw.sent_at?.toString() ||
-      '',
+    messageId: raw.messageId?.toString() || raw.message_id?.toString() || '',
+    senderId: raw.senderId?.toString() || raw.sender_id?.toString() || '',
+    receiverId: raw.receiverId?.toString() || raw.receiver_id?.toString() || '',
+    roomId: raw.roomId?.toString() || raw.room_id?.toString() || '',
+    messageBody: raw.messageBody?.toString() || raw.message_body?.toString() || '',
+    sentAt: raw.sentAt?.toString() || raw.sent_at?.toString() || '',
     isRead: raw.isRead === true || raw.is_read === true,
     subject: raw.subject?.toString() || null,
-    attachmentUrl:
-      raw.attachmentUrl?.toString() ||
-      raw.attachment_url?.toString() ||
-      null,
-    senderName:
-      raw.senderName?.toString() ||
-      raw.sender_name?.toString() ||
-      '',
+    attachmentUrl: raw.attachmentUrl?.toString() || raw.attachment_url?.toString() || null,
+    senderName: raw.senderName?.toString() || raw.sender_name?.toString() || '',
     senderAvatarUrl:
       raw.senderAvatarUrl?.toString() ||
       raw.senderProfilePhotoUrl?.toString() ||
@@ -187,7 +183,6 @@ function sortMessages(items = []) {
 
 function sortItems(items = []) {
   const getSortTime = (item) => new Date(item.lastSentAt || item.createdAt || 0).getTime()
-
   return [...items].sort((left, right) => getSortTime(right) - getSortTime(left))
 }
 
@@ -205,6 +200,19 @@ function markMessagesRead(items, messageIds = []) {
       ? {
         ...item,
         isRead: true,
+      }
+      : item
+  )
+}
+
+function markMessagesUnread(items, messageIds = []) {
+  const ids = new Set(messageIds)
+
+  return items.map((item) =>
+    ids.has(item.messageId)
+      ? {
+        ...item,
+        isRead: false,
       }
       : item
   )
@@ -238,38 +246,6 @@ function formatMessageTime(value) {
   }).format(new Date(value))
 }
 
-function Avatar({ src = '', alt = '', name = '', type = 'private', className = '' }) {
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={alt || name || 'Profile picture'}
-        className={className}
-      />
-    )
-  }
-
-  return (
-    <div className={className}>
-      {type === 'group' ? (
-        <Users className="h-5 w-5" />
-      ) : (
-        <UserRound className="h-5 w-5" />
-      )}
-    </div>
-  )
-}
-
-async function parseApiResponse(response, fallbackMessage) {
-  const payload = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new Error(payload.error || payload.message || fallbackMessage)
-  }
-
-  return payload
-}
-
 function ThreadIcon({ type }) {
   return (
     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
@@ -278,42 +254,259 @@ function ThreadIcon({ type }) {
   )
 }
 
-function ThreadRow({ item, isActive, onClick }) {
+function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const hasUnread = Number(item.unreadCount || 0) > 0
+
+  const closeMenu = () => setMenuOpen(false)
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center gap-3 border-b border-stone-100 px-4 py-3 text-left transition ${isActive ? 'bg-amber-50/60' : 'hover:bg-stone-50'
+    <div
+      className={`relative border-b border-stone-100 transition ${hasUnread
+          ? 'border-l-4 border-l-red-500 bg-red-50/70'
+          : isActive
+            ? 'bg-amber-50/60'
+            : 'bg-white hover:bg-stone-50'
         }`}
     >
-      <ThreadIcon type={item.type} />
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <ThreadIcon type={item.type} />
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-stone-900">{item.name}</p>
-            <p className="truncate text-[11px] text-stone-500">
-              {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'No student number')}
+        <div className="min-w-0 flex-1 pr-8">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p
+                className={`truncate text-sm ${hasUnread ? 'font-bold text-stone-950' : 'font-medium text-stone-900'
+                  }`}
+              >
+                {item.name}
+              </p>
+
+              <p className="truncate text-[11px] text-stone-500">
+                {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'No student number')}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="text-[10px] text-stone-400">
+                {formatConversationTime(item.lastSentAt)}
+              </span>
+
+              {hasUnread && (
+                <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                  {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p
+            className={`mt-1 truncate text-xs ${hasUnread ? 'font-semibold text-stone-700' : 'text-stone-500'
+              }`}
+          >
+            {item.lastMessage || 'No messages yet'}
+          </p>
+        </div>
+      </button>
+
+      {!item.isSearchResult && (
+        <div className="absolute right-2 top-3">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              setMenuOpen((current) => !current)
+            }}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+            title="Thread options"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+
+          {menuOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-[75] cursor-default"
+                onClick={closeMenu}
+                aria-label="Close menu"
+              />
+
+              <div className="absolute right-0 top-8 z-[80] w-48 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    closeMenu()
+                    onToggleRead?.(item)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-stone-700 transition hover:bg-stone-50"
+                >
+                  {hasUnread ? (
+                    <>
+                      <MailCheck className="h-3.5 w-3.5 text-green-600" />
+                      Mark as read
+                    </>
+                  ) : (
+                    <>
+                      <MailOpen className="h-3.5 w-3.5 text-red-600" />
+                      Mark as unread
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    closeMenu()
+                    onArchive?.(item)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-red-700 transition hover:bg-red-50"
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  Archive thread
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ArchivedThreadsModal({
+  open,
+  onClose,
+  items,
+  loading,
+  restoringId,
+  onRestore,
+  onRefresh,
+}) {
+  if (!open) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-[78vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+          <div>
+            <h3 className="text-base font-semibold text-stone-900">
+              Archived Messages
+            </h3>
+            <p className="mt-1 text-xs text-stone-500">
+              Restore archived private chats and group chats.
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <span className="text-[10px] text-stone-400">
-              {formatConversationTime(item.lastSentAt)}
-            </span>
-            {item.unreadCount > 0 && (
-              <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-                {item.unreadCount}
-              </span>
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
-        <p className="mt-1 truncate text-xs text-stone-500">
-          {item.lastMessage || 'No messages yet'}
-        </p>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {loading ? (
+            <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading archived threads
+            </div>
+          ) : items.length ? (
+            <div className="space-y-2">
+              {items.map((item) => {
+                const itemKey = `${item.type}-${item.id}`
+
+                return (
+                  <div
+                    key={`${item.archiveId}-${itemKey}`}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
+                        {item.type === 'group' ? (
+                          <Users className="h-4 w-4" />
+                        ) : (
+                          <UserRound className="h-4 w-4" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-stone-900">
+                          {item.name}
+                        </p>
+
+                        <p className="truncate text-xs text-stone-500">
+                          {item.studentNumber || (item.type === 'group' ? 'Group chat' : 'Private chat')}
+                        </p>
+
+                        <p className="mt-1 truncate text-xs text-stone-500">
+                          {item.lastMessage || 'No message preview'}
+                        </p>
+
+                        <p className="mt-1 text-[10px] text-stone-400">
+                          Archived {formatMessageTime(item.archivedAt)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={restoringId === itemKey}
+                      onClick={() => onRestore(item)}
+                      className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-green-200 bg-white px-3 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {restoringId === itemKey ? (
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ArchiveRestore className="h-3.5 w-3.5" />
+                      )}
+                      Restore
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-stone-100 text-stone-500">
+                <Archive className="h-5 w-5" />
+              </div>
+              <p className="mt-3 text-sm font-semibold text-stone-900">
+                No archived threads
+              </p>
+              <p className="mt-1 text-xs text-stone-500">
+                Archived chats will show here.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -322,8 +515,8 @@ function MessageBubble({ message, isMine }) {
     <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 shadow-sm sm:max-w-[70%] ${isMine
-          ? 'bg-[#7c4a2e] text-white'
-          : 'border border-stone-200 bg-white text-stone-800'
+            ? 'bg-[#7c4a2e] text-white'
+            : 'border border-stone-200 bg-white text-stone-800'
           }`}
       >
         <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
@@ -415,7 +608,7 @@ function CreateGroupModal({
     >
       <div
         className="flex h-[84vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
           <div>
@@ -439,14 +632,14 @@ function CreateGroupModal({
             <input
               type="text"
               value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
+              onChange={(event) => setRoomName(event.target.value)}
               placeholder="Group name"
               className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             />
 
             <select
               value={programFilter}
-              onChange={(e) => setProgramFilter(e.target.value)}
+              onChange={(event) => setProgramFilter(event.target.value)}
               className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             >
               {programOptions.map((option) => (
@@ -456,7 +649,7 @@ function CreateGroupModal({
 
             <select
               value={benefactorFilter}
-              onChange={(e) => setBenefactorFilter(e.target.value)}
+              onChange={(event) => setBenefactorFilter(event.target.value)}
               className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             >
               {benefactorOptions.map((option) => (
@@ -469,7 +662,7 @@ function CreateGroupModal({
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search scholar, student number, program, or benefactor"
               className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             />
@@ -492,8 +685,8 @@ function CreateGroupModal({
                     <label
                       key={item.userId}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${checked
-                        ? 'border-[#7c4a2e] bg-amber-50'
-                        : 'border-stone-200 bg-white hover:bg-stone-50'
+                          ? 'border-[#7c4a2e] bg-amber-50'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <input
@@ -691,7 +884,7 @@ function AddMembersModal({
     >
       <div
         className="flex h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
           <div>
@@ -715,14 +908,14 @@ function AddMembersModal({
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search student ID, first name, last name, program, or benefactor"
               className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             />
 
             <select
               value={programFilter}
-              onChange={(e) => setProgramFilter(e.target.value)}
+              onChange={(event) => setProgramFilter(event.target.value)}
               className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             >
               {programOptions.map((option) => (
@@ -732,7 +925,7 @@ function AddMembersModal({
 
             <select
               value={benefactorFilter}
-              onChange={(e) => setBenefactorFilter(e.target.value)}
+              onChange={(event) => setBenefactorFilter(event.target.value)}
               className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
             >
               {benefactorOptions.map((option) => (
@@ -758,8 +951,8 @@ function AddMembersModal({
                     <label
                       key={item.userId}
                       className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${checked
-                        ? 'border-[#7c4a2e] bg-amber-50'
-                        : 'border-stone-200 bg-white hover:bg-stone-50'
+                          ? 'border-[#7c4a2e] bg-amber-50'
+                          : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <input
@@ -899,18 +1092,28 @@ export default function AdminMessages() {
   const [loadingConversations, setLoadingConversations] = useState(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [sending, setSending] = useState(false)
+
   const [createRoomOpen, setCreateGroupOpen] = useState(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
   const [addMembersOpen, setAddMembersOpen] = useState(false)
   const [addingMembers, setAddingMembers] = useState(false)
+
+  const [archivedOpen, setArchivedOpen] = useState(false)
+  const [archivedItems, setArchivedItems] = useState([])
+  const [loadingArchived, setLoadingArchived] = useState(false)
+  const [restoringArchiveId, setRestoringArchiveId] = useState('')
 
   const activeConversationRef = useRef('')
   const activeRoomRef = useRef('')
   const messagesEndRef = useRef(null)
 
   const totalUnreadCount = useMemo(
-    () => conversations.reduce((sum, item) => sum + Number(item.unreadCount || 0), 0),
-    [conversations]
+    () =>
+      [...conversations, ...rooms].reduce(
+        (sum, item) => sum + Number(item.unreadCount || 0),
+        0
+      ),
+    [conversations, rooms]
   )
 
   const scholarByUserId = useMemo(
@@ -985,7 +1188,7 @@ export default function AdminMessages() {
     const query = searchTerm.trim().toLowerCase()
 
     const matchedThreads = mergedItems.filter((item) => {
-      const matchesUnread = showUnreadOnly ? item.unreadCount > 0 : true
+      const matchesUnread = showUnreadOnly ? Number(item.unreadCount || 0) > 0 : true
       const searchText = [item.name, item.studentNumber, item.lastMessage]
         .filter(Boolean)
         .join(' ')
@@ -1004,12 +1207,16 @@ export default function AdminMessages() {
 
   const selectedItem = useMemo(() => {
     if (activeType === 'group') {
-      return filteredItems.find((item) => item.type === 'group' && item.id === activeRoomId)
-        || mergedItems.find((item) => item.type === 'group' && item.id === activeRoomId)
+      return (
+        filteredItems.find((item) => item.type === 'group' && item.id === activeRoomId) ||
+        mergedItems.find((item) => item.type === 'group' && item.id === activeRoomId)
+      )
     }
 
-    return filteredItems.find((item) => item.type === 'private' && item.id === activeConversationId)
-      || mergedItems.find((item) => item.type === 'private' && item.id === activeConversationId)
+    return (
+      filteredItems.find((item) => item.type === 'private' && item.id === activeConversationId) ||
+      mergedItems.find((item) => item.type === 'private' && item.id === activeConversationId)
+    )
   }, [filteredItems, mergedItems, activeType, activeConversationId, activeRoomId])
 
   useEffect(() => {
@@ -1032,6 +1239,7 @@ export default function AdminMessages() {
         const response = await fetch(`${MESSAGING_API_BASE}/api/messages/conversations`, {
           headers: buildMessagingHeaders(token),
         })
+
         const payload = await parseApiResponse(response, 'Failed to load conversations.')
         const items = sortItems((payload.items || []).map(normalizeConversation))
 
@@ -1044,17 +1252,13 @@ export default function AdminMessages() {
           return
         }
 
-        if (items.length) {
-          const nextConversationId = items.some(
-            (item) => item.id === preferredConversationId
-          )
+        if (items.length && !activeRoomRef.current) {
+          const nextConversationId = items.some((item) => item.id === preferredConversationId)
             ? preferredConversationId
             : items[0].id
 
-          if (!activeRoomRef.current) {
-            setActiveType('private')
-            setActiveConversationId(nextConversationId)
-          }
+          setActiveType('private')
+          setActiveConversationId(nextConversationId)
         }
       } catch (err) {
         setError(err.message || 'Failed to load conversations.')
@@ -1071,8 +1275,9 @@ export default function AdminMessages() {
         const response = await fetch(`${MESSAGING_API_BASE}/api/messages/rooms`, {
           headers: buildMessagingHeaders(token),
         })
+
         const payload = await parseApiResponse(response, 'Failed to load rooms.')
-        const rawItems = Array.isArray(payload) ? payload : (payload.items || [])
+        const rawItems = Array.isArray(payload) ? payload : payload.items || []
         const items = sortItems(rawItems.map(normalizeRoom))
 
         setRooms(items)
@@ -1098,9 +1303,11 @@ export default function AdminMessages() {
   const fetchScholarMembers = useCallback(async () => {
     try {
       setLoadingScholars(true)
+
       const response = await fetch(`${MESSAGING_API_BASE}/api/messages/members/scholars`, {
         headers: buildMessagingHeaders(token),
       })
+
       const payload = await parseApiResponse(response, 'Failed to load scholar members.')
       setScholars((payload.items || []).map(normalizeScholarMember))
     } catch (err) {
@@ -1126,8 +1333,10 @@ export default function AdminMessages() {
             headers: buildMessagingHeaders(token),
           }
         )
+
         const payload = await parseApiResponse(response, 'Failed to load messages.')
         const items = sortMessages((payload.items || []).map(normalizeMessage))
+
         setMessages(items)
         setError('')
       } catch (err) {
@@ -1156,8 +1365,10 @@ export default function AdminMessages() {
             headers: buildMessagingHeaders(token),
           }
         )
+
         const payload = await parseApiResponse(response, 'Failed to load room messages.')
         const items = sortMessages((payload.items || []).map(normalizeMessage))
+
         setMessages(items)
         setError('')
       } catch (err) {
@@ -1170,56 +1381,205 @@ export default function AdminMessages() {
     [token]
   )
 
-  const markConversationRead = useCallback(
-    async (counterpartyId) => {
-      if (!counterpartyId) return
+  const toggleThreadReadState = useCallback(
+    async (item) => {
+      if (!item?.id || item.isSearchResult) return
+
+      const shouldMarkRead = Number(item.unreadCount || 0) > 0
+
+      const endpoint =
+        item.type === 'group'
+          ? `${MESSAGING_API_BASE}/api/messages/rooms/${item.id}/read-state`
+          : `${MESSAGING_API_BASE}/api/messages/conversations/${item.id}/read-state`
 
       try {
-        const response = await fetch(
-          `${MESSAGING_API_BASE}/api/messages/conversations/${counterpartyId}/read`,
-          {
-            method: 'PATCH',
-            headers: buildMessagingHeaders(token, { json: true }),
-          }
-        )
-        const payload = await parseApiResponse(response, 'Failed to mark messages as read.')
-        const messageIds = (payload.messageIds || []).map((item) => item.toString())
+        const response = await fetch(endpoint, {
+          method: 'PATCH',
+          headers: buildMessagingHeaders(token, { json: true }),
+          body: JSON.stringify({
+            isRead: shouldMarkRead,
+          }),
+        })
 
-        if (messageIds.length) {
-          setMessages((current) => markMessagesRead(current, messageIds))
+        const payload = await parseApiResponse(response, 'Failed to update read state.')
+
+        const messageIds = (payload.messageIds || [])
+          .map((messageId) => messageId?.toString?.() || '')
+          .filter(Boolean)
+
+        const nextUnreadCount = Number(payload.unreadCount || 0)
+
+        if (item.type === 'group') {
+          setRooms((current) =>
+            current.map((room) =>
+              room.id === item.id
+                ? {
+                  ...room,
+                  unreadCount: nextUnreadCount,
+                }
+                : room
+            )
+          )
+        } else {
+          setConversations((current) =>
+            current.map((conversation) =>
+              conversation.id === item.id
+                ? {
+                  ...conversation,
+                  unreadCount: nextUnreadCount,
+                }
+                : conversation
+            )
+          )
         }
 
-        setConversations((current) =>
-          current.map((item) =>
-            item.id === counterpartyId
-              ? {
-                ...item,
-                unreadCount: 0,
-              }
-              : item
+        if (messageIds.length) {
+          setMessages((current) =>
+            shouldMarkRead
+              ? markMessagesRead(current, messageIds)
+              : markMessagesUnread(current, messageIds)
           )
-        )
-      } catch {
-        // keep current UI state if read update fails
+        }
+
+        setError('')
+      } catch (err) {
+        setError(err.message || 'Failed to update read state.')
       }
     },
     [token]
   )
 
-  const markRoomMessagesRead = useCallback(
-    async (roomId) => {
-      if (!roomId) return
+  const fetchArchivedThreads = useCallback(async () => {
+    try {
+      setLoadingArchived(true)
+
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/archived`, {
+        headers: buildMessagingHeaders(token),
+      })
+
+      const payload = await parseApiResponse(response, 'Failed to load archived threads.')
+      const items = (payload.items || []).map(normalizeArchivedThread)
+
+      setArchivedItems(items)
+      setError('')
+    } catch (err) {
+      setError(err.message || 'Failed to load archived threads.')
+    } finally {
+      setLoadingArchived(false)
+    }
+  }, [token])
+
+  const openArchivedThreads = useCallback(() => {
+    setArchivedOpen(true)
+    fetchArchivedThreads()
+  }, [fetchArchivedThreads])
+
+  const archiveThread = useCallback(
+    async (item) => {
+      if (!item?.id || item.isSearchResult) return
+
+      const confirmed = window.confirm(`Archive "${item.name}"?`)
+      if (!confirmed) return
+
+      const endpoint =
+        item.type === 'group'
+          ? `${MESSAGING_API_BASE}/api/messages/rooms/${item.id}/archive`
+          : `${MESSAGING_API_BASE}/api/messages/conversations/${item.id}/archive`
 
       try {
-        await fetch(`${MESSAGING_API_BASE}/api/messages/rooms/${roomId}/read`, {
+        const response = await fetch(endpoint, {
           method: 'PATCH',
           headers: buildMessagingHeaders(token, { json: true }),
         })
-      } catch {
-        // no-op
+
+        await parseApiResponse(response, 'Failed to archive thread.')
+
+        if (item.type === 'group') {
+          setRooms((current) => current.filter((room) => room.id !== item.id))
+
+          if (activeType === 'group' && activeRoomId === item.id) {
+            setActiveRoomId('')
+            setMessages([])
+          }
+        } else {
+          setConversations((current) =>
+            current.filter((conversation) => conversation.id !== item.id)
+          )
+
+          if (activeType === 'private' && activeConversationId === item.id) {
+            setActiveConversationId('')
+            setMessages([])
+          }
+        }
+
+        await Promise.all([fetchConversations(), fetchRooms()])
+
+        if (archivedOpen) {
+          await fetchArchivedThreads()
+        }
+
+        setError('')
+      } catch (err) {
+        setError(err.message || 'Failed to archive thread.')
       }
     },
-    [token]
+    [
+      token,
+      activeType,
+      activeRoomId,
+      activeConversationId,
+      archivedOpen,
+      fetchConversations,
+      fetchRooms,
+      fetchArchivedThreads,
+    ]
+  )
+
+  const restoreArchivedThread = useCallback(
+    async (item) => {
+      if (!item?.id) return
+
+      const itemKey = `${item.type}-${item.id}`
+
+      const endpoint =
+        item.type === 'group'
+          ? `${MESSAGING_API_BASE}/api/messages/rooms/${item.id}/restore`
+          : `${MESSAGING_API_BASE}/api/messages/conversations/${item.id}/restore`
+
+      try {
+        setRestoringArchiveId(itemKey)
+
+        const response = await fetch(endpoint, {
+          method: 'PATCH',
+          headers: buildMessagingHeaders(token, { json: true }),
+        })
+
+        await parseApiResponse(response, 'Failed to restore archived thread.')
+
+        setArchivedItems((current) =>
+          current.filter((archivedItem) => `${archivedItem.type}-${archivedItem.id}` !== itemKey)
+        )
+
+        await Promise.all([fetchConversations(), fetchRooms()])
+
+        if (archivedOpen) {
+          await fetchArchivedThreads()
+        }
+
+        setError('')
+      } catch (err) {
+        setError(err.message || 'Failed to restore archived thread.')
+      } finally {
+        setRestoringArchiveId('')
+      }
+    },
+    [
+      token,
+      archivedOpen,
+      fetchConversations,
+      fetchRooms,
+      fetchArchivedThreads,
+    ]
   )
 
   async function handleSendMessage(event) {
@@ -1276,8 +1636,26 @@ export default function AdminMessages() {
           )
         )
       } else {
-        setConversations((current) =>
-          sortItems(
+        setConversations((current) => {
+          const exists = current.some((item) => item.id === activeConversationId)
+
+          if (!exists) {
+            return sortItems([
+              ...current,
+              {
+                id: activeConversationId,
+                type: 'private',
+                name: selectedItem?.name || 'Unknown user',
+                studentNumber: selectedItem?.studentNumber || '',
+                lastMessage: message.messageBody,
+                lastSentAt: message.sentAt,
+                createdAt: message.sentAt,
+                unreadCount: 0,
+              },
+            ])
+          }
+
+          return sortItems(
             current.map((item) =>
               item.id === activeConversationId
                 ? {
@@ -1288,7 +1666,7 @@ export default function AdminMessages() {
                 : item
             )
           )
-        )
+        })
       }
 
       setDraft('')
@@ -1358,83 +1736,6 @@ export default function AdminMessages() {
     fetchRooms()
   }, [isOpen, token, currentUserId, fetchConversations, fetchRooms])
 
-  // Realtime updates for messages
-  useSocketEvent('message:created', async (data) => {
-    console.log('[Realtime] Message created:', data);
-    if (!isOpen) return
-
-    await Promise.all([fetchConversations(), fetchRooms()])
-
-    const senderId = data?.sender_id?.toString?.() || ''
-    const receiverId = data?.receiver_id?.toString?.() || ''
-    const roomId = data?.room_id?.toString?.() || ''
-
-    if (roomId && activeType === 'group' && activeRoomId === roomId) {
-      await fetchRoomMessages(activeRoomId)
-      return
-    }
-
-    const isActivePrivateThread =
-      activeType === 'private' &&
-      activeConversationId &&
-      [senderId, receiverId].includes(currentUserId) &&
-      [senderId, receiverId].includes(activeConversationId)
-
-    if (isActivePrivateThread) {
-      await fetchConversationMessages(activeConversationId)
-      await markConversationRead(activeConversationId)
-    }
-  }, [
-    isOpen,
-    activeType,
-    activeRoomId,
-    activeConversationId,
-    currentUserId,
-    fetchConversations,
-    fetchRooms,
-    fetchConversationMessages,
-    fetchRoomMessages,
-    markConversationRead,
-  ]);
-
-  useSocketEvent('message:read', (data) => {
-    const messageIds = (data?.message_ids || data?.messageIds || []).map((item) =>
-      item?.toString?.() || ''
-    ).filter(Boolean)
-
-    if (!messageIds.length) return
-
-    setMessages((current) => markMessagesRead(current, messageIds))
-  }, []);
-
-  useSocketEvent('room:created', async (data) => {
-    if (!isOpen) return;
-
-    await fetchRooms(data?.room_id || activeRoomId);
-  }, [
-    isOpen,
-    activeRoomId,
-    fetchRooms,
-  ]);
-
-  useSocketEvent('room:members-added', async (data) => {
-    if (!isOpen) return;
-
-    await fetchRooms(activeRoomId);
-
-    const roomId = data?.room_id?.toString?.() || '';
-
-    if (activeType === 'group' && activeRoomId === roomId) {
-      await fetchRoomMessages(activeRoomId);
-    }
-  }, [
-    isOpen,
-    activeType,
-    activeRoomId,
-    fetchRooms,
-    fetchRoomMessages,
-  ]);
-
   useEffect(() => {
     if (isOpen) {
       fetchScholarMembers()
@@ -1456,9 +1757,11 @@ export default function AdminMessages() {
       if (firstItem.type === 'group') {
         setActiveType('group')
         setActiveRoomId(firstItem.id)
+        setActiveConversationId('')
       } else {
         setActiveType('private')
         setActiveConversationId(firstItem.id)
+        setActiveRoomId('')
       }
     }
   }, [isOpen, activeConversationId, activeRoomId, filteredItems])
@@ -1473,7 +1776,6 @@ export default function AdminMessages() {
       }
 
       fetchRoomMessages(activeRoomId)
-      markRoomMessagesRead(activeRoomId)
       return
     }
 
@@ -1483,7 +1785,6 @@ export default function AdminMessages() {
     }
 
     fetchConversationMessages(activeConversationId)
-    markConversationRead(activeConversationId)
   }, [
     isOpen,
     activeType,
@@ -1491,8 +1792,6 @@ export default function AdminMessages() {
     activeRoomId,
     fetchConversationMessages,
     fetchRoomMessages,
-    markConversationRead,
-    markRoomMessagesRead,
   ])
 
   useEffect(() => {
@@ -1502,9 +1801,11 @@ export default function AdminMessages() {
       if (firstItem.type === 'group') {
         setActiveType('group')
         setActiveRoomId(firstItem.id)
+        setActiveConversationId('')
       } else {
         setActiveType('private')
         setActiveConversationId(firstItem.id)
+        setActiveRoomId('')
       }
     }
 
@@ -1512,6 +1813,130 @@ export default function AdminMessages() {
       setMessages([])
     }
   }, [filteredItems, selectedItem, searchTerm])
+
+  useSocketEvent('message:created', async (data) => {
+    if (!isOpen) return
+
+    await Promise.all([fetchConversations(), fetchRooms()])
+
+    const senderId = data?.sender_id?.toString?.() || ''
+    const receiverId = data?.receiver_id?.toString?.() || ''
+    const roomId = data?.room_id?.toString?.() || ''
+
+    if (roomId && activeType === 'group' && activeRoomId === roomId) {
+      await fetchRoomMessages(activeRoomId)
+      return
+    }
+
+    const isActivePrivateThread =
+      activeType === 'private' &&
+      activeConversationId &&
+      [senderId, receiverId].includes(currentUserId) &&
+      [senderId, receiverId].includes(activeConversationId)
+
+    if (isActivePrivateThread) {
+      await fetchConversationMessages(activeConversationId)
+    }
+  }, [
+    isOpen,
+    activeType,
+    activeRoomId,
+    activeConversationId,
+    currentUserId,
+    fetchConversations,
+    fetchRooms,
+    fetchConversationMessages,
+    fetchRoomMessages,
+  ])
+
+  useSocketEvent('message:read', async (data) => {
+    const messageIds = (data?.message_ids || data?.messageIds || [])
+      .map((item) => item?.toString?.() || '')
+      .filter(Boolean)
+
+    if (messageIds.length) {
+      setMessages((current) => markMessagesRead(current, messageIds))
+    }
+
+    await Promise.all([fetchConversations(), fetchRooms()])
+  }, [
+    fetchConversations,
+    fetchRooms,
+  ])
+
+  useSocketEvent('message:unread', async (data) => {
+    const messageIds = (data?.message_ids || data?.messageIds || [])
+      .map((item) => item?.toString?.() || '')
+      .filter(Boolean)
+
+    if (messageIds.length) {
+      setMessages((current) => markMessagesUnread(current, messageIds))
+    }
+
+    await Promise.all([fetchConversations(), fetchRooms()])
+  }, [
+    fetchConversations,
+    fetchRooms,
+  ])
+
+  useSocketEvent('message:thread-archived', async () => {
+    if (!isOpen && !archivedOpen) return
+
+    await Promise.all([fetchConversations(), fetchRooms()])
+
+    if (archivedOpen) {
+      await fetchArchivedThreads()
+    }
+  }, [
+    isOpen,
+    archivedOpen,
+    fetchConversations,
+    fetchRooms,
+    fetchArchivedThreads,
+  ])
+
+  useSocketEvent('message:thread-restored', async () => {
+    if (!isOpen && !archivedOpen) return
+
+    await Promise.all([fetchConversations(), fetchRooms()])
+
+    if (archivedOpen) {
+      await fetchArchivedThreads()
+    }
+  }, [
+    isOpen,
+    archivedOpen,
+    fetchConversations,
+    fetchRooms,
+    fetchArchivedThreads,
+  ])
+
+  useSocketEvent('room:created', async (data) => {
+    if (!isOpen) return
+    await fetchRooms(data?.room_id || activeRoomId)
+  }, [
+    isOpen,
+    activeRoomId,
+    fetchRooms,
+  ])
+
+  useSocketEvent('room:members-added', async (data) => {
+    if (!isOpen) return
+
+    await fetchRooms(activeRoomId)
+
+    const roomId = data?.room_id?.toString?.() || ''
+
+    if (activeType === 'group' && activeRoomId === roomId) {
+      await fetchRoomMessages(activeRoomId)
+    }
+  }, [
+    isOpen,
+    activeType,
+    activeRoomId,
+    fetchRooms,
+    fetchRoomMessages,
+  ])
 
   return (
     <>
@@ -1547,6 +1972,16 @@ export default function AdminMessages() {
         loadingScholars={loadingScholars}
       />
 
+      <ArchivedThreadsModal
+        open={archivedOpen}
+        onClose={() => setArchivedOpen(false)}
+        items={archivedItems}
+        loading={loadingArchived}
+        restoringId={restoringArchiveId}
+        onRestore={restoreArchivedThread}
+        onRefresh={fetchArchivedThreads}
+      />
+
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6">
           <div className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl">
@@ -1554,6 +1989,26 @@ export default function AdminMessages() {
               <div className="text-sm font-semibold text-stone-900">Messages</div>
 
               <div className="flex items-center gap-2">
+                {activeType === 'group' && activeRoomId ? (
+                  <button
+                    type="button"
+                    onClick={() => setAddMembersOpen(true)}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Add
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={openArchivedThreads}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50"
+                >
+                  <Archive className="h-4 w-4" />
+                  Archived
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setCreateGroupOpen(true)}
@@ -1609,8 +2064,8 @@ export default function AdminMessages() {
                       type="button"
                       onClick={() => setShowUnreadOnly((current) => !current)}
                       className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${showUnreadOnly
-                        ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
-                        : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
+                          ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
+                          : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
                         }`}
                     >
                       <Filter className="h-3.5 w-3.5" />
@@ -1641,13 +2096,21 @@ export default function AdminMessages() {
                           key={`${item.type}-${item.id}`}
                           item={item}
                           isActive={isActive}
+                          onToggleRead={toggleThreadReadState}
+                          onArchive={archiveThread}
                           onClick={() => {
                             if (item.type === 'group') {
                               setActiveType('group')
                               setActiveRoomId(item.id)
+                              setActiveConversationId('')
                             } else {
                               setActiveType('private')
                               setActiveConversationId(item.id)
+                              setActiveRoomId('')
+                            }
+
+                            if (Number(item.unreadCount || 0) > 0) {
+                              toggleThreadReadState(item)
                             }
                           }}
                         />

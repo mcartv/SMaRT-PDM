@@ -34,15 +34,19 @@ async function resolveAvatarUrl(value) {
     return rawValue;
   }
 
-  const { data, error } = await supabase.storage
-    .from('avatars')
-    .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+  try {
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
 
-  if (error) {
+    if (error) {
+      return rawValue;
+    }
+
+    return data?.signedUrl || rawValue;
+  } catch {
     return rawValue;
   }
-
-  return data?.signedUrl || rawValue;
 }
 
 async function getUserSummary(userId) {
@@ -60,8 +64,10 @@ async function getUserSummary(userId) {
         ELSE COALESCE(u.email, 'Unknown User')
       END AS display_name
     FROM users u
-    LEFT JOIN students st ON st.user_id = u.user_id
-    LEFT JOIN admin_profiles ap ON ap.user_id = u.user_id
+    LEFT JOIN students st
+      ON st.user_id = u.user_id
+    LEFT JOIN admin_profiles ap
+      ON ap.user_id = u.user_id
     WHERE u.user_id = $1
     LIMIT 1;
     `,
@@ -69,6 +75,7 @@ async function getUserSummary(userId) {
   );
 
   const row = result.rows[0];
+
   if (!row) {
     return null;
   }
@@ -85,7 +92,8 @@ async function ensureRoomMembership(userId, roomId) {
     `
     SELECT membership_id
     FROM chat_room_members
-    WHERE room_id = $1 AND user_id = $2
+    WHERE room_id = $1
+      AND user_id = $2
     LIMIT 1;
     `,
     [roomId, userId]
@@ -94,6 +102,49 @@ async function ensureRoomMembership(userId, roomId) {
   if (!result.rows.length) {
     throw new Error('You are not a member of this chat room');
   }
+}
+
+async function createPrivateReadStates(messageId, senderId, receiverId) {
+  await db.query(
+    `
+    INSERT INTO message_read_states (
+      message_id,
+      user_id,
+      is_read
+    )
+    VALUES
+      ($1, $2, true),
+      ($1, $3, false)
+    ON CONFLICT (message_id, user_id)
+    DO UPDATE SET
+      is_read = EXCLUDED.is_read,
+      updated_at = now();
+    `,
+    [messageId, senderId, receiverId]
+  );
+}
+
+async function createRoomReadStates(messageId, roomId, senderId) {
+  await db.query(
+    `
+    INSERT INTO message_read_states (
+      message_id,
+      user_id,
+      is_read
+    )
+    SELECT
+      $1,
+      crm.user_id,
+      CASE WHEN crm.user_id = $3 THEN true ELSE false END
+    FROM chat_room_members crm
+    WHERE crm.room_id = $2
+    ON CONFLICT (message_id, user_id)
+    DO UPDATE SET
+      is_read = EXCLUDED.is_read,
+      updated_at = now();
+    `,
+    [messageId, roomId, senderId]
+  );
 }
 
 exports.fetchRoomMemberUserIds = async (roomId) => {
@@ -124,10 +175,26 @@ exports.fetchConversations = async (currentUserId) => {
         m.subject,
         m.message_body,
         m.sent_at,
-        m.is_read
+        CASE
+          WHEN m.sender_id = $1 THEN true
+          ELSE COALESCE(mrs.is_read, m.is_read, false)
+        END AS viewer_is_read
       FROM messages m
+      LEFT JOIN message_read_states mrs
+        ON mrs.message_id = m.message_id
+       AND mrs.user_id = $1
       WHERE (m.sender_id = $1 OR m.receiver_id = $1)
         AND m.room_id IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM message_thread_archives mta
+          WHERE mta.user_id = $1
+            AND mta.thread_type = 'private'
+            AND mta.counterparty_id = CASE
+              WHEN m.sender_id = $1 THEN m.receiver_id
+              ELSE m.sender_id
+            END
+        )
     ),
     latest AS (
       SELECT DISTINCT ON (counterparty_id)
@@ -145,7 +212,7 @@ exports.fetchConversations = async (currentUserId) => {
         COUNT(*)::int AS unread_count
       FROM base
       WHERE receiver_id = $1
-        AND COALESCE(is_read, false) = false
+        AND COALESCE(viewer_is_read, false) = false
       GROUP BY counterparty_id
     )
     SELECT
@@ -164,6 +231,7 @@ exports.fetchConversations = async (currentUserId) => {
   );
 
   const conversations = [];
+
   for (const row of result.rows) {
     const summary = await getUserSummary(row.counterparty_id);
 
@@ -196,11 +264,16 @@ exports.fetchConversationMessages = async (currentUserId, counterpartyId) => {
       m.subject,
       m.message_body,
       m.sent_at,
-      COALESCE(m.is_read, false) AS is_read,
+      CASE
+        WHEN m.sender_id = $1 THEN true
+        ELSE COALESCE(mrs.is_read, m.is_read, false)
+      END AS is_read,
       m.attachment_url
     FROM messages m
-    WHERE
-      m.room_id IS NULL
+    LEFT JOIN message_read_states mrs
+      ON mrs.message_id = m.message_id
+     AND mrs.user_id = $1
+    WHERE m.room_id IS NULL
       AND (
         (m.sender_id = $1 AND m.receiver_id = $2)
         OR
@@ -226,23 +299,113 @@ exports.fetchConversationMessages = async (currentUserId, counterpartyId) => {
 };
 
 exports.markConversationRead = async (currentUserId, counterpartyId) => {
-  const result = await db.query(
+  const targetResult = await db.query(
     `
-    UPDATE messages
-    SET is_read = true
-    WHERE room_id IS NULL
-      AND receiver_id = $1
-      AND sender_id = $2
-      AND COALESCE(is_read, false) = false
-    RETURNING message_id;
+    SELECT m.message_id
+    FROM messages m
+    LEFT JOIN message_read_states mrs
+      ON mrs.message_id = m.message_id
+     AND mrs.user_id = $1
+    WHERE m.room_id IS NULL
+      AND m.receiver_id = $1
+      AND m.sender_id = $2
+      AND COALESCE(mrs.is_read, m.is_read, false) = false;
     `,
     [currentUserId, counterpartyId]
   );
 
-  return result.rows.map((row) => row.message_id);
+  const messageIds = targetResult.rows.map((row) => row.message_id);
+
+  if (!messageIds.length) {
+    return [];
+  }
+
+  await db.query(
+    `
+    INSERT INTO message_read_states (
+      message_id,
+      user_id,
+      is_read
+    )
+    SELECT
+      unnest($1::uuid[]),
+      $2::uuid,
+      true
+    ON CONFLICT (message_id, user_id)
+    DO UPDATE SET
+      is_read = true,
+      updated_at = now();
+    `,
+    [messageIds, currentUserId]
+  );
+
+  await db.query(
+    `
+    UPDATE messages
+    SET is_read = true
+    WHERE message_id = ANY($1::uuid[]);
+    `,
+    [messageIds]
+  );
+
+  return messageIds;
 };
 
-exports.sendMessage = async ({ senderId, receiverId, subject = null, messageBody, attachmentUrl = null }) => {
+exports.markConversationUnread = async (currentUserId, counterpartyId) => {
+  const targetResult = await db.query(
+    `
+    SELECT message_id
+    FROM messages
+    WHERE room_id IS NULL
+      AND receiver_id = $1
+      AND sender_id = $2
+    ORDER BY sent_at DESC, message_id DESC
+    LIMIT 1;
+    `,
+    [currentUserId, counterpartyId]
+  );
+
+  const messageIds = targetResult.rows.map((row) => row.message_id);
+
+  if (!messageIds.length) {
+    return [];
+  }
+
+  await db.query(
+    `
+    INSERT INTO message_read_states (
+      message_id,
+      user_id,
+      is_read
+    )
+    VALUES ($1, $2, false)
+    ON CONFLICT (message_id, user_id)
+    DO UPDATE SET
+      is_read = false,
+      updated_at = now();
+    `,
+    [messageIds[0], currentUserId]
+  );
+
+  await db.query(
+    `
+    UPDATE messages
+    SET is_read = false
+    WHERE message_id = $1;
+    `,
+    [messageIds[0]]
+  );
+
+  return messageIds;
+};
+
+exports.sendMessage = async ({
+  senderId,
+  receiverId,
+  subject = null,
+  messageBody,
+  attachmentUrl = null,
+}) => {
   const result = await db.query(
     `
     INSERT INTO messages (
@@ -269,10 +432,27 @@ exports.sendMessage = async ({ senderId, receiverId, subject = null, messageBody
   );
 
   const message = result.rows[0];
+
+  await createPrivateReadStates(message.message_id, senderId, receiverId);
+
+  await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE thread_type = 'private'
+      AND (
+        (user_id = $1 AND counterparty_id = $2)
+        OR
+        (user_id = $2 AND counterparty_id = $1)
+      );
+    `,
+    [senderId, receiverId]
+  );
+
   const senderSummary = await getUserSummary(senderId);
 
   return {
     ...message,
+    is_read: true,
     sender_name: senderSummary?.display_name || 'Unknown User',
     sender_profile_photo_url: senderSummary?.profile_photo_url || null,
     sender_avatar_url: senderSummary?.avatar_url || null,
@@ -299,6 +479,19 @@ exports.fetchRooms = async (currentUserId) => {
         COUNT(*)::int AS member_count
       FROM chat_room_members crm
       GROUP BY crm.room_id
+    ),
+    unread_counts AS (
+      SELECT
+        m.room_id,
+        COUNT(*)::int AS unread_count
+      FROM messages m
+      LEFT JOIN message_read_states mrs
+        ON mrs.message_id = m.message_id
+       AND mrs.user_id = $1
+      WHERE m.room_id IS NOT NULL
+        AND m.sender_id <> $1
+        AND COALESCE(mrs.is_read, false) = false
+      GROUP BY m.room_id
     )
     SELECT
       cr.room_id,
@@ -308,7 +501,8 @@ exports.fetchRooms = async (currentUserId) => {
       COALESCE(lrm.message_body, '') AS last_message,
       lrm.subject,
       lrm.sent_at AS last_sent_at,
-      COALESCE(mc.member_count, 0) AS member_count
+      COALESCE(mc.member_count, 0) AS member_count,
+      COALESCE(uc.unread_count, 0) AS unread_count
     FROM chat_room_members my_membership
     JOIN chat_rooms cr
       ON cr.room_id = my_membership.room_id
@@ -316,8 +510,17 @@ exports.fetchRooms = async (currentUserId) => {
       ON lrm.room_id = cr.room_id
     LEFT JOIN member_counts mc
       ON mc.room_id = cr.room_id
+    LEFT JOIN unread_counts uc
+      ON uc.room_id = cr.room_id
     WHERE my_membership.user_id = $1
       AND COALESCE(cr.is_archived, false) = false
+      AND NOT EXISTS (
+        SELECT 1
+        FROM message_thread_archives mta
+        WHERE mta.user_id = $1
+          AND mta.thread_type = 'group'
+          AND mta.room_id = cr.room_id
+      )
     ORDER BY lrm.sent_at DESC NULLS LAST, cr.created_at DESC;
     `,
     [currentUserId]
@@ -332,6 +535,7 @@ exports.fetchRooms = async (currentUserId) => {
     subject: row.subject || '',
     last_sent_at: row.last_sent_at,
     member_count: Number(row.member_count || 0),
+    unread_count: Number(row.unread_count || 0),
     conversation_type: 'group',
   }));
 };
@@ -341,7 +545,10 @@ exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
   const normalizedMemberIds = memberIds
     .map((memberId) => String(memberId || '').trim())
     .filter(Boolean);
-  const uniqueMemberIds = [...new Set(normalizedMemberIds.filter((userId) => userId !== normalizedCreatorId))];
+
+  const uniqueMemberIds = [
+    ...new Set(normalizedMemberIds.filter((userId) => userId !== normalizedCreatorId)),
+  ];
 
   if (!normalizedCreatorId) {
     throw new Error('A valid room creator is required.');
@@ -374,8 +581,8 @@ exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
         is_admin
       )
       VALUES ($1, $2, true)
-      ON CONFLICT (room_id, user_id) DO UPDATE
-      SET is_admin = true;
+      ON CONFLICT (room_id, user_id)
+      DO UPDATE SET is_admin = true;
       `,
       [room.room_id, normalizedCreatorId]
     );
@@ -388,10 +595,11 @@ exports.createRoom = async ({ creatorId, roomName = null, memberIds = [] }) => {
           user_id,
           is_admin
         )
-        VALUES ($1, $2, $3)
-        ON CONFLICT (room_id, user_id) DO NOTHING;
+        VALUES ($1, $2, false)
+        ON CONFLICT (room_id, user_id)
+        DO NOTHING;
         `,
-        [room.room_id, userId, false]
+        [room.room_id, userId]
       );
     }
 
@@ -422,13 +630,16 @@ exports.fetchRoomMessages = async (currentUserId, roomId) => {
       m.subject,
       m.message_body,
       m.sent_at,
-      COALESCE(m.is_read, false) AS is_read,
+      COALESCE(mrs.is_read, CASE WHEN m.sender_id = $2 THEN true ELSE false END) AS is_read,
       m.attachment_url
     FROM messages m
+    LEFT JOIN message_read_states mrs
+      ON mrs.message_id = m.message_id
+     AND mrs.user_id = $2
     WHERE m.room_id = $1
     ORDER BY m.sent_at ASC, m.message_id ASC;
     `,
-    [roomId]
+    [roomId, currentUserId]
   );
 
   const summaries = new Map();
@@ -445,7 +656,13 @@ exports.fetchRoomMessages = async (currentUserId, roomId) => {
   }));
 };
 
-exports.sendRoomMessage = async ({ senderId, roomId, subject = null, messageBody, attachmentUrl = null }) => {
+exports.sendRoomMessage = async ({
+  senderId,
+  roomId,
+  subject = null,
+  messageBody,
+  attachmentUrl = null,
+}) => {
   await ensureRoomMembership(senderId, roomId);
 
   const result = await db.query(
@@ -474,10 +691,23 @@ exports.sendRoomMessage = async ({ senderId, roomId, subject = null, messageBody
   );
 
   const message = result.rows[0];
+
+  await createRoomReadStates(message.message_id, roomId, senderId);
+
+  await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE thread_type = 'group'
+      AND room_id = $1;
+    `,
+    [roomId]
+  );
+
   const senderSummary = await getUserSummary(senderId);
 
   return {
     ...message,
+    is_read: true,
     sender_name: senderSummary?.display_name || 'Unknown User',
     sender_profile_photo_url: senderSummary?.profile_photo_url || null,
     sender_avatar_url: senderSummary?.avatar_url || null,
@@ -499,7 +729,8 @@ exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
         is_admin
       )
       VALUES ($1, $2, false)
-      ON CONFLICT (room_id, user_id) DO NOTHING
+      ON CONFLICT (room_id, user_id)
+      DO NOTHING
       RETURNING membership_id, room_id, user_id, joined_at, is_admin;
       `,
       [roomId, userId]
@@ -520,155 +751,334 @@ exports.addRoomMembers = async ({ actorId, roomId, memberIds = [] }) => {
 exports.markRoomMessagesRead = async (currentUserId, roomId) => {
   await ensureRoomMembership(currentUserId, roomId);
 
-  const result = await db.query(
+  const targetResult = await db.query(
     `
-    UPDATE messages
-    SET is_read = true
-    WHERE room_id = $1
-      AND sender_id <> $2
-      AND COALESCE(is_read, false) = false
-    RETURNING message_id;
+    SELECT m.message_id
+    FROM messages m
+    LEFT JOIN message_read_states mrs
+      ON mrs.message_id = m.message_id
+     AND mrs.user_id = $2
+    WHERE m.room_id = $1
+      AND m.sender_id <> $2
+      AND COALESCE(mrs.is_read, false) = false;
     `,
     [roomId, currentUserId]
   );
 
-  return result.rows.map((row) => row.message_id);
+  const messageIds = targetResult.rows.map((row) => row.message_id);
+
+  if (!messageIds.length) {
+    return [];
+  }
+
+  await db.query(
+    `
+    INSERT INTO message_read_states (
+      message_id,
+      user_id,
+      is_read
+    )
+    SELECT
+      unnest($1::uuid[]),
+      $2::uuid,
+      true
+    ON CONFLICT (message_id, user_id)
+    DO UPDATE SET
+      is_read = true,
+      updated_at = now();
+    `,
+    [messageIds, currentUserId]
+  );
+
+  return messageIds;
+};
+
+exports.markRoomMessagesUnread = async (currentUserId, roomId) => {
+  await ensureRoomMembership(currentUserId, roomId);
+
+  const targetResult = await db.query(
+    `
+    SELECT message_id
+    FROM messages
+    WHERE room_id = $1
+      AND sender_id <> $2
+    ORDER BY sent_at DESC, message_id DESC
+    LIMIT 1;
+    `,
+    [roomId, currentUserId]
+  );
+
+  const messageIds = targetResult.rows.map((row) => row.message_id);
+
+  if (!messageIds.length) {
+    return [];
+  }
+
+  await db.query(
+    `
+    INSERT INTO message_read_states (
+      message_id,
+      user_id,
+      is_read
+    )
+    VALUES ($1, $2, false)
+    ON CONFLICT (message_id, user_id)
+    DO UPDATE SET
+      is_read = false,
+      updated_at = now();
+    `,
+    [messageIds[0], currentUserId]
+  );
+
+  return messageIds;
+};
+
+exports.archiveConversation = async (currentUserId, counterpartyId) => {
+  await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE user_id = $1
+      AND thread_type = 'private'
+      AND counterparty_id = $2;
+    `,
+    [currentUserId, counterpartyId]
+  );
+
+  const result = await db.query(
+    `
+    INSERT INTO message_thread_archives (
+      user_id,
+      thread_type,
+      counterparty_id,
+      room_id
+    )
+    VALUES ($1, 'private', $2, NULL)
+    RETURNING archive_id, user_id, thread_type, counterparty_id, room_id, archived_at;
+    `,
+    [currentUserId, counterpartyId]
+  );
+
+  return result.rows[0];
+};
+
+exports.archiveRoom = async (currentUserId, roomId) => {
+  await ensureRoomMembership(currentUserId, roomId);
+
+  await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE user_id = $1
+      AND thread_type = 'group'
+      AND room_id = $2;
+    `,
+    [currentUserId, roomId]
+  );
+
+  const result = await db.query(
+    `
+    INSERT INTO message_thread_archives (
+      user_id,
+      thread_type,
+      counterparty_id,
+      room_id
+    )
+    VALUES ($1, 'group', NULL, $2)
+    RETURNING archive_id, user_id, thread_type, counterparty_id, room_id, archived_at;
+    `,
+    [currentUserId, roomId]
+  );
+
+  return result.rows[0];
 };
 
 exports.fetchScholarMembers = async () => {
-  let result;
-
-  try {
-    // Preferred schema: scholars are tracked directly in the students table.
-    result = await db.query(
-      `
-      SELECT
-        u.user_id,
-        st.student_id AS scholar_id,
-        st.student_id,
-        st.pdm_id AS student_number,
-        st.first_name,
-        st.last_name,
-        st.profile_photo_url,
-        TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
-        COALESCE(sp.program_name, ac.course_code, 'No Program') AS program_name,
-        COALESCE(b.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
-      FROM students st
-      LEFT JOIN users u
-        ON st.user_id = u.user_id
-      LEFT JOIN academic_course ac
-        ON st.course_id = ac.course_id
-      LEFT JOIN scholarship_program sp
-        ON st.current_program_id = sp.program_id
-      LEFT JOIN benefactors b
-        ON sp.benefactor_id = b.benefactor_id
-      WHERE COALESCE(st.is_archived, false) = false
-        AND COALESCE(st.scholar_is_archived, false) = false
-        AND COALESCE(st.scholarship_status, 'None') IN ('Active', 'On Hold', 'Inactive', 'Removed')
-        AND u.user_id IS NOT NULL
-      ORDER BY student_name ASC;
-      `
-    );
-  } catch (modernErr) {
-    const message = String(modernErr?.message || '').toLowerCase();
-    const isSchemaMismatch =
-      message.includes('current_program_id') ||
-      message.includes('scholar_is_archived') ||
-      message.includes('scholarship_status');
-
-    if (!isSchemaMismatch) {
-      throw modernErr;
-    }
-
-    try {
-      // Legacy schema fallback: current_scholars table stores program linkage.
-      result = await db.query(
-        `
-        SELECT
-          u.user_id,
-          s.scholar_id,
-          st.student_id,
-          st.pdm_id AS student_number,
-          st.first_name,
-          st.last_name,
-          st.profile_photo_url,
-          TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
-          COALESCE(sp.program_name, ac.course_code, 'No Program') AS program_name,
-          COALESCE(b.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
-        FROM current_scholars s
-        JOIN students st
-          ON s.student_id = st.student_id
-        LEFT JOIN users u
-          ON st.user_id = u.user_id
-        LEFT JOIN academic_course ac
-          ON st.course_id = ac.course_id
-        LEFT JOIN scholarship_program sp
-          ON s.program_id = sp.program_id
-        LEFT JOIN benefactors b
-          ON sp.benefactor_id = b.benefactor_id
-        WHERE COALESCE(st.is_archived, false) = false
-          AND u.user_id IS NOT NULL
-        ORDER BY student_name ASC;
-        `
-      );
-    } catch (legacyErr) {
-      const legacyMessage = String(legacyErr?.message || '').toLowerCase();
-      const isCurrentScholarsMissing = legacyMessage.includes('current_scholars');
-
-      if (!isCurrentScholarsMissing) {
-        throw legacyErr;
-      }
-
-      // Older fallback: scholars table.
-      result = await db.query(
-        `
-        SELECT
-          u.user_id,
-          s.scholar_id,
-          st.student_id,
-          st.pdm_id AS student_number,
-          st.first_name,
-          st.last_name,
-          st.profile_photo_url,
-          TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
-          COALESCE(sp.program_name, ac.course_code, 'No Program') AS program_name,
-          COALESCE(b.benefactor_name, 'Unassigned Benefactor') AS benefactor_name
-        FROM scholars s
-        JOIN students st
-          ON s.student_id = st.student_id
-        LEFT JOIN users u
-          ON st.user_id = u.user_id
-        LEFT JOIN academic_course ac
-          ON st.course_id = ac.course_id
-        LEFT JOIN scholarship_program sp
-          ON s.program_id = sp.program_id
-        LEFT JOIN benefactors b
-          ON sp.benefactor_id = b.benefactor_id
-        WHERE COALESCE(st.is_archived, false) = false
-          AND u.user_id IS NOT NULL
-        ORDER BY student_name ASC;
-        `
-      );
-    }
-  }
+  const result = await db.query(
+    `
+    SELECT
+      u.user_id,
+      st.student_id AS scholar_id,
+      st.student_id,
+      st.pdm_id AS student_number,
+      st.first_name,
+      st.last_name,
+      st.profile_photo_url,
+      TRIM(COALESCE(st.first_name, '') || ' ' || COALESCE(st.last_name, '')) AS student_name,
+      COALESCE(ac.course_code, 'No Program') AS program_name,
+      'Unassigned Benefactor' AS benefactor_name
+    FROM students st
+    LEFT JOIN users u
+      ON st.user_id = u.user_id
+    LEFT JOIN academic_course ac
+      ON st.course_id = ac.course_id
+    WHERE COALESCE(st.is_archived, false) = false
+      AND u.user_id IS NOT NULL
+    ORDER BY student_name ASC;
+    `
+  );
 
   const items = [];
 
   for (const row of result.rows) {
     items.push({
-      user_id: row.user_id,
-      scholar_id: row.scholar_id,
-      student_id: row.student_id,
-      student_number: row.student_number || '',
-      first_name: row.first_name || '',
-      last_name: row.last_name || '',
-      student_name: row.student_name || 'Unknown Scholar',
-      profile_photo_url: row.profile_photo_url || null,
+      ...row,
       avatar_url: await resolveAvatarUrl(row.profile_photo_url),
-      program_name: row.program_name || 'No Program',
-      benefactor_name: row.benefactor_name || 'Unassigned Benefactor',
     });
   }
 
   return items;
+};
+
+exports.fetchArchivedThreads = async (currentUserId) => {
+  const privateArchivesResult = await db.query(
+    `
+    SELECT
+      archive_id,
+      archived_at,
+      counterparty_id
+    FROM message_thread_archives
+    WHERE user_id = $1
+      AND thread_type = 'private'
+    ORDER BY archived_at DESC;
+    `,
+    [currentUserId]
+  );
+
+  const groupArchivesResult = await db.query(
+    `
+    SELECT
+      mta.archive_id,
+      mta.archived_at,
+      cr.room_id,
+      cr.room_name,
+      cr.created_at,
+      COALESCE(last_message.message_body, '') AS last_message,
+      last_message.sent_at AS last_sent_at,
+      COALESCE(member_count.member_count, 0)::int AS member_count
+    FROM message_thread_archives mta
+    JOIN chat_rooms cr
+      ON cr.room_id = mta.room_id
+    LEFT JOIN LATERAL (
+      SELECT
+        m.message_body,
+        m.sent_at
+      FROM messages m
+      WHERE m.room_id = cr.room_id
+      ORDER BY m.sent_at DESC, m.message_id DESC
+      LIMIT 1
+    ) last_message ON true
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS member_count
+      FROM chat_room_members crm
+      WHERE crm.room_id = cr.room_id
+    ) member_count ON true
+    WHERE mta.user_id = $1
+      AND mta.thread_type = 'group'
+    ORDER BY mta.archived_at DESC;
+    `,
+    [currentUserId]
+  );
+
+  const items = [];
+
+  for (const archive of privateArchivesResult.rows) {
+    const summary = await getUserSummary(archive.counterparty_id);
+
+    const lastMessageResult = await db.query(
+      `
+      SELECT
+        message_body,
+        sent_at
+      FROM messages
+      WHERE room_id IS NULL
+        AND (
+          (sender_id = $1 AND receiver_id = $2)
+          OR
+          (sender_id = $2 AND receiver_id = $1)
+        )
+      ORDER BY sent_at DESC, message_id DESC
+      LIMIT 1;
+      `,
+      [currentUserId, archive.counterparty_id]
+    );
+
+    const lastMessage = lastMessageResult.rows[0] || {};
+
+    items.push({
+      archive_id: archive.archive_id,
+      thread_type: 'private',
+      counterparty_id: archive.counterparty_id,
+      room_id: null,
+      name: summary?.display_name || 'Unknown User',
+      student_number: summary?.student_number || '',
+      avatar_url: summary?.avatar_url || null,
+      profile_photo_url: summary?.profile_photo_url || null,
+      last_message: lastMessage.message_body || '',
+      last_sent_at: lastMessage.sent_at || null,
+      member_count: null,
+      archived_at: archive.archived_at,
+    });
+  }
+
+  for (const archive of groupArchivesResult.rows) {
+    items.push({
+      archive_id: archive.archive_id,
+      thread_type: 'group',
+      counterparty_id: null,
+      room_id: archive.room_id,
+      name: archive.room_name || 'Untitled Group',
+      student_number: `${Number(archive.member_count || 0)} members`,
+      avatar_url: null,
+      profile_photo_url: null,
+      last_message: archive.last_message || '',
+      last_sent_at: archive.last_sent_at || archive.created_at || null,
+      member_count: Number(archive.member_count || 0),
+      archived_at: archive.archived_at,
+    });
+  }
+
+  return items.sort(
+    (left, right) =>
+      new Date(right.archived_at || 0).getTime() -
+      new Date(left.archived_at || 0).getTime()
+  );
+};
+
+exports.restoreConversation = async (currentUserId, counterpartyId) => {
+  const result = await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE user_id = $1
+      AND thread_type = 'private'
+      AND counterparty_id = $2
+    RETURNING archive_id, user_id, thread_type, counterparty_id, room_id, archived_at;
+    `,
+    [currentUserId, counterpartyId]
+  );
+
+  return {
+    restored: result.rowCount > 0,
+    archive: result.rows[0] || null,
+    counterparty_id: counterpartyId,
+  };
+};
+
+exports.restoreRoom = async (currentUserId, roomId) => {
+  await ensureRoomMembership(currentUserId, roomId);
+
+  const result = await db.query(
+    `
+    DELETE FROM message_thread_archives
+    WHERE user_id = $1
+      AND thread_type = 'group'
+      AND room_id = $2
+    RETURNING archive_id, user_id, thread_type, counterparty_id, room_id, archived_at;
+    `,
+    [currentUserId, roomId]
+  );
+
+  return {
+    restored: result.rowCount > 0,
+    archive: result.rows[0] || null,
+    room_id: roomId,
+  };
 };

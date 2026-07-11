@@ -4,9 +4,12 @@ import {
   AlertTriangle,
   AlertOctagon,
   CheckCircle2,
+  Download,
   Eye,
+  ExternalLink,
   FileText,
   Hourglass,
+  Image as ImageIcon,
   Loader2,
   RefreshCw,
   Search,
@@ -123,6 +126,117 @@ function formatDate(value) {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function getDocumentPreviewType(row = {}) {
+  const source = row.grade_document?.file_name || row.grade_document?.url || '';
+  const lower = source.toLowerCase();
+
+  if (lower.endsWith('.pdf')) return 'pdf';
+  if (/\.(png|jpg|jpeg|webp|gif)$/i.test(lower)) return 'image';
+  return 'file';
+}
+
+function GradePreviewModal({ row, open, onClose }) {
+  if (!open || !row?.grade_document?.url) return null;
+
+  const previewType = getDocumentPreviewType(row);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      <div className="flex h-[min(92vh,860px)] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+              Grade Preview
+            </p>
+            <p className="mt-1 truncate text-base font-semibold text-stone-900">
+              {row.grade_document.file_name || 'Grade document'}
+            </p>
+            <p className="mt-1 text-sm text-stone-500">
+              {row.student_name} • {row.pdm_id || 'No PDM ID'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <a
+              href={row.grade_document.url}
+              target="_blank"
+              rel="noreferrer"
+              download={row.grade_document.file_name || 'grade-document'}
+              className="inline-flex"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-stone-200 bg-white"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            </a>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-stone-200 bg-white"
+              onClick={onClose}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 bg-stone-50 p-4">
+          {previewType === 'image' ? (
+            <div className="flex h-full items-center justify-center overflow-auto rounded-2xl border border-stone-200 bg-white p-4">
+              <img
+                src={row.grade_document.url}
+                alt={row.grade_document.file_name || 'Grade document'}
+                className="max-h-full max-w-full rounded-2xl object-contain"
+              />
+            </div>
+          ) : previewType === 'pdf' ? (
+            <object
+              data={row.grade_document.url}
+              type="application/pdf"
+              className="h-full w-full rounded-2xl border border-stone-200 bg-white"
+            >
+              <iframe
+                src={row.grade_document.url}
+                title={row.grade_document.file_name || 'Grade document'}
+                className="h-full w-full rounded-2xl border border-stone-200 bg-white"
+              />
+            </object>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 text-center">
+              <FileText className="h-10 w-10 text-stone-400" />
+              <p className="mt-4 text-base font-semibold text-stone-800">
+                Preview is not available for this file type.
+              </p>
+              <p className="mt-2 text-sm text-stone-500">
+                Open or download the file instead.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <a
+                  href={row.grade_document.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex"
+                >
+                  <Button type="button" size="sm" className="border-none bg-stone-900 text-white hover:bg-stone-800">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open File
+                  </Button>
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function getQueueDecisionValue(queueKey, row) {
@@ -535,6 +649,7 @@ export default function EndorsementQueue({
   const [search, setSearch] = useState('');
   const [programFilter, setProgramFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
+  const [previewRow, setPreviewRow] = useState(null);
   const [actionState, setActionState] = useState({});
   const [confirmAction, setConfirmAction] = useState(null);
 
@@ -569,6 +684,16 @@ export default function EndorsementQueue({
   useEffect(() => {
     loadQueue();
   }, [queueKey]);
+
+  useEffect(() => {
+    if (!hasAccess) return undefined;
+
+    const timer = window.setInterval(() => {
+      loadQueue({ soft: true });
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [queueKey, hasAccess]);
 
   useSocketEvent(
     'endorsement:updated',
@@ -711,6 +836,10 @@ export default function EndorsementQueue({
   const confirmMeta = confirmAction
     ? getConfirmationMeta(queueKey, confirmAction.row, confirmAction.action)
     : null;
+  const openExternalFile = (url) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   if (!hasAccess) {
     return (
@@ -735,6 +864,11 @@ export default function EndorsementQueue({
 
   return (
     <div className="space-y-5 py-2">
+      <GradePreviewModal
+        row={previewRow}
+        open={Boolean(previewRow)}
+        onClose={() => setPreviewRow(null)}
+      />
       <AlertDialog
         open={Boolean(confirmAction)}
         onOpenChange={(open) => {
@@ -744,7 +878,7 @@ export default function EndorsementQueue({
         }}
       >
         {confirmAction && confirmMeta ? (
-          <AlertDialogContent size="default" className="rounded-3xl border-stone-200 bg-white p-0">
+          <AlertDialogContent size="lg" className="rounded-3xl border border-stone-200 bg-white p-0">
             <AlertDialogHeader className="px-6 pt-6">
               <AlertDialogMedia
                 className={`${
@@ -765,28 +899,56 @@ export default function EndorsementQueue({
               </AlertDialogMedia>
               <AlertDialogTitle>{confirmMeta.title}</AlertDialogTitle>
               <AlertDialogDescription>{confirmMeta.description}</AlertDialogDescription>
-              <div className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-left">
+              <div className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-left">
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Applicant</p>
                 <p className="mt-1 text-sm font-semibold text-stone-900">
                   {confirmAction.row.student_name}
                 </p>
-                <p className="mt-1 text-xs text-stone-500">
-                  {confirmAction.row.pdm_id || 'No PDM ID'} {confirmAction.row.slip_code ? `• ${confirmAction.row.slip_code}` : ''}
-                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-xl bg-white px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">PDM ID</p>
+                    <p className="mt-1 text-sm text-stone-700">
+                      {confirmAction.row.pdm_id || 'No PDM ID'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-white px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Slip Code</p>
+                    <p className="mt-1 font-mono text-sm text-stone-700">
+                      {confirmAction.row.slip_code || 'Not available'}
+                    </p>
+                  </div>
+                </div>
+                {queueKey === 'pd' ? (
+                  <div className="mt-3 rounded-xl border border-stone-200 bg-white px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">PD Check</p>
+                    <p className="mt-1 text-sm text-stone-700">
+                      Grade file:{' '}
+                      <span className="font-semibold text-stone-900">
+                        {confirmAction.row.grade_document?.url ? 'Uploaded' : 'Missing'}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-stone-700">
+                      GWA:{' '}
+                      <span className="font-semibold text-stone-900">
+                        {confirmAction.row.grade_summary?.gwa ?? 'N/A'}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={Boolean(savingSlipId)}>
+            <AlertDialogFooter className="mt-2">
+              <AlertDialogCancel disabled={Boolean(savingSlipId)} className="h-10 min-w-28 border-stone-200 bg-white px-4">
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
                 disabled={Boolean(savingSlipId)}
-                className={`${
+                className={`h-10 min-w-40 border-transparent px-4 font-semibold !text-white shadow-sm ${
                   confirmMeta.tone === 'red'
-                    ? 'bg-red-700 text-white hover:bg-red-800'
+                    ? '!bg-red-700 hover:!bg-red-800'
                     : confirmMeta.tone === 'green'
-                      ? 'bg-green-700 text-white hover:bg-green-800'
-                      : 'bg-amber-600 text-white hover:bg-amber-700'
+                      ? '!bg-green-700 hover:!bg-green-800'
+                      : '!bg-amber-600 hover:!bg-amber-700'
                 }`}
                 onClick={(event) => {
                   event.preventDefault();
@@ -907,9 +1069,9 @@ export default function EndorsementQueue({
             filteredRows.map((row) => (
               <div
                 key={row.slip_id}
-                className="rounded-[22px] border border-stone-200 bg-white p-4 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
+                className="rounded-[24px] border border-stone-200 bg-white p-5 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
               >
-                <div className="grid gap-4 xl:grid-cols-[1.15fr_0.9fr_1fr]">
+                <div className="grid gap-4 xl:grid-cols-[1.1fr_0.95fr_1fr]">
                   <div className="space-y-3">
                   <div className="flex flex-col gap-3 border-b border-stone-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -917,42 +1079,29 @@ export default function EndorsementQueue({
                       <p className="mt-1 text-sm text-stone-500">{row.pdm_id}</p>
                       <p className="mt-2 font-mono text-[11px] text-stone-400">{row.slip_code}</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge className={STAGE_TONE[row.current_stage] || 'bg-stone-100 text-stone-700'}>
-                        {row.current_stage_label || row.overall_status_label}
-                      </Badge>
-                      <Badge variant="outline" className="border-stone-200 text-stone-700">
-                        {row.overall_status_label}
-                      </Badge>
-                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="border-stone-200 text-stone-700">
                       {row.program_name}
                     </Badge>
-                    <Badge variant="outline" className="border-stone-200 text-stone-700">
-                      {row.opening_title || 'Opening not set'}
-                    </Badge>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl bg-stone-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Submitted</p>
-                      <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-stone-50 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Current Decision</p>
-                      <span
-                        className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs ${getQueueDecisionTone(getQueueDecisionValue(queueKey, row))}`}
-                      >
-                        {getQueueDecisionLabel(queueKey, row)}
-                      </span>
-                    </div>
+                  <div className="rounded-2xl bg-stone-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Submitted</p>
+                    <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
                   </div>
                   {queueKey === 'pd' ? (
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Quick Grade Status</p>
                       <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
                       <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
+                      {row.grade_document?.file_name ? (
+                        <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
+                      ) : null}
+                      {!row.grade_document?.url ? (
+                        <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                          PD approval is blocked until the applicant uploads the grade document.
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                   {queueKey !== 'sdo' ? (
@@ -991,31 +1140,126 @@ export default function EndorsementQueue({
                     </p>
                     {queueKey === 'pd' ? (
                       row.grade_document?.url ? (
-                        <a
-                          href={row.grade_document.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-                        >
-                          <FileText className="h-4 w-4" />
-                          {row.grade_document.file_name || 'Open grade file'}
-                        </a>
+                        <div className="mt-3 space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              className="border-none bg-stone-900 text-white hover:bg-stone-800"
+                              onClick={() => setPreviewRow(row)}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              Preview Grade
+                            </Button>
+                            <a
+                              href={row.grade_document.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              download={row.grade_document.file_name || 'grade-document'}
+                              className="inline-flex"
+                            >
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
+                                title="Download grade file"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </a>
+                            <a
+                              href={row.grade_document.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex"
+                            >
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
+                                title="Open in new tab"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          </div>
+
+                          <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                            <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2">
+                              <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-stone-700">
+                                {getDocumentPreviewType(row) === 'image' ? (
+                                  <ImageIcon className="h-4 w-4 shrink-0 text-stone-500" />
+                                ) : (
+                                  <FileText className="h-4 w-4 shrink-0 text-stone-500" />
+                                )}
+                                <span className="truncate">
+                                  {row.grade_document.file_name || 'Grade document'}
+                                </span>
+                              </div>
+                              <span className="text-[11px] uppercase tracking-wide text-stone-400">
+                                {getDocumentPreviewType(row) === 'pdf'
+                                  ? 'PDF Preview'
+                                  : getDocumentPreviewType(row) === 'image'
+                                    ? 'Image Preview'
+                                    : 'File'}
+                              </span>
+                            </div>
+
+                            {getDocumentPreviewType(row) === 'image' ? (
+                              <div className="flex h-[300px] items-center justify-center bg-stone-50 p-3">
+                                <img
+                                  src={row.grade_document.url}
+                                  alt={row.grade_document.file_name || 'Grade document'}
+                                  className="max-h-full max-w-full rounded-xl object-contain"
+                                />
+                              </div>
+                            ) : getDocumentPreviewType(row) === 'pdf' ? (
+                              <object
+                                data={row.grade_document.url}
+                                type="application/pdf"
+                                className="h-[300px] w-full bg-white"
+                              >
+                                <iframe
+                                  src={row.grade_document.url}
+                                  title={row.grade_document.file_name || 'Grade document'}
+                                  className="h-[300px] w-full bg-white"
+                                />
+                              </object>
+                            ) : (
+                              <div className="flex h-[220px] flex-col items-center justify-center gap-3 bg-stone-50 px-4 text-center">
+                                <FileText className="h-8 w-8 text-stone-400" />
+                                <p className="text-sm text-stone-600">
+                                  This file type cannot be previewed here.
+                                </p>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-stone-200 bg-white"
+                                  onClick={() => openExternalFile(row.grade_document.url)}
+                                >
+                                  Open File
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       ) : (
                         <p className="mt-3 text-sm text-red-600">No uploaded grade document</p>
                       )
                     ) : (
                       <p className="mt-3 text-sm text-stone-600">
-                        SDO and Guidance can continue without a grade upload. Only PD needs to review it.
+                        SDO and Guidance can continue first, but the applicant must upload the grade document before PD can approve the slip.
                       </p>
                     )}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="mt-3 w-full border-stone-200 bg-white"
+                      className="mt-3 w-full border-blue-200 bg-blue-50 font-medium text-blue-800 hover:bg-blue-100"
                       onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
                     >
                       <Eye className="mr-2 h-4 w-4" />
-                      Open Full Slip
+                      View Full Slip
                     </Button>
                   </div>
                   </div>

@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-    Mail,
     KeyRound,
     Eye,
     EyeOff,
@@ -21,10 +20,14 @@ const SB_BASE = '#7c4a2e';
 const SB_SUB = '#d4a98a';
 
 const ADMIN_LOGIN_PATH = '/admin/login';
+const OFFICIAL_ADMIN_EMAIL = 'smartpdm.system@gmail.com';
 
 const START_RESET_URL = buildApiUrl('/api/auth/admin/forgot-password/start');
 const VERIFY_RESET_URL = buildApiUrl('/api/auth/admin/forgot-password/verify');
 const FINALIZE_RESET_URL = buildApiUrl('/api/auth/admin/forgot-password/reset');
+
+const AUTO_REQUEST_STORAGE_KEY = 'smartpdm_admin_reset_last_request_at';
+const RESEND_SECONDS = 60;
 
 async function requestJson(url, body, fallbackMessage) {
     const response = await fetch(url, {
@@ -59,10 +62,6 @@ const buttonClass =
 const otpInputClass =
     'w-11 h-11 text-center text-sm font-semibold rounded-xl border border-stone-200 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all disabled:opacity-70';
 
-function normalizeEmail(value) {
-    return String(value || '').trim().toLowerCase();
-}
-
 function getPasswordChecks(password) {
     const value = String(password || '');
 
@@ -75,12 +74,21 @@ function getPasswordChecks(password) {
     ];
 }
 
+function getRemainingCooldown() {
+    const lastRequestedAt = Number(sessionStorage.getItem(AUTO_REQUEST_STORAGE_KEY) || 0);
+
+    if (!lastRequestedAt) return 0;
+
+    const elapsedSeconds = Math.floor((Date.now() - lastRequestedAt) / 1000);
+    return Math.max(RESEND_SECONDS - elapsedSeconds, 0);
+}
+
 export default function ForgotPassword() {
     const navigate = useNavigate();
     const otpRefs = useRef([]);
+    const autoRequestStartedRef = useRef(false);
 
-    const [step, setStep] = useState('email');
-    const [email, setEmail] = useState('');
+    const [step, setStep] = useState('otp');
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [resetToken, setResetToken] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -92,7 +100,6 @@ export default function ForgotPassword() {
     const [notice, setNotice] = useState('');
     const [error, setError] = useState('');
 
-    const normalizedEmail = normalizeEmail(email);
     const otpValue = otp.join('');
     const otpComplete = otpValue.length === 6;
 
@@ -124,50 +131,64 @@ export default function ForgotPassword() {
         setNotice('');
     };
 
-    const startResendTimer = () => {
-        setResendTimer(60);
+    const focusFirstOtp = () => {
+        window.setTimeout(() => {
+            otpRefs.current[0]?.focus();
+        }, 100);
     };
 
-    const sendOtpRequest = async () => {
-        clearFeedback();
-        setLoading(true);
-
-        try {
-            console.log('[FORGOT PASSWORD] Requesting OTP for:', normalizedEmail);
-
-            await requestJson(
-                START_RESET_URL,
-                { email: normalizedEmail },
-                'Unable to send recovery code.'
-            );
-
-            setStep('otp');
-            setOtp(['', '', '', '', '', '']);
-            setResetToken('');
-            setNotice('Recovery code sent. Check the configured admin recovery email.');
-            startResendTimer();
-
-            window.setTimeout(() => {
-                otpRefs.current[0]?.focus();
-            }, 100);
-        } catch (err) {
-            console.error('[FORGOT PASSWORD] SEND OTP ERROR:', err);
-            setError(err.message || 'Unable to send recovery code.');
-        } finally {
-            setLoading(false);
-        }
+    const startResendTimer = (seconds = RESEND_SECONDS) => {
+        setResendTimer(seconds);
     };
 
-    const handleSendOtp = async (event) => {
-        event.preventDefault();
+    const sendOtpRequest = useCallback(
+        async ({ automatic = false } = {}) => {
+            clearFeedback();
 
-        if (!normalizedEmail) {
-            setError('Email is required.');
-            return;
-        }
+            if (automatic) {
+                const remaining = getRemainingCooldown();
 
-        await sendOtpRequest();
-    };
+                if (remaining > 0) {
+                    setNotice('A recovery code was already requested. Check the official admin email.');
+                    startResendTimer(remaining);
+                    focusFirstOtp();
+                    return;
+                }
+            }
+
+            setLoading(true);
+
+            try {
+                sessionStorage.setItem(AUTO_REQUEST_STORAGE_KEY, String(Date.now()));
+
+                await requestJson(
+                    START_RESET_URL,
+                    { email: OFFICIAL_ADMIN_EMAIL },
+                    'Unable to send recovery code.'
+                );
+
+                setStep('otp');
+                setOtp(['', '', '', '', '', '']);
+                setResetToken('');
+                setNotice('Recovery code sent to the official admin email.');
+                startResendTimer();
+                focusFirstOtp();
+            } catch (err) {
+                console.error('[FORGOT PASSWORD] SEND OTP ERROR:', err);
+                setError(err.message || 'Unable to send recovery code.');
+            } finally {
+                setLoading(false);
+            }
+        },
+        []
+    );
+
+    useEffect(() => {
+        if (autoRequestStartedRef.current) return;
+
+        autoRequestStartedRef.current = true;
+        sendOtpRequest({ automatic: true });
+    }, [sendOtpRequest]);
 
     const handleVerifyOtp = async (event) => {
         event.preventDefault();
@@ -178,7 +199,7 @@ export default function ForgotPassword() {
             const data = await requestJson(
                 VERIFY_RESET_URL,
                 {
-                    email: normalizedEmail,
+                    email: OFFICIAL_ADMIN_EMAIL,
                     otp: otpValue,
                 },
                 'Invalid or expired recovery code.'
@@ -220,7 +241,7 @@ export default function ForgotPassword() {
             await requestJson(
                 FINALIZE_RESET_URL,
                 {
-                    email: normalizedEmail,
+                    email: OFFICIAL_ADMIN_EMAIL,
                     resetToken,
                     newPassword,
                 },
@@ -228,13 +249,13 @@ export default function ForgotPassword() {
             );
 
             setStep('done');
-            setEmail('');
             setOtp(['', '', '', '', '', '']);
             setResetToken('');
             setNewPassword('');
             setConfirmPass('');
             setNotice('');
             setError('');
+            sessionStorage.removeItem(AUTO_REQUEST_STORAGE_KEY);
         } catch (err) {
             console.error('[FORGOT PASSWORD] RESET PASSWORD ERROR:', err);
             setError(err.message || 'Unable to reset password.');
@@ -291,14 +312,6 @@ export default function ForgotPassword() {
         if (event.key === 'Backspace' && !otp[index] && index > 0) {
             otpRefs.current[index - 1]?.focus();
         }
-    };
-
-    const changeEmail = () => {
-        clearFeedback();
-        setStep('email');
-        setOtp(['', '', '', '', '', '']);
-        setResetToken('');
-        setResendTimer(0);
     };
 
     const goBackToSignIn = () => {
@@ -386,61 +399,6 @@ export default function ForgotPassword() {
         </div>
     );
 
-    const renderEmailStep = () => (
-        <>
-            <div className="mb-8">
-                <div className="flex items-center gap-2 mb-2 text-orange-800">
-                    <Mail size={18} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">
-                        Account Recovery
-                    </span>
-                </div>
-
-                <h1 className="text-3xl font-bold text-stone-900">
-                    Forgot password?
-                </h1>
-
-                <p className="text-stone-500 text-sm mt-1">
-                    Enter the authorized admin email to receive a verification code.
-                </p>
-            </div>
-
-            {renderFeedback()}
-
-            <form onSubmit={handleSendOtp} className="space-y-5">
-                <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-stone-700 ml-1">
-                        Email Address
-                    </label>
-
-                    <input
-                        type="email"
-                        required
-                        autoComplete="email"
-                        placeholder="admin@pdm.edu.ph"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        className={inputClass}
-                        disabled={loading}
-                    />
-
-                    <p className="ml-1 text-[11px] text-stone-400">
-                        For testing, type admin@pdm.edu.ph. The actual recipient is controlled by ADMIN_RESET_EMAIL_TO.
-                    </p>
-                </div>
-
-                <button
-                    type="submit"
-                    disabled={loading || !normalizedEmail}
-                    className={buttonClass}
-                    style={buttonStyle}
-                >
-                    {loading ? 'Sending code...' : 'Send Recovery Code'}
-                </button>
-            </form>
-        </>
-    );
-
     const renderOtpStep = () => (
         <>
             <div className="mb-8">
@@ -456,10 +414,7 @@ export default function ForgotPassword() {
                 </h1>
 
                 <p className="text-stone-500 text-sm mt-1">
-                    Code requested for{' '}
-                    <span className="font-semibold text-stone-800">
-                        {normalizedEmail}
-                    </span>
+                    The recovery code was sent to the official admin email.
                 </p>
             </div>
 
@@ -498,7 +453,14 @@ export default function ForgotPassword() {
                     className={buttonClass}
                     style={buttonStyle}
                 >
-                    {loading ? 'Verifying...' : 'Verify Code'}
+                    {loading ? (
+                        <>
+                            <RefreshCw size={16} className="animate-spin" />
+                            Verifying...
+                        </>
+                    ) : (
+                        'Verify Code'
+                    )}
                 </button>
 
                 <div className="text-center">
@@ -624,7 +586,14 @@ export default function ForgotPassword() {
                     className={buttonClass}
                     style={buttonStyle}
                 >
-                    {loading ? 'Saving...' : 'Set New Password'}
+                    {loading ? (
+                        <>
+                            <RefreshCw size={16} className="animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        'Set New Password'
+                    )}
                 </button>
             </form>
         </>
@@ -656,8 +625,6 @@ export default function ForgotPassword() {
 
     const renderStep = () => {
         switch (step) {
-            case 'email':
-                return renderEmailStep();
             case 'otp':
                 return renderOtpStep();
             case 'reset':
@@ -665,7 +632,7 @@ export default function ForgotPassword() {
             case 'done':
                 return renderDoneStep();
             default:
-                return renderEmailStep();
+                return renderOtpStep();
         }
     };
 
@@ -683,11 +650,11 @@ export default function ForgotPassword() {
                     {step !== 'done' && (
                         <button
                             type="button"
-                            onClick={step === 'email' ? goBackToSignIn : changeEmail}
+                            onClick={goBackToSignIn}
                             className="mt-8 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-stone-400 hover:text-stone-900 mx-auto"
                         >
                             <ArrowLeft size={14} />
-                            {step === 'email' ? 'Back to sign in' : 'Change email'}
+                            Back to sign in
                         </button>
                     )}
                 </div>

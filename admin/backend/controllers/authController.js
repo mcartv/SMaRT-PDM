@@ -6,7 +6,9 @@ const { resolveStaffRole } = require('../utils/staffRoles');
 const { sendAdminResetOtp } = require('../utils/mailer');
 const { resolveAvatarUrl } = require('../services/avatarService');
 
-const ALLOWED_ADMIN_EMAIL = 'admin@pdm.edu.ph';
+const ALLOWED_ADMIN_EMAIL = String(
+    process.env.ALLOWED_ADMIN_EMAIL || 'smartpdm.system@gmail.com'
+).trim().toLowerCase();
 
 const RESET_OTP_TTL_SECONDS = Number(process.env.RESET_OTP_TTL_SECONDS || 60);
 const RESET_RESEND_SECONDS = Number(process.env.RESET_RESEND_SECONDS || 60);

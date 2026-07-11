@@ -1,4 +1,4 @@
-const supabase = require('../config/supabase');
+const pool = require('../config/db');
 
 function toRequiredYear(value, fieldName) {
     if (value === undefined || value === null || value === '') {
@@ -14,211 +14,382 @@ function toRequiredYear(value, fieldName) {
     return num;
 }
 
-function mapAcademicYear(row) {
+function mapAcademicYear(row = {}) {
     return {
         academic_year_id: row.academic_year_id,
-        start_year: row.start_year,
-        end_year: row.end_year,
+        start_year: Number(row.start_year),
+        end_year: Number(row.end_year),
         label: row.label || `${row.start_year}-${row.end_year}`,
-        is_active: !!row.is_active,
+        is_active: row.is_active === true,
+        is_archived: row.is_archived === true,
     };
 }
 
-async function ensureUniqueRange(startYear, endYear, excludeId = null) {
-    let query = supabase
-        .from('academic_years')
-        .select('academic_year_id')
-        .eq('start_year', startYear)
-        .eq('end_year', endYear);
-
-    if (excludeId) {
-        query = query.neq('academic_year_id', excludeId);
+function validateYearRange(startYear, endYear) {
+    if (endYear !== startYear + 1) {
+        throw new Error('End year must be exactly start year + 1');
     }
+}
 
-    const { data, error } = await query.maybeSingle();
+async function ensureUniqueRange(client, startYear, endYear, excludeId = null) {
+    const result = await client.query(
+        `
+        SELECT academic_year_id
+        FROM academic_years
+        WHERE start_year = $1
+          AND end_year = $2
+          AND ($3::uuid IS NULL OR academic_year_id <> $3::uuid)
+        LIMIT 1
+        `,
+        [startYear, endYear, excludeId]
+    );
 
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    if (data) {
+    if (result.rows.length > 0) {
         throw new Error('That academic year already exists');
     }
 }
 
-async function deactivateAllAcademicYears() {
-    const { error } = await supabase
-        .from('academic_years')
-        .update({ is_active: false })
-        .eq('is_active', true);
-
-    if (error) {
-        throw new Error(error.message);
-    }
-}
-
 exports.getAcademicYears = async () => {
-    const { data, error } = await supabase
-        .from('academic_years')
-        .select(`
+    const result = await pool.query(
+        `
+        SELECT
             academic_year_id,
             start_year,
             end_year,
             label,
-            is_active
-        `)
-        .order('start_year', { ascending: false });
+            is_active,
+            is_archived
+        FROM academic_years
+        ORDER BY is_active DESC, is_archived ASC, start_year DESC
+        `
+    );
 
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return (data || []).map(mapAcademicYear);
+    return result.rows.map(mapAcademicYear);
 };
 
 exports.createAcademicYear = async (payload = {}) => {
     const startYear = toRequiredYear(payload.start_year, 'Start year');
     const endYear = toRequiredYear(payload.end_year, 'End year');
-    const isActive = !!payload.is_active;
+    const isActive = payload.is_active === true;
 
-    if (endYear !== startYear + 1) {
-        throw new Error('End year must be exactly start year + 1');
+    validateYearRange(startYear, endYear);
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        await ensureUniqueRange(client, startYear, endYear);
+
+        if (isActive) {
+            await client.query(
+                `
+                UPDATE academic_years
+                SET is_active = false
+                WHERE is_active = true
+                `
+            );
+        }
+
+        const result = await client.query(
+            `
+            INSERT INTO academic_years (
+                start_year,
+                end_year,
+                is_active,
+                is_archived
+            )
+            VALUES ($1, $2, $3, false)
+            RETURNING
+                academic_year_id,
+                start_year,
+                end_year,
+                label,
+                is_active,
+                is_archived
+            `,
+            [startYear, endYear, isActive]
+        );
+
+        await client.query('COMMIT');
+
+        return mapAcademicYear(result.rows[0]);
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
     }
-
-    await ensureUniqueRange(startYear, endYear);
-
-    if (isActive) {
-        await deactivateAllAcademicYears();
-    }
-
-    const { data, error } = await supabase
-        .from('academic_years')
-        .insert([
-            {
-                start_year: startYear,
-                end_year: endYear,
-                is_active: isActive,
-            },
-        ])
-        .select(`
-            academic_year_id,
-            start_year,
-            end_year,
-            label,
-            is_active
-        `)
-        .single();
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return mapAcademicYear(data);
 };
 
 exports.updateAcademicYear = async (academicYearId, payload = {}) => {
-    const { data: existing, error: existingError } = await supabase
-        .from('academic_years')
-        .select(`
-            academic_year_id,
-            start_year,
-            end_year,
-            label,
-            is_active
-        `)
-        .eq('academic_year_id', academicYearId)
-        .maybeSingle();
+    const client = await pool.connect();
 
-    if (existingError) {
-        throw new Error(existingError.message);
+    try {
+        await client.query('BEGIN');
+
+        const existingResult = await client.query(
+            `
+            SELECT
+                academic_year_id,
+                start_year,
+                end_year,
+                label,
+                is_active,
+                is_archived
+            FROM academic_years
+            WHERE academic_year_id = $1
+            FOR UPDATE
+            `,
+            [academicYearId]
+        );
+
+        const existing = existingResult.rows[0];
+
+        if (!existing) {
+            await client.query('ROLLBACK');
+            return null;
+        }
+
+        if (existing.is_archived === true) {
+            throw new Error('Cannot update an archived academic year. Restore it first.');
+        }
+
+        const startYear =
+            payload.start_year !== undefined
+                ? toRequiredYear(payload.start_year, 'Start year')
+                : Number(existing.start_year);
+
+        const endYear =
+            payload.end_year !== undefined
+                ? toRequiredYear(payload.end_year, 'End year')
+                : Number(existing.end_year);
+
+        const isActive =
+            payload.is_active !== undefined
+                ? payload.is_active === true
+                : existing.is_active === true;
+
+        validateYearRange(startYear, endYear);
+
+        await ensureUniqueRange(client, startYear, endYear, academicYearId);
+
+        if (isActive) {
+            await client.query(
+                `
+                UPDATE academic_years
+                SET is_active = false
+                WHERE is_active = true
+                  AND academic_year_id <> $1
+                `,
+                [academicYearId]
+            );
+        }
+
+        const updateResult = await client.query(
+            `
+            UPDATE academic_years
+            SET
+                start_year = $1,
+                end_year = $2,
+                is_active = $3
+            WHERE academic_year_id = $4
+            RETURNING
+                academic_year_id,
+                start_year,
+                end_year,
+                label,
+                is_active,
+                is_archived
+            `,
+            [startYear, endYear, isActive, academicYearId]
+        );
+
+        await client.query('COMMIT');
+
+        return updateResult.rows[0]
+            ? mapAcademicYear(updateResult.rows[0])
+            : null;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
     }
-
-    if (!existing) return null;
-
-    const startYear =
-        payload.start_year !== undefined
-            ? toRequiredYear(payload.start_year, 'Start year')
-            : existing.start_year;
-
-    const endYear =
-        payload.end_year !== undefined
-            ? toRequiredYear(payload.end_year, 'End year')
-            : existing.end_year;
-
-    const isActive =
-        payload.is_active !== undefined ? !!payload.is_active : !!existing.is_active;
-
-    if (endYear !== startYear + 1) {
-        throw new Error('End year must be exactly start year + 1');
-    }
-
-    await ensureUniqueRange(startYear, endYear, academicYearId);
-
-    if (isActive) {
-        await deactivateAllAcademicYears();
-    }
-
-    const { data, error } = await supabase
-        .from('academic_years')
-        .update({
-            start_year: startYear,
-            end_year: endYear,
-            is_active: isActive,
-        })
-        .eq('academic_year_id', academicYearId)
-        .select(`
-            academic_year_id,
-            start_year,
-            end_year,
-            label,
-            is_active
-        `)
-        .maybeSingle();
-
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    return data ? mapAcademicYear(data) : null;
 };
 
 exports.activateAcademicYear = async (academicYearId) => {
-    const { data: existing, error: existingError } = await supabase
-        .from('academic_years')
-        .select(`
-            academic_year_id,
-            start_year,
-            end_year,
-            label,
-            is_active
-        `)
-        .eq('academic_year_id', academicYearId)
-        .maybeSingle();
+    const client = await pool.connect();
 
-    if (existingError) {
-        throw new Error(existingError.message);
+    try {
+        await client.query('BEGIN');
+
+        const existingResult = await client.query(
+            `
+            SELECT
+                academic_year_id,
+                is_archived
+            FROM academic_years
+            WHERE academic_year_id = $1
+            FOR UPDATE
+            `,
+            [academicYearId]
+        );
+
+        const existing = existingResult.rows[0];
+
+        if (!existing) {
+            await client.query('ROLLBACK');
+            return null;
+        }
+
+        if (existing.is_archived === true) {
+            throw new Error('Cannot activate an archived academic year. Restore it first.');
+        }
+
+        await client.query(
+            `
+            UPDATE academic_years
+            SET is_active = false
+            WHERE is_active = true
+              AND academic_year_id <> $1
+            `,
+            [academicYearId]
+        );
+
+        const result = await client.query(
+            `
+            UPDATE academic_years
+            SET is_active = true
+            WHERE academic_year_id = $1
+            RETURNING
+                academic_year_id,
+                start_year,
+                end_year,
+                label,
+                is_active,
+                is_archived
+            `,
+            [academicYearId]
+        );
+
+        await client.query('COMMIT');
+
+        return result.rows[0] ? mapAcademicYear(result.rows[0]) : null;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
     }
+};
 
-    if (!existing) return null;
+exports.archiveAcademicYear = async (academicYearId) => {
+    const client = await pool.connect();
 
-    await deactivateAllAcademicYears();
+    try {
+        await client.query('BEGIN');
 
-    const { data, error } = await supabase
-        .from('academic_years')
-        .update({ is_active: true })
-        .eq('academic_year_id', academicYearId)
-        .select(`
-            academic_year_id,
-            start_year,
-            end_year,
-            label,
-            is_active
-        `)
-        .maybeSingle();
+        const existingResult = await client.query(
+            `
+            SELECT
+                academic_year_id,
+                is_active,
+                is_archived
+            FROM academic_years
+            WHERE academic_year_id = $1
+            FOR UPDATE
+            `,
+            [academicYearId]
+        );
 
-    if (error) {
-        throw new Error(error.message);
+        const existing = existingResult.rows[0];
+
+        if (!existing) {
+            await client.query('ROLLBACK');
+            return null;
+        }
+
+        if (existing.is_active === true) {
+            throw new Error('Cannot archive the active academic year. Set another academic year as active first.');
+        }
+
+        const result = await client.query(
+            `
+            UPDATE academic_years
+            SET
+                is_archived = true,
+                is_active = false
+            WHERE academic_year_id = $1
+            RETURNING
+                academic_year_id,
+                start_year,
+                end_year,
+                label,
+                is_active,
+                is_archived
+            `,
+            [academicYearId]
+        );
+
+        await client.query('COMMIT');
+
+        return result.rows[0] ? mapAcademicYear(result.rows[0]) : null;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
     }
+};
 
-    return data ? mapAcademicYear(data) : null;
+exports.restoreAcademicYear = async (academicYearId) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const existingResult = await client.query(
+            `
+            SELECT
+                academic_year_id
+            FROM academic_years
+            WHERE academic_year_id = $1
+            FOR UPDATE
+            `,
+            [academicYearId]
+        );
+
+        const existing = existingResult.rows[0];
+
+        if (!existing) {
+            await client.query('ROLLBACK');
+            return null;
+        }
+
+        const result = await client.query(
+            `
+            UPDATE academic_years
+            SET is_archived = false
+            WHERE academic_year_id = $1
+            RETURNING
+                academic_year_id,
+                start_year,
+                end_year,
+                label,
+                is_active,
+                is_archived
+            `,
+            [academicYearId]
+        );
+
+        await client.query('COMMIT');
+
+        return result.rows[0] ? mapAcademicYear(result.rows[0]) : null;
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
 };

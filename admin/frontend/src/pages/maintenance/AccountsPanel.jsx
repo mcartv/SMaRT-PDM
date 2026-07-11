@@ -197,9 +197,6 @@ export default function AccountsPanel() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-sm font-semibold text-stone-900">Role-Based Account Creation</h2>
-                    <p className="mt-0.5 text-xs text-stone-500">
-                        Create admin, PD, Guidance, and SDO staff accounts for their assigned portals.
-                    </p>
                 </div>
 
                 <Button

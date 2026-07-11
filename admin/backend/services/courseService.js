@@ -1,7 +1,60 @@
 const pool = require('../config/db');
 
+function normalizeCourseCode(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function normalizeCourseName(value) {
+    return String(value || '').trim();
+}
+
+function mapCourse(row = {}) {
+    return {
+        course_id: row.course_id,
+        course_code: row.course_code,
+        course_name: row.course_name,
+        is_archived: row.is_archived === true,
+    };
+}
+
+async function getCourseById(courseId) {
+    const result = await pool.query(
+        `
+        SELECT
+            course_id,
+            course_code,
+            course_name,
+            is_archived
+        FROM academic_course
+        WHERE course_id = $1
+        LIMIT 1
+        `,
+        [courseId]
+    );
+
+    return result.rows[0] ? mapCourse(result.rows[0]) : null;
+}
+
+async function ensureUniqueCourseCode(courseCode, excludeCourseId = null) {
+    const result = await pool.query(
+        `
+        SELECT course_id
+        FROM academic_course
+        WHERE UPPER(course_code) = UPPER($1)
+          AND ($2::uuid IS NULL OR course_id <> $2::uuid)
+        LIMIT 1
+        `,
+        [courseCode, excludeCourseId]
+    );
+
+    if (result.rows.length > 0) {
+        throw new Error('Course code already exists');
+    }
+}
+
 const fetchCourses = async () => {
-    const query = `
+    const result = await pool.query(
+        `
         SELECT
             course_id,
             course_code,
@@ -11,10 +64,10 @@ const fetchCourses = async () => {
         ORDER BY
             is_archived ASC,
             course_code ASC
-    `;
+        `
+    );
 
-    const { rows } = await pool.query(query);
-    return rows;
+    return result.rows.map(mapCourse);
 };
 
 const createCourse = async ({
@@ -22,8 +75,8 @@ const createCourse = async ({
     course_name,
     is_archived = false,
 }) => {
-    const normalizedCourseCode = (course_code || '').trim().toUpperCase();
-    const normalizedCourseName = (course_name || '').trim();
+    const normalizedCourseCode = normalizeCourseCode(course_code);
+    const normalizedCourseName = normalizeCourseName(course_name);
 
     if (!normalizedCourseCode) {
         throw new Error('Course code is required');
@@ -33,50 +86,30 @@ const createCourse = async ({
         throw new Error('Course name is required');
     }
 
-    const duplicateCheckQuery = `
-        SELECT course_id
-        FROM academic_course
-        WHERE UPPER(course_code) = UPPER($1)
-        LIMIT 1
-    `;
+    await ensureUniqueCourseCode(normalizedCourseCode);
 
-    const duplicateCheck = await pool.query(duplicateCheckQuery, [normalizedCourseCode]);
+    const result = await pool.query(
+        `
+        INSERT INTO academic_course (
+            course_code,
+            course_name,
+            is_archived
+        )
+        VALUES ($1, $2, $3)
+        RETURNING
+            course_id,
+            course_code,
+            course_name,
+            is_archived
+        `,
+        [
+            normalizedCourseCode,
+            normalizedCourseName,
+            !!is_archived,
+        ]
+    );
 
-    if (duplicateCheck.rows.length > 0) {
-        throw new Error('Course code already exists');
-    }
-
-    const insertQuery = `
-    INSERT INTO academic_course (
-        course_code,
-        course_name,
-        is_archived
-    )
-    VALUES ($1, $2, $3)
-    RETURNING course_id
-`;
-
-    const values = [
-        normalizedCourseCode,
-        normalizedCourseName,
-        !!is_archived,
-    ];
-    const insertResult = await pool.query(insertQuery, values);
-    const createdCourseId = insertResult.rows[0].course_id;
-
-    const fetchCreatedQuery = `
-    SELECT
-        course_id,
-        course_code,
-        course_name,
-        is_archived
-        FROM academic_course
-        WHERE course_id = $1
-        LIMIT 1
-    `;
-
-    const { rows } = await pool.query(fetchCreatedQuery, [createdCourseId]);
-    return rows[0];
+    return mapCourse(result.rows[0]);
 };
 
 const updateCourse = async (
@@ -85,41 +118,28 @@ const updateCourse = async (
         course_code,
         course_name,
         is_archived,
-    }
+    } = {}
 ) => {
-    const existingQuery = `
-        SELECT
-            course_id,
-            course_code,
-            course_name,
-            is_archived
-        FROM academic_course
-        WHERE course_id = $1
-        LIMIT 1
-    `;
+    const existing = await getCourseById(courseId);
 
-    const existingResult = await pool.query(existingQuery, [courseId]);
-
-    if (existingResult.rows.length === 0) {
+    if (!existing) {
         return null;
     }
 
-    const existingCourse = existingResult.rows[0];
-
     const nextCourseCode =
         course_code !== undefined
-            ? String(course_code).trim().toUpperCase()
-            : existingCourse.course_code;
+            ? normalizeCourseCode(course_code)
+            : existing.course_code;
 
     const nextCourseName =
         course_name !== undefined
-            ? String(course_name).trim()
-            : existingCourse.course_name;
+            ? normalizeCourseName(course_name)
+            : existing.course_name;
 
     const nextIsArchived =
         is_archived !== undefined
             ? !!is_archived
-            : existingCourse.is_archived;
+            : existing.is_archived;
 
     if (!nextCourseCode) {
         throw new Error('Course code is required');
@@ -129,62 +149,85 @@ const updateCourse = async (
         throw new Error('Course name is required');
     }
 
-    if (course_code !== undefined) {
-        const duplicateCheckQuery = `
-            SELECT course_id
-            FROM academic_course
-            WHERE UPPER(course_code) = UPPER($1)
-              AND course_id <> $2
-            LIMIT 1
-        `;
+    await ensureUniqueCourseCode(nextCourseCode, courseId);
 
-        const duplicateCheck = await pool.query(duplicateCheckQuery, [
-            nextCourseCode,
-            courseId,
-        ]);
-
-        if (duplicateCheck.rows.length > 0) {
-            throw new Error('Course code already exists');
-        }
-    }
-
-    const updateQuery = `
+    const result = await pool.query(
+        `
         UPDATE academic_course
         SET
             course_code = $1,
             course_name = $2,
             is_archived = $3
-        WHERE course_id = $5
-        RETURNING course_id
-    `;
+        WHERE course_id = $4
+        RETURNING
+            course_id,
+            course_code,
+            course_name,
+            is_archived
+        `,
+        [
+            nextCourseCode,
+            nextCourseName,
+            nextIsArchived,
+            courseId,
+        ]
+    );
 
-    const values = [
-        nextCourseCode,
-        nextCourseName,
-        nextIsArchived,
-        courseId,
-    ];
+    return result.rows[0] ? mapCourse(result.rows[0]) : null;
+};
 
-    const updateResult = await pool.query(updateQuery, values);
-    const updatedCourseId = updateResult.rows[0].course_id;
+const archiveCourse = async (courseId) => {
+    const existing = await getCourseById(courseId);
 
-    const fetchUpdatedQuery = `
-    SELECT
-        course_id,
-        course_code,
-        course_name,
-        is_archived
-    FROM academic_course
-    WHERE course_id = $1
-    LIMIT 1
-`;
+    if (!existing) {
+        return null;
+    }
 
-    const { rows } = await pool.query(fetchUpdatedQuery, [updatedCourseId]);
-    return rows[0];
+    const result = await pool.query(
+        `
+        UPDATE academic_course
+        SET is_archived = true
+        WHERE course_id = $1
+        RETURNING
+            course_id,
+            course_code,
+            course_name,
+            is_archived
+        `,
+        [courseId]
+    );
+
+    return result.rows[0] ? mapCourse(result.rows[0]) : null;
+};
+
+const restoreCourse = async (courseId) => {
+    const existing = await getCourseById(courseId);
+
+    if (!existing) {
+        return null;
+    }
+
+    const result = await pool.query(
+        `
+        UPDATE academic_course
+        SET is_archived = false
+        WHERE course_id = $1
+        RETURNING
+            course_id,
+            course_code,
+            course_name,
+            is_archived
+        `,
+        [courseId]
+    );
+
+    return result.rows[0] ? mapCourse(result.rows[0]) : null;
 };
 
 module.exports = {
     fetchCourses,
     createCourse,
     updateCourse,
+    archiveCourse,
+    restoreCourse,
 };

@@ -61,6 +61,7 @@ export default function SDOLayout() {
     markingAll,
     markAllAsRead,
     openNotification,
+    formatNotificationTime,
   } = usePortalNotifications({
     tokenStorageKey: 'sdoToken',
     portalRootPath: '/sdo',
@@ -272,7 +273,7 @@ export default function SDOLayout() {
               >
                 <Bell className="w-4 h-4 text-stone-600" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+                  <span className="absolute top-0.5 right-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />
                 )}
               </button>
 
@@ -288,15 +289,25 @@ export default function SDOLayout() {
                         <button
                           key={n.notification_id || index}
                           onClick={() => handleNotificationClick(n)}
-                          className={`w-full text-left px-4 py-3 hover:bg-emerald-50/60 border-b border-stone-50 transition-colors ${
-                            n.is_read ? 'bg-white' : 'bg-emerald-50/30'
+                          className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-emerald-50/60 ${
+                            n.is_read ? 'bg-white' : 'border-l-4 border-l-emerald-400 bg-emerald-50/65'
                           }`}
                         >
-                          <p className="text-xs font-semibold text-stone-800">
-                            {n.title || 'Notification'}
-                          </p>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className={`text-xs font-semibold ${n.is_read ? 'text-stone-800' : 'text-stone-900'}`}>
+                              {n.title || 'Notification'}
+                            </p>
+                            {n.is_read ? null : (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                                New
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-stone-500 line-clamp-2 mt-0.5">
                             {n.message || 'Open notification'}
+                          </p>
+                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            {formatNotificationTime(n.created_at)}
                           </p>
                         </button>
                       ))

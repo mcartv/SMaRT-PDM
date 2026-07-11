@@ -3,29 +3,99 @@
  * Centralized place to emit all realtime events
  */
 
+function normalizeUserIds(userIds = []) {
+    return [
+        ...new Set(
+            userIds
+                .flat()
+                .map((id) => String(id || '').trim())
+                .filter(Boolean)
+        ),
+    ];
+}
+
 const emitEvent = (io, eventName, data) => {
     if (!io) {
         console.warn(`[Socket] No io instance available for event: ${eventName}`);
         return;
     }
-    console.log(`[Socket] Emitting: ${eventName}`, data);
+
+    console.log(`[Socket] Emitting global: ${eventName}`, data);
     io.emit(eventName, data);
 };
 
 const emitToUser = (io, userId, eventName, data) => {
-    if (!io) return;
-    console.log(`[Socket] Emitting to user ${userId}: ${eventName}`, data);
-    io.to(`user:${userId}`).emit(eventName, data);
+    if (!io) {
+        console.warn(`[Socket] No io instance available for event: ${eventName}`);
+        return;
+    }
+
+    const normalizedUserId = String(userId || '').trim();
+
+    if (!normalizedUserId) {
+        console.warn(`[Socket] Missing userId for event: ${eventName}`);
+        return;
+    }
+
+    console.log(`[Socket] Emitting to user ${normalizedUserId}: ${eventName}`, data);
+    io.to(`user:${normalizedUserId}`).emit(eventName, data);
+};
+
+const emitToUsers = (io, userIds = [], eventName, data) => {
+    if (!io) {
+        console.warn(`[Socket] No io instance available for event: ${eventName}`);
+        return;
+    }
+
+    const targetUserIds = normalizeUserIds(userIds);
+
+    if (!targetUserIds.length) {
+        console.warn(`[Socket] No target users for event: ${eventName}`);
+        return;
+    }
+
+    targetUserIds.forEach((userId) => {
+        console.log(`[Socket] Emitting to user ${userId}: ${eventName}`, data);
+        io.to(`user:${userId}`).emit(eventName, data);
+    });
 };
 
 const emitToRoom = (io, roomName, eventName, data) => {
-    if (!io) return;
+    if (!io) {
+        console.warn(`[Socket] No io instance available for event: ${eventName}`);
+        return;
+    }
+
+    if (!roomName) {
+        console.warn(`[Socket] Missing roomName for event: ${eventName}`);
+        return;
+    }
+
     console.log(`[Socket] Emitting to room ${roomName}: ${eventName}`, data);
     io.to(roomName).emit(eventName, data);
 };
 
+function emitMessageEvent(io, eventName, data, options = {}) {
+    const targetUserIds = normalizeUserIds(options.targetUserIds || []);
+
+    if (targetUserIds.length) {
+        emitToUsers(io, targetUserIds, eventName, data);
+        return;
+    }
+
+    // Backward compatibility. If no targetUserIds are passed,
+    // it still works like your old socketEvents.js.
+    emitEvent(io, eventName, data);
+}
+
 // Event emission functions
 const socketEvents = {
+    // Raw helpers
+    emitEvent,
+    emitToUser,
+    emitToUsers,
+    emitToRoom,
+
     // Payout Events
     payoutCreated: (io, data) => emitEvent(io, 'payout:created', data),
     payoutUpdated: (io, data) => emitEvent(io, 'payout:updated', data),
@@ -36,12 +106,28 @@ const socketEvents = {
     announcementCreated: (io, data) => emitEvent(io, 'announcement:created', data),
     announcementUpdated: (io, data) => emitEvent(io, 'announcement:updated', data),
     announcementDeleted: (io, data) => emitEvent(io, 'announcement:deleted', data),
+    announcementPublished: (io, data) => emitEvent(io, 'announcement:published', data),
 
     // Application Events
+    applicationCreated: (io, data) => emitEvent(io, 'application:created', data),
     applicationUpdated: (io, data) => emitEvent(io, 'application:updated', data),
     applicationApproved: (io, data) => emitEvent(io, 'application:approved', data),
     applicationRejected: (io, data) => emitEvent(io, 'application:rejected', data),
-    endorsementUpdated: (io, data) => emitEvent(io, 'endorsement:updated', data),
+    applicationDisqualified: (io, data) => emitEvent(io, 'application:disqualified', data),
+
+    // Application Document Events
+    applicationDocumentUploaded: (io, data) =>
+        emitEvent(io, 'application-document:uploaded', data),
+
+    applicationDocumentReviewed: (io, data) =>
+        emitEvent(io, 'application-document:reviewed', data),
+
+    // OCR Events
+    applicationOcrQueued: (io, data) =>
+        emitEvent(io, 'application-ocr:queued', data),
+
+    applicationOcrSnapshotSaved: (io, data) =>
+        emitEvent(io, 'application-ocr:snapshot-saved', data),
 
     // Scholar Events
     scholarUpdated: (io, data) => emitEvent(io, 'scholar:updated', data),
@@ -51,24 +137,48 @@ const socketEvents = {
     renewalUpdated: (io, data) => emitEvent(io, 'renewal:updated', data),
     renewalApproved: (io, data) => emitEvent(io, 'renewal:approved', data),
 
+    // Endorsement Events
+    endorsementUpdated: (io, data) => emitEvent(io, 'endorsement:updated', data),
+
     // RO Events
     roUpdated: (io, data) => emitEvent(io, 'ro:updated', data),
 
     // Maintenance / Report Events
-    maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
+    maintenanceUpdated: (io, data) =>
+        emitEvent(io, 'maintenance:updated', data),
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
 
     // Notification Events
-    notificationCreated: (io, userId, data) => emitToUser(io, userId, 'notification:created', data),
-    notificationUpdated: (io, userId, data) => emitToUser(io, userId, 'notification:updated', data),
-    notificationReadAll: (io, userId, data) => emitToUser(io, userId, 'notification:read-all', data),
-    notificationDeleted: (io, userId, data) => emitToUser(io, userId, 'notification:deleted', data),
+    notificationCreated: (io, userId, data) =>
+        emitToUser(io, userId, 'notification:created', data),
+
+    notificationUpdated: (io, userId, data) =>
+        emitToUser(io, userId, 'notification:updated', data),
+
+    notificationReadAll: (io, userId, data) =>
+        emitToUser(io, userId, 'notification:read-all', data),
+
+    notificationDeleted: (io, userId, data) =>
+        emitToUser(io, userId, 'notification:deleted', data),
 
     // Message Events
-    messageCreated: (io, data) => {
-        emitEvent(io, 'message:new', data);
-        emitEvent(io, 'message:created', data);
-    },
+    messageCreated: (io, data, options = {}) =>
+        emitMessageEvent(io, 'message:created', data, options),
+
+    messageRead: (io, data, options = {}) =>
+        emitMessageEvent(io, 'message:read', data, options),
+
+    conversationUpdated: (io, data, options = {}) =>
+        emitMessageEvent(io, 'conversation:updated', data, options),
+
+    roomCreated: (io, data, options = {}) =>
+        emitMessageEvent(io, 'room:created', data, options),
+
+    roomMembersAdded: (io, data, options = {}) =>
+        emitMessageEvent(io, 'room:members-added', data, options),
+
+    roomUpdated: (io, data, options = {}) =>
+        emitMessageEvent(io, 'room:updated', data, options),
 
     // Scholarship Opening Events
     openingCreated: (io, data) => emitEvent(io, 'opening:created', data),

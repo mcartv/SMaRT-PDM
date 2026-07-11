@@ -19,6 +19,7 @@ class _ApplicantAccessGateState extends State<ApplicantAccessGate> {
     AppRoutes.scholarshipOpenings,
     AppRoutes.documents,
     AppRoutes.status,
+    AppRoutes.endorsement,
   };
 
   bool _shouldBlockScholar() {

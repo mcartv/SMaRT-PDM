@@ -67,6 +67,7 @@ export default function DepartmentPortalLayout({
     markingAll,
     markAllAsRead,
     openNotification,
+    formatNotificationTime,
   } = usePortalNotifications({
     tokenStorageKey,
     portalRootPath: `/${portalKey}`,
@@ -234,7 +235,7 @@ export default function DepartmentPortalLayout({
               >
                 <Bell className="h-4 w-4 text-stone-600" />
                 {unreadCount > 0 ? (
-                  <span className="absolute right-1 top-1 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
+                  <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />
                 ) : null}
               </button>
 
@@ -254,12 +255,24 @@ export default function DepartmentPortalLayout({
                             openNotification(item, navigate);
                           }}
                           className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-stone-50 ${
-                            item.is_read ? 'bg-white' : 'bg-stone-50/70'
+                            item.is_read ? 'bg-white' : 'border-l-4 border-l-stone-400 bg-stone-50/80'
                           }`}
                         >
-                          <p className="text-xs font-semibold text-stone-800">{item.title || 'Notification'}</p>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className={`text-xs font-semibold ${item.is_read ? 'text-stone-800' : 'text-stone-900'}`}>
+                              {item.title || 'Notification'}
+                            </p>
+                            {item.is_read ? null : (
+                              <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-700">
+                                New
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-0.5 line-clamp-2 text-[11px] text-stone-500">
                             {item.message || 'Open notification'}
+                          </p>
+                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                            {formatNotificationTime(item.created_at)}
                           </p>
                         </button>
                       ))

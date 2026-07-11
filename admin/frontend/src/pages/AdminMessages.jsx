@@ -322,8 +322,8 @@ function MessageBubble({ message, isMine }) {
     <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 shadow-sm sm:max-w-[70%] ${isMine
-            ? 'bg-[#7c4a2e] text-white'
-            : 'border border-stone-200 bg-white text-stone-800'
+          ? 'bg-[#7c4a2e] text-white'
+          : 'border border-stone-200 bg-white text-stone-800'
           }`}
       >
         <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
@@ -492,8 +492,8 @@ function CreateGroupModal({
                     <label
                       key={item.userId}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${checked
-                          ? 'border-[#7c4a2e] bg-amber-50'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                        ? 'border-[#7c4a2e] bg-amber-50'
+                        : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <input
@@ -757,11 +757,10 @@ function AddMembersModal({
                   return (
                     <label
                       key={item.userId}
-                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
-                        checked
-                          ? 'border-[#7c4a2e] bg-amber-50'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
-                      }`}
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${checked
+                        ? 'border-[#7c4a2e] bg-amber-50'
+                        : 'border-stone-200 bg-white hover:bg-stone-50'
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -1408,6 +1407,34 @@ export default function AdminMessages() {
     setMessages((current) => markMessagesRead(current, messageIds))
   }, []);
 
+  useSocketEvent('room:created', async (data) => {
+    if (!isOpen) return;
+
+    await fetchRooms(data?.room_id || activeRoomId);
+  }, [
+    isOpen,
+    activeRoomId,
+    fetchRooms,
+  ]);
+
+  useSocketEvent('room:members-added', async (data) => {
+    if (!isOpen) return;
+
+    await fetchRooms(activeRoomId);
+
+    const roomId = data?.room_id?.toString?.() || '';
+
+    if (activeType === 'group' && activeRoomId === roomId) {
+      await fetchRoomMessages(activeRoomId);
+    }
+  }, [
+    isOpen,
+    activeType,
+    activeRoomId,
+    fetchRooms,
+    fetchRoomMessages,
+  ]);
+
   useEffect(() => {
     if (isOpen) {
       fetchScholarMembers()
@@ -1582,8 +1609,8 @@ export default function AdminMessages() {
                       type="button"
                       onClick={() => setShowUnreadOnly((current) => !current)}
                       className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${showUnreadOnly
-                          ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
-                          : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
+                        ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
+                        : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
                         }`}
                     >
                       <Filter className="h-3.5 w-3.5" />

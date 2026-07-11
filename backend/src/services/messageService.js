@@ -565,6 +565,57 @@ async function fetchAllMessagesForUser(userId) {
   return rows;
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || '').trim()
+  );
+}
+
+async function resolveConversationStudent(counterpartyId) {
+  const normalizedCounterpartyId = String(counterpartyId || '').trim();
+
+  if (!normalizedCounterpartyId) {
+    throw createHttpError(400, 'counterpartyId is required.');
+  }
+
+  if (!isUuid(normalizedCounterpartyId)) {
+    throw createHttpError(400, 'counterpartyId must be a valid UUID.');
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('students')
+    .select('user_id, student_id, pdm_id, first_name, last_name')
+    .eq('user_id', normalizedCounterpartyId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('MESSAGE CONVERSATION STUDENT LOOKUP ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  if (data?.user_id) {
+    return data;
+  }
+
+  const { data: adminData, error: adminError } = await supabase
+    .from('admin_profiles')
+    .select('user_id, is_archived')
+    .eq('user_id', normalizedCounterpartyId)
+    .maybeSingle();
+
+  if (adminError) {
+    console.error('MESSAGE CONVERSATION ADMIN LOOKUP ERROR:', adminError);
+    throw new Error(adminError.message);
+  }
+
+  if (adminData?.user_id) {
+    throw createHttpError(403, 'Conversation access is restricted to student counterparty accounts.');
+  }
+
+  throw createHttpError(404, 'Counterparty student not found.');
+}
+
 async function fetchConversationProfiles(counterpartyIds = []) {
   if (!counterpartyIds.length) {
     return {
@@ -673,6 +724,40 @@ async function listAdminConversation(userId, counterpartyId) {
     counterpartyId,
     items: await fetchThreadMessages(adminUserId, counterpartyId),
   };
+}
+
+async function fetchAdminConversationMessages(userId, counterpartyId) {
+  const admin = await resolveActiveAdminUser(userId);
+  const student = await resolveConversationStudent(counterpartyId);
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('messages')
+    .select(MESSAGE_FIELDS)
+    .is('room_id', null)
+    .or(
+      `and(sender_id.eq.${admin.userId},receiver_id.eq.${student.user_id}),and(sender_id.eq.${student.user_id},receiver_id.eq.${admin.userId})`
+    )
+    .order('sent_at', { ascending: true })
+    .order('message_id', { ascending: true });
+
+  if (error) {
+    console.error('MESSAGE CONVERSATION FETCH ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const profilesResult = await fetchConversationProfiles([admin.userId, student.user_id]);
+  const combinedMap = new Map();
+
+  profilesResult.userMap.forEach((u, id) => {
+    const s = profilesResult.studentMap.get(id);
+    const name = [s?.first_name, s?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim() || u.username || u.email || 'Unknown';
+    combinedMap.set(id, { name, avatarUrl: s?.profile_photo_url || null });
+  });
+
+  return (data || []).map((row) => mapMessageRow(row, combinedMap));
 }
 
 async function sendAdminConversationMessage(userId, counterpartyId, messageBody) {

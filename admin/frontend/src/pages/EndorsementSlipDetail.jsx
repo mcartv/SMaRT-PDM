@@ -360,6 +360,36 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
         </Card>
       </section>
 
+      <Card className="rounded-[24px] border-stone-200 shadow-none">
+        <CardContent className="grid gap-3 p-5 md:grid-cols-3">
+          <div className="rounded-[20px] border border-stone-200 bg-stone-50/70 px-4 py-4">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Slip Code</p>
+            <p className="mt-2 font-mono text-sm font-semibold text-stone-900">{slip.slip_code || 'N/A'}</p>
+            <p className="mt-2 text-xs text-stone-500">Use this code when cross-checking the printed slip, registry, and admin records.</p>
+          </div>
+          <div className="rounded-[20px] border border-stone-200 bg-stone-50/70 px-4 py-4">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Final Handling</p>
+            <p className="mt-2 text-sm font-semibold text-stone-900">
+              {slip.overall_status === 'completed'
+                ? 'Endorsement complete'
+                : 'Endorsement still in progress'}
+            </p>
+            <p className="mt-2 text-xs text-stone-500">
+              Final scholar activation still depends on endorsement completion and admin requirements readiness.
+            </p>
+          </div>
+          <div className="rounded-[20px] border border-stone-200 bg-stone-50/70 px-4 py-4">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">PDF Access</p>
+            <p className="mt-2 text-sm font-semibold text-stone-900">
+              {slip.final_pdf_url ? 'Stored final copy available' : 'Use generated PDF download'}
+            </p>
+            <p className="mt-2 text-xs text-stone-500">
+              Admin and offices can download the latest slip copy directly from this page anytime.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className="rounded-[24px] border-stone-200 shadow-none">
           <CardHeader className="border-b border-stone-100">

@@ -39,9 +39,12 @@ function formatDate(value) {
   });
 }
 
-function SummaryCard({ icon: Icon, label, value, tone }) {
+function SummaryCard({ icon: Icon, label, value, tone, theme }) {
   return (
-    <Card className="rounded-[22px] border-stone-200 shadow-none">
+    <Card
+      className="rounded-[22px] shadow-none"
+      style={{ borderColor: 'color-mix(in srgb, var(--portal-base) 14%, white)' }}
+    >
       <CardContent className="flex items-center gap-3 p-4">
         <div className={`rounded-2xl p-2.5 ${tone}`}>
           <Icon className="h-4 w-4" />
@@ -50,6 +53,7 @@ function SummaryCard({ icon: Icon, label, value, tone }) {
           <p className="text-[11px] uppercase tracking-[0.18em] text-stone-500">{label}</p>
           <p className="text-2xl font-semibold text-stone-900">{value}</p>
         </div>
+        <div className="ml-auto hidden h-10 w-1 rounded-full md:block" style={{ background: theme.chartSecondary }} />
       </CardContent>
     </Card>
   );
@@ -364,7 +368,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm font-semibold text-stone-900">Office snapshot</p>
-          <p className="mt-1 text-sm text-stone-500">Simple counts for today’s work and recent decisions.</p>
+          <p className="mt-1 text-sm text-stone-500">Simple counts for today’s work, pending actions, and recent decisions.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -392,14 +396,15 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         {cards.map((card) => (
-          <SummaryCard
-            key={card.label}
-            icon={card.icon}
-            label={card.label}
-            value={card.value}
-            tone={card.tone}
-          />
-        ))}
+            <SummaryCard
+              key={card.label}
+              icon={card.icon}
+              label={card.label}
+              value={card.value}
+              tone={card.tone}
+              theme={theme}
+            />
+          ))}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
@@ -445,6 +450,11 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                         <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
                           {getDecisionLabel(row, officeKey)}
                         </Badge>
+                        {row.slip_code ? (
+                          <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
+                            {row.slip_code}
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
 
@@ -471,6 +481,16 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
               </div>
             </CardHeader>
             <CardContent className="space-y-3 p-5">
+              <div className="rounded-[20px] border border-stone-200 px-4 py-3" style={{ background: theme.accentSoft }}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                  Daily Focus
+                </p>
+                <p className="mt-2 text-sm font-medium text-stone-800">
+                  {pendingCount > 0
+                    ? `${pendingCount} applicant${pendingCount === 1 ? '' : 's'} still waiting for ${config.queueLabel.toLowerCase()} action.`
+                    : 'Your active queue is clear right now. Review the tracker and recent activity for follow-up items.'}
+                </p>
+              </div>
               <Button
                 variant="outline"
                 className="w-full justify-between border-stone-200"

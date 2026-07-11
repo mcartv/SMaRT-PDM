@@ -58,6 +58,20 @@ function normalizeMessageBody(messageBody = '') {
   return String(messageBody || '').trim();
 }
 
+function validateConversationMessageBody(messageBody = '') {
+  const trimmedBody = normalizeMessageBody(messageBody);
+
+  if (!trimmedBody) {
+    throw createHttpError(400, 'messageBody is required.');
+  }
+
+  if (trimmedBody.length > 5000) {
+    throw createHttpError(400, 'messageBody is too long.');
+  }
+
+  return trimmedBody;
+}
+
 function buildThreadFilter(leftUserId, rightUserId) {
   return `and(sender_id.eq.${leftUserId},receiver_id.eq.${rightUserId}),and(sender_id.eq.${rightUserId},receiver_id.eq.${leftUserId})`;
 }
@@ -598,22 +612,7 @@ async function resolveConversationStudent(counterpartyId) {
     return data;
   }
 
-  const { data: adminData, error: adminError } = await supabase
-    .from('admin_profiles')
-    .select('user_id, is_archived')
-    .eq('user_id', normalizedCounterpartyId)
-    .maybeSingle();
-
-  if (adminError) {
-    console.error('MESSAGE CONVERSATION ADMIN LOOKUP ERROR:', adminError);
-    throw new Error(adminError.message);
-  }
-
-  if (adminData?.user_id) {
-    throw createHttpError(403, 'Conversation access is restricted to student counterparty accounts.');
-  }
-
-  throw createHttpError(404, 'Counterparty student not found.');
+  throw createHttpError(400, 'Counterparty student not found.');
 }
 
 async function fetchConversationProfiles(counterpartyIds = []) {
@@ -761,11 +760,12 @@ async function fetchAdminConversationMessages(userId, counterpartyId) {
 }
 
 async function sendAdminConversationMessage(userId, counterpartyId, messageBody) {
-  const adminUserId = await ensureFixedAdminActor(userId);
+  const admin = await resolveActiveAdminUser(userId);
+  const student = await resolveConversationStudent(counterpartyId);
   return createMessage({
-    senderId: adminUserId,
-    receiverId: counterpartyId,
-    messageBody,
+    senderId: admin.userId,
+    receiverId: student.user_id,
+    messageBody: validateConversationMessageBody(messageBody),
   });
 }
 
@@ -918,6 +918,7 @@ module.exports = {
   markFixedThreadRead,
   listAdminConversations,
   listAdminConversation,
+  fetchAdminConversationMessages,
   sendAdminConversationMessage,
   markAdminConversationRead,
   resolveFixedAdminUserId,

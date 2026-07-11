@@ -227,6 +227,16 @@ export default function usePortalNotifications({
     [items]
   );
 
+  const newNotifications = useMemo(
+    () => items.filter((item) => item.is_read !== true),
+    [items]
+  );
+
+  const earlierNotifications = useMemo(
+    () => items.filter((item) => item.is_read === true),
+    [items]
+  );
+
   const openNotification = useCallback(
     async (notification, navigate) => {
       if (!notification) return;
@@ -245,6 +255,8 @@ export default function usePortalNotifications({
 
   return {
     notifications: items,
+    newNotifications,
+    earlierNotifications,
     unreadCount,
     loading,
     markingAll,

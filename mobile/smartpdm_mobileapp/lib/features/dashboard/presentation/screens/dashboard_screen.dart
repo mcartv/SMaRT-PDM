@@ -2180,10 +2180,23 @@ class _ApplicantProgressCard extends StatelessWidget {
                 _ChipLabel(label: applicationTitle, isDark: isDark),
               if (applicationId.isNotEmpty)
                 _ChipLabel(label: 'ID $applicationId', isDark: isDark),
+              if (items.isNotEmpty)
+                _ChipLabel(
+                  label: 'Tracks: Requirements • Endorsement • Activation',
+                  isDark: isDark,
+                ),
             ],
           ),
           if (items.isNotEmpty) ...[
             const SizedBox(height: 14),
+            Text(
+              'Progress at a glance',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: bodyColor,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 10,
               runSpacing: 10,

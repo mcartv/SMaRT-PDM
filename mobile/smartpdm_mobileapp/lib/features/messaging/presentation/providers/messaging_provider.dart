@@ -13,6 +13,7 @@ abstract class MessagingSocket {
   void disconnect();
   void dispose();
   void onConnect(void Function(dynamic) handler);
+  void onDisconnect(void Function(dynamic) handler);
   void on(String event, MessagingSocketHandler handler);
 }
 
@@ -36,6 +37,11 @@ class _IoMessagingSocket implements MessagingSocket {
   @override
   void onConnect(void Function(dynamic) handler) {
     _socket.onConnect(handler);
+  }
+
+  @override
+  void onDisconnect(void Function(dynamic) handler) {
+    _socket.onDisconnect(handler);
   }
 
   @override
@@ -75,6 +81,7 @@ class MessagingProvider extends ChangeNotifier {
   List<ChatMessage> get messages => _messages;
   int get unreadCount => _unreadCount;
   int get privateUnreadCount => _privateUnreadCount;
+  bool get isConnected => _socket?.connected == true;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get currentUserId => _currentUserId;
@@ -150,6 +157,7 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    await initializeChat();
     await _refreshThread();
     await refreshUnreadCount();
     await fetchGroups();
@@ -264,9 +272,15 @@ class MessagingProvider extends ChangeNotifier {
 
     _socket!.onConnect((_) {
       debugPrint('Messaging socket connected.');
+      notifyListeners();
     });
 
-    _socket!.on('message:new', (data) {
+    _socket!.onDisconnect((_) {
+      debugPrint('Messaging socket disconnected.');
+      notifyListeners();
+    });
+
+    void handleIncomingMessage(dynamic data) {
       final payload = _castMap(data);
       if (payload == null) {
         return;
@@ -299,10 +313,13 @@ class MessagingProvider extends ChangeNotifier {
         }
         notifyListeners();
       } else if (isGroupMessage) {
-        _incrementGroupUnreadCount(roomId);
-        notifyListeners();
+        if (_incrementGroupUnreadCount(roomId)) {
+          notifyListeners();
+        } else {
+          fetchGroups();
+        }
       } else {
-        refreshUnreadCount(notify: false);
+        refreshUnreadCount();
       }
 
       final shouldAutoRead =
@@ -315,7 +332,10 @@ class MessagingProvider extends ChangeNotifier {
       if (shouldAutoRead) {
         markThreadRead();
       }
-    });
+    }
+
+    _socket!.on('message:new', handleIncomingMessage);
+    _socket!.on('message:created', handleIncomingMessage);
 
     _socket!.on('message:read', (data) {
       final payload = _castMap(data);
@@ -349,6 +369,45 @@ class MessagingProvider extends ChangeNotifier {
       _recalculateUnreadCount();
       notifyListeners();
     });
+
+    _socket!.on('message:unread', (data) {
+      final payload = _castMap(data);
+      if (payload == null) {
+        return;
+      }
+
+      final messageIds = ((payload['messageIds'] as List<dynamic>?) ??
+              (payload['message_ids'] as List<dynamic>?) ??
+              const [])
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList();
+
+      if (messageIds.isEmpty) {
+        return;
+      }
+
+      _messages = _messages.map((message) {
+        if (!messageIds.contains(message.messageId)) {
+          return message;
+        }
+
+        return message.copyWith(isRead: false);
+      }).toList();
+
+      _recalculateUnreadCount();
+      notifyListeners();
+    });
+
+    void refreshRoomsRealtime([dynamic _]) {
+      fetchGroups();
+    }
+
+    _socket!.on('message:thread-archived', refreshRoomsRealtime);
+    _socket!.on('message:thread-restored', refreshRoomsRealtime);
+    _socket!.on('room:created', refreshRoomsRealtime);
+    _socket!.on('room:members-added', refreshRoomsRealtime);
+    _socket!.on('room:updated', refreshRoomsRealtime);
   }
 
   void _upsertMessage(ChatMessage message) {
@@ -385,14 +444,14 @@ class MessagingProvider extends ChangeNotifier {
     _syncTotalUnreadCount();
   }
 
-  void _incrementGroupUnreadCount(String roomId) {
+  bool _incrementGroupUnreadCount(String roomId) {
     if (roomId.isEmpty) {
-      return;
+      return false;
     }
 
     final index = _rooms.indexWhere((room) => room.roomId == roomId);
     if (index < 0) {
-      return;
+      return false;
     }
 
     final room = _rooms[index];
@@ -402,6 +461,7 @@ class MessagingProvider extends ChangeNotifier {
       unreadCount: room.unreadCount + 1,
     );
     _syncTotalUnreadCount();
+    return true;
   }
 
   void _setGroupUnreadCount(String roomId, int count) {

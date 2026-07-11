@@ -1022,6 +1022,19 @@ export default function EndorsementQueue({
             </Select>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+            <span className="rounded-full border border-stone-200 bg-white px-3 py-1">
+              {filteredRows.length} visible
+            </span>
+            <span className="rounded-full border border-stone-200 bg-white px-3 py-1">
+              {rows.length} total in queue
+            </span>
+            {queueKey === 'pd' ? (
+              <span className="rounded-full border border-stone-200 bg-white px-3 py-1">
+                {rows.filter((row) => row.grade_document?.url).length} with grade file
+              </span>
+            ) : null}
+          </div>
           {success ? (
             <div className="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-4 text-green-900 shadow-sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

@@ -370,6 +370,7 @@ class _EndorsementView extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
+                    const _EndorsementTag(label: 'Realtime tracking on'),
                     _EndorsementTag(
                       label: 'Code: ${slip.slipCode ?? 'Pending'}',
                     ),
@@ -389,23 +390,43 @@ class _EndorsementView extends StatelessWidget {
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: _OverviewMiniItem(
-                    label: 'Current Step',
-                    value: _friendlyCurrentOffice(endorsement.currentOffice),
-                    icon: Icons.location_on_outlined,
-                    color: statusColor,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _OverviewMiniItem(
+                        label: 'Current Step',
+                        value: _friendlyCurrentOffice(endorsement.currentOffice),
+                        icon: Icons.location_on_outlined,
+                        color: statusColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _OverviewMiniItem(
+                        label: 'Slip Status',
+                        value: friendlyStatus,
+                        icon: statusIcon,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _OverviewMiniItem(
-                    label: 'Slip Status',
-                    value: friendlyStatus,
-                    icon: statusIcon,
-                    color: statusColor,
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'Your endorsement moves in this order: SDO, Guidance, then Program Director.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                        ),
                   ),
                 ),
               ],

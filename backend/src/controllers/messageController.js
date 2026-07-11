@@ -64,6 +64,35 @@ exports.getConversation = async (req, res) => {
   }
 };
 
+exports.sendConversationMessage = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const { counterpartyId } = req.params;
+    const messageBody = req.body?.messageBody ?? req.body?.message_body;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    if (!messageBody || !String(messageBody).trim()) {
+      return res.status(400).json({ error: 'Message body is required.' });
+    }
+
+    const payload = await messageService.sendAdminConversationMessage(
+      currentUserId,
+      counterpartyId,
+      String(messageBody).trim()
+    );
+
+    return res.status(201).json(payload);
+  } catch (error) {
+    console.error('SEND MESSAGE CONVERSATION ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to send conversation message.',
+    });
+  }
+};
+
 exports.sendThreadMessage = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);

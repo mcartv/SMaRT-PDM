@@ -454,6 +454,7 @@ class _StatusSummaryView extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
+                    const _MiniTag(label: 'Live updates enabled'),
                     _MiniTag(
                       label:
                           'Opening: ${summary.openingTitle?.trim().isNotEmpty == true ? summary.openingTitle! : _title()}',
@@ -529,6 +530,19 @@ class _StatusSummaryView extends StatelessWidget {
             title: 'Readiness Overview',
             subtitle:
                 'Separate tracking for requirements, endorsement, and scholar activation',
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Text(
+                'Use these three checks first: finish requirements, finish endorsement, then wait for final scholar activation.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           _QuickStatusRow(

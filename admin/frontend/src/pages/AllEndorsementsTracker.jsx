@@ -127,6 +127,16 @@ export default function AllEndorsementsTracker({
     });
   }, [rows, search, statusFilter]);
 
+  const trackerSummary = useMemo(
+    () => ({
+      total: filteredRows.length,
+      completed: filteredRows.filter((row) => row.overall_status === 'completed').length,
+      inProgress: filteredRows.filter((row) => row.overall_status !== 'completed').length,
+      readyForPD: filteredRows.filter((row) => row.current_stage === 'pending_pd').length,
+    }),
+    [filteredRows]
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
@@ -151,6 +161,19 @@ export default function AllEndorsementsTracker({
 
       <Card className="border-stone-200 shadow-none">
         <CardHeader className="space-y-3 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { label: 'Visible Slips', value: trackerSummary.total },
+              { label: 'In Progress', value: trackerSummary.inProgress },
+              { label: 'Completed', value: trackerSummary.completed },
+              { label: 'Waiting for PD', value: trackerSummary.readyForPD },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</p>
+                <p className="mt-2 text-xl font-semibold text-stone-900">{item.value}</p>
+              </div>
+            ))}
+          </div>
           <div className="flex flex-col gap-3 lg:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
@@ -194,6 +217,11 @@ export default function AllEndorsementsTracker({
                       <Badge className={STATUS_TONE[row.overall_status] || 'bg-stone-100 text-stone-700'}>
                         {row.overall_status_label}
                       </Badge>
+                      {row.slip_code ? (
+                        <Badge variant="outline" className="border-stone-200 font-mono text-[11px] text-stone-500">
+                          {row.slip_code}
+                        </Badge>
+                      ) : null}
                     </div>
                     <p className="text-sm text-stone-600">
                       {row.pdm_id} - {row.program_name}

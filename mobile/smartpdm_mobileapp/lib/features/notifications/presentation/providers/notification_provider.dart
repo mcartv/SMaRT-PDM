@@ -362,6 +362,16 @@ class NotificationProvider extends ChangeNotifier {
       notifyListeners();
     });
 
+    _socket!.on('application-document:uploaded', (_) {
+      _applicationRevision += 1;
+      notifyListeners();
+    });
+
+    _socket!.on('application-document:reviewed', (_) {
+      _applicationRevision += 1;
+      notifyListeners();
+    });
+
     _socket!.on('endorsement:updated', (_) {
       _applicationRevision += 1;
       notifyListeners();

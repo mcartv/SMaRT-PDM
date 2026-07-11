@@ -176,27 +176,102 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
     }
 
-    return ListView.builder(
-      key: const PageStorageKey<String>('notifications_list'),
+    final newNotifications =
+        notifications.where((item) => !item.isRead).toList(growable: false);
+    final earlierNotifications =
+        notifications.where((item) => item.isRead).toList(growable: false);
+
+    final sections = <({String label, List<AppNotification> items})>[
+      if (newNotifications.isNotEmpty) (label: 'New', items: newNotifications),
+      if (earlierNotifications.isNotEmpty)
+        (label: 'Earlier', items: earlierNotifications),
+    ];
+
+    return ListView.separated(
+      key: const PageStorageKey<String>('notifications_sections'),
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 12, bottom: 12),
-      itemCount: notifications.length,
+      itemCount: sections.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 4),
       itemBuilder: (context, index) {
-        final notification = notifications[index];
+        final section = sections[index];
 
-        return _NotificationTile(
-          key: ValueKey<String>(
-            '${notification.notificationId}_${notification.isRead}_$index',
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _NotificationSectionHeader(
+                label: section.label,
+                count: section.items.length,
+              ),
+              const SizedBox(height: 8),
+              for (int i = 0; i < section.items.length; i++) ...[
+                _NotificationTile(
+                  key: ValueKey<String>(
+                    '${section.items[i].notificationId}_${section.items[i].isRead}_$index-$i',
+                  ),
+                  notification: section.items[i],
+                  onTap: () => _openNotification(section.items[i]),
+                  onDelete: () => _handleDelete(
+                    context,
+                    provider,
+                    section.items[i].notificationId,
+                  ),
+                  onMarkRead: section.items[i].isRead
+                      ? null
+                      : () => provider.markAsRead(
+                          section.items[i].notificationId,
+                        ),
+                ),
+              ],
+            ],
           ),
-          notification: notification,
-          onTap: () => _openNotification(notification),
-          onDelete: () =>
-              _handleDelete(context, provider, notification.notificationId),
-          onMarkRead: notification.isRead
-              ? null
-              : () => provider.markAsRead(notification.notificationId),
         );
       },
+    );
+  }
+}
+
+class _NotificationSectionHeader extends StatelessWidget {
+  const _NotificationSectionHeader({
+    required this.label,
+    required this.count,
+  });
+
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Row(
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : textColor,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF332216) : const Color(0xFFF7F0E3),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: isDark ? AppColors.gold : textColor,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -226,8 +301,10 @@ class _NotificationTile extends StatelessWidget {
     final accentColor = isDark ? const Color(0xFFFFD54F) : textColor;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       color: notification.isRead ? cardColor : unreadCardColor,
+      elevation: notification.isRead ? 0.5 : 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(8),

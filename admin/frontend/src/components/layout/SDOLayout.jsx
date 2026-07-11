@@ -52,6 +52,8 @@ export default function SDOLayout() {
   const { theme } = usePortalTheme('sdo');
   const {
     notifications: notifs,
+    newNotifications,
+    earlierNotifications,
     unreadCount,
     loading: notificationsLoading,
     markingAll,
@@ -304,37 +306,78 @@ export default function SDOLayout() {
               {notifOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white border border-stone-200 rounded-2xl shadow-xl z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-stone-100 bg-stone-50/60">
-                    <p className="text-xs font-semibold text-stone-800">Recent Alerts</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold text-stone-800">Recent Alerts</p>
+                      {unreadCount > 0 ? (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ background: theme.accentSoft, color: theme.base }}
+                        >
+                          {unreadCount} New
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="max-h-64 overflow-y-auto">
                     {notifs.length > 0 ? (
-                      notifs.map((n, index) => (
-                        <button
-                          key={n.notification_id || index}
-                          onClick={() => handleNotificationClick(n)}
-                          className={`w-full border-b border-stone-50 px-4 py-3 text-left transition-colors hover:bg-emerald-50/60 ${
-                            n.is_read ? 'bg-white' : 'border-l-4 border-l-emerald-400 bg-emerald-50/65'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <p className={`text-xs font-semibold ${n.is_read ? 'text-stone-800' : 'text-stone-900'}`}>
-                              {n.title || 'Notification'}
+                      <>
+                        {newNotifications.length > 0 ? (
+                          <div className="border-b border-stone-100 bg-emerald-50/80 px-4 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
+                              New
                             </p>
-                            {n.is_read ? null : (
+                          </div>
+                        ) : null}
+                        {newNotifications.map((n, index) => (
+                          <button
+                            key={n.notification_id || index}
+                            onClick={() => handleNotificationClick(n)}
+                            className="w-full border-b border-stone-50 border-l-4 border-l-emerald-400 bg-emerald-50/65 px-4 py-3 text-left transition-colors hover:bg-emerald-50"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-xs font-semibold text-stone-900">
+                                {n.title || 'Notification'}
+                              </p>
                               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
                                 New
                               </span>
-                            )}
+                            </div>
+                            <p className="text-[11px] text-stone-600 line-clamp-2 mt-0.5">
+                              {n.message || 'Open notification'}
+                            </p>
+                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                              {formatNotificationTime(n.created_at)}
+                            </p>
+                          </button>
+                        ))}
+                        {earlierNotifications.length > 0 ? (
+                          <div className="border-b border-stone-100 bg-stone-50/70 px-4 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                              Earlier
+                            </p>
                           </div>
-                          <p className="text-[11px] text-stone-500 line-clamp-2 mt-0.5">
-                            {n.message || 'Open notification'}
-                          </p>
-                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                            {formatNotificationTime(n.created_at)}
-                          </p>
-                        </button>
-                      ))
+                        ) : null}
+                        {earlierNotifications.map((n, index) => (
+                          <button
+                            key={n.notification_id || `earlier-${index}`}
+                            onClick={() => handleNotificationClick(n)}
+                            className="w-full border-b border-stone-50 bg-white px-4 py-3 text-left transition-colors hover:bg-stone-50"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-xs font-semibold text-stone-800">
+                                {n.title || 'Notification'}
+                              </p>
+                            </div>
+                            <p className="text-[11px] text-stone-500 line-clamp-2 mt-0.5">
+                              {n.message || 'Open notification'}
+                            </p>
+                            <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                              {formatNotificationTime(n.created_at)}
+                            </p>
+                          </button>
+                        ))}
+                      </>
                     ) : (
                       <div className="p-8 text-center text-xs text-stone-400">
                         {notificationsLoading ? 'Loading notifications...' : 'No new notifications'}

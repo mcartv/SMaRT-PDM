@@ -171,6 +171,11 @@ export default function AdminLayout() {
         '--portal-chart-quaternary': theme.chartQuaternary,
         '--portal-chart-positive': theme.chartPositive,
         '--portal-chart-negative': theme.chartNegative,
+        '--portal-surface': '#ffffff',
+        '--portal-surface-soft': theme.accentSoft,
+        '--portal-border': `color-mix(in srgb, ${theme.base} 14%, white)`,
+        '--portal-muted': `color-mix(in srgb, ${theme.base} 55%, white)`,
+        '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
       }}
     >
       {/* Sidebar */}
@@ -264,9 +269,17 @@ export default function AdminLayout() {
             <h1 className="text-sm font-semibold leading-tight text-stone-800">
               SMaRT PDM
             </h1>
-            <p className="truncate text-[11px] text-stone-500">
-              Scholarship Monitoring &amp; Tracking
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="truncate text-[11px] text-stone-500">
+                Scholarship Monitoring &amp; Tracking
+              </p>
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+              >
+                {theme.label}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

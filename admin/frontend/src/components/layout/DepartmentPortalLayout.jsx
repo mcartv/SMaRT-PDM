@@ -147,7 +147,27 @@ export default function DepartmentPortalLayout({
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: theme.mainBg }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{
+        background: theme.mainBg,
+        '--portal-base': theme.base,
+        '--portal-accent': theme.accent,
+        '--portal-accent-soft': theme.accentSoft,
+        '--portal-main-bg': theme.mainBg,
+        '--portal-chart-primary': theme.chartPrimary,
+        '--portal-chart-secondary': theme.chartSecondary,
+        '--portal-chart-tertiary': theme.chartTertiary,
+        '--portal-chart-quaternary': theme.chartQuaternary,
+        '--portal-chart-positive': theme.chartPositive,
+        '--portal-chart-negative': theme.chartNegative,
+        '--portal-surface': '#ffffff',
+        '--portal-surface-soft': theme.accentSoft,
+        '--portal-border': `color-mix(in srgb, ${theme.base} 14%, white)`,
+        '--portal-muted': `color-mix(in srgb, ${theme.base} 55%, white)`,
+        '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
+      }}
+    >
       <aside
         className="flex h-full shrink-0 flex-col border-r border-black/10 transition-all duration-300"
         style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
@@ -225,7 +245,15 @@ export default function DepartmentPortalLayout({
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
             <h1 className="text-sm font-semibold leading-tight text-stone-800">{title}</h1>
-            <p className="truncate text-[11px] text-stone-500">{subtitle}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="truncate text-[11px] text-stone-500">{subtitle}</p>
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+              >
+                {theme.label}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

@@ -168,7 +168,27 @@ export default function SDOLayout() {
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: theme.mainBg }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{
+        background: theme.mainBg,
+        '--portal-base': theme.base,
+        '--portal-accent': theme.accent,
+        '--portal-accent-soft': theme.accentSoft,
+        '--portal-main-bg': theme.mainBg,
+        '--portal-chart-primary': theme.chartPrimary,
+        '--portal-chart-secondary': theme.chartSecondary,
+        '--portal-chart-tertiary': theme.chartTertiary,
+        '--portal-chart-quaternary': theme.chartQuaternary,
+        '--portal-chart-positive': theme.chartPositive,
+        '--portal-chart-negative': theme.chartNegative,
+        '--portal-surface': '#ffffff',
+        '--portal-surface-soft': theme.accentSoft,
+        '--portal-border': `color-mix(in srgb, ${theme.base} 14%, white)`,
+        '--portal-muted': `color-mix(in srgb, ${theme.base} 55%, white)`,
+        '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
+      }}
+    >
       {/* Sidebar */}
       <aside
         className="flex flex-col h-full shrink-0 transition-all duration-300 border-r border-black/10"
@@ -254,9 +274,17 @@ export default function SDOLayout() {
             <h1 className="text-sm font-semibold text-stone-800 leading-tight">
               SMaRT PDM SDO Panel
             </h1>
-            <p className="text-[11px] text-stone-500 truncate">
-              Probation monitoring and disciplinary tracking
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-[11px] text-stone-500 truncate">
+                Probation monitoring and disciplinary tracking
+              </p>
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+              >
+                {theme.label}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

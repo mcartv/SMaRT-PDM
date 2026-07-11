@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, Loader2, Palette, RotateCcw } from 'lucide-react';
+import { AlertCircle, BarChart3, CheckCircle2, Loader2, Palette, RotateCcw } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -112,7 +112,7 @@ export default function ThemePanel({
   const [settings, setSettings] = useState({});
   const [savingPortal, setSavingPortal] = useState('');
   const [loading, setLoading] = useState(true);
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState({ type: '', message: '' });
 
   const presetOptions = useMemo(() => getThemePresetOptions(), []);
   const normalizedPortals = useMemo(
@@ -155,7 +155,7 @@ export default function ThemePanel({
       });
       setSettings(nextSettings);
     } catch (error) {
-      setFeedback(error.message || 'Failed to load theme settings.');
+      setFeedback({ type: 'error', message: error.message || 'Failed to load theme settings.' });
     } finally {
       setLoading(false);
     }
@@ -166,8 +166,8 @@ export default function ThemePanel({
   }, []);
 
   useEffect(() => {
-    if (!feedback) return undefined;
-    const timer = window.setTimeout(() => setFeedback(''), 2400);
+    if (!feedback.message) return undefined;
+    const timer = window.setTimeout(() => setFeedback({ type: '', message: '' }), 2400);
     return () => window.clearTimeout(timer);
   }, [feedback]);
 
@@ -198,9 +198,9 @@ export default function ThemePanel({
         localStorage.setItem(`smartpdm-theme-${portalKey}`, nextPresetKey);
       } catch {}
 
-      setFeedback(`${PORTAL_LABELS[portalKey]} theme applied.`);
+      setFeedback({ type: 'success', message: `${PORTAL_LABELS[portalKey]} theme applied.` });
     } catch (error) {
-      setFeedback(error.message || 'Failed to save theme setting.');
+      setFeedback({ type: 'error', message: error.message || 'Failed to save theme setting.' });
     } finally {
       setSavingPortal('');
     }
@@ -233,10 +233,16 @@ export default function ThemePanel({
                 This page can edit only the assigned portal theme. Other office themes are shown for quick reference.
               </p>
             ) : null}
-            {feedback ? (
-              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {feedback}
+            {feedback.message ? (
+              <div
+                className={`mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                  feedback.type === 'error'
+                    ? 'border border-red-200 bg-red-50 text-red-700'
+                    : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                }`}
+              >
+                {feedback.type === 'error' ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                {feedback.message}
               </div>
             ) : null}
           </div>
@@ -265,8 +271,8 @@ export default function ThemePanel({
                     onClick={() => handleSave(portalKey, 'default')}
                     disabled={savingPortal === portalKey}
                   >
-                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                    Restore Default
+                    {savingPortal === portalKey ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
+                    {savingPortal === portalKey ? 'Applying...' : 'Restore Default'}
                   </Button>
                 </div>
               </div>
@@ -293,7 +299,7 @@ export default function ThemePanel({
                           <div>
                             <p className="text-sm font-semibold">{preset.label}</p>
                             <p className={`mt-1 text-xs ${isSelected ? 'text-white/75' : 'text-stone-500'}`}>
-                              {isSelected ? 'Currently active theme.' : preset.description}
+                              {isSelected ? (savingPortal === portalKey ? 'Applying theme...' : 'Currently active theme.') : preset.description}
                             </p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
@@ -327,21 +333,20 @@ export default function ThemePanel({
 
       {readOnlyPortals.length > 0 ? (
         <div className="space-y-3">
-          <div>
+          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
             <h4 className="text-sm font-semibold text-stone-900">Other Office Themes</h4>
             <p className="mt-1 text-xs text-stone-500">
               Display only. These office themes are managed in their own maintenance pages.
             </p>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {readOnlyPortals.map((portalKey) => (
-              <CompactPortalDisplayCard
-                key={`overview-${portalKey}`}
-                portalKey={portalKey}
-                presetKey={settings[portalKey] || 'default'}
-              />
-            ))}
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {readOnlyPortals.map((portalKey) => (
+                <CompactPortalDisplayCard
+                  key={`overview-${portalKey}`}
+                  portalKey={portalKey}
+                  presetKey={settings[portalKey] || 'default'}
+                />
+              ))}
+            </div>
           </div>
         </div>
       ) : null}

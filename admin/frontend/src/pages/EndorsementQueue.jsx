@@ -1154,16 +1154,17 @@ export default function EndorsementQueue({
                 </div>
 
                 <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-stone-200 bg-white/90 p-4 text-sm text-stone-700">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Progress Tracker</p>
+                      <div className="mt-3 rounded-2xl bg-stone-50 px-4 py-4">
+                        <EndorsementProgressTracker tracker={row.tracker} />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
                     <div className="space-y-3">
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Progress Tracker</p>
-                          <div className="mt-3 rounded-2xl bg-stone-50 p-3">
-                            <EndorsementProgressTracker tracker={row.tracker} compact />
-                          </div>
-                        </div>
-
                         {queueKey === 'pd' ? (
                           <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
@@ -1178,17 +1179,20 @@ export default function EndorsementQueue({
                               </p>
                             ) : null}
                           </div>
-                        ) : (
-                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Current Review</p>
-                            <p className="mt-2 font-medium text-stone-900">{meta.title}</p>
-                            <p className="mt-1 text-xs text-stone-500">
-                              {queueKey === 'sdo'
-                                ? 'Review the offense record and route the slip correctly.'
-                                : 'Review the slip and decide the next office action.'}
-                            </p>
-                          </div>
-                        )}
+                        ) : null}
+
+                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                            {queueKey === 'sdo' ? 'SDO Rule' : queueKey === 'guidance' ? 'Guidance Focus' : 'PD Focus'}
+                          </p>
+                          <p className="mt-2">
+                            {queueKey === 'sdo'
+                              ? 'Minor offense still proceeds to Guidance. Major offense stops the slip here.'
+                              : queueKey === 'guidance'
+                                ? 'Clear students with good moral standing, hold them for counseling, or reject them with remarks.'
+                                : 'Check the grade file, prior office reviews, and scholastic standing before final approval.'}
+                          </p>
+                        </div>
                       </div>
 
                       {queueKey !== 'sdo' ? (
@@ -1203,12 +1207,7 @@ export default function EndorsementQueue({
                             </p>
                           ) : null}
                         </div>
-                      ) : (
-                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">SDO Rule</p>
-                          <p className="mt-2">Minor offense still proceeds to Guidance. Major offense stops the slip here.</p>
-                        </div>
-                      )}
+                      ) : null}
 
                       {queueKey === 'pd' ? (
                         <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
@@ -1356,6 +1355,7 @@ export default function EndorsementQueue({
                     </Button>
                   </div>
                     </div>
+                  </div>
                   </div>
 
                   <div className="xl:pl-1">

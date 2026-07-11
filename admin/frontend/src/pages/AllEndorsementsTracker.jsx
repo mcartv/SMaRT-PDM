@@ -54,6 +54,8 @@ const FINISHED_STATUSES = new Set([
   'disqualified_major',
 ]);
 
+const READY_FOR_PD_STATUSES = new Set(['pending_pd']);
+
 export default function AllEndorsementsTracker({
   tokenStorageKey = 'adminToken',
   detailBasePath,
@@ -114,6 +116,10 @@ export default function AllEndorsementsTracker({
   );
 
   const filteredSourceRows = useMemo(() => {
+    if (viewMode === 'ready_pd') {
+      return rows.filter((row) => READY_FOR_PD_STATUSES.has(row.current_stage));
+    }
+
     if (viewMode === 'finished') {
       return rows.filter((row) => FINISHED_STATUSES.has(row.overall_status));
     }
@@ -210,6 +216,20 @@ export default function AllEndorsementsTracker({
             <button
               type="button"
               onClick={() => {
+                setViewMode('ready_pd');
+                setStatusFilter('all');
+              }}
+              className={`inline-flex h-9 items-center rounded-full border px-4 text-sm font-medium transition ${
+                viewMode === 'ready_pd'
+                  ? 'border-stone-900 bg-stone-900 text-white'
+                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+              }`}
+            >
+              Waiting for PD
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 setViewMode('finished');
                 setStatusFilter('all');
               }}
@@ -223,8 +243,10 @@ export default function AllEndorsementsTracker({
             </button>
             <span className="text-xs text-stone-500">
               {viewMode === 'active'
-                ? 'Shows only applicants still moving through endorsement.'
-                : 'Shows applicants with finished endorsement outcomes.'}
+                ? 'Current endorsement applicants still moving through SDO, Guidance, or PD.'
+                : viewMode === 'ready_pd'
+                  ? 'Applicants already forwarded and currently waiting for Program Director review.'
+                  : 'Applicants with finished endorsement outcomes.'}
             </span>
           </div>
           <div className="flex flex-col gap-3 lg:flex-row">
@@ -257,7 +279,9 @@ export default function AllEndorsementsTracker({
             <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
               {viewMode === 'active'
                 ? 'No active applicants match the current filters.'
-                : 'No completed or rejected applicants match the current filters.'}
+                : viewMode === 'ready_pd'
+                  ? 'No applicants are currently waiting for PD.'
+                  : 'No completed or rejected applicants match the current filters.'}
             </div>
           ) : (
             filteredRows.map((row) => (

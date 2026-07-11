@@ -1,15 +1,10 @@
 import DepartmentMaintenancePage from '@/components/department/DepartmentMaintenancePage';
-
-const palette = {
-  base: '#2e4b43',
-  accent: '#3f655b',
-  bg: '#f6f8f7',
-  toggleClass: 'text-emerald-600',
-  infoBox: 'border-emerald-100 bg-emerald-50 text-emerald-800',
-};
+import usePortalTheme from '@/hooks/usePortalTheme';
+import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 
 const config = {
   shortName: 'SDO',
+  themePortalKey: 'sdo',
   pageSubtitle: 'SDO configuration and disciplinary monitoring maintenance',
   featureTitle: 'Disciplinary Monitoring',
   featureLabels: ['Monitoring Active', 'Monitoring Paused'],
@@ -49,6 +44,9 @@ const config = {
 };
 
 export default function SDOMaintenance() {
+  const { theme } = usePortalTheme('sdo', getPortalDefaultTheme('sdo'));
+  const palette = buildMaintenancePalette(theme);
+
   return (
     <DepartmentMaintenancePage
       config={config}

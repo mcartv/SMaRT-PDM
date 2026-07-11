@@ -1,15 +1,10 @@
 import DepartmentMaintenancePage from '@/components/department/DepartmentMaintenancePage';
-
-const palette = {
-  base: '#1f4e79',
-  accent: '#2563eb',
-  bg: '#f4f8fb',
-  toggleClass: 'text-blue-600',
-  infoBox: 'border-blue-100 bg-blue-50 text-blue-800',
-};
+import usePortalTheme from '@/hooks/usePortalTheme';
+import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 
 const config = {
   shortName: 'Guidance',
+  themePortalKey: 'guidance',
   pageSubtitle: 'Guidance Office configuration and counseling review maintenance',
   featureTitle: 'Counseling Review Settings',
   featureLabels: ['Counseling Queue Open', 'Counseling Queue Paused'],
@@ -49,6 +44,9 @@ const config = {
 };
 
 export default function GuidanceMaintenance() {
+  const { theme } = usePortalTheme('guidance', getPortalDefaultTheme('guidance'));
+  const palette = buildMaintenancePalette(theme);
+
   return (
     <DepartmentMaintenancePage
       config={config}

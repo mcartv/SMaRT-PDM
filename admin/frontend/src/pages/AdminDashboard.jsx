@@ -29,20 +29,20 @@ import {
 
 // ─── Theme ───────────────────────────────────────────────────────
 const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
-  brownLight: '#92500f',
-  amber: '#d97706',
-  amberSoft: '#FFF7ED',
-  yellow: '#fbbf24',
+  brown: 'var(--portal-base)',
+  brownMid: 'var(--portal-chart-primary)',
+  brownLight: 'var(--portal-chart-quaternary)',
+  amber: 'var(--portal-chart-tertiary)',
+  amberSoft: 'var(--portal-accent-soft)',
+  yellow: 'var(--portal-chart-secondary)',
   sand: '#fdf6ec',
-  green: '#16a34a',
+  green: 'var(--portal-chart-positive)',
   greenSoft: '#F0FDF4',
-  red: '#dc2626',
+  red: 'var(--portal-chart-negative)',
   border: '#e8d5b7',
   muted: '#78716c',
   text: '#1c1917',
-  bg: '#faf7f2',
+  bg: 'var(--portal-main-bg, #faf7f2)',
 };
 
 const TOOLTIP_STYLE = {

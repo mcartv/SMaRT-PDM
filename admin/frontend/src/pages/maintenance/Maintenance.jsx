@@ -10,6 +10,7 @@ import {
   GraduationCap,
   CalendarRange,
   UsersRound,
+  Palette,
 } from 'lucide-react';
 
 import GeneralPanel from './GeneralPanel';
@@ -21,14 +22,13 @@ import SystemPanel from './SystemPanel';
 import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
 import AccountsPanel from './AccountsPanel';
-
-const C = {
-  bg: '#faf7f2',
-};
+import ThemePanel from './ThemePanel';
+import usePortalTheme from '@/hooks/usePortalTheme';
 
 const TABS = [
   { key: 'general', label: 'General', icon: Settings },
   { key: 'accounts', label: 'Accounts', icon: UsersRound },
+  { key: 'theme', label: 'Theme', icon: Palette },
   { key: 'benefactors', label: 'Benefactors', icon: Building2 },
   { key: 'programs', label: 'Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
@@ -38,7 +38,7 @@ const TABS = [
   { key: 'audit', label: 'Audit', icon: ClipboardList },
 ];
 
-function TopNav({ tabs, active, onChange }) {
+function TopNav({ tabs, active, onChange, accentColor }) {
   return (
     <div className="sticky top-0 z-20 border-b border-stone-200 bg-white">
       <div className="flex items-center gap-6 px-4 overflow-x-auto">
@@ -60,7 +60,7 @@ function TopNav({ tabs, active, onChange }) {
               {item.label}
 
               {isActive && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-stone-900" />
+                <span className="absolute bottom-0 left-0 h-[2px] w-full" style={{ background: accentColor }} />
               )}
             </button>
           );
@@ -72,6 +72,7 @@ function TopNav({ tabs, active, onChange }) {
 
 export default function Maintenance() {
   const [tab, setTab] = useState('general');
+  const { theme } = usePortalTheme('admin');
 
   const renderActiveTab = () => {
     switch (tab) {
@@ -79,6 +80,8 @@ export default function Maintenance() {
         return <GeneralPanel />;
       case 'accounts':
         return <AccountsPanel />;
+      case 'theme':
+        return <ThemePanel tokenStorageKey="adminToken" allowedPortals={['admin', 'sdo', 'guidance', 'pd']} />;
       case 'benefactors':
         return <BenefactorsPanel />;
       case 'programs':
@@ -104,12 +107,12 @@ export default function Maintenance() {
     <div
       className="flex flex-col"
       style={{
-        background: C.bg,
+        background: theme.mainBg,
         minHeight: 'calc(100dvh - 120px)',
       }}
     >
       {/* TOP NAV ONLY */}
-      <TopNav tabs={TABS} active={tab} onChange={setTab} />
+      <TopNav tabs={TABS} active={tab} onChange={setTab} accentColor={theme.base} />
 
       {/* CONTENT */}
       <div className="flex-1 p-4">

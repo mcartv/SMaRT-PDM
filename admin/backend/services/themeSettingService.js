@@ -1,10 +1,8 @@
 const supabase = require('../config/supabase');
 
 const PORTAL_KEYS = ['admin', 'sdo', 'guidance', 'pd'];
-const PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic'];
+const PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic', 'coral', 'mint'];
 const TABLE_NAME = 'portal_theme_settings';
-const HISTORY_TABLE_NAME = 'portal_theme_history';
-const HISTORY_LIMIT = 10;
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -54,68 +52,10 @@ function isMissingTableError(error, tableName) {
     code === '42P01' ||
     code === 'PGRST205' ||
     code === 'PGRST204' ||
-    message.includes('relation') && message.includes(normalizedTable) ||
-    message.includes('could not find the table') && message.includes(normalizedTable) ||
-    message.includes('schema cache') && message.includes(normalizedTable)
+    (message.includes('relation') && message.includes(normalizedTable)) ||
+    (message.includes('could not find the table') && message.includes(normalizedTable)) ||
+    (message.includes('schema cache') && message.includes(normalizedTable))
   );
-}
-
-function buildDisplayName(profile, actor = {}) {
-  const fullName = [profile?.first_name, profile?.last_name]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-
-  return (
-    fullName ||
-    String(actor?.name || actor?.full_name || actor?.email || actor?.role || 'Portal user').trim()
-  );
-}
-
-async function getActorDisplayName(actor = {}) {
-  const actorUserId = actor.userId || actor.user_id || null;
-  if (!actorUserId) {
-    return buildDisplayName(null, actor);
-  }
-
-  const { data, error } = await supabase
-    .from('admin_profiles')
-    .select('first_name, last_name')
-    .eq('user_id', actorUserId)
-    .maybeSingle();
-
-  if (error) {
-    return buildDisplayName(null, actor);
-  }
-
-  return buildDisplayName(data, actor);
-}
-
-async function insertThemeHistoryEntry({
-  portalKey,
-  previousPresetKey,
-  nextPresetKey,
-  actor,
-  changedAt,
-}) {
-  const actorUserId = actor?.userId || actor?.user_id || null;
-  const actorDisplayName = await getActorDisplayName(actor);
-
-  const { error } = await supabase
-    .from(HISTORY_TABLE_NAME)
-    .insert({
-      portal_key: portalKey,
-      previous_preset_key: previousPresetKey,
-      next_preset_key: nextPresetKey,
-      changed_by_user_id: actorUserId,
-      changed_by_name: actorDisplayName,
-      changed_at: changedAt,
-    });
-
-  if (error && !isMissingTableError(error, HISTORY_TABLE_NAME)) {
-    throw error;
-  }
 }
 
 async function getPublicThemeSetting(portalKey) {
@@ -157,33 +97,6 @@ async function getThemeSettings() {
   };
 }
 
-async function getThemeHistory(portalKey = null) {
-  const normalizedPortal = portalKey ? validatePortalKey(portalKey) : null;
-
-  let query = supabase
-    .from(HISTORY_TABLE_NAME)
-    .select('history_id, portal_key, previous_preset_key, next_preset_key, changed_by_user_id, changed_by_name, changed_at')
-    .order('changed_at', { ascending: false })
-    .limit(HISTORY_LIMIT);
-
-  if (normalizedPortal) {
-    query = query.eq('portal_key', normalizedPortal);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    if (isMissingTableError(error, HISTORY_TABLE_NAME)) {
-      return { items: [] };
-    }
-    throw error;
-  }
-
-  return {
-    items: Array.isArray(data) ? data : [],
-  };
-}
-
 function canManagePortal(actorRole, portalKey) {
   if (actorRole === 'admin') return true;
   return actorRole === portalKey;
@@ -198,15 +111,11 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}) {
     throw createHttpError(403, 'Access denied for this theme setting.');
   }
 
-  const existingSetting = await getPublicThemeSetting(normalizedPortal);
-  const previousPresetKey = existingSetting?.preset_key || 'default';
-  const changedAt = new Date().toISOString();
-
   const payload = {
     portal_key: normalizedPortal,
     preset_key: normalizedPreset,
     updated_by_user_id: actor.userId || actor.user_id || null,
-    updated_at: changedAt,
+    updated_at: new Date().toISOString(),
   };
 
   const { data, error } = await supabase
@@ -225,14 +134,6 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}) {
     throw error;
   }
 
-  await insertThemeHistoryEntry({
-    portalKey: normalizedPortal,
-    previousPresetKey,
-    nextPresetKey: normalizedPreset,
-    actor,
-    changedAt,
-  });
-
   return data;
 }
 
@@ -241,6 +142,5 @@ module.exports = {
   PRESET_KEYS,
   getPublicThemeSetting,
   getThemeSettings,
-  getThemeHistory,
   updateThemeSetting,
 };

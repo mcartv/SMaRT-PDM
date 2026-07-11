@@ -1,4 +1,4 @@
-export const THEME_PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic'];
+export const THEME_PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic', 'coral', 'mint'];
 
 const DEFAULT_THEMES = {
   admin: {
@@ -239,6 +239,34 @@ const PRESET_OVERRIDES = {
     chartSecondary: '#06b6d4',
     chartTertiary: '#67e8f9',
     chartQuaternary: '#3b82f6',
+  },
+  coral: {
+    label: 'Coral',
+    base: '#b4534b',
+    text: '#fff4f2',
+    sub: '#fdba74',
+    active: '#cb6a61',
+    mainBg: '#fff8f6',
+    accent: '#f97316',
+    accentSoft: '#ffedd5',
+    chartPrimary: '#b4534b',
+    chartSecondary: '#f97316',
+    chartTertiary: '#fb7185',
+    chartQuaternary: '#f59e0b',
+  },
+  mint: {
+    label: 'Mint',
+    base: '#23725f',
+    text: '#effef7',
+    sub: '#86efac',
+    active: '#2c8a74',
+    mainBg: '#f4fdf8',
+    accent: '#22c55e',
+    accentSoft: '#dcfce7',
+    chartPrimary: '#23725f',
+    chartSecondary: '#22c55e',
+    chartTertiary: '#10b981',
+    chartQuaternary: '#14b8a6',
   },
 };
 

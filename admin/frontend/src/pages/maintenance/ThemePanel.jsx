@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, CheckCircle2, History, Loader2, Palette, RotateCcw } from 'lucide-react';
+import { BarChart3, CheckCircle2, Loader2, Palette, RotateCcw } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,20 +18,6 @@ const PORTAL_HELPERS = {
   guidance: 'Guidance login, queue, dashboard, and reports',
   pd: 'PD login, queue, dashboard, and reports',
 };
-
-function formatThemeHistoryTime(value) {
-  if (!value) return 'Just now';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Just now';
-
-  return date.toLocaleString([], {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
 
 function ThemePreviewCard({ portalKey, presetKey }) {
   const theme = resolvePortalTheme(portalKey, presetKey);
@@ -86,31 +72,6 @@ function ThemePreviewCard({ portalKey, presetKey }) {
   );
 }
 
-function PortalOverviewCard({ portalKey, presetKey }) {
-  const theme = resolvePortalTheme(portalKey, presetKey);
-
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">{PORTAL_LABELS[portalKey]}</p>
-          <p className="mt-1 text-sm font-semibold text-stone-900">{theme.label}</p>
-          <p className="mt-1 text-xs leading-relaxed text-stone-500">{PORTAL_HELPERS[portalKey]}</p>
-        </div>
-        <div className="flex shrink-0 gap-1.5">
-          {[theme.base, theme.chartSecondary, theme.chartTertiary].map((color) => (
-            <span
-              key={`${portalKey}-${color}`}
-              className="h-6 w-6 rounded-full border border-black/5"
-              style={{ background: color }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CompactPortalDisplayCard({ portalKey, presetKey }) {
   const theme = resolvePortalTheme(portalKey, presetKey);
 
@@ -141,37 +102,6 @@ function CompactPortalDisplayCard({ portalKey, presetKey }) {
   );
 }
 
-function ThemeHistoryList({ items = [] }) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-      <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
-        <History className="h-3.5 w-3.5" />
-        Theme Change History
-      </div>
-
-      {items.length === 0 ? (
-        <p className="text-sm text-stone-500">No saved theme changes yet.</p>
-      ) : (
-        <div className="space-y-2.5">
-          {items.map((item) => (
-            <div key={item.history_id || `${item.portal_key}-${item.changed_at}`} className="rounded-xl border border-stone-200 bg-white px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-stone-900">
-                  {item.changed_by_name || 'Portal user'}
-                </p>
-                <p className="text-[11px] text-stone-500">{formatThemeHistoryTime(item.changed_at)}</p>
-              </div>
-              <p className="mt-1 text-xs text-stone-500">
-                {item.previous_preset_key || 'default'} to {item.next_preset_key || 'default'}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function ThemePanel({
   tokenStorageKey = 'adminToken',
   allowedPortals = ['admin', 'sdo', 'guidance', 'pd'],
@@ -180,7 +110,6 @@ export default function ThemePanel({
   subtitle = 'Choose a portal color preset for layouts, logins, and dashboard charts.',
 }) {
   const [settings, setSettings] = useState({});
-  const [historyByPortal, setHistoryByPortal] = useState({});
   const [savingPortal, setSavingPortal] = useState('');
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
@@ -232,39 +161,13 @@ export default function ThemePanel({
     }
   };
 
-  const loadHistory = async () => {
-    try {
-      const response = await fetch(buildApiUrl('/api/theme-settings/history'), {
-        headers: {
-          Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to load theme history.');
-      }
-
-      const grouped = {};
-      const items = Array.isArray(payload?.items) ? payload.items : [];
-      normalizedPortals.forEach((portalKey) => {
-        grouped[portalKey] = items.filter((item) => String(item?.portal_key || '').trim().toLowerCase() === portalKey);
-      });
-      setHistoryByPortal(grouped);
-    } catch (error) {
-      setHistoryByPortal({});
-    }
-  };
-
   useEffect(() => {
     loadSettings();
-    loadHistory();
   }, []);
 
   useEffect(() => {
     if (!feedback) return undefined;
-    const timer = window.setTimeout(() => setFeedback(''), 4000);
+    const timer = window.setTimeout(() => setFeedback(''), 2400);
     return () => window.clearTimeout(timer);
   }, [feedback]);
 
@@ -295,8 +198,7 @@ export default function ThemePanel({
         localStorage.setItem(`smartpdm-theme-${portalKey}`, nextPresetKey);
       } catch {}
 
-      setFeedback(`${PORTAL_LABELS[portalKey]} theme updated successfully.`);
-      await loadHistory();
+      setFeedback(`${PORTAL_LABELS[portalKey]} theme applied.`);
     } catch (error) {
       setFeedback(error.message || 'Failed to save theme setting.');
     } finally {
@@ -331,7 +233,12 @@ export default function ThemePanel({
                 This page can edit only the assigned portal theme. Other office themes are shown for quick reference.
               </p>
             ) : null}
-            {feedback ? <p className="mt-2 text-xs font-medium text-stone-700">{feedback}</p> : null}
+            {feedback ? (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {feedback}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -339,7 +246,6 @@ export default function ThemePanel({
       <div className="space-y-5">
         {normalizedEditablePortals.map((portalKey) => {
           const savedPresetKey = settings[portalKey] || 'default';
-          const currentTheme = resolvePortalTheme(portalKey, savedPresetKey);
 
           return (
             <Card key={portalKey} className="overflow-hidden border-stone-200 shadow-none">
@@ -371,7 +277,6 @@ export default function ThemePanel({
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {presetOptions.map((preset) => {
                     const isSelected = savedPresetKey === preset.key;
-                    const isSaved = savedPresetKey === preset.key;
                     return (
                       <button
                         key={`${portalKey}-${preset.key}`}
@@ -388,12 +293,12 @@ export default function ThemePanel({
                           <div>
                             <p className="text-sm font-semibold">{preset.label}</p>
                             <p className={`mt-1 text-xs ${isSelected ? 'text-white/75' : 'text-stone-500'}`}>
-                              {isSaved ? 'Currently active theme.' : preset.description}
+                              {isSelected ? 'Currently active theme.' : preset.description}
                             </p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : null}
-                            {isSaved ? (
+                            {isSelected ? (
                               <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isSelected ? 'bg-white/15 text-white' : 'bg-stone-100 text-stone-600'}`}>
                                 Saved
                               </span>
@@ -414,8 +319,6 @@ export default function ThemePanel({
                     );
                   })}
                 </div>
-
-                <ThemeHistoryList items={historyByPortal[portalKey] || []} />
               </CardContent>
             </Card>
           );

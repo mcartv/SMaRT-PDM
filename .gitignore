@@ -44,3 +44,4 @@ supabase/**/gotrue-version
 supabase/**/rest-version
 supabase/**/storage-version
 supabase/**/postgres-version
+backend/.env

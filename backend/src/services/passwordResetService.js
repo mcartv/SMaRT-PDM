@@ -99,22 +99,21 @@ async function logActivity({
 }
 
 async function sendPasswordResetEmail(email, otp, displayName) {
-    console.log('DEV PASSWORD RESET OTP:', {
-        email,
-        otp,
-        displayName,
-        createdAt: new Date().toISOString(),
-    });
-    return;
-
-    if (!process.env.GMAIL_APP_PASSWORD) {
-        throw createHttpError(500, 'GMAIL_APP_PASSWORD is not configured');
+    if (process.env.SKIP_EMAIL === 'true') {
+        console.log('DEV PASSWORD RESET OTP:', {
+            email,
+            otp,
+            displayName,
+            createdAt: new Date().toISOString(),
+        });
+        return;
     }
 
     await transporter.sendMail({
         from: mailFrom,
         to: email,
         subject: 'SMaRT-PDM Password Reset Code',
+        text: `Your SMaRT-PDM password reset code is ${otp}. It expires in ${OTP_EXPIRY_SECONDS} seconds. If you did not request this, ignore this email.`,
         html: `
             <div style="font-family: Arial, sans-serif; padding: 20px;">
               <h2>Password reset for ${displayName || 'your SMaRT-PDM account'}</h2>

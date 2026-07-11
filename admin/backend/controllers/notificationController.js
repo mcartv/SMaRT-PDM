@@ -1,4 +1,5 @@
 const notificationService = require('../services/notificationService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 function getRequestUserId(req) {

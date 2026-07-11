@@ -7,7 +7,6 @@ const {
     updateCourse,
     archiveCourse,
     restoreCourse,
-    deleteCourse,
 } = require('../controllers/courseController');
 
 const { protect } = require('../middleware/authMiddleware');
@@ -19,6 +18,6 @@ router.patch('/:id/archive', protect, archiveCourse);
 router.patch('/:id/restore', protect, restoreCourse);
 
 // Safe delete: this archives instead of hard-deleting.
-router.delete('/:id', protect, deleteCourse);
+router.delete('/:id', protect, archiveCourse);
 
 module.exports = router;

@@ -3,6 +3,7 @@ import {
     AlertTriangle,
     ClipboardList,
     Eye,
+    EyeOff,
     Loader2,
     Lock,
     RefreshCw,
@@ -67,6 +68,7 @@ function actionTone(action = '') {
 
 export default function AuditPanel() {
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [auditToken, setAuditToken] = useState('');
     const [unlocked, setUnlocked] = useState(false);
 
@@ -80,6 +82,7 @@ export default function AuditPanel() {
     const [moduleFilter, setModuleFilter] = useState('all');
 
     const isFiltered = search.trim() || moduleFilter !== 'all';
+    const canUnlock = password.trim().length > 0 && !unlocking;
 
     const modules = useMemo(() => {
         const unique = new Set();
@@ -143,6 +146,7 @@ export default function AuditPanel() {
                 setUnlocked(false);
                 setAuditToken('');
                 setPassword('');
+                setShowPassword(false);
             }
         } finally {
             setLoading(false);
@@ -198,6 +202,7 @@ export default function AuditPanel() {
             setAuditToken(data.audit_access_token);
             setUnlocked(true);
             setPassword('');
+            setShowPassword(false);
         } catch (err) {
             setError(err.message || 'Failed to unlock audit trail.');
         } finally {
@@ -209,6 +214,7 @@ export default function AuditPanel() {
         setUnlocked(false);
         setAuditToken('');
         setPassword('');
+        setShowPassword(false);
         setLogs([]);
         setTotal(0);
         setError('');
@@ -241,16 +247,34 @@ export default function AuditPanel() {
                             Account Password
                         </label>
 
-                        <Input
-                            type="password"
-                            value={password}
-                            onChange={(event) => {
-                                setPassword(event.target.value);
-                                setError('');
-                            }}
-                            placeholder="Enter password"
-                            className="h-9 rounded-lg border-stone-200 text-sm"
-                        />
+                        <div className="relative">
+                            <Input
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(event) => {
+                                    setPassword(event.target.value);
+                                    setError('');
+                                }}
+                                placeholder="Enter password"
+                                className="h-9 rounded-lg border-stone-200 pr-10 text-sm"
+                                autoComplete="current-password"
+                            />
+
+                            {password ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((current) => !current)}
+                                    className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+                                    title={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                        <Eye className="h-4 w-4" />
+                                    )}
+                                </button>
+                            ) : null}
+                        </div>
                     </div>
 
                     {error ? (
@@ -260,18 +284,18 @@ export default function AuditPanel() {
                         </div>
                     ) : null}
 
-                    <Button
+                    <button
                         type="submit"
-                        disabled={unlocking}
-                        className="mt-5 h-9 w-full rounded-lg text-xs text-white"
+                        disabled={!password.trim() || unlocking}
+                        className="mt-5 flex h-9 w-full items-center justify-center rounded-lg bg-[#7c4a2e] px-3 text-xs font-semibold text-white transition hover:bg-[#6b3f27] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {unlocking ? (
                             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         ) : (
                             <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        Unlock Audit Trail
-                    </Button>
+                        {unlocking ? 'Unlocking...' : 'Unlock Audit Trail'}
+                    </button>
                 </form>
             </div>
         );
@@ -412,7 +436,10 @@ export default function AuditPanel() {
 
                             <tbody>
                                 {logs.map((log) => (
-                                    <tr key={log.log_id} className="border-b last:border-b-0 hover:bg-stone-50">
+                                    <tr
+                                        key={log.log_id}
+                                        className="border-b last:border-b-0 hover:bg-stone-50"
+                                    >
                                         <td className="whitespace-nowrap px-4 py-3 text-stone-600">
                                             {formatDateTime(log.timestamp)}
                                         </td>

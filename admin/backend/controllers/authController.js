@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { resolveStaffRole } = require('../utils/staffRoles');
 const { sendAdminResetOtp } = require('../utils/mailer');
 const { resolveAvatarUrl } = require('../services/avatarService');
+const auditLogService = require('../services/auditLogService');
 
 const ALLOWED_ADMIN_EMAIL = String(
     process.env.ALLOWED_ADMIN_EMAIL || 'smartpdm.system@gmail.com'

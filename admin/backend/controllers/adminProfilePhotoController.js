@@ -1,4 +1,5 @@
 const adminProfilePhotoService = require('../services/adminProfilePhotoService');
+const auditLogService = require('../services/auditLogService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
 
 function getRequestUserId(req) {

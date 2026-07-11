@@ -1,4 +1,5 @@
 const benefactorService = require('../services/benefactorService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 exports.getBenefactors = async (req, res) => {
@@ -17,6 +18,20 @@ exports.getBenefactors = async (req, res) => {
 };
 
 exports.createBenefactor = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'CREATE_BENEFACTOR',
+        module: 'Benefactors',
+        entityType: 'benefactor',
+        entityId: benefactor?.benefactor_id || null,
+        description: `Created benefactor: ${benefactor?.benefactor_name || 'Unknown benefactor'}.`,
+        metadata: {
+            benefactor_id: benefactor?.benefactor_id || null,
+            benefactor_name: benefactor?.benefactor_name || null,
+            benefactor_type: benefactor?.benefactor_type || null,
+        },
+    });
+
     try {
         const created = await benefactorService.createBenefactor(req.body);
         const io = req.app.get('io');
@@ -39,6 +54,19 @@ exports.createBenefactor = async (req, res) => {
 };
 
 exports.updateBenefactor = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'UPDATE_BENEFACTOR',
+        module: 'Benefactors',
+        entityType: 'benefactor',
+        entityId: benefactor?.benefactor_id || req.params.id,
+        description: `Updated benefactor: ${benefactor?.benefactor_name || req.params.id}.`,
+        metadata: {
+            benefactor_id: benefactor?.benefactor_id || req.params.id,
+            changes: req.body,
+        },
+    });
+    
     try {
         const { benefactorId } = req.params;
         const updated = await benefactorService.updateBenefactor(benefactorId, req.body);

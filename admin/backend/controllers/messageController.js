@@ -1,4 +1,5 @@
 const messageService = require('../services/messageService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 function getCurrentUserId(req) {

@@ -1,4 +1,5 @@
 const roService = require('../services/roService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 exports.getSummary = async (req, res) => {

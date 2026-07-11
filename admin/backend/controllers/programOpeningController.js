@@ -1,4 +1,5 @@
 const programOpeningService = require('../services/programOpeningService');
+const auditLogService = require('../services/auditLogService');
 
 function sendError(res, err, fallbackMessage) {
     const message = err?.message || fallbackMessage || 'Unknown backend error';
@@ -86,6 +87,21 @@ const getApplicationsByOpeningId = async (req, res) => {
 };
 
 const createProgramOpening = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'CREATE_PROGRAM',
+        module: 'Programs',
+        entityType: 'scholarship_program',
+        entityId: program?.program_id || null,
+        description: `Created scholarship program: ${program?.program_name || 'Unknown program'}.`,
+        metadata: {
+            program_id: program?.program_id || null,
+            program_name: program?.program_name || null,
+            benefactor_id: program?.benefactor_id || null,
+            visibility_status: program?.visibility_status || null,
+        },
+    });
+
     try {
         const created = await programOpeningService.createProgramOpening(req.body);
         const io = req.app.get('io');
@@ -105,6 +121,19 @@ const createProgramOpening = async (req, res) => {
 };
 
 const updateProgramOpening = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'UPDATE_PROGRAM',
+        module: 'Programs',
+        entityType: 'scholarship_program',
+        entityId: program?.program_id || req.params.id,
+        description: `Updated scholarship program: ${program?.program_name || req.params.id}.`,
+        metadata: {
+            program_id: program?.program_id || req.params.id,
+            changes: req.body,
+        },
+    });
+
     try {
         const { openingId } = req.params;
         const updated = await programOpeningService.updateProgramOpening(openingId, req.body);

@@ -1,4 +1,5 @@
 const accountService = require('../services/accountService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 function getActorUserId(req) {
@@ -54,6 +55,22 @@ exports.getStaffAccounts = async (req, res) => {
 };
 
 exports.createStaffAccount = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'CREATE_STAFF_ACCOUNT',
+        module: 'Accounts',
+        entityType: 'staff_account',
+        entityId: account?.user_id || null,
+        description: `Created staff account for ${account?.email || 'unknown email'}.`,
+        metadata: {
+            user_id: account?.user_id || null,
+            email: account?.email || null,
+            role: account?.role || null,
+            department: account?.department || null,
+            position: account?.position || null,
+        },
+    });
+
     try {
         const account = await accountService.createStaffAccount(req.body);
 
@@ -71,6 +88,25 @@ exports.createStaffAccount = async (req, res) => {
 };
 
 exports.updateStaffAccount = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'UPDATE_STAFF_ACCOUNT',
+        module: 'Accounts',
+        entityType: 'staff_account',
+        entityId: account?.user_id || req.params.id,
+        description: `Updated staff account: ${account?.email || req.params.id}.`,
+        metadata: {
+            user_id: account?.user_id || req.params.id,
+            email: account?.email || null,
+            role: account?.role || null,
+            changes: {
+                ...req.body,
+                password: req.body?.password ? '[REDACTED]' : undefined,
+                confirm_password: req.body?.confirm_password ? '[REDACTED]' : undefined,
+            },
+        },
+    });
+
     try {
         const account = await accountService.updateStaffAccount(req.params.id, req.body);
 
@@ -98,6 +134,20 @@ exports.updateStaffAccount = async (req, res) => {
 };
 
 exports.archiveStaffAccount = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'ARCHIVE_STAFF_ACCOUNT',
+        module: 'Accounts',
+        entityType: 'staff_account',
+        entityId: account?.user_id || req.params.id,
+        description: `Archived staff account: ${account?.email || req.params.id}.`,
+        metadata: {
+            user_id: account?.user_id || req.params.id,
+            email: account?.email || null,
+            role: account?.role || null,
+        },
+    });
+
     try {
         const account = await accountService.archiveStaffAccount(
             req.params.id,
@@ -128,6 +178,20 @@ exports.archiveStaffAccount = async (req, res) => {
 };
 
 exports.restoreStaffAccount = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'RESTORE_STAFF_ACCOUNT',
+        module: 'Accounts',
+        entityType: 'staff_account',
+        entityId: account?.user_id || req.params.id,
+        description: `Restored staff account: ${account?.email || req.params.id}.`,
+        metadata: {
+            user_id: account?.user_id || req.params.id,
+            email: account?.email || null,
+            role: account?.role || null,
+        },
+    });
+
     try {
         const account = await accountService.restoreStaffAccount(req.params.id);
 
@@ -151,36 +215,6 @@ exports.restoreStaffAccount = async (req, res) => {
     } catch (err) {
         console.error('RESTORE STAFF ACCOUNT ERROR:', err);
         return sendError(res, err, 'Failed to restore staff account');
-    }
-};
-
-exports.deleteStaffAccount = async (req, res) => {
-    try {
-        const account = await accountService.archiveStaffAccount(
-            req.params.id,
-            getActorUserId(req)
-        );
-
-        if (!account) {
-            return res.status(404).json({
-                success: false,
-                message: 'Staff account not found.',
-                error: {
-                    message: 'Staff account not found.',
-                },
-            });
-        }
-
-        emitAccountUpdate(req, 'delete', account);
-
-        return res.status(200).json({
-            success: true,
-            data: account,
-            message: 'Staff account archived successfully.',
-        });
-    } catch (err) {
-        console.error('DELETE STAFF ACCOUNT ERROR:', err);
-        return sendError(res, err, 'Failed to delete staff account');
     }
 };
 

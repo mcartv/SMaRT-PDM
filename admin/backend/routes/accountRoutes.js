@@ -28,7 +28,4 @@ router.patch('/staff/:id', protect, authorizeRoles('admin'), accountController.u
 router.patch('/staff/:id/archive', protect, authorizeRoles('admin'), accountController.archiveStaffAccount);
 router.patch('/staff/:id/restore', protect, authorizeRoles('admin'), accountController.restoreStaffAccount);
 
-// Safe delete: archives the account instead of hard-deleting it.
-router.delete('/staff/:id', protect, authorizeRoles('admin'), accountController.deleteStaffAccount);
-
 module.exports = router;

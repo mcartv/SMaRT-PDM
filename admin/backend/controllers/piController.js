@@ -1,4 +1,5 @@
 const ocrJobService = require('../services/ocrJobService');
+const auditLogService = require('../services/auditLogService');
 
 exports.getNextOcrJob = async (req, res) => {
     try {

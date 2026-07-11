@@ -82,6 +82,14 @@ if (!allowedOrigins.length) {
   );
 }
 
+const allowedHeaders = [
+  'Content-Type',
+  'Authorization',
+  'X-Requested-With',
+  'x-audit-access-token',
+  'X-Audit-Access-Token',
+];
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
@@ -113,12 +121,13 @@ const corsOptions = {
     if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
+
     console.error(`CORS blocked for origin: ${origin}`);
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders,
   optionsSuccessStatus: 204,
 };
 
@@ -135,7 +144,7 @@ app.use((req, res, next) => {
   res.header('Vary', 'Origin');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Headers', allowedHeaders.join(', '));
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
@@ -230,6 +239,7 @@ app.use((req, res) => {
   res.sendFile(indexPath, (err) => {
     if (err) {
       console.error('Error serving index.html for path:', req.path, err);
+
       if (!res.headersSent) {
         res.status(500).json({ message: 'Internal server error' });
       }

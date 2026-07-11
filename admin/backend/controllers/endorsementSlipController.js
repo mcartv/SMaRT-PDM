@@ -1,4 +1,5 @@
 const endorsementSlipService = require('../services/endorsementSlipService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 exports.getAllSlips = async (req, res) => {

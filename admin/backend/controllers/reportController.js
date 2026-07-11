@@ -1,4 +1,5 @@
 const reportService = require('../services/reportService');
+const auditLogService = require('../services/auditLogService');
 
 function isAdmin(req) {
     const role = String(req.user?.role || '').toLowerCase();

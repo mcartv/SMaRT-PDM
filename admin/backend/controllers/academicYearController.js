@@ -1,4 +1,5 @@
 const academicYearService = require('../services/academicYearService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 function sendError(res, err, fallbackMessage) {
@@ -57,6 +58,21 @@ exports.getAcademicYears = async (req, res) => {
 };
 
 exports.createAcademicYear = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'CREATE_ACADEMIC_YEAR',
+        module: 'Academic Years',
+        entityType: 'academic_year',
+        entityId: academicYear?.academic_year_id || null,
+        description: `Created academic year: ${academicYear?.label || `${academicYear?.start_year}-${academicYear?.end_year}`}.`,
+        metadata: {
+            academic_year_id: academicYear?.academic_year_id || null,
+            label: academicYear?.label || null,
+            start_year: academicYear?.start_year || null,
+            end_year: academicYear?.end_year || null,
+        },
+    });
+
     try {
         const created = await academicYearService.createAcademicYear(req.body);
 
@@ -70,6 +86,19 @@ exports.createAcademicYear = async (req, res) => {
 };
 
 exports.updateAcademicYear = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'UPDATE_ACADEMIC_YEAR',
+        module: 'Academic Years',
+        entityType: 'academic_year',
+        entityId: academicYear?.academic_year_id || req.params.id,
+        description: `Updated academic year: ${academicYear?.label || req.params.id}.`,
+        metadata: {
+            academic_year_id: academicYear?.academic_year_id || req.params.id,
+            changes: req.body,
+        },
+    });
+
     try {
         const updated = await academicYearService.updateAcademicYear(
             req.params.id,
@@ -93,6 +122,20 @@ exports.updateAcademicYear = async (req, res) => {
 };
 
 exports.activateAcademicYear = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: 'ACTIVATE_ACADEMIC_YEAR',
+        module: 'Academic Years',
+        entityType: 'academic_year',
+        entityId: academicYear?.academic_year_id || req.params.id,
+        description: `Activated academic year: ${academicYear?.label || req.params.id}.`,
+        metadata: {
+            academic_year_id: academicYear?.academic_year_id || req.params.id,
+            label: academicYear?.label || null,
+            is_active: academicYear?.is_active,
+        },
+    });
+
     try {
         const updated = await academicYearService.activateAcademicYear(req.params.id);
 
@@ -113,6 +156,19 @@ exports.activateAcademicYear = async (req, res) => {
 };
 
 exports.archiveAcademicYear = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: academicYear?.is_archived ? 'ARCHIVE_ACADEMIC_YEAR' : 'RESTORE_ACADEMIC_YEAR',
+        module: 'Academic Years',
+        entityType: 'academic_year',
+        entityId: academicYear?.academic_year_id || req.params.id,
+        description: `${academicYear?.is_archived ? 'Archived' : 'Restored'} academic year: ${academicYear?.label || req.params.id}.`,
+        metadata: {
+            academic_year_id: academicYear?.academic_year_id || req.params.id,
+            is_archived: academicYear?.is_archived,
+        },
+    });
+
     try {
         const archived = await academicYearService.archiveAcademicYear(req.params.id);
 
@@ -133,6 +189,19 @@ exports.archiveAcademicYear = async (req, res) => {
 };
 
 exports.restoreAcademicYear = async (req, res) => {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: academicYear?.is_archived ? 'ARCHIVE_ACADEMIC_YEAR' : 'RESTORE_ACADEMIC_YEAR',
+        module: 'Academic Years',
+        entityType: 'academic_year',
+        entityId: academicYear?.academic_year_id || req.params.id,
+        description: `${academicYear?.is_archived ? 'Archived' : 'Restored'} academic year: ${academicYear?.label || req.params.id}.`,
+        metadata: {
+            academic_year_id: academicYear?.academic_year_id || req.params.id,
+            is_archived: academicYear?.is_archived,
+        },
+    });
+    
     try {
         const restored = await academicYearService.restoreAcademicYear(req.params.id);
 

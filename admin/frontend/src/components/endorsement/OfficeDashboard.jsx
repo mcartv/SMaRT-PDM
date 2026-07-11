@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 
 function buildHeaders(tokenStorageKey) {
   return {
@@ -203,6 +204,7 @@ function getDecisionLabel(row, officeKey) {
 export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminToken' }) {
   const navigate = useNavigate();
   const config = DASHBOARD_CONFIG[officeKey];
+  const { theme } = usePortalTheme(officeKey);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -324,7 +326,10 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
 
   return (
     <div className="space-y-5 py-2">
-      <section className={`overflow-hidden rounded-[28px] bg-gradient-to-r ${config.accent} text-white shadow-sm`}>
+      <section
+        className="overflow-hidden rounded-[28px] text-white shadow-sm"
+        style={{ background: `linear-gradient(135deg, ${theme.base} 0%, ${theme.active} 55%, ${theme.accent} 100%)` }}
+      >
         <div className="flex flex-col gap-6 px-6 py-6 lg:flex-row lg:items-end lg:justify-between lg:px-7">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
@@ -405,7 +410,12 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                 <h2 className="text-base font-semibold text-stone-900">Priority Queue</h2>
                 <p className="text-sm text-stone-500">Applicants that still need your office action first.</p>
               </div>
-              <Badge className={config.accentSoft}>{pendingCount} waiting</Badge>
+              <Badge
+                className="border-none"
+                style={{ background: theme.accentSoft, color: theme.base }}
+              >
+                {pendingCount} waiting
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-3 p-5">
@@ -420,7 +430,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                   key={row.slip_id}
                   type="button"
                   onClick={() => navigate(`${config.detailBasePath}/${row.slip_id}`)}
-                  className={`w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition ${config.actionTint}`}
+                  className="w-full rounded-[22px] border border-stone-200 bg-white p-4 text-left transition hover:bg-stone-50"
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0">

@@ -3,17 +3,20 @@ import { useNavigate } from 'react-router';
 import { Eye, EyeOff, FileCheck2, ShieldCheck, UserCheck } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
 import { buildApiUrl } from '@/api';
+import usePortalTheme from '@/hooks/usePortalTheme';
 
 export default function DepartmentPortalLogin({
+  portalKey,
   portalLabel,
   officeName,
   authPath,
   tokenStorageKey,
   profileStorageKey,
   redirectPath,
-  colors,
+  colors: fallbackColors,
 }) {
   const navigate = useNavigate();
+  const { theme: colors } = usePortalTheme(portalKey, fallbackColors);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

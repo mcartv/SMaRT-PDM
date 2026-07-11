@@ -29,25 +29,26 @@ import {
 
 // ─── Theme ───────────────────────────────────────────────────────
 const C = {
-  brown: '#5c2d0e',
-  brownMid: '#7c4a2e',
-  brownLight: '#92500f',
-  amber: '#d97706',
-  amberSoft: '#FFF7ED',
-  yellow: '#fbbf24',
-  sand: '#fdf6ec',
-  green: '#16a34a',
-  greenSoft: '#F0FDF4',
-  red: '#dc2626',
-  border: '#e8d5b7',
-  muted: '#78716c',
-  text: '#1c1917',
-  bg: '#faf7f2',
+  brown: 'var(--portal-base)',
+  brownMid: 'var(--portal-chart-primary)',
+  brownLight: 'var(--portal-chart-quaternary)',
+  amber: 'var(--portal-chart-tertiary)',
+  amberSoft: 'var(--portal-accent-soft)',
+  yellow: 'var(--portal-chart-secondary)',
+  sand: 'var(--portal-surface-soft)',
+  green: 'var(--portal-chart-positive)',
+  greenSoft: 'color-mix(in srgb, var(--portal-chart-positive) 12%, white)',
+  red: 'var(--portal-chart-negative)',
+  border: 'var(--portal-border)',
+  muted: 'var(--portal-muted)',
+  text: 'var(--portal-text)',
+  surface: 'var(--portal-surface)',
+  bg: 'var(--portal-main-bg, #faf7f2)',
 };
 
 const TOOLTIP_STYLE = {
   contentStyle: {
-    background: '#fff',
+    background: C.surface,
     border: `1px solid ${C.border}`,
     borderRadius: 8,
     fontSize: 12,
@@ -80,7 +81,7 @@ const STATS = [
     sub: '15 + 9 per semester',
     icon: Award,
     accent: C.amber,
-    soft: '#fef3c7',
+    soft: C.amberSoft,
     trend: '−71.1%',
     up: false,
   },
@@ -176,7 +177,7 @@ export default function AdminDashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {STATS.map((s) => (
-          <Card key={s.label} className="border-stone-200 shadow-none">
+          <Card key={s.label} className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4">
               <div
                 className="flex h-8 w-8 items-center justify-center rounded-xl"
@@ -187,8 +188,11 @@ export default function AdminDashboard() {
 
               <Badge
                 variant="outline"
-                className={`border-none text-xs font-medium ${s.up ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
-                  }`}
+                className="border-none text-xs font-medium"
+                style={{
+                  background: s.up ? C.greenSoft : 'color-mix(in srgb, var(--portal-chart-negative) 12%, white)',
+                  color: s.up ? C.green : C.red,
+                }}
               >
                 {s.up ? (
                   <TrendingUp className="mr-1 h-3 w-3" />
@@ -209,12 +213,12 @@ export default function AdminDashboard() {
       </div>
 
       {/* Enrollment Trends */}
-      <Card className="border-stone-200 shadow-none">
+      <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
         <Tabs defaultValue="uaqtea" className="w-full">
           <CardHeader className="flex flex-col gap-3 border-b border-stone-100 pb-4 md:flex-row md:items-center md:justify-between">
             <CardTitle className="text-sm font-semibold">Enrollment Trends</CardTitle>
 
-            <TabsList className="h-8 rounded-lg bg-stone-100 p-1">
+            <TabsList className="h-8 rounded-lg p-1" style={{ background: 'color-mix(in srgb, var(--portal-base) 8%, white)' }}>
               <TabsTrigger value="uaqtea" className="text-xs px-4">UAQTEA</TabsTrigger>
               <TabsTrigger value="tdp" className="text-xs px-4">TDP</TabsTrigger>
               <TabsTrigger value="fhe" className="text-xs px-4">FHE</TabsTrigger>
@@ -225,10 +229,10 @@ export default function AdminDashboard() {
             <TabsContent value="uaqtea" className="h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={UAQTEA_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                  <XAxis dataKey="year" {...AXIS_PROPS} />
+                  <YAxis {...AXIS_PROPS} />
+                  <Tooltip {...TOOLTIP_STYLE} />
                   <Bar dataKey="sem1" fill={C.brownMid} />
                   <Bar dataKey="sem2" fill={C.yellow} />
                 </BarChart>
@@ -238,10 +242,10 @@ export default function AdminDashboard() {
             <TabsContent value="tdp" className="h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={TDP_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                  <XAxis dataKey="year" {...AXIS_PROPS} />
+                  <YAxis {...AXIS_PROPS} />
+                  <Tooltip {...TOOLTIP_STYLE} />
                   <Bar dataKey="sem1" fill={C.brownMid} />
                   <Bar dataKey="sem2" fill={C.amber} />
                 </BarChart>
@@ -251,10 +255,10 @@ export default function AdminDashboard() {
             <TabsContent value="fhe" className="h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={FHE_GRAD_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="batch" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                  <XAxis dataKey="batch" {...AXIS_PROPS} />
+                  <YAxis {...AXIS_PROPS} />
+                  <Tooltip {...TOOLTIP_STYLE} />
                   <Bar dataKey="n" fill={C.brownLight} />
                 </BarChart>
               </ResponsiveContainer>
@@ -267,7 +271,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Summer */}
-        <Card className="border-stone-200 shadow-none">
+        <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
           <CardHeader>
             <CardTitle className="text-sm">FHE Summer Enrollment</CardTitle>
           </CardHeader>
@@ -275,10 +279,10 @@ export default function AdminDashboard() {
           <CardContent className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={FHE_SUMMER_DATA}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                <XAxis dataKey="year" {...AXIS_PROPS} />
+                <YAxis {...AXIS_PROPS} />
+                <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="n" fill={C.brownMid} />
               </BarChart>
             </ResponsiveContainer>
@@ -286,7 +290,7 @@ export default function AdminDashboard() {
         </Card>
 
         {/* Benefactors */}
-        <Card className="border-stone-200 shadow-none">
+        <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
           <CardHeader>
             <CardTitle className="text-sm">Benefactor Distribution</CardTitle>
           </CardHeader>
@@ -306,7 +310,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Matrix */}
-      <Card className="border-stone-200 shadow-none">
+        <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
         <Table>
           <TableHeader>
             <TableRow>

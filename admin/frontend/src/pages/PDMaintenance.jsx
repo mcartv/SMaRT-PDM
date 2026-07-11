@@ -1,15 +1,10 @@
 import DepartmentMaintenancePage from '@/components/department/DepartmentMaintenancePage';
-
-const palette = {
-  base: '#5f3d8a',
-  accent: '#7c3aed',
-  bg: '#f8f5fb',
-  toggleClass: 'text-violet-600',
-  infoBox: 'border-violet-100 bg-violet-50 text-violet-800',
-};
+import usePortalTheme from '@/hooks/usePortalTheme';
+import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 
 const config = {
   shortName: 'PD',
+  themePortalKey: 'pd',
   pageSubtitle: 'Program Director configuration and endorsement maintenance',
   featureTitle: 'Endorsement Review Settings',
   featureLabels: ['Review Window Open', 'Review Window Paused'],
@@ -49,6 +44,9 @@ const config = {
 };
 
 export default function PDMaintenance() {
+  const { theme } = usePortalTheme('pd', getPortalDefaultTheme('pd'));
+  const palette = buildMaintenancePalette(theme);
+
   return (
     <DepartmentMaintenancePage
       config={config}

@@ -20,7 +20,9 @@ import {
   ShieldCheck,
   Loader2,
   Camera,
+  Palette,
 } from 'lucide-react';
+import ThemePanel from '@/pages/maintenance/ThemePanel';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -871,6 +873,7 @@ export default function DepartmentMaintenancePage({
   const tabs = [
     { key: 'general', label: 'General', icon: SlidersHorizontal },
     { key: 'account', label: 'Account', icon: User },
+    { key: 'theme', label: 'Theme', icon: Palette },
     { key: 'audit', label: 'Audit', icon: ClipboardList },
   ];
 
@@ -914,6 +917,14 @@ export default function DepartmentMaintenancePage({
               palette={palette}
               tokenStorageKey={tokenStorageKey}
               profileStorageKey={profileStorageKey}
+            />
+          )}
+          {tab === 'theme' && (
+            <ThemePanel
+              tokenStorageKey={tokenStorageKey}
+              allowedPortals={[config.themePortalKey]}
+              title={`${config.shortName} Theme`}
+              subtitle={`Choose a preset for the ${config.shortName} login, module shell, and dashboard colors.`}
             />
           )}
           {tab === 'audit' && <AuditPanel config={config} palette={palette} />}

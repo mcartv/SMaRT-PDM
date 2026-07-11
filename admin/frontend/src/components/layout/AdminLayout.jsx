@@ -21,11 +21,7 @@ import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
 import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
-
-// Theme Colors
-const SB_BASE = '#7c4a2e';
-const SB_TEXT = '#f0d9c8';
-const SB_SUB = '#d4a98a';
+import usePortalTheme from '../../hooks/usePortalTheme';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -63,6 +59,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const { theme } = usePortalTheme('admin');
   const {
     notifications: notifs,
     unreadCount,
@@ -160,14 +157,34 @@ export default function AdminLayout() {
     /^\/admin\/profile-photos(\/[^/]+)?$/.test(location.pathname);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-[#faf7f2]">
+    <div
+      className="flex h-dvh w-full overflow-hidden"
+      style={{
+        background: theme.mainBg,
+        '--portal-base': theme.base,
+        '--portal-accent': theme.accent,
+        '--portal-accent-soft': theme.accentSoft,
+        '--portal-main-bg': theme.mainBg,
+        '--portal-chart-primary': theme.chartPrimary,
+        '--portal-chart-secondary': theme.chartSecondary,
+        '--portal-chart-tertiary': theme.chartTertiary,
+        '--portal-chart-quaternary': theme.chartQuaternary,
+        '--portal-chart-positive': theme.chartPositive,
+        '--portal-chart-negative': theme.chartNegative,
+        '--portal-surface': '#ffffff',
+        '--portal-surface-soft': theme.accentSoft,
+        '--portal-border': `color-mix(in srgb, ${theme.base} 14%, white)`,
+        '--portal-muted': `color-mix(in srgb, ${theme.base} 55%, white)`,
+        '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
+      }}
+    >
       {/* Sidebar */}
       <aside
         className="flex h-full min-h-0 shrink-0 flex-col border-r border-black/10 transition-all duration-300"
-        style={{ width: collapsed ? '76px' : '248px', background: SB_BASE }}
+        style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#8f5235] shadow-sm">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm" style={{ background: theme.active }}>
             <img
               src={pdmLogo}
               alt="PDM"
@@ -180,7 +197,7 @@ export default function AdminLayout() {
               <p className="truncate text-sm font-semibold leading-tight text-white">
                 PDM · OSFA
               </p>
-              <p className="truncate text-[11px]" style={{ color: SB_SUB }}>
+              <p className="truncate text-[11px]" style={{ color: theme.sub }}>
                 Admin Portal
               </p>
             </div>
@@ -200,9 +217,13 @@ export default function AdminLayout() {
               className={({ isActive }) =>
                 `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'
-                  : 'text-[#f0d9c8] hover:bg-white/7'
+                  : 'hover:bg-white/7'
                 }`
               }
+              style={({ isActive }) => ({
+                color: isActive ? '#ffffff' : theme.text,
+                background: isActive ? theme.active : undefined,
+              })}
               title={collapsed ? item.label : ''}
             >
               <item.icon
@@ -217,7 +238,8 @@ export default function AdminLayout() {
         <div className="space-y-1.5 border-t border-white/10 p-3">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm text-[#f0d9c8]/80 transition-colors hover:bg-white/7`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/7`}
+            style={{ color: theme.text }}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? (
@@ -230,7 +252,8 @@ export default function AdminLayout() {
 
           <button
             onClick={handleLogout}
-            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm text-amber-50 transition-colors hover:bg-red-500/20`}
+            className={`flex w-full items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-red-500/20`}
+            style={{ color: theme.text }}
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="h-4 w-4" />
@@ -246,9 +269,17 @@ export default function AdminLayout() {
             <h1 className="text-sm font-semibold leading-tight text-stone-800">
               SMaRT PDM
             </h1>
-            <p className="truncate text-[11px] text-stone-500">
-              Scholarship Monitoring &amp; Tracking
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="truncate text-[11px] text-stone-500">
+                Scholarship Monitoring &amp; Tracking
+              </p>
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+              >
+                {theme.label}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -341,7 +372,10 @@ export default function AdminLayout() {
                   className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm"
                 />
               ) : (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white bg-stone-800 text-[10px] font-bold text-white shadow-sm">
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
+                  style={{ background: theme.base }}
+                >
                   {getInitials()}
                 </div>
               )}
@@ -358,7 +392,10 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto bg-[#faf7f2] p-5 md:p-6">
+        <main
+          className="min-h-0 flex-1 overflow-y-auto p-5 md:p-6"
+          style={{ background: theme.mainBg }}
+        >
           <div
             key={outletKey}
             className={`${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}

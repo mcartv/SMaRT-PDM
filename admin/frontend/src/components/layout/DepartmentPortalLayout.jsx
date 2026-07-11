@@ -14,6 +14,7 @@ import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
 import { useSocketEvent } from '../../hooks/useSocket';
+import usePortalTheme from '../../hooks/usePortalTheme';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -56,6 +57,7 @@ export default function DepartmentPortalLayout({
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
+  const { theme } = usePortalTheme(portalKey, colors);
 
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -145,10 +147,30 @@ export default function DepartmentPortalLayout({
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: colors.mainBg }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{
+        background: theme.mainBg,
+        '--portal-base': theme.base,
+        '--portal-accent': theme.accent,
+        '--portal-accent-soft': theme.accentSoft,
+        '--portal-main-bg': theme.mainBg,
+        '--portal-chart-primary': theme.chartPrimary,
+        '--portal-chart-secondary': theme.chartSecondary,
+        '--portal-chart-tertiary': theme.chartTertiary,
+        '--portal-chart-quaternary': theme.chartQuaternary,
+        '--portal-chart-positive': theme.chartPositive,
+        '--portal-chart-negative': theme.chartNegative,
+        '--portal-surface': '#ffffff',
+        '--portal-surface-soft': theme.accentSoft,
+        '--portal-border': `color-mix(in srgb, ${theme.base} 14%, white)`,
+        '--portal-muted': `color-mix(in srgb, ${theme.base} 55%, white)`,
+        '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
+      }}
+    >
       <aside
         className="flex h-full shrink-0 flex-col border-r border-black/10 transition-all duration-300"
-        style={{ width: collapsed ? '76px' : '248px', background: colors.base }}
+        style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 shadow-sm">
@@ -160,7 +182,7 @@ export default function DepartmentPortalLayout({
               <p className="truncate text-sm font-semibold leading-tight text-white">
                 PDM · {portalKey.toUpperCase()}
               </p>
-              <p className="truncate text-[11px]" style={{ color: colors.sub }}>
+              <p className="truncate text-[11px]" style={{ color: theme.sub }}>
                 {officeName}
               </p>
             </div>
@@ -181,8 +203,8 @@ export default function DepartmentPortalLayout({
                 }`
               }
               style={({ isActive }) => ({
-                background: isActive ? colors.active : 'transparent',
-                color: isActive ? '#ffffff' : colors.text,
+                background: isActive ? theme.active : 'transparent',
+                color: isActive ? '#ffffff' : theme.text,
               })}
               title={collapsed ? item.label : ''}
             >
@@ -198,7 +220,7 @@ export default function DepartmentPortalLayout({
             className={`flex w-full items-center ${
               collapsed ? 'justify-center' : 'gap-3'
             } rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-white/10`}
-            style={{ color: colors.text }}
+            style={{ color: theme.text }}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -210,7 +232,7 @@ export default function DepartmentPortalLayout({
             className={`flex w-full items-center ${
               collapsed ? 'justify-center' : 'gap-3'
             } rounded-xl px-3 py-2.5 text-sm transition-colors hover:bg-red-500/20`}
-            style={{ color: colors.text }}
+            style={{ color: theme.text }}
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="h-4 w-4" />
@@ -223,7 +245,15 @@ export default function DepartmentPortalLayout({
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-stone-200 bg-white px-5 md:px-6">
           <div className="min-w-0">
             <h1 className="text-sm font-semibold leading-tight text-stone-800">{title}</h1>
-            <p className="truncate text-[11px] text-stone-500">{subtitle}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="truncate text-[11px] text-stone-500">{subtitle}</p>
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+              >
+                {theme.label}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -318,7 +348,7 @@ export default function DepartmentPortalLayout({
               ) : (
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
-                  style={{ background: colors.base }}
+                  style={{ background: theme.base }}
                 >
                   {getInitials(profile, portalKey.toUpperCase())}
                 </div>
@@ -332,7 +362,7 @@ export default function DepartmentPortalLayout({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: colors.mainBg }}>
+        <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: theme.mainBg }}>
           <div key={outletKey} className="mx-auto max-w-7xl">
             <Outlet />
           </div>

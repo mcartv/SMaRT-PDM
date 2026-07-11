@@ -10,10 +10,7 @@ import {
 } from 'lucide-react';
 import pdmLogo from '../assets/pdm-logo.png';
 import { buildApiUrl } from '@/api';
-
-const SB_BASE = '#7c4a2e';
-const SB_TEXT = '#f0d9c8';
-const SB_SUB = '#d4a98a';
+import usePortalTheme from '@/hooks/usePortalTheme';
 const LOGIN_URL = buildApiUrl('/api/auth/login');
 
 const FEATURES = [
@@ -70,6 +67,7 @@ function saveAuthSession({ tokenKey, profileKey, token, user }) {
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { theme } = usePortalTheme('admin');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -136,7 +134,7 @@ export default function AdminLogin() {
     >
       <div
         className="hidden lg:flex lg:w-[52%] flex-col justify-between relative overflow-hidden"
-        style={{ background: SB_BASE }}
+        style={{ background: theme.base }}
       >
         <div
           className="absolute inset-0 opacity-10"
@@ -159,7 +157,7 @@ export default function AdminLogin() {
             <p className="text-white text-xs font-bold tracking-wide uppercase">
               PDM · OSFA
             </p>
-            <p className="text-[10px]" style={{ color: SB_SUB }}>
+            <p className="text-[10px]" style={{ color: theme.sub }}>
               Admin Portal
             </p>
           </div>
@@ -171,7 +169,7 @@ export default function AdminLogin() {
             style={{ fontFamily: 'serif' }}
           >
             Scholarship <br />
-            <span className="text-yellow-400">Monitoring System</span>
+            <span style={{ color: theme.accent }}>Monitoring System</span>
           </h2>
 
           <div className="space-y-3 max-w-xs">
@@ -180,8 +178,8 @@ export default function AdminLogin() {
                 key={label}
                 className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10"
               >
-                <div className="w-8 h-8 rounded-lg bg-yellow-400/20 flex items-center justify-center">
-                  <Icon className="w-4 h-4 text-yellow-400" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${theme.accent}30` }}>
+                  <Icon className="h-4 w-4" style={{ color: theme.accent }} />
                 </div>
                 <p className="text-sm font-medium text-stone-200">{label}</p>
               </div>
@@ -197,7 +195,7 @@ export default function AdminLogin() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-[380px]">
           <div className="mb-8">
-            <div className="flex items-center gap-2 mb-2 text-orange-800">
+            <div className="mb-2 flex items-center gap-2" style={{ color: theme.base }}>
               <ShieldCheck size={18} />
               <span className="text-[10px] font-bold uppercase tracking-widest">
                 Authorized Access Only
@@ -228,7 +226,8 @@ export default function AdminLogin() {
                 placeholder="staff@pdm.edu.ph"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-11 px-4 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all"
+                className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm transition-all focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': `${theme.base}33` }}
               />
             </div>
 
@@ -240,7 +239,8 @@ export default function AdminLogin() {
                 <button
                   type="button"
                   onClick={() => navigate('/admin/forgot-password')}
-                  className="text-[10px] font-bold text-orange-800 hover:underline"
+                  className="text-[10px] font-bold hover:underline"
+                  style={{ color: theme.base }}
                 >
                   Forgot?
                 </button>
@@ -254,7 +254,8 @@ export default function AdminLogin() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-11 px-4 pr-12 rounded-xl border border-stone-200 bg-stone-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-800/20 focus:border-orange-800 transition-all"
+                  className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 pr-12 text-sm transition-all focus:outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': `${theme.base}33` }}
                 />
 
                 <button
@@ -272,8 +273,8 @@ export default function AdminLogin() {
               disabled={isLoading}
               className="w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2"
               style={{
-                background: SB_BASE,
-                boxShadow: isLoading ? 'none' : `0 8px 20px -6px ${SB_BASE}80`,
+                background: theme.base,
+                boxShadow: isLoading ? 'none' : `0 8px 20px -6px ${theme.base}80`,
               }}
             >
               {isLoading ? (

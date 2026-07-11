@@ -15,12 +15,7 @@ import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
 import { useSocketEvent } from '../../hooks/useSocket';
-
-const SB_BASE = '#2e4b43';
-const SB_TEXT = '#ecfdf5';
-const SB_SUB = '#a7f3d0';
-const SB_ACTIVE = '#3f655b';
-const MAIN_BG = '#f6f8f7';
+import usePortalTheme from '../../hooks/usePortalTheme';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -54,6 +49,7 @@ export default function SDOLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profile, setProfile] = useState(null);
+  const { theme } = usePortalTheme('sdo');
   const {
     notifications: notifs,
     unreadCount,
@@ -172,11 +168,31 @@ export default function SDOLayout() {
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: MAIN_BG }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{
+        background: theme.mainBg,
+        '--portal-base': theme.base,
+        '--portal-accent': theme.accent,
+        '--portal-accent-soft': theme.accentSoft,
+        '--portal-main-bg': theme.mainBg,
+        '--portal-chart-primary': theme.chartPrimary,
+        '--portal-chart-secondary': theme.chartSecondary,
+        '--portal-chart-tertiary': theme.chartTertiary,
+        '--portal-chart-quaternary': theme.chartQuaternary,
+        '--portal-chart-positive': theme.chartPositive,
+        '--portal-chart-negative': theme.chartNegative,
+        '--portal-surface': '#ffffff',
+        '--portal-surface-soft': theme.accentSoft,
+        '--portal-border': `color-mix(in srgb, ${theme.base} 14%, white)`,
+        '--portal-muted': `color-mix(in srgb, ${theme.base} 55%, white)`,
+        '--portal-text': `color-mix(in srgb, ${theme.base} 24%, black)`,
+      }}
+    >
       {/* Sidebar */}
       <aside
         className="flex flex-col h-full shrink-0 transition-all duration-300 border-r border-black/10"
-        style={{ width: collapsed ? '76px' : '248px', background: SB_BASE }}
+        style={{ width: collapsed ? '76px' : '248px', background: theme.base }}
       >
         {/* Logo Section */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
@@ -189,7 +205,7 @@ export default function SDOLayout() {
               <p className="text-white text-sm font-semibold truncate leading-tight">
                 PDM · SDO
               </p>
-              <p className="text-[11px] truncate" style={{ color: SB_SUB }}>
+              <p className="text-[11px] truncate" style={{ color: theme.sub }}>
                 Student Disciplinary Office
               </p>
             </div>
@@ -211,8 +227,8 @@ export default function SDOLayout() {
                 }`
               }
               style={({ isActive }) => ({
-                background: isActive ? SB_ACTIVE : 'transparent',
-                color: isActive ? '#ffffff' : SB_TEXT,
+                background: isActive ? theme.active : 'transparent',
+                color: isActive ? '#ffffff' : theme.text,
               })}
               title={collapsed ? item.label : ''}
             >
@@ -229,7 +245,7 @@ export default function SDOLayout() {
             className={`flex items-center ${
               collapsed ? 'justify-center' : 'gap-3'
             } w-full px-3 py-2.5 rounded-xl text-sm transition-colors hover:bg-white/10`}
-            style={{ color: SB_TEXT }}
+            style={{ color: theme.text }}
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -241,7 +257,7 @@ export default function SDOLayout() {
             className={`flex items-center ${
               collapsed ? 'justify-center' : 'gap-3'
             } w-full px-3 py-2.5 rounded-xl text-sm transition-colors hover:bg-red-500/20`}
-            style={{ color: SB_TEXT }}
+            style={{ color: theme.text }}
             title={collapsed ? 'Logout' : ''}
           >
             <LogOut className="w-4 h-4" />
@@ -258,9 +274,17 @@ export default function SDOLayout() {
             <h1 className="text-sm font-semibold text-stone-800 leading-tight">
               SMaRT PDM SDO Panel
             </h1>
-            <p className="text-[11px] text-stone-500 truncate">
-              Probation monitoring and disciplinary tracking
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-[11px] text-stone-500 truncate">
+                Probation monitoring and disciplinary tracking
+              </p>
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+              >
+                {theme.label}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -352,7 +376,10 @@ export default function SDOLayout() {
                   className="w-8 h-8 rounded-full border-2 border-white shadow-sm shrink-0 object-cover"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-[#2e4b43] text-white flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-sm shrink-0">
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow-sm"
+                  style={{ background: theme.base }}
+                >
                   {getInitials()}
                 </div>
               )}
@@ -370,7 +397,7 @@ export default function SDOLayout() {
         </header>
 
         {/* Viewport */}
-        <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: MAIN_BG }}>
+        <main className="flex-1 overflow-y-auto p-5 md:p-6" style={{ background: theme.mainBg }}>
           <div key={outletKey} className="max-w-7xl mx-auto">
             <Outlet />
           </div>

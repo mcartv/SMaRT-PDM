@@ -21,6 +21,7 @@ import {
   Loader2,
   Camera,
   Palette,
+  PenTool,
 } from 'lucide-react';
 import ThemePanel from '@/pages/maintenance/ThemePanel';
 
@@ -747,6 +748,42 @@ function AccountPanel({
               <p className="text-[10px] uppercase tracking-wide text-stone-400">Display Name</p>
               <p className="mt-1 text-sm font-medium text-stone-800">
                 {account.first_name} {account.last_name}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-white p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50">
+                <PenTool className="h-4 w-4 text-stone-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-stone-900">Endorsement Slip Identity</p>
+                <p className="mt-1 text-xs leading-5 text-stone-500">
+                  These are the office details that should appear on endorsement slips and office-side records.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wide text-stone-400">Name on Slip</p>
+                <p className="mt-1 text-sm font-semibold text-stone-800">{displayName}</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wide text-stone-400">Office / Department</p>
+                <p className="mt-1 text-sm font-semibold text-stone-800">{account.department || config.account.department}</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wide text-stone-400">Signature</p>
+                <p className="mt-1 text-sm font-semibold text-stone-800">Soon</p>
+              </div>
+            </div>
+
+            <div className={`mt-4 rounded-xl border px-4 py-3 ${palette.infoBox}`}>
+              <p className="text-sm font-medium">Slip preview meaning</p>
+              <p className="mt-1 text-xs leading-5">
+                When this office clears, holds, rejects, or approves a slip, the saved name and office/department above are the identity details that should be shown on the endorsement record. Signature can be added later when you are ready for that feature.
               </p>
             </div>
           </div>

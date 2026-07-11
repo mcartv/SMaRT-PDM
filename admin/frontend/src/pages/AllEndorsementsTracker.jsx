@@ -47,6 +47,13 @@ const STATUS_TONE = {
   disqualified_major: 'bg-red-50 text-red-700',
 };
 
+const FINISHED_STATUSES = new Set([
+  'completed',
+  'rejected',
+  'guidance_rejected',
+  'disqualified_major',
+]);
+
 export default function AllEndorsementsTracker({
   tokenStorageKey = 'adminToken',
   detailBasePath,
@@ -60,6 +67,7 @@ export default function AllEndorsementsTracker({
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('active');
 
   const loadRows = async ({ soft = false } = {}) => {
     try {
@@ -105,15 +113,23 @@ export default function AllEndorsementsTracker({
     [tokenStorageKey]
   );
 
+  const filteredSourceRows = useMemo(() => {
+    if (viewMode === 'finished') {
+      return rows.filter((row) => FINISHED_STATUSES.has(row.overall_status));
+    }
+
+    return rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status));
+  }, [rows, viewMode]);
+
   const statuses = useMemo(
-    () => ['all', ...new Set(rows.map((row) => row.overall_status).filter(Boolean))],
-    [rows]
+    () => ['all', ...new Set(filteredSourceRows.map((row) => row.overall_status).filter(Boolean))],
+    [filteredSourceRows]
   );
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return rows.filter((row) => {
+    return filteredSourceRows.filter((row) => {
       const matchesSearch =
         !query ||
         (row.student_name || '').toLowerCase().includes(query) ||
@@ -125,16 +141,18 @@ export default function AllEndorsementsTracker({
 
       return matchesSearch && matchesStatus;
     });
-  }, [rows, search, statusFilter]);
+  }, [filteredSourceRows, search, statusFilter]);
 
   const trackerSummary = useMemo(
     () => ({
-      total: filteredRows.length,
-      completed: filteredRows.filter((row) => row.overall_status === 'completed').length,
-      inProgress: filteredRows.filter((row) => row.overall_status !== 'completed').length,
-      readyForPD: filteredRows.filter((row) => row.current_stage === 'pending_pd').length,
+      active: rows.filter((row) => !FINISHED_STATUSES.has(row.overall_status)).length,
+      finished: rows.filter((row) => FINISHED_STATUSES.has(row.overall_status)).length,
+      completed: rows.filter((row) => row.overall_status === 'completed').length,
+      rejected: rows.filter((row) => ['rejected', 'guidance_rejected', 'disqualified_major'].includes(row.overall_status)).length,
+      readyForPD: rows.filter((row) => row.current_stage === 'pending_pd').length,
+      visible: filteredRows.length,
     }),
-    [filteredRows]
+    [rows, filteredRows]
   );
 
   if (loading) {
@@ -163,16 +181,51 @@ export default function AllEndorsementsTracker({
         <CardHeader className="space-y-3 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
-              { label: 'Visible Slips', value: trackerSummary.total },
-              { label: 'In Progress', value: trackerSummary.inProgress },
+              { label: 'Visible Slips', value: trackerSummary.visible },
+              { label: 'Active', value: trackerSummary.active },
               { label: 'Completed', value: trackerSummary.completed },
-              { label: 'Waiting for PD', value: trackerSummary.readyForPD },
+              { label: 'Rejected / Stopped', value: trackerSummary.rejected },
             ].map((item) => (
               <div key={item.label} className="rounded-2xl border border-stone-200 bg-white px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">{item.label}</p>
                 <p className="mt-2 text-xl font-semibold text-stone-900">{item.value}</p>
               </div>
             ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('active');
+                setStatusFilter('all');
+              }}
+              className={`inline-flex h-9 items-center rounded-full border px-4 text-sm font-medium transition ${
+                viewMode === 'active'
+                  ? 'border-stone-900 bg-stone-900 text-white'
+                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+              }`}
+            >
+              Active Applicants
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('finished');
+                setStatusFilter('all');
+              }}
+              className={`inline-flex h-9 items-center rounded-full border px-4 text-sm font-medium transition ${
+                viewMode === 'finished'
+                  ? 'border-stone-900 bg-stone-900 text-white'
+                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
+              }`}
+            >
+              Completed / Rejected
+            </button>
+            <span className="text-xs text-stone-500">
+              {viewMode === 'active'
+                ? 'Shows only applicants still moving through endorsement.'
+                : 'Shows applicants with finished endorsement outcomes.'}
+            </span>
           </div>
           <div className="flex flex-col gap-3 lg:flex-row">
             <div className="relative flex-1">
@@ -202,7 +255,9 @@ export default function AllEndorsementsTracker({
         <CardContent className="space-y-4 p-5">
           {filteredRows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">
-              No applicants match the current filters.
+              {viewMode === 'active'
+                ? 'No active applicants match the current filters.'
+                : 'No completed or rejected applicants match the current filters.'}
             </div>
           ) : (
             filteredRows.map((row) => (

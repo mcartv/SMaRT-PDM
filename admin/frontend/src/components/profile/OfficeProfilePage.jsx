@@ -17,6 +17,7 @@ import {
   Settings,
   FileSearch,
   AlertTriangle,
+  PenTool,
 } from 'lucide-react';
 
 const SESSION_LOG = [
@@ -238,6 +239,24 @@ export default function OfficeProfilePage({
             <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
               <p className="text-sm font-medium text-emerald-800">
                 Profile updates and account editing are managed in <span className="font-semibold">Maintenance</span>.
+              </p>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Slip Identity"
+            subtitle={`Current endorsement identity details for this ${portalName} account.`}
+            icon={PenTool}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <InfoRow icon={User} label="Name on Slip" value={fullName} />
+              <InfoRow icon={Building2} label="Office / Department" value={account.department} />
+              <InfoRow icon={PenTool} label="Signature" value="Soon" />
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
+              <p className="text-sm text-stone-700">
+                The current name and office/department above are the identity details that can be shown on endorsement slips. Signature can be added later when that feature is ready.
               </p>
             </div>
           </SectionCard>

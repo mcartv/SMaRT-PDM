@@ -75,12 +75,6 @@ async function sendOTPEmail(email, otp) {
         return;
     }
 
-    const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
-
-    if (!gmailAppPassword) {
-        throw createHttpError(500, 'GMAIL_APP_PASSWORD is not configured');
-    }
-
     try {
         await transporter.sendMail({
             from: mailFrom,
@@ -102,6 +96,44 @@ async function sendOTPEmail(email, otp) {
             'Failed to send OTP email. Please check backend email configuration.'
         );
     }
+}
+
+async function findUserByEmail(email) {
+    const { data, error } = await supabase
+        .from('users')
+        .select('user_id, email, username, password_hash, role, is_otp_verified')
+        .eq('email', email)
+        .maybeSingle();
+
+    if (error) {
+        throw createHttpError(500, 'Database error during email check');
+    }
+
+    return data || null;
+}
+
+async function generateAndStoreNewOtp(existingUser, plainPassword = null) {
+    const otp = generateOTP();
+    const expiresAt = Date.now() + REGISTRATION_OTP_EXPIRY_MS;
+    const passwordHash =
+        existingUser.password_hash ||
+        (plainPassword ? await bcrypt.hash(plainPassword, 10) : null);
+
+    if (!passwordHash) {
+        throw createHttpError(500, 'Unable to resend verification code');
+    }
+
+    pendingRegistrationStore.set(existingUser.email, {
+        email: existingUser.email,
+        student_id: existingUser.username,
+        password_hash: passwordHash,
+        role: existingUser.role || 'Student',
+        expiresAt,
+    });
+
+    otpStore.set(existingUser.email, { otp, expiresAt });
+
+    return otp;
 }
 
 async function buildAuthUser(user, studentProfile = null) {
@@ -216,18 +248,27 @@ async function register(body = {}) {
         throw createHttpError(409, 'Student ID already registered');
     }
 
-    const { data: existingUserByEmail, error: emailCheckError } = await supabase
-        .from('users')
-        .select('email')
-        .eq('email', email)
-        .maybeSingle();
+    const existingUserByEmail = await findUserByEmail(email);
 
-    if (emailCheckError) {
-        throw createHttpError(500, 'Database error during email check');
+    if (existingUserByEmail?.is_otp_verified) {
+        throw createHttpError(409, 'Email already registered');
     }
 
-    if (existingUserByEmail) {
-        throw createHttpError(409, 'Email already registered');
+    if (existingUserByEmail && !existingUserByEmail.is_otp_verified) {
+        const otp = await generateAndStoreNewOtp(existingUserByEmail, password);
+        await sendOTPEmail(existingUserByEmail.email, otp);
+
+        return {
+            message: 'A new verification code has been sent.',
+            requires_verification: true,
+            user: {
+                user_id: existingUserByEmail.user_id,
+                email: existingUserByEmail.email,
+                student_id: existingUserByEmail.username,
+                role: existingUserByEmail.role || 'Student',
+                is_verified: false,
+            },
+        };
     }
 
     for (const [storedEmail, pending] of pendingRegistrationStore.entries()) {

@@ -48,7 +48,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const { data: existingUserByEmail, error: emailCheckError } = await supabase
       .from('users')
-      .select('email')
+      .select('user_id, email, username, password_hash, role, is_otp_verified')
       .eq('email', email)
       .maybeSingle();
 
@@ -57,8 +57,38 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(500).json({ error: 'Database error during email check' });
     }
 
-    if (existingUserByEmail) {
+    if (existingUserByEmail?.is_otp_verified) {
       return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    if (existingUserByEmail && !existingUserByEmail.is_otp_verified) {
+      const otp = generateOTP();
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+
+      pendingRegistrationStore.set(email, {
+        email,
+        student_id,
+        registrar_student: registrarStudent,
+        password_hash: existingUserByEmail.password_hash,
+        role: existingUserByEmail.role || 'Student',
+        expiresAt,
+      });
+
+      otpStore.set(email, { otp, expiresAt });
+
+      await sendOTPEmail(email, otp);
+
+      return res.status(200).json({
+        message: 'A new verification code has been sent.',
+        requires_verification: true,
+        user: {
+          user_id: existingUserByEmail.user_id,
+          email,
+          student_id,
+          role: existingUserByEmail.role || 'Student',
+          is_verified: false,
+        },
+      });
     }
 
     for (const [storedEmail, pending] of pendingRegistrationStore.entries()) {

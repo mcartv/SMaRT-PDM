@@ -379,7 +379,10 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto bg-[#faf7f2] p-5 md:p-6">
+        <main
+          className="min-h-0 flex-1 overflow-y-auto p-5 md:p-6"
+          style={{ background: theme.mainBg }}
+        >
           <div
             key={outletKey}
             className={`${isWidePage ? 'w-full' : 'mx-auto max-w-7xl'} h-full min-h-0`}

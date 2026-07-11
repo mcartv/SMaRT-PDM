@@ -45,10 +45,15 @@ function buildFallbackSetting(portalKey) {
 }
 
 function isMissingTableError(error) {
+  const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
   return (
-    error?.code === '42P01' ||
-    message.includes('relation') && message.includes('portal_theme_settings')
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    code === 'PGRST204' ||
+    message.includes('relation') && message.includes('portal_theme_settings') ||
+    message.includes('could not find the table') && message.includes('portal_theme_settings') ||
+    message.includes('schema cache') && message.includes('portal_theme_settings')
   );
 }
 

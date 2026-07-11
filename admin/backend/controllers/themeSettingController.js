@@ -30,6 +30,18 @@ async function getThemeSettings(req, res) {
   }
 }
 
+async function getThemeHistory(req, res) {
+  try {
+    const result = await themeSettingService.getThemeHistory(req.query?.portalKey || null);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('GET THEME HISTORY ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to load theme history.',
+    });
+  }
+}
+
 async function updateThemeSetting(req, res) {
   try {
     const result = await themeSettingService.updateThemeSetting(
@@ -58,5 +70,6 @@ async function updateThemeSetting(req, res) {
 module.exports = {
   getPublicThemeSetting,
   getThemeSettings,
+  getThemeHistory,
   updateThemeSetting,
 };

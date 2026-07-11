@@ -81,7 +81,14 @@ export default function Maintenance() {
       case 'accounts':
         return <AccountsPanel />;
       case 'theme':
-        return <ThemePanel tokenStorageKey="adminToken" allowedPortals={['admin', 'sdo', 'guidance', 'pd']} />;
+        return (
+          <ThemePanel
+            tokenStorageKey="adminToken"
+            allowedPortals={['admin', 'sdo', 'guidance', 'pd']}
+            editablePortals={['admin']}
+            subtitle="Manage the admin portal theme here. Other office themes are shown as quick previews only."
+          />
+        );
       case 'benefactors':
         return <BenefactorsPanel />;
       case 'programs':

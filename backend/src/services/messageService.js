@@ -187,6 +187,181 @@ async function fetchThreadMessages(leftUserId, rightUserId, { limit = 200 } = {}
   return (data || []).map(row => mapMessageRow(row, combinedMap));
 }
 
+async function resolveActiveAdminUser(userId) {
+  const normalizedUserId = String(userId || '').trim();
+
+  if (!normalizedUserId) {
+    throw createHttpError(401, 'Authentication required.');
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('users')
+    .select(
+      `
+      user_id,
+      role,
+      admin_profiles (
+        user_id,
+        department,
+        position,
+        is_archived
+      )
+    `
+    )
+    .eq('user_id', normalizedUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('MESSAGE ADMIN AUTH ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const adminProfile = Array.isArray(data?.admin_profiles)
+    ? data.admin_profiles[0]
+    : data?.admin_profiles || null;
+
+  if (!data?.user_id || !adminProfile || adminProfile.is_archived === true) {
+    throw createHttpError(403, 'This endpoint is restricted to administrators.');
+  }
+
+  const normalizedRole = String(data.role || '').trim().toLowerCase();
+  const normalizedDepartment = String(adminProfile.department || '').trim().toLowerCase();
+  const normalizedPosition = String(adminProfile.position || '').trim().toLowerCase();
+  const roleLooksAdmin =
+    normalizedRole === 'admin' ||
+    normalizedRole === 'osfa_admin' ||
+    normalizedRole === 'sdo' ||
+    normalizedDepartment.includes('osfa') ||
+    normalizedDepartment.includes('admin') ||
+    normalizedPosition.includes('admin') ||
+    normalizedPosition.includes('officer');
+
+  if (!roleLooksAdmin) {
+    throw createHttpError(403, 'This endpoint is restricted to administrators.');
+  }
+
+  return {
+    userId: data.user_id,
+    adminProfile,
+  };
+}
+
+async function fetchConversationProfiles(counterpartyIds = []) {
+  if (!counterpartyIds.length) {
+    return {
+      userMap: new Map(),
+      studentMap: new Map(),
+    };
+  }
+
+  const supabase = getSupabase();
+  const [usersResult, studentsResult] = await Promise.all([
+    supabase
+      .from('users')
+      .select('user_id, email, username')
+      .in('user_id', counterpartyIds),
+    supabase
+      .from('students')
+      .select('user_id, pdm_id, first_name, last_name')
+      .in('user_id', counterpartyIds),
+  ]);
+
+  if (usersResult.error) {
+    console.error('MESSAGE USER PROFILE FETCH ERROR:', usersResult.error);
+    throw new Error(usersResult.error.message);
+  }
+
+  if (studentsResult.error) {
+    console.error('MESSAGE STUDENT PROFILE FETCH ERROR:', studentsResult.error);
+    throw new Error(studentsResult.error.message);
+  }
+
+  return {
+    userMap: new Map((usersResult.data || []).map((row) => [row.user_id, row])),
+    studentMap: new Map((studentsResult.data || []).map((row) => [row.user_id, row])),
+  };
+}
+
+function buildConversationPreview(counterpartyId, row, { userMap, studentMap }, unreadCount) {
+  const user = userMap.get(counterpartyId);
+  const student = studentMap.get(counterpartyId);
+  const studentName = [student?.first_name, student?.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return {
+    counterpartyId,
+    name: studentName || user?.username || user?.email || 'Unknown user',
+    studentNumber: student?.pdm_id || null,
+    lastMessage: row.message_body || '',
+    lastSentAt: row.sent_at,
+    unreadCount,
+  };
+}
+
+async function listAdminConversations(userId) {
+  const admin = await resolveActiveAdminUser(userId);
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('messages')
+    .select(MESSAGE_FIELDS)
+    .is('room_id', null)
+    .or(`sender_id.eq.${admin.userId},receiver_id.eq.${admin.userId}`)
+    .order('sent_at', { ascending: false })
+    .order('message_id', { ascending: false });
+
+  if (error) {
+    console.error('MESSAGE CONVERSATION LIST ERROR:', error);
+    throw new Error(error.message);
+  }
+
+  const previews = new Map();
+
+  for (const row of data || []) {
+    const counterpartyId =
+      row.sender_id === admin.userId ? row.receiver_id : row.sender_id;
+
+    if (!counterpartyId) {
+      continue;
+    }
+
+    const existing = previews.get(counterpartyId) || {
+      row: null,
+      unreadCount: 0,
+    };
+
+    if (!existing.row) {
+      existing.row = row;
+    }
+
+    if (row.receiver_id === admin.userId && !row.is_read) {
+      existing.unreadCount += 1;
+    }
+
+    previews.set(counterpartyId, existing);
+  }
+
+  const counterpartyIds = Array.from(previews.keys());
+  const profiles = await fetchConversationProfiles(counterpartyIds);
+
+  return counterpartyIds
+    .map((counterpartyId) =>
+      buildConversationPreview(
+        counterpartyId,
+        previews.get(counterpartyId).row,
+        profiles,
+        previews.get(counterpartyId).unreadCount
+      )
+    )
+    .sort((left, right) => {
+      const leftTime = new Date(left.lastSentAt || 0).getTime();
+      const rightTime = new Date(right.lastSentAt || 0).getTime();
+      return rightTime - leftTime;
+    });
+}
+
 async function createMessage({ senderId, receiverId, roomId, messageBody }) {
   const trimmedBody = normalizeMessageBody(messageBody);
 

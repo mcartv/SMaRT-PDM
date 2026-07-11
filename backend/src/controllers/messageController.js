@@ -23,6 +23,24 @@ exports.getThread = async (req, res) => {
   }
 };
 
+exports.getConversations = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+
+    const items = await messageService.listAdminConversations(currentUserId);
+    return res.status(200).json(items);
+  } catch (error) {
+    console.error('GET MESSAGE CONVERSATIONS ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to load conversations.',
+    });
+  }
+};
+
 exports.sendThreadMessage = async (req, res) => {
   try {
     const currentUserId = getCurrentUserId(req);

@@ -263,10 +263,10 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
   return (
     <div
       className={`relative border-b border-stone-100 transition ${hasUnread
-          ? 'border-l-4 border-l-red-500 bg-red-50/70'
-          : isActive
-            ? 'bg-amber-50/60'
-            : 'bg-white hover:bg-stone-50'
+        ? 'border-l-4 border-l-red-500 bg-red-50/70'
+        : isActive
+          ? 'bg-amber-50/60'
+          : 'bg-white hover:bg-stone-50'
         }`}
     >
       <button
@@ -515,8 +515,8 @@ function MessageBubble({ message, isMine }) {
     <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 shadow-sm sm:max-w-[70%] ${isMine
-            ? 'bg-[#7c4a2e] text-white'
-            : 'border border-stone-200 bg-white text-stone-800'
+          ? 'bg-[#7c4a2e] text-white'
+          : 'border border-stone-200 bg-white text-stone-800'
           }`}
       >
         <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
@@ -685,8 +685,8 @@ function CreateGroupModal({
                     <label
                       key={item.userId}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${checked
-                          ? 'border-[#7c4a2e] bg-amber-50'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                        ? 'border-[#7c4a2e] bg-amber-50'
+                        : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <input
@@ -951,8 +951,8 @@ function AddMembersModal({
                     <label
                       key={item.userId}
                       className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${checked
-                          ? 'border-[#7c4a2e] bg-amber-50'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                        ? 'border-[#7c4a2e] bg-amber-50'
+                        : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <input
@@ -1815,19 +1815,26 @@ export default function AdminMessages() {
   }, [filteredItems, selectedItem, searchTerm])
 
   useSocketEvent('message:created', async (data) => {
-    if (!isOpen) return
-
-    await Promise.all([fetchConversations(), fetchRooms()])
-
     const senderId = data?.sender_id?.toString?.() || ''
     const receiverId = data?.receiver_id?.toString?.() || ''
     const roomId = data?.room_id?.toString?.() || ''
 
+    // This updates the floating circle badge even when the message modal is closed.
+    await Promise.all([fetchConversations(), fetchRooms()])
+
+    // If modal is closed, stop here.
+    // Badge is already updated by fetchConversations/fetchRooms.
+    if (!isOpen) return
+
+    // If modal is open and the active group received the message,
+    // reload the visible group thread.
     if (roomId && activeType === 'group' && activeRoomId === roomId) {
       await fetchRoomMessages(activeRoomId)
       return
     }
 
+    // If modal is open and the active private chat received the message,
+    // reload the visible private thread.
     const isActivePrivateThread =
       activeType === 'private' &&
       activeConversationId &&
@@ -1943,11 +1950,14 @@ export default function AdminMessages() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#7c4a2e] text-white shadow-xl transition hover:bg-[#6f4229]"
+        className={`fixed bottom-6 right-6 z-40 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#7c4a2e] text-white shadow-xl transition hover:bg-[#6f4229] ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
+          }`}
+        title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
       >
         <MessageSquareMore className="h-7 w-7" />
+
         {totalUnreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 min-w-[24px] rounded-full bg-red-500 px-1.5 py-1 text-center text-[11px] font-bold leading-none text-white">
+          <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-md">
             {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
           </span>
         )}
@@ -2064,8 +2074,8 @@ export default function AdminMessages() {
                       type="button"
                       onClick={() => setShowUnreadOnly((current) => !current)}
                       className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${showUnreadOnly
-                          ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
-                          : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
+                        ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
+                        : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
                         }`}
                     >
                       <Filter className="h-3.5 w-3.5" />

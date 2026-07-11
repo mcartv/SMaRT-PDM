@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Input } from '@/components/ui/input';
@@ -712,9 +712,13 @@ export default function AnnouncementsManagement() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = useCallback(async (options = {}) => {
+    const silent = options.silent === true;
+
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
 
       const token = sessionStorage.getItem('adminToken');
 
@@ -757,27 +761,55 @@ export default function AnnouncementsManagement() {
       ]);
     } catch (err) {
       console.error('LOAD ANNOUNCEMENTS ERROR:', err);
-      alert(err.message || 'Failed to load announcements');
+
+      if (!silent) {
+        alert(err.message || 'Failed to load announcements');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadAnnouncements();
-  }, []);
+  }, [loadAnnouncements]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      loadAnnouncements({ silent: true });
+    }, 10000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [loadAnnouncements]);
 
   useSocketEvent('announcement:created', () => {
-    loadAnnouncements();
-  }, []);
+    console.log('[Socket] announcement:created received');
+    loadAnnouncements({ silent: true });
+  }, [loadAnnouncements]);
 
   useSocketEvent('announcement:updated', () => {
-    loadAnnouncements();
-  }, []);
+    console.log('[Socket] announcement:updated received');
+    loadAnnouncements({ silent: true });
+  }, [loadAnnouncements]);
+
+  useSocketEvent('announcement:published', () => {
+    console.log('[Socket] announcement:published received');
+    loadAnnouncements({ silent: true });
+  }, [loadAnnouncements]);
 
   useSocketEvent('announcement:deleted', () => {
-    loadAnnouncements();
-  }, []);
+    console.log('[Socket] announcement:deleted received');
+    loadAnnouncements({ silent: true });
+  }, [loadAnnouncements]);
+
+  useSocketEvent('announcement:refresh', () => {
+    console.log('[Socket] announcement:refresh received');
+    loadAnnouncements({ silent: true });
+  }, [loadAnnouncements]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -959,6 +991,8 @@ export default function AnnouncementsManagement() {
   };
 
   const handlePost = async () => {
+    await loadAnnouncements({ silent: true });
+
     try {
       if (!validateForPublish()) return;
 
@@ -987,6 +1021,8 @@ export default function AnnouncementsManagement() {
   };
 
   const handleSaveDraft = async () => {
+    await loadAnnouncements({ silent: true });
+
     try {
       if (!title.trim() && !content.trim()) {
         handleCancelAnnouncement();
@@ -1018,6 +1054,8 @@ export default function AnnouncementsManagement() {
   };
 
   const handleArchive = async (id) => {
+    await loadAnnouncements({ silent: true });
+
     try {
       setDeletingId(id);
 
@@ -1058,20 +1096,19 @@ export default function AnnouncementsManagement() {
   };
 
   const handleRestore = async (id) => {
+    await loadAnnouncements({ silent: true });
+
     try {
       setRestoringId(id);
 
       const token = sessionStorage.getItem('adminToken');
 
-      const res = await fetch(buildApiUrl(`/api/announcements/${id}`), {
+      const res = await fetch(buildApiUrl(`/api/announcements/${id}/restore`), {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          is_archived: false,
-        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -1080,21 +1117,7 @@ export default function AnnouncementsManagement() {
         throw new Error(data.error || 'Failed to restore announcement');
       }
 
-      setItems((prev) =>
-        prev.map((a) =>
-          a.id === id
-            ? {
-              ...a,
-              ...data.data,
-              is_archived: false,
-              status:
-                data.data?.status && data.data.status !== 'Archived'
-                  ? data.data.status
-                  : 'Draft',
-            }
-            : a
-        )
-      );
+      await loadAnnouncements({ silent: true });
     } catch (err) {
       console.error('RESTORE ANNOUNCEMENT ERROR:', err);
       alert(err.message || 'Failed to restore announcement');
@@ -1104,6 +1127,8 @@ export default function AnnouncementsManagement() {
   };
 
   const handlePublish = async (id) => {
+    await loadAnnouncements({ silent: true });
+    
     try {
       setPublishingId(id);
 

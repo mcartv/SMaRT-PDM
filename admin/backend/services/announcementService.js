@@ -20,22 +20,31 @@ function mapAnnouncementRow(row) {
         audienceKey: row.target_audience,
         isRoVoluntary: !!row.is_ro_voluntary,
         is_archived: !!row.is_archived,
+        scheduledAt: row.scheduled_at || null,
+        publishedAt: row.published_at || null,
+        createdAt: row.created_at || null,
+        updatedAt: row.updated_at || null,
         views: 0,
     };
 }
 
 async function createAnnouncementNotifications(announcementRow) {
-    const rows = await notificationService.createNotificationsForAudience({
-        audience: announcementRow.target_audience,
-        title: announcementRow.subject,
-        message: announcementRow.content,
-        referenceId: announcementRow.announcement_id,
-        referenceType: 'announcement',
-        type: 'Announcement',
-        createdAt: announcementRow.published_at || new Date().toISOString(),
-    });
+    try {
+        const rows = await notificationService.createNotificationsForAudience({
+            audience: announcementRow.target_audience,
+            title: announcementRow.subject,
+            message: announcementRow.content,
+            referenceId: announcementRow.announcement_id,
+            referenceType: 'announcement',
+            type: 'Announcement',
+            createdAt: announcementRow.published_at || new Date().toISOString(),
+        });
 
-    return rows.length;
+        return Array.isArray(rows) ? rows.length : 0;
+    } catch (err) {
+        console.error('CREATE ANNOUNCEMENT NOTIFICATIONS ERROR:', err.message);
+        return 0;
+    }
 }
 
 async function publishAnnouncementInternal(announcementId) {
@@ -68,6 +77,7 @@ async function publishAnnouncementInternal(announcementId) {
         notificationsInserted,
     };
 }
+
 exports.fetchAnnouncements = async () => {
     const { data, error } = await supabase
         .from('announcements')
@@ -129,15 +139,15 @@ exports.createAnnouncement = async (payload, user) => {
     const nowIso = new Date().toISOString();
 
     const insertRow = {
-        author_id: user?.userId || null,
+        author_id: user?.userId || user?.user_id || null,
         subject: (title || '').trim(),
         content: (content || '').trim(),
         target_audience: audience,
         is_ro_voluntary: !!isRoVoluntary,
-        publish_date: forceDraft ? null : (isScheduled ? null : nowIso),
-        status: forceDraft ? 'Draft' : (isScheduled ? 'Scheduled' : 'Published'),
-        scheduled_at: forceDraft ? null : (isScheduled ? schedDate : null),
-        published_at: forceDraft ? null : (isScheduled ? null : nowIso),
+        publish_date: forceDraft ? null : isScheduled ? null : nowIso,
+        status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
+        scheduled_at: forceDraft ? null : isScheduled ? schedDate : null,
+        published_at: forceDraft ? null : isScheduled ? null : nowIso,
         updated_at: nowIso,
         is_archived: false,
     };
@@ -153,11 +163,16 @@ exports.createAnnouncement = async (payload, user) => {
         throw new Error(error.message);
     }
 
+    let notificationsInserted = 0;
+
     if (data.status === 'Published') {
-        await createAnnouncementNotifications(data);
+        notificationsInserted = await createAnnouncementNotifications(data);
     }
 
-    return mapAnnouncementRow(data);
+    return {
+        ...mapAnnouncementRow(data),
+        notificationsInserted,
+    };
 };
 
 exports.updateAnnouncement = async (announcementId, payload) => {
@@ -195,10 +210,10 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         content: (content || '').trim(),
         target_audience: audience,
         is_ro_voluntary: !!isRoVoluntary,
-        status: forceDraft ? 'Draft' : (isScheduled ? 'Scheduled' : 'Published'),
-        scheduled_at: forceDraft ? null : (isScheduled ? schedDate : null),
-        publish_date: forceDraft ? null : (isScheduled ? null : nowIso),
-        published_at: forceDraft ? null : (isScheduled ? null : nowIso),
+        status: forceDraft ? 'Draft' : isScheduled ? 'Scheduled' : 'Published',
+        scheduled_at: forceDraft ? null : isScheduled ? schedDate : null,
+        publish_date: forceDraft ? null : isScheduled ? null : nowIso,
+        published_at: forceDraft ? null : isScheduled ? null : nowIso,
         updated_at: nowIso,
     };
 
@@ -215,7 +230,16 @@ exports.updateAnnouncement = async (announcementId, payload) => {
         throw new Error(error.message);
     }
 
-    return mapAnnouncementRow(data);
+    let notificationsInserted = 0;
+
+    if (data.status === 'Published') {
+        notificationsInserted = await createAnnouncementNotifications(data);
+    }
+
+    return {
+        ...mapAnnouncementRow(data),
+        notificationsInserted,
+    };
 };
 
 exports.publishAnnouncement = async (announcementId) => {

@@ -347,6 +347,23 @@ server.listen(PORT, () => {
 // SCHEDULER
 // =========================
 
+function emitScheduledAnnouncementRealtime(announcement) {
+  const payload = {
+    announcement_id: announcement.id,
+    title: announcement.title,
+    status: announcement.status,
+    audience: announcement.audienceKey || announcement.audience,
+    published_at: announcement.publishedAt || announcement.date || new Date().toISOString(),
+    updated_at: announcement.updatedAt || announcement.date || new Date().toISOString(),
+    source: 'scheduled-publish',
+  };
+
+  socketEvents.announcementCreated(io, payload);
+  socketEvents.announcementPublished(io, payload);
+  socketEvents.announcementUpdated(io, payload);
+  socketEvents.announcementRefresh(io, payload);
+}
+
 if (!global._announcementSchedulerRunning) {
   global._announcementSchedulerRunning = true;
 
@@ -366,23 +383,7 @@ if (!global._announcementSchedulerRunning) {
         publishedAnnouncements.length > 0
       ) {
         for (const announcement of publishedAnnouncements) {
-          socketEvents.announcementCreated(io, {
-            announcement_id: announcement.id,
-            title: announcement.title,
-            status: announcement.status,
-            audience: announcement.audienceKey || announcement.audience,
-            published_at: announcement.date || new Date().toISOString(),
-            source: 'scheduled-publish',
-          });
-
-          socketEvents.announcementUpdated(io, {
-            announcement_id: announcement.id,
-            title: announcement.title,
-            status: announcement.status,
-            audience: announcement.audienceKey || announcement.audience,
-            updated_at: announcement.date || new Date().toISOString(),
-            source: 'scheduled-publish',
-          });
+          emitScheduledAnnouncementRealtime(announcement);
         }
 
         console.log(
@@ -400,5 +401,5 @@ if (!global._announcementSchedulerRunning) {
 
   runSchedulers();
 
-  setInterval(runSchedulers, 30000);
+  setInterval(runSchedulers, 10000);
 }

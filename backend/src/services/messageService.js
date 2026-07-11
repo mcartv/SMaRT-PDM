@@ -918,6 +918,7 @@ module.exports = {
   markFixedThreadRead,
   listAdminConversations,
   listAdminConversation,
+  fetchAdminConversationMessages,
   sendAdminConversationMessage,
   markAdminConversationRead,
   resolveFixedAdminUserId,

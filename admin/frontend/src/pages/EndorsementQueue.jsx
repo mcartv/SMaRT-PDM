@@ -272,6 +272,19 @@ function getQueueDecisionTone(value) {
   return 'bg-stone-100 text-stone-700 border-stone-200';
 }
 
+function getCurrentStageLabel(row) {
+  return (
+    row.current_stage_label ||
+    row.overall_status_label ||
+    row.tracker?.current_stage_label ||
+    'Pending review'
+  );
+}
+
+function getCurrentStageTone(row) {
+  return STAGE_TONE[row.current_stage] || 'bg-stone-100 text-stone-700';
+}
+
 function shouldConfirmAction(action) {
   return ['approve', 'reject', 'hold', 'disqualify_minor', 'disqualify_major'].includes(action);
 }
@@ -456,9 +469,9 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
 
   if (queueKey === 'pd') {
     return (
-      <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+      <div className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">PD Decision</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">PD Decision</p>
           <p className="mt-1 text-sm text-stone-600">Finalize the endorsement after checking the grade and prior office reviews.</p>
         </div>
         <Textarea
@@ -468,19 +481,17 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           placeholder="Optional remark"
           className="min-h-[88px] bg-white"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           <Button
-            size="sm"
-            className="bg-green-700 text-white hover:bg-green-800"
+            className="h-10 bg-green-700 text-white hover:bg-green-800"
             disabled={loading}
             onClick={() => onSubmit(row, 'approve')}
           >
             Approve
           </Button>
           <Button
-            size="sm"
             variant="outline"
-            className="border-red-200 text-red-700"
+            className="h-10 border-red-200 text-red-700 hover:bg-red-50"
             disabled={loading}
             onClick={() => onSubmit(row, 'reject')}
           >
@@ -493,9 +504,12 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
 
   if (queueKey === 'guidance') {
     return (
-      <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-        <div className="rounded-xl bg-white p-3 text-xs text-stone-600">
-          Clear students with good moral standing, hold them for counseling, or reject them with a reason.
+      <div className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Decision</p>
+          <div className="mt-2 rounded-xl bg-white p-3 text-xs leading-5 text-stone-600">
+            Clear students with good moral standing, hold them for counseling, or reject them with a reason.
+          </div>
         </div>
         <Textarea
           rows={2}
@@ -504,28 +518,25 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           placeholder="Reason is required when holding or rejecting a student"
           className="min-h-[88px] bg-white"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           <Button
-            size="sm"
-            className="bg-green-700 text-white hover:bg-green-800"
+            className="h-10 bg-green-700 text-white hover:bg-green-800"
             disabled={loading}
             onClick={() => onSubmit(row, 'clear')}
           >
             Clear
           </Button>
           <Button
-            size="sm"
             variant="outline"
-            className="border-amber-200 text-amber-700"
+            className="h-10 border-amber-200 text-amber-700 hover:bg-amber-50"
             disabled={loading || row.current_stage === 'held'}
             onClick={() => onSubmit(row, 'hold')}
           >
             For Counseling / Hold
           </Button>
           <Button
-            size="sm"
             variant="outline"
-            className="border-red-200 text-red-700"
+            className="h-10 border-red-200 text-red-700 hover:bg-red-50"
             disabled={loading}
             onClick={() => onSubmit(row, 'reject')}
           >
@@ -540,9 +551,12 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
   const needsOffenseDetail = ['disqualify_minor', 'disqualify_major'].includes(selectedReason);
 
   return (
-    <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-      <div className="rounded-xl bg-white p-3 text-xs text-stone-600">
-        Minor offense still proceeds to Guidance. Major offense stops the slip in SDO.
+    <div className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">SDO Decision</p>
+        <div className="mt-2 rounded-xl bg-white p-3 text-xs leading-5 text-stone-600">
+          Minor offense still proceeds to Guidance. Major offense stops the slip in SDO.
+        </div>
       </div>
       <Select
         value={state.sdoReason}
@@ -593,28 +607,25 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
         placeholder={needsOffenseDetail ? 'Remarks are required for minor or major offense' : 'Optional remark'}
         className="min-h-[88px] bg-white"
       />
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2 sm:grid-cols-3">
         <Button
-          size="sm"
-          className="bg-green-700 text-white hover:bg-green-800"
+          className="h-10 bg-green-700 text-white hover:bg-green-800"
           disabled={loading}
           onClick={() => onSubmit(row, 'clear')}
         >
           Clear
         </Button>
         <Button
-          size="sm"
           variant="outline"
-          className="border-amber-200 text-amber-700"
+          className="h-10 border-amber-200 text-amber-700 hover:bg-amber-50"
           disabled={loading}
           onClick={() => onSubmit(row, 'disqualify_minor')}
         >
           Minor Offense
         </Button>
         <Button
-          size="sm"
           variant="outline"
-          className="border-red-200 text-red-700"
+          className="h-10 border-red-200 text-red-700 hover:bg-red-50"
           disabled={loading}
           onClick={() => onSubmit(row, 'disqualify_major')}
         >
@@ -1082,29 +1093,45 @@ export default function EndorsementQueue({
             filteredRows.map((row) => (
               <div
                 key={row.slip_id}
-                className="rounded-[24px] border border-stone-200 bg-white p-5 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
+                className="rounded-[26px] border border-stone-200 bg-white p-5 shadow-sm transition-all hover:border-stone-300 hover:shadow-md"
               >
-                <div className="grid gap-4 xl:grid-cols-[1.1fr_0.95fr_1fr]">
+                <div className="grid gap-4 xl:grid-cols-[1.12fr_0.92fr_1fr]">
                   <div className="space-y-3">
-                  <div className="flex flex-col gap-3 border-b border-stone-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
+                  <div className="flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <p className="text-lg font-semibold text-stone-900">{row.student_name}</p>
-                      <p className="mt-1 text-sm text-stone-500">{row.pdm_id}</p>
-                      <p className="mt-2 font-mono text-[11px] text-stone-400">{row.slip_code}</p>
+                      <p className="mt-1 text-sm text-stone-500">{row.pdm_id || 'No PDM ID'}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="border-stone-200 text-stone-700">
+                          {row.program_name || 'No program'}
+                        </Badge>
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getCurrentStageTone(row)}`}>
+                          {getCurrentStageLabel(row)}
+                        </span>
+                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${getQueueDecisionTone(getQueueDecisionValue(queueKey, row))}`}>
+                          {getQueueDecisionLabel(queueKey, row)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-stone-200 bg-stone-50/80 px-3 py-3 text-right">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">Slip Code</p>
+                      <p className="mt-1 font-mono text-xs text-stone-700">{row.slip_code || 'Not available'}</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="border-stone-200 text-stone-700">
-                      {row.program_name}
-                    </Badge>
-                  </div>
-                  <div className="rounded-2xl bg-stone-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Submitted</p>
-                    <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-stone-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Submitted</p>
+                      <p className="mt-1 text-sm font-medium text-stone-800">{formatDate(row.submitted_at)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-stone-50 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Current Review</p>
+                      <p className="mt-1 text-sm font-medium text-stone-800">{meta.title}</p>
+                    </div>
                   </div>
                   {queueKey === 'pd' ? (
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Quick Grade Status</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
                       <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
                       <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
                       {row.grade_document?.file_name ? (
@@ -1119,25 +1146,25 @@ export default function EndorsementQueue({
                   ) : null}
                   {queueKey !== 'sdo' ? (
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Previous SDO Review</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Previous SDO Review</p>
                       <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
                       {row.sdo_offense_detail?.offense_type ? (
                         <p className="mt-2 text-xs leading-5 text-stone-500">
                           {row.sdo_offense_detail.offense_type}
-                          {row.sdo_offense_detail.incident_date ? ` • ${row.sdo_offense_detail.incident_date}` : ''}
-                          {row.sdo_offense_detail.case_reference_number ? ` • ${row.sdo_offense_detail.case_reference_number}` : ''}
+                          {row.sdo_offense_detail.incident_date ? ` | ${row.sdo_offense_detail.incident_date}` : ''}
+                          {row.sdo_offense_detail.case_reference_number ? ` | ${row.sdo_offense_detail.case_reference_number}` : ''}
                         </p>
                       ) : null}
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">SDO Rule</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">SDO Rule</p>
                       <p className="mt-2">Minor offense still proceeds to Guidance. Major offense stops the slip here.</p>
                     </div>
                   )}
                   {queueKey === 'pd' ? (
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">Guidance Review</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Review</p>
                       <p className="mt-2 font-medium text-stone-900">{row.office_results?.guidance || 'Pending Guidance review'}</p>
                     </div>
                   ) : null}
@@ -1147,10 +1174,19 @@ export default function EndorsementQueue({
                 </div>
 
                   <div className="space-y-3">
-                  <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                  <div className="rounded-[24px] border border-stone-200 bg-stone-50/70 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
                       {queueKey === 'pd' ? 'PD Grade Review' : 'Slip Access'}
-                    </p>
+                        </p>
+                        <p className="mt-1 text-sm text-stone-600">
+                          {queueKey === 'pd'
+                            ? 'Check the uploaded grade file before making the final PD decision.'
+                            : 'Open the endorsement slip for the full office record and printable view.'}
+                        </p>
+                      </div>
+                    </div>
                     {queueKey === 'pd' ? (
                       row.grade_document?.url ? (
                         <div className="mt-3 space-y-3">
@@ -1172,12 +1208,12 @@ export default function EndorsementQueue({
                             >
                               <Button
                                 type="button"
-                                size="icon"
+                                size="sm"
                                 variant="outline"
                                 className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
-                                title="Download grade file"
                               >
-                                <Download className="h-4 w-4" />
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
                               </Button>
                             </a>
                             <a
@@ -1188,12 +1224,12 @@ export default function EndorsementQueue({
                             >
                               <Button
                                 type="button"
-                                size="icon"
+                                size="sm"
                                 variant="outline"
                                 className="border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
-                                title="Open in new tab"
                               >
-                                <ExternalLink className="h-4 w-4" />
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Open
                               </Button>
                             </a>
                           </div>
@@ -1267,8 +1303,7 @@ export default function EndorsementQueue({
                     )}
                     <Button
                       variant="outline"
-                      size="sm"
-                      className="mt-3 w-full border-blue-200 bg-blue-50 font-medium text-blue-800 hover:bg-blue-100"
+                      className="mt-3 h-10 w-full border-blue-200 bg-blue-50 font-medium text-blue-800 hover:bg-blue-100"
                       onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
                     >
                       <Eye className="mr-2 h-4 w-4" />

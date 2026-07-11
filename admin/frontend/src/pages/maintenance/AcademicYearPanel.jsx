@@ -80,11 +80,8 @@ function AcademicYearModal({
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
                     <div>
                         <h3 className="text-base font-semibold text-stone-800">
-                            {isEdit ? 'Edit Academic Year' : 'Add Academic Year'}
+                            {isEdit ? 'Update Academic Year' : 'Add Academic Year'}
                         </h3>
-                        <p className="mt-0.5 text-xs text-stone-500">
-                            Manage school year records used in scholarship openings.
-                        </p>
                     </div>
 
                     <button
@@ -588,10 +585,6 @@ export default function AcademicYearsPanel() {
                 onClose={resetModal}
                 onSave={handleSave}
             />
-
-            <div>
-                <h2 className="text-sm font-semibold text-stone-900">Academic Years</h2>
-            </div>
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">

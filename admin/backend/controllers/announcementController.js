@@ -1,4 +1,5 @@
 const announcementService = require('../services/announcementService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 exports.getAnnouncements = async (req, res) => {

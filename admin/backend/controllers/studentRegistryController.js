@@ -1,4 +1,5 @@
 const studentRegistryService = require('../services/studentRegistryService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 exports.getRegistry = async (req, res) => {
@@ -22,6 +23,20 @@ exports.getRegistry = async (req, res) => {
 };
 
 exports.importRegistry = async (req, res) => {
+  await auditLogService.logAudit({
+    req,
+    actionTaken: 'IMPORT_STUDENT_REGISTRY',
+    module: 'Student Registry',
+    entityType: 'student_registry_import',
+    entityId: result?.import_batch_id || null,
+    description: `Imported registrar file with ${result?.imported || 0} successful records.`,
+    metadata: {
+      imported: result?.imported || 0,
+      total: result?.total || 0,
+      failed_rows: result?.failed_rows || 0,
+    },
+  });
+
   try {
     const result = await studentRegistryService.importStudentRegistryFile({
       file: req.file,

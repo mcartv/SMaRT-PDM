@@ -1,4 +1,5 @@
 const iotOcrRequestService = require('../services/iotOcrRequestService');
+const auditLogService = require('../services/auditLogService');
 
 exports.getNextIotOcrRequest = async (req, res) => {
     try {

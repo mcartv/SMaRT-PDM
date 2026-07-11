@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import {
     GraduationCap,
     Archive,
+    ArchiveRestore,
     Search,
     RefreshCw,
     Plus,
@@ -537,10 +538,6 @@ export default function ProgramsPanel() {
                 benefactors={benefactors}
             />
 
-            <div>
-                <h2 className="text-sm font-semibold text-stone-900">Scholarship Programs</h2>
-            </div>
-
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -684,27 +681,40 @@ export default function ProgramsPanel() {
                                         </p>
                                     </div>
 
-                                    <div className="flex gap-1">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 px-2 text-xs"
-                                            onClick={() => openEditModal(p)}
-                                        >
-                                            <Edit size={12} />
-                                        </Button>
+                                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                                        {p.is_archived ? (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 rounded-lg border-green-200 px-2 text-xs text-green-700 hover:bg-green-50"
+                                                onClick={() => handleArchiveToggle(p)}
+                                            >
+                                                <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
+                                                Restore
+                                            </Button>
+                                        ) : (
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 rounded-lg border-stone-200 px-2 text-xs"
+                                                    onClick={() => openEditModal(p)}
+                                                >
+                                                    <Edit className="mr-1.5 h-3.5 w-3.5" />
+                                                    Edit
+                                                </Button>
 
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 px-2 text-xs"
-                                            onClick={() => handleArchiveToggle(p)}
-                                        >
-                                            <Archive size={12} />
-                                            <span className="ml-1">
-                                                {p.is_archived ? 'Restore' : 'Archive'}
-                                            </span>
-                                        </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 rounded-lg border-red-200 px-2 text-xs text-red-700 hover:bg-red-50"
+                                                    onClick={() => handleArchiveToggle(p)}
+                                                >
+                                                    <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                                    Archive
+                                                </Button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             );

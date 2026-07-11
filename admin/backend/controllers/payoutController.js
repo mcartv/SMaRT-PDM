@@ -1,4 +1,5 @@
 const payoutService = require('../services/payoutService');
+const auditLogService = require('../services/auditLogService');
 
 exports.getPayoutBatches = async (req, res) => {
     try {

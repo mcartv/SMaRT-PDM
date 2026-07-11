@@ -1,4 +1,5 @@
 const scholarshipProgramService = require('../services/scholarshipProgramService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 exports.getScholarshipPrograms = async (req, res) => {

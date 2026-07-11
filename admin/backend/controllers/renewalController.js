@@ -1,4 +1,5 @@
 const renewalService = require('../services/renewalService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
 exports.getRenewals = async (req, res) => {

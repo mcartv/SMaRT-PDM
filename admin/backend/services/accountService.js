@@ -28,6 +28,8 @@ const ROLE_CONFIG = {
     },
 };
 
+const ROLE_VALUES = Object.keys(ROLE_CONFIG);
+
 const staffAccountSchema = z
     .object({
         first_name: z.string().trim().min(1, 'First name is required.'),
@@ -60,6 +62,32 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function validatePassword(password, confirmPassword) {
+    if (!password) return null;
+
+    if (password.length < 8) {
+        throw createHttpError(400, 'Password must be at least 8 characters.');
+    }
+
+    if (!/[a-z]/.test(password)) {
+        throw createHttpError(400, 'Password must contain at least one lowercase letter.');
+    }
+
+    if (!/[A-Z]/.test(password)) {
+        throw createHttpError(400, 'Password must contain at least one uppercase letter.');
+    }
+
+    if (!/[0-9]/.test(password)) {
+        throw createHttpError(400, 'Password must contain at least one number.');
+    }
+
+    if (password !== confirmPassword) {
+        throw createHttpError(400, 'Passwords do not match.');
+    }
+
+    return password;
 }
 
 async function hasAdminProfilePhotoColumn(client = db) {
@@ -100,6 +128,7 @@ function mapStaffAccount(row) {
         position: row.position || '',
         role,
         db_role: row.user_role,
+        is_archived: row.is_archived === true,
         profile_photo_url: row.profile_photo_url || null,
         created_at: row.created_at,
     };
@@ -107,6 +136,7 @@ function mapStaffAccount(row) {
 
 async function decorateStaffAccount(row) {
     const account = mapStaffAccount(row);
+
     return {
         ...account,
         avatar_url: await resolveAvatarUrl(account.profile_photo_url),
@@ -130,6 +160,7 @@ async function buildUniqueUsername(client, email) {
 
     for (let index = 0; index < 100; index += 1) {
         const candidate = index === 0 ? base : `${base}${index + 1}`;
+
         const existing = await client.query(
             'SELECT 1 FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1',
             [candidate]
@@ -143,40 +174,10 @@ async function buildUniqueUsername(client, email) {
     throw createHttpError(500, 'Unable to generate a unique username.');
 }
 
-async function listStaffAccounts() {
-    const photoEnabled = await hasAdminProfilePhotoColumn();
-    const result = await db.query(`
-        SELECT
-            u.user_id,
-            u.email,
-            u.username,
-            u.phone_number,
-            u.role AS user_role,
-            u.created_at,
-            a.admin_id,
-            a.first_name,
-            a.last_name,
-            a.department,
-            a.position,
-            ${buildProfilePhotoSelect('a', photoEnabled)}
-        FROM users u
-        INNER JOIN admin_profiles a ON a.user_id = u.user_id
-        WHERE COALESCE(a.is_archived, false) = false
-        ORDER BY u.created_at DESC
-    `);
+async function fetchStaffAccountRow(userId, client = db, includeArchived = true) {
+    const photoEnabled = await hasAdminProfilePhotoColumn(client);
 
-    const accounts = await Promise.all(result.rows.map((row) => decorateStaffAccount(row)));
-
-    return accounts.filter((account) => ['admin', 'pd', 'guidance', 'sdo'].includes(account.role));
-}
-
-async function getCurrentStaffProfile(userId) {
-    if (!userId) {
-        throw createHttpError(400, 'User ID is required.');
-    }
-
-    const photoEnabled = await hasAdminProfilePhotoColumn();
-    const result = await db.query(
+    const result = await client.query(
         `
         SELECT
             u.user_id,
@@ -190,23 +191,386 @@ async function getCurrentStaffProfile(userId) {
             a.last_name,
             a.department,
             a.position,
+            COALESCE(a.is_archived, false) AS is_archived,
             ${buildProfilePhotoSelect('a', photoEnabled)}
         FROM users u
         INNER JOIN admin_profiles a ON a.user_id = u.user_id
         WHERE u.user_id = $1
-          AND COALESCE(a.is_archived, false) = false
+          ${includeArchived ? '' : 'AND COALESCE(a.is_archived, false) = false'}
         LIMIT 1
         `,
         [userId]
     );
 
-    const row = result.rows[0];
+    return result.rows[0] || null;
+}
+
+async function getStaffAccountById(userId, includeArchived = true) {
+    const row = await fetchStaffAccountRow(userId, db, includeArchived);
+    return row ? decorateStaffAccount(row) : null;
+}
+
+async function listStaffAccounts() {
+    const photoEnabled = await hasAdminProfilePhotoColumn();
+
+    const result = await db.query(`
+        SELECT
+            u.user_id,
+            u.email,
+            u.username,
+            u.phone_number,
+            u.role AS user_role,
+            u.created_at,
+            a.admin_id,
+            a.first_name,
+            a.last_name,
+            a.department,
+            a.position,
+            COALESCE(a.is_archived, false) AS is_archived,
+            ${buildProfilePhotoSelect('a', photoEnabled)}
+        FROM users u
+        INNER JOIN admin_profiles a ON a.user_id = u.user_id
+        ORDER BY
+            COALESCE(a.is_archived, false) ASC,
+            u.created_at DESC
+    `);
+
+    const accounts = await Promise.all(
+        result.rows.map((row) => decorateStaffAccount(row))
+    );
+
+    return accounts.filter((account) =>
+        ROLE_VALUES.includes(account.role)
+    );
+}
+
+async function getCurrentStaffProfile(userId) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const row = await fetchStaffAccountRow(userId, db, false);
 
     if (!row) {
         throw createHttpError(404, 'Staff profile not found.');
     }
 
     return decorateStaffAccount(row);
+}
+
+async function createStaffAccount(payload) {
+    const parsed = staffAccountSchema.safeParse(payload);
+
+    if (!parsed.success) {
+        const firstIssue = parsed.error.issues[0];
+        throw createHttpError(400, firstIssue?.message || 'Invalid staff account details.');
+    }
+
+    const {
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone_number: phoneNumberInput,
+        role,
+        password,
+    } = parsed.data;
+
+    const config = ROLE_CONFIG[role];
+    const phoneNumber = safeText(phoneNumberInput) || null;
+    const department = safeText(payload.department) || config.department;
+    const position = safeText(payload.position) || config.position;
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const client = await db.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const photoEnabled = await hasAdminProfilePhotoColumn(client);
+
+        const duplicateEmail = await client.query(
+            'SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [email]
+        );
+
+        if (duplicateEmail.rows.length) {
+            throw createHttpError(400, 'An account with this email already exists.');
+        }
+
+        const username = await buildUniqueUsername(client, email);
+
+        const userResult = await client.query(
+            `
+            INSERT INTO users (
+                role,
+                username,
+                password_hash,
+                email,
+                phone_number,
+                is_otp_verified
+            )
+            VALUES ($1, $2, $3, $4, $5, true)
+            RETURNING
+                user_id,
+                email,
+                username,
+                phone_number,
+                role AS user_role,
+                created_at
+            `,
+            [config.dbRole, username, passwordHash, email, phoneNumber]
+        );
+
+        const user = userResult.rows[0];
+
+        const profileResult = await client.query(
+            `
+            INSERT INTO admin_profiles (
+                user_id,
+                first_name,
+                last_name,
+                department,
+                position,
+                is_archived
+            )
+            VALUES ($1, $2, $3, $4, $5, false)
+            RETURNING
+                admin_id,
+                first_name,
+                last_name,
+                department,
+                position,
+                COALESCE(is_archived, false) AS is_archived,
+                ${photoEnabled ? 'profile_photo_url' : 'NULL::text AS profile_photo_url'}
+            `,
+            [user.user_id, firstName, lastName, department, position]
+        );
+
+        await client.query('COMMIT');
+
+        return decorateStaffAccount({
+            ...user,
+            ...profileResult.rows[0],
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+
+        if (error.code === '23505') {
+            throw createHttpError(400, 'An account with this email or username already exists.');
+        }
+
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+async function updateStaffAccount(userId, payload = {}) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const client = await db.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const current = await fetchStaffAccountRow(userId, client, true);
+
+        if (!current) {
+            await client.query('ROLLBACK');
+            return null;
+        }
+
+        const currentRole = resolveStaffRole(current);
+
+        const nextRole = payload.role !== undefined
+            ? safeText(payload.role).toLowerCase()
+            : currentRole;
+
+        if (!ROLE_CONFIG[nextRole]) {
+            throw createHttpError(400, 'Invalid role selected.');
+        }
+
+        const roleChanged = nextRole !== currentRole;
+        const config = ROLE_CONFIG[nextRole];
+
+        const firstName = payload.first_name !== undefined
+            ? safeText(payload.first_name)
+            : safeText(current.first_name);
+
+        const lastName = payload.last_name !== undefined
+            ? safeText(payload.last_name)
+            : safeText(current.last_name);
+
+        const email = payload.email !== undefined
+            ? safeText(payload.email).toLowerCase()
+            : safeText(current.email).toLowerCase();
+
+        const phoneNumber = payload.phone_number !== undefined
+            ? safeText(payload.phone_number) || null
+            : safeText(current.phone_number) || null;
+
+        const department = payload.department !== undefined
+            ? safeText(payload.department) || config.department
+            : roleChanged
+                ? config.department
+                : safeText(current.department) || config.department;
+
+        const position = payload.position !== undefined
+            ? safeText(payload.position) || config.position
+            : roleChanged
+                ? config.position
+                : safeText(current.position) || config.position;
+
+        const nextIsArchived = payload.is_archived !== undefined
+            ? payload.is_archived === true
+            : current.is_archived === true;
+
+        if (!firstName) {
+            throw createHttpError(400, 'First name is required.');
+        }
+
+        if (!lastName) {
+            throw createHttpError(400, 'Last name is required.');
+        }
+
+        if (!email) {
+            throw createHttpError(400, 'Email is required.');
+        }
+
+        const parsedEmail = z.string().trim().toLowerCase().email().safeParse(email);
+
+        if (!parsedEmail.success) {
+            throw createHttpError(400, 'A valid email address is required.');
+        }
+
+        const duplicateEmailResult = await client.query(
+            `
+            SELECT user_id
+            FROM users
+            WHERE LOWER(email) = LOWER($1)
+              AND user_id <> $2
+            LIMIT 1
+            `,
+            [email, userId]
+        );
+
+        if (duplicateEmailResult.rows.length) {
+            throw createHttpError(400, 'Another account is already using this email address.');
+        }
+
+        const nextPassword = safeText(payload.password);
+        const confirmPassword = safeText(payload.confirm_password);
+        const validPassword = validatePassword(nextPassword, confirmPassword);
+
+        if (validPassword) {
+            const passwordHash = await bcrypt.hash(validPassword, 12);
+
+            await client.query(
+                `
+                UPDATE users
+                SET
+                    email = $2,
+                    phone_number = $3,
+                    role = $4,
+                    password_hash = $5
+                WHERE user_id = $1
+                `,
+                [userId, email, phoneNumber, config.dbRole, passwordHash]
+            );
+        } else {
+            await client.query(
+                `
+                UPDATE users
+                SET
+                    email = $2,
+                    phone_number = $3,
+                    role = $4
+                WHERE user_id = $1
+                `,
+                [userId, email, phoneNumber, config.dbRole]
+            );
+        }
+
+        await client.query(
+            `
+            UPDATE admin_profiles
+            SET
+                first_name = $2,
+                last_name = $3,
+                department = $4,
+                position = $5,
+                is_archived = $6
+            WHERE user_id = $1
+            `,
+            [userId, firstName, lastName, department, position, nextIsArchived]
+        );
+
+        await client.query('COMMIT');
+
+        return getStaffAccountById(userId, true);
+    } catch (error) {
+        await client.query('ROLLBACK');
+
+        if (error.code === '23505') {
+            throw createHttpError(400, 'An account with this email or username already exists.');
+        }
+
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+async function archiveStaffAccount(userId, actorUserId = null) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    if (actorUserId && String(actorUserId) === String(userId)) {
+        throw createHttpError(400, 'You cannot archive your own account.');
+    }
+
+    const existing = await getStaffAccountById(userId, true);
+
+    if (!existing) {
+        return null;
+    }
+
+    await db.query(
+        `
+        UPDATE admin_profiles
+        SET is_archived = true
+        WHERE user_id = $1
+        `,
+        [userId]
+    );
+
+    return getStaffAccountById(userId, true);
+}
+
+async function restoreStaffAccount(userId) {
+    if (!userId) {
+        throw createHttpError(400, 'User ID is required.');
+    }
+
+    const existing = await getStaffAccountById(userId, true);
+
+    if (!existing) {
+        return null;
+    }
+
+    await db.query(
+        `
+        UPDATE admin_profiles
+        SET is_archived = false
+        WHERE user_id = $1
+        `,
+        [userId]
+    );
+
+    return getStaffAccountById(userId, true);
 }
 
 async function updateCurrentStaffProfile(userId, payload = {}) {
@@ -243,33 +607,8 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
 
     try {
         await client.query('BEGIN');
-        const photoEnabled = await hasAdminProfilePhotoColumn(client);
 
-        const currentProfileResult = await client.query(
-            `
-            SELECT
-                u.user_id,
-                u.email,
-                u.username,
-                u.phone_number,
-                u.role AS user_role,
-                u.created_at,
-                a.admin_id,
-                a.first_name,
-                a.last_name,
-                a.department,
-                a.position,
-                ${buildProfilePhotoSelect('a', photoEnabled)}
-            FROM users u
-            INNER JOIN admin_profiles a ON a.user_id = u.user_id
-            WHERE u.user_id = $1
-              AND COALESCE(a.is_archived, false) = false
-            LIMIT 1
-            `,
-            [userId]
-        );
-
-        const currentProfile = currentProfileResult.rows[0];
+        const currentProfile = await fetchStaffAccountRow(userId, client, false);
 
         if (!currentProfile) {
             throw createHttpError(404, 'Staff profile not found.');
@@ -296,7 +635,8 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
         await client.query(
             `
             UPDATE users
-            SET email = $2,
+            SET
+                email = $2,
                 phone_number = $3
             WHERE user_id = $1
             `,
@@ -306,7 +646,8 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
         await client.query(
             `
             UPDATE admin_profiles
-            SET first_name = $2,
+            SET
+                first_name = $2,
                 last_name = $3,
                 department = $4,
                 position = $5
@@ -331,85 +672,6 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
     }
 }
 
-async function createStaffAccount(payload) {
-    const parsed = staffAccountSchema.safeParse(payload);
-
-    if (!parsed.success) {
-        const firstIssue = parsed.error.issues[0];
-        throw createHttpError(400, firstIssue?.message || 'Invalid staff account details.');
-    }
-
-    const {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone_number: phoneNumberInput,
-        role,
-        password,
-    } = parsed.data;
-
-    const config = ROLE_CONFIG[role];
-    const phoneNumber = safeText(phoneNumberInput) || null;
-    const department = safeText(payload.department) || config.department;
-    const position = safeText(payload.position) || config.position;
-    const passwordHash = await bcrypt.hash(password, 12);
-    const client = await db.connect();
-
-    try {
-        await client.query('BEGIN');
-        const photoEnabled = await hasAdminProfilePhotoColumn(client);
-
-        const duplicateEmail = await client.query(
-            'SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-            [email]
-        );
-
-        if (duplicateEmail.rows.length) {
-            throw createHttpError(400, 'An account with this email already exists.');
-        }
-
-        const username = await buildUniqueUsername(client, email);
-
-        const userResult = await client.query(
-            `
-                INSERT INTO users (role, username, password_hash, email, phone_number, is_otp_verified)
-                VALUES ($1, $2, $3, $4, $5, true)
-                RETURNING user_id, email, username, phone_number, role AS user_role, created_at
-            `,
-            [config.dbRole, username, passwordHash, email, phoneNumber]
-        );
-
-        const user = userResult.rows[0];
-        const profileResult = await client.query(
-            `
-                INSERT INTO admin_profiles (user_id, first_name, last_name, department, position, is_archived)
-                VALUES ($1, $2, $3, $4, $5, false)
-                RETURNING admin_id, first_name, last_name, department, position, ${
-                    photoEnabled ? 'profile_photo_url' : 'NULL::text AS profile_photo_url'
-                }
-            `,
-            [user.user_id, firstName, lastName, department, position]
-        );
-
-        await client.query('COMMIT');
-
-        return decorateStaffAccount({
-            ...user,
-            ...profileResult.rows[0],
-        });
-    } catch (error) {
-        await client.query('ROLLBACK');
-
-        if (error.code === '23505') {
-            throw createHttpError(400, 'An account with this email or username already exists.');
-        }
-
-        throw error;
-    } finally {
-        client.release();
-    }
-}
-
 async function uploadCurrentStaffProfilePhoto(userId, file) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
@@ -420,11 +682,13 @@ async function uploadCurrentStaffProfilePhoto(userId, file) {
     }
 
     const mimeType = safeText(file.mimetype).toLowerCase();
+
     if (!mimeType.startsWith('image/')) {
         throw createHttpError(400, 'Only image files are allowed for profile photos.');
     }
 
     const photoEnabled = await hasAdminProfilePhotoColumn();
+
     if (!photoEnabled) {
         throw createHttpError(400, 'Profile photo upload is not enabled yet for staff accounts.');
     }
@@ -447,6 +711,7 @@ async function uploadCurrentStaffProfilePhoto(userId, file) {
     }
 
     const oldPath = extractAvatarStoragePath(currentProfile.profile_photo_url);
+
     if (oldPath && oldPath !== storagePath) {
         await supabase.storage.from('avatars').remove([oldPath]).catch(() => null);
     }
@@ -469,6 +734,7 @@ async function removeCurrentStaffProfilePhoto(userId) {
     }
 
     const photoEnabled = await hasAdminProfilePhotoColumn();
+
     if (!photoEnabled) {
         throw createHttpError(400, 'Profile photo removal is not enabled yet for staff accounts.');
     }
@@ -493,10 +759,13 @@ async function removeCurrentStaffProfilePhoto(userId) {
 }
 
 module.exports = {
+    archiveStaffAccount,
     createStaffAccount,
     getCurrentStaffProfile,
     listStaffAccounts,
     removeCurrentStaffProfilePhoto,
+    restoreStaffAccount,
     updateCurrentStaffProfile,
+    updateStaffAccount,
     uploadCurrentStaffProfilePhoto,
 };

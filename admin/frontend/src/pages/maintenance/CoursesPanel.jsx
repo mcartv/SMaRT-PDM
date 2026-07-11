@@ -47,11 +47,8 @@ function CourseModal({
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
                     <div>
                         <h3 className="text-sm font-semibold text-stone-800">
-                            {isEdit ? 'Edit Academic Course' : 'Add Academic Course'}
+                            {isEdit ? 'Update Academic Course' : 'Add Academic Course'}
                         </h3>
-                        <p className="mt-0.5 text-xs text-stone-500">
-                            Manage the course code and course name used in student records.
-                        </p>
                     </div>
 
                     <button
@@ -376,10 +373,6 @@ export default function CoursesPanel() {
                 onSave={handleSave}
                 saving={saving}
             />
-
-            <div>
-                <h2 className="text-sm font-semibold text-stone-900">Academic Courses</h2>
-            </div>
 
             <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                 <div className="flex flex-col gap-4">

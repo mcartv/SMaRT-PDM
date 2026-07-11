@@ -30,6 +30,7 @@ const academicYearRoutes = require('../routes/academicYearRoutes');
 const adminProfilePhotoRoutes = require('../routes/adminProfilePhotoRoutes');
 const endorsementSlipRoutes = require('../routes/endorsementSlipRoutes');
 const accountRoutes = require('../routes/accountRoutes');
+const auditLogRoutes = require('../routes/auditLogRoutes');
 
 const ocrRoutes = require('../routes/ocrRoutes');
 const reportRoutes = require('../routes/reportRoutes');
@@ -195,6 +196,7 @@ app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/admin/profile-photos', adminProfilePhotoRoutes);
 app.use('/api/endorsement-slips', endorsementSlipRoutes);
 app.use('/api/accounts', accountRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/pi/iot-ocr', piIotOcrRoutes);

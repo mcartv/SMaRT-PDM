@@ -4,9 +4,11 @@ const http = require('http');
 const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
 
-require('dotenv').config({
-  path: path.resolve(__dirname, '../.env'),
-});
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config({
+    path: path.resolve(__dirname, '../.env'),
+  });
+}
 
 const express = require('express');
 const cors = require('cors');

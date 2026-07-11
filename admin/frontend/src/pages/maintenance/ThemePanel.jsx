@@ -169,6 +169,10 @@ export default function ThemePanel({
     [editablePortals, normalizedPortals]
   );
   const editablePortalSet = useMemo(() => new Set(normalizedEditablePortals), [normalizedEditablePortals]);
+  const readOnlyPortals = useMemo(
+    () => normalizedPortals.filter((portalKey) => !editablePortalSet.has(portalKey)),
+    [editablePortalSet, normalizedPortals]
+  );
 
   const loadSettings = async () => {
     try {
@@ -324,24 +328,11 @@ export default function ThemePanel({
         </div>
       </div>
 
-      {normalizedPortals.length > 1 ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {normalizedPortals.map((portalKey) => (
-            <PortalOverviewCard
-              key={`overview-${portalKey}`}
-              portalKey={portalKey}
-              presetKey={draftSettings[portalKey] || settings[portalKey] || 'default'}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        {normalizedPortals.map((portalKey) => {
+      <div className="space-y-5">
+        {normalizedEditablePortals.map((portalKey) => {
           const savedPresetKey = settings[portalKey] || 'default';
           const previewPresetKey = draftSettings[portalKey] || savedPresetKey;
           const currentTheme = resolvePortalTheme(portalKey, previewPresetKey);
-          const isEditable = editablePortalSet.has(portalKey);
           const hasPreviewChanges = previewPresetKey !== savedPresetKey;
 
           return (
@@ -360,126 +351,163 @@ export default function ThemePanel({
                       </p>
                     ) : null}
                   </div>
-                  {isEditable ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-9 rounded-xl border-stone-200 text-xs"
-                      onClick={() => {
-                        handlePreview(portalKey, 'default');
-                      }}
-                      disabled={savingPortal === portalKey}
-                    >
-                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                      Preview Default
-                    </Button>
-                  ) : (
-                    <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-[11px] font-medium text-stone-500">
-                      View only
-                    </span>
-                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl border-stone-200 text-xs"
+                    onClick={() => {
+                      handlePreview(portalKey, 'default');
+                    }}
+                    disabled={savingPortal === portalKey}
+                  >
+                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                    Preview Default
+                  </Button>
                 </div>
               </div>
 
               <CardContent className="space-y-4 p-5">
                 <ThemePreviewCard portalKey={portalKey} presetKey={previewPresetKey} />
 
-                {isEditable ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-stone-600">
-                        <Eye className="h-3.5 w-3.5" />
-                        Preview before save
-                      </span>
-                      <span className="text-xs text-stone-500">
-                        Selecting a preset updates the preview only. Use Save Theme when ready.
-                      </span>
-                    </div>
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-stone-600">
+                    <Eye className="h-3.5 w-3.5" />
+                    Preview before save
+                  </span>
+                  <span className="text-xs text-stone-500">
+                    Selecting a preset updates the preview only. Use Save Theme when ready.
+                  </span>
+                </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {presetOptions.map((preset) => {
-                        const isSelected = previewPresetKey === preset.key;
-                        const isSaved = savedPresetKey === preset.key;
-                        return (
-                          <button
-                            key={`${portalKey}-${preset.key}`}
-                            type="button"
-                            onClick={() => handlePreview(portalKey, preset.key)}
-                            disabled={savingPortal === portalKey}
-                            className={`rounded-2xl border p-4 text-left transition ${
-                              isSelected
-                                ? 'border-stone-900 bg-stone-900 text-white'
-                                : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold">{preset.label}</p>
-                                <p className={`mt-1 text-xs ${isSelected ? 'text-white/75' : 'text-stone-500'}`}>
-                                  {preset.description}
-                                </p>
-                              </div>
-                              <div className="flex flex-col items-end gap-1">
-                                {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : null}
-                                {isSaved ? (
-                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isSelected ? 'bg-white/15 text-white' : 'bg-stone-100 text-stone-600'}`}>
-                                    Saved
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-
-                            <div className="mt-3 flex gap-2">
-                              {preset.swatches.map((color) => (
-                                <span
-                                  key={`${portalKey}-${preset.key}-${color}`}
-                                  className="h-6 w-6 rounded-full border border-black/5"
-                                  style={{ background: color }}
-                                />
-                              ))}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <Button
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {presetOptions.map((preset) => {
+                    const isSelected = previewPresetKey === preset.key;
+                    const isSaved = savedPresetKey === preset.key;
+                    return (
+                      <button
+                        key={`${portalKey}-${preset.key}`}
                         type="button"
-                        variant="outline"
-                        className="h-9 rounded-xl border-stone-200 text-xs"
-                        onClick={() => handleResetPreview(portalKey)}
-                        disabled={savingPortal === portalKey || !hasPreviewChanges}
+                        onClick={() => handlePreview(portalKey, preset.key)}
+                        disabled={savingPortal === portalKey}
+                        className={`rounded-2xl border p-4 text-left transition ${
+                          isSelected
+                            ? 'border-stone-900 bg-stone-900 text-white'
+                            : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+                        }`}
                       >
-                        Reset Preview
-                      </Button>
-                      <Button
-                        type="button"
-                        className="h-9 rounded-xl border-none text-xs text-white"
-                        style={{ background: currentTheme.base }}
-                        onClick={() => handleSave(portalKey)}
-                        disabled={savingPortal === portalKey || !hasPreviewChanges}
-                      >
-                        {savingPortal === portalKey ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-                        Save Theme
-                      </Button>
-                    </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold">{preset.label}</p>
+                            <p className={`mt-1 text-xs ${isSelected ? 'text-white/75' : 'text-stone-500'}`}>
+                              {preset.description}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : null}
+                            {isSaved ? (
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isSelected ? 'bg-white/15 text-white' : 'bg-stone-100 text-stone-600'}`}>
+                                Saved
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
 
-                    <ThemeHistoryList items={historyByPortal[portalKey] || []} />
-                  </>
-                ) : (
-                  <>
-                    <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/70 px-4 py-3 text-sm text-stone-500">
-                      Theme editing for {PORTAL_LABELS[portalKey]} is handled inside the {PORTAL_LABELS[portalKey]} maintenance page.
-                    </div>
-                    <ThemeHistoryList items={historyByPortal[portalKey] || []} />
-                  </>
-                )}
+                        <div className="mt-3 flex gap-2">
+                          {preset.swatches.map((color) => (
+                            <span
+                              key={`${portalKey}-${preset.key}-${color}`}
+                              className="h-6 w-6 rounded-full border border-black/5"
+                              style={{ background: color }}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl border-stone-200 text-xs"
+                    onClick={() => handleResetPreview(portalKey)}
+                    disabled={savingPortal === portalKey || !hasPreviewChanges}
+                  >
+                    Reset Preview
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-9 rounded-xl border-none text-xs text-white"
+                    style={{ background: currentTheme.base }}
+                    onClick={() => handleSave(portalKey)}
+                    disabled={savingPortal === portalKey || !hasPreviewChanges}
+                  >
+                    {savingPortal === portalKey ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                    Save Theme
+                  </Button>
+                </div>
+
+                <ThemeHistoryList items={historyByPortal[portalKey] || []} />
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      {readOnlyPortals.length > 0 ? (
+        <div className="space-y-3">
+          <div>
+            <h4 className="text-sm font-semibold text-stone-900">Other Office Themes</h4>
+            <p className="mt-1 text-xs text-stone-500">
+              Quick preview only. These office themes are managed in their own maintenance pages.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {readOnlyPortals.map((portalKey) => (
+              <PortalOverviewCard
+                key={`overview-${portalKey}`}
+                portalKey={portalKey}
+                presetKey={draftSettings[portalKey] || settings[portalKey] || 'default'}
+              />
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            {readOnlyPortals.map((portalKey) => {
+              const savedPresetKey = settings[portalKey] || 'default';
+              const previewPresetKey = draftSettings[portalKey] || savedPresetKey;
+
+              return (
+                <Card key={portalKey} className="overflow-hidden border-stone-200 shadow-none">
+                  <div className="border-b border-stone-100 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-stone-900">{PORTAL_LABELS[portalKey]} Theme</h4>
+                        <p className="mt-1 text-xs text-stone-500">
+                          Saved preset: <span className="font-medium text-stone-700">{resolvePortalTheme(portalKey, savedPresetKey).label}</span>
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-[11px] font-medium text-stone-500">
+                        View only
+                      </span>
+                    </div>
+                  </div>
+
+                  <CardContent className="space-y-4 p-4">
+                    <ThemePreviewCard portalKey={portalKey} presetKey={previewPresetKey} />
+                    <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/70 px-4 py-3 text-sm text-stone-500">
+                      Theme editing for {PORTAL_LABELS[portalKey]} is handled inside the {PORTAL_LABELS[portalKey]} maintenance page.
+                    </div>
+                    <ThemeHistoryList items={historyByPortal[portalKey] || []} />
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

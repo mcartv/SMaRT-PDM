@@ -1,12 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Globe, Calendar, Save, Check, MapPin, Clock3, Phone, Building2 } from 'lucide-react';
+import { Globe, Calendar, Save, Check, MapPin, Clock3, Phone, Building2, LayoutTemplate } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { C, FieldLabel, GroupCard, Toggle } from './components/MaintenanceShared';
 
 export default function GeneralPanel() {
+    const SECTION_OPTIONS = [
+        { key: 'office', label: 'Office & Contact' },
+        { key: 'landing', label: 'Landing Content' },
+        { key: 'application', label: 'Application Window' },
+    ];
+
     const defaultFaqs = [
         {
             question: 'Who can apply?',
@@ -41,6 +47,8 @@ export default function GeneralPanel() {
     const [loading, setLoading] = useState(true);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
+    const [activeSection, setActiveSection] = useState('office');
 
     const loadGeneralSettings = useCallback(async () => {
         try {
@@ -128,7 +136,9 @@ export default function GeneralPanel() {
             }
 
             setSaved(true);
+            setSuccessMessage('General maintenance settings saved successfully.');
             setTimeout(() => setSaved(false), 2000);
+            window.setTimeout(() => setSuccessMessage(''), 2600);
         } catch (nextError) {
             setError(nextError.message || 'Failed to save general settings.');
         }
@@ -172,150 +182,195 @@ export default function GeneralPanel() {
                 </div>
             ) : null}
 
+            {successMessage ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                    {successMessage}
+                </div>
+            ) : null}
+
             {loading ? (
                 <div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-sm text-stone-500">
                     Loading general settings...
                 </div>
             ) : null}
 
-            <div className={`grid grid-cols-1 gap-4 lg:grid-cols-2 ${loading ? 'opacity-60' : ''}`}>
-                <GroupCard title="Institution Info" icon={Globe}>
-                    <div className="space-y-3">
-                        <div>
-                            <FieldLabel>Institution Name</FieldLabel>
-                            <Input
-                                value={instName}
-                                onChange={(e) => setInstName(e.target.value)}
-                                className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                            />
-                        </div>
+            <div className={`space-y-4 ${loading ? 'opacity-60' : ''}`}>
+                <div className="rounded-2xl border border-stone-200 bg-white p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                        General Sections
+                    </p>
+                    <p className="mt-1 text-sm text-stone-500">
+                        Switch between office details, landing content, and application settings.
+                    </p>
 
-                        <div>
-                            <FieldLabel>Office Name</FieldLabel>
-                            <Input
-                                value={officeName}
-                                onChange={(e) => setOfficeName(e.target.value)}
-                                className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                            />
-                        </div>
-
-                        <div>
-                            <FieldLabel>Office Email</FieldLabel>
-                            <Input
-                                value={officeEmail}
-                                onChange={(e) => setOfficeEmail(e.target.value)}
-                                className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                            />
-                        </div>
-                    </div>
-                </GroupCard>
-
-                <GroupCard title="Office Contact" icon={Building2}>
-                    <div className="space-y-3">
-                        <div>
-                            <FieldLabel>Office Address</FieldLabel>
-                            <div className="relative">
-                                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                                <Input
-                                    value={officeAddress}
-                                    onChange={(e) => setOfficeAddress(e.target.value)}
-                                    className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <FieldLabel>Landline Number</FieldLabel>
-                            <div className="relative">
-                                <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                                <Input
-                                    value={landlineNumber}
-                                    onChange={(e) => setLandlineNumber(e.target.value)}
-                                    className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <FieldLabel>Office Hours</FieldLabel>
-                            <div className="relative">
-                                <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                                <Input
-                                    value={officeHours}
-                                    onChange={(e) => setOfficeHours(e.target.value)}
-                                    className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </GroupCard>
-
-                <GroupCard title="Application Window" icon={Calendar}>
-                    <div className="space-y-3">
-                        <div className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-3">
-                            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
-                                Status
-                            </p>
-                            <Toggle
-                                value={appOpen}
-                                onChange={setAppOpen}
-                                labels={['Registration Open', 'Registration Closed']}
-                            />
-                        </div>
-
-                        <div>
-                            <FieldLabel>Global Deadline</FieldLabel>
-                            <Input
-                                type="date"
-                                value={globalDeadline}
-                                onChange={(e) => setGlobalDeadline(e.target.value)}
-                                className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                            />
-                        </div>
-                    </div>
-                </GroupCard>
-
-                <GroupCard title="Landing About OSFA" icon={Globe}>
-                    <div className="space-y-3">
-                        <div>
-                            <FieldLabel>About OSFA Text</FieldLabel>
-                            <textarea
-                                value={aboutOsfa}
-                                onChange={(e) => setAboutOsfa(e.target.value)}
-                                rows={7}
-                                className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
-                                placeholder="Write the public About OSFA description shown on the landing page."
-                            />
-                        </div>
-                    </div>
-                </GroupCard>
-
-                <GroupCard title="Landing FAQ" icon={Building2}>
-                    <div className="space-y-4">
-                        {landingFaqs.map((item, index) => (
-                            <div key={`landing-faq-${index}`} className="rounded-lg border border-stone-100 bg-stone-50/70 p-3">
-                                <div>
-                                    <FieldLabel>Question {index + 1}</FieldLabel>
-                                    <Input
-                                        value={item.question}
-                                        onChange={(e) => updateFaq(index, 'question', e.target.value)}
-                                        className="h-9 rounded-lg border-stone-200 bg-white text-sm"
-                                    />
-                                </div>
-
-                                <div className="mt-3">
-                                    <FieldLabel>Answer {index + 1}</FieldLabel>
-                                    <textarea
-                                        value={item.answer}
-                                        onChange={(e) => updateFaq(index, 'answer', e.target.value)}
-                                        rows={4}
-                                        className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none"
-                                    />
-                                </div>
-                            </div>
+                    <div className="mt-4 inline-flex flex-wrap rounded-full border border-stone-200 bg-stone-50 p-1">
+                        {SECTION_OPTIONS.map((section) => (
+                            <button
+                                key={section.key}
+                                type="button"
+                                onClick={() => setActiveSection(section.key)}
+                                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                    activeSection === section.key
+                                        ? 'text-white shadow-sm'
+                                        : 'text-stone-600 hover:text-stone-900'
+                                }`}
+                                style={activeSection === section.key ? { background: C.brownMid } : undefined}
+                            >
+                                {section.label}
+                            </button>
                         ))}
                     </div>
-                </GroupCard>
+                </div>
+
+                {activeSection === 'office' ? (
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <GroupCard title="Institution Info" icon={Globe}>
+                            <div className="space-y-3">
+                                <div>
+                                    <FieldLabel>Institution Name</FieldLabel>
+                                    <Input
+                                        value={instName}
+                                        onChange={(e) => setInstName(e.target.value)}
+                                        className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <FieldLabel>Office Name</FieldLabel>
+                                    <Input
+                                        value={officeName}
+                                        onChange={(e) => setOfficeName(e.target.value)}
+                                        className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <FieldLabel>Office Email</FieldLabel>
+                                    <Input
+                                        value={officeEmail}
+                                        onChange={(e) => setOfficeEmail(e.target.value)}
+                                        className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                    />
+                                </div>
+                            </div>
+                        </GroupCard>
+
+                        <GroupCard title="Office Contact" icon={Building2}>
+                            <div className="space-y-3">
+                                <div>
+                                    <FieldLabel>Office Address</FieldLabel>
+                                    <div className="relative">
+                                        <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                                        <Input
+                                            value={officeAddress}
+                                            onChange={(e) => setOfficeAddress(e.target.value)}
+                                            className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <FieldLabel>Landline Number</FieldLabel>
+                                    <div className="relative">
+                                        <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                                        <Input
+                                            value={landlineNumber}
+                                            onChange={(e) => setLandlineNumber(e.target.value)}
+                                            className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <FieldLabel>Office Hours</FieldLabel>
+                                    <div className="relative">
+                                        <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                                        <Input
+                                            value={officeHours}
+                                            onChange={(e) => setOfficeHours(e.target.value)}
+                                            className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </GroupCard>
+                    </div>
+                ) : null}
+
+                {activeSection === 'landing' ? (
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <GroupCard title="Landing About OSFA" icon={Globe}>
+                            <div className="space-y-3">
+                                <div>
+                                    <FieldLabel>About OSFA Text</FieldLabel>
+                                    <textarea
+                                        value={aboutOsfa}
+                                        onChange={(e) => setAboutOsfa(e.target.value)}
+                                        rows={9}
+                                        className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
+                                        placeholder="Write the public About OSFA description shown on the landing page."
+                                    />
+                                </div>
+                            </div>
+                        </GroupCard>
+
+                        <GroupCard title="Landing FAQ" icon={LayoutTemplate}>
+                            <div className="space-y-4">
+                                {landingFaqs.map((item, index) => (
+                                    <div key={`landing-faq-${index}`} className="rounded-lg border border-stone-100 bg-stone-50/70 p-3">
+                                        <div>
+                                            <FieldLabel>Question {index + 1}</FieldLabel>
+                                            <Input
+                                                value={item.question}
+                                                onChange={(e) => updateFaq(index, 'question', e.target.value)}
+                                                className="h-9 rounded-lg border-stone-200 bg-white text-sm"
+                                            />
+                                        </div>
+
+                                        <div className="mt-3">
+                                            <FieldLabel>Answer {index + 1}</FieldLabel>
+                                            <textarea
+                                                value={item.answer}
+                                                onChange={(e) => updateFaq(index, 'answer', e.target.value)}
+                                                rows={4}
+                                                className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </GroupCard>
+                    </div>
+                ) : null}
+
+                {activeSection === 'application' ? (
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <GroupCard title="Application Window" icon={Calendar}>
+                            <div className="space-y-3">
+                                <div className="rounded-lg border border-stone-100 bg-stone-50 px-3 py-3">
+                                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-stone-400">
+                                        Status
+                                    </p>
+                                    <Toggle
+                                        value={appOpen}
+                                        onChange={setAppOpen}
+                                        labels={['Registration Open', 'Registration Closed']}
+                                    />
+                                </div>
+
+                                <div>
+                                    <FieldLabel>Global Deadline</FieldLabel>
+                                    <Input
+                                        type="date"
+                                        value={globalDeadline}
+                                        onChange={(e) => setGlobalDeadline(e.target.value)}
+                                        className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                    />
+                                </div>
+                            </div>
+                        </GroupCard>
+                    </div>
+                ) : null}
             </div>
         </div>
     );

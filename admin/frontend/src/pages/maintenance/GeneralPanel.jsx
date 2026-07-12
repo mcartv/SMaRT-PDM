@@ -206,6 +206,7 @@ export default function GeneralPanel() {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [activeSection, setActiveSection] = useState('office');
+    const [activeLandingSection, setActiveLandingSection] = useState('about');
     const [activeFaqTab, setActiveFaqTab] = useState('current');
     const [faqDialogOpen, setFaqDialogOpen] = useState(false);
     const [faqForm, setFaqForm] = useState(DEFAULT_FAQ_FORM);
@@ -672,10 +673,47 @@ export default function GeneralPanel() {
                 {activeSection === 'landing' ? (
                     <SectionFrame
                         title="Landing Content"
-                        description="Manage the public About OSFA section and landing FAQ records separately."
+                        description="Manage the public About OSFA section and landing FAQs in separate, cleaner views."
                     >
-                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-                            <GroupCard title="Landing About OSFA" icon={Globe}>
+                        <div className="space-y-4">
+                            <div className="rounded-xl border border-stone-100 bg-stone-50/80 p-3">
+                                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                    Landing Sections
+                                </p>
+                                <p className="mt-1 text-sm text-stone-500">
+                                    Open one section at a time so editing stays cleaner and easier to use.
+                                </p>
+
+                                <div className="mt-3 inline-flex flex-wrap rounded-full border border-stone-200 bg-white p-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveLandingSection('about')}
+                                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                            activeLandingSection === 'about'
+                                                ? 'text-white shadow-sm'
+                                                : 'text-stone-600 hover:text-stone-900'
+                                        }`}
+                                        style={activeLandingSection === 'about' ? { background: C.brownMid } : undefined}
+                                    >
+                                        About OSFA
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveLandingSection('faq')}
+                                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                            activeLandingSection === 'faq'
+                                                ? 'text-white shadow-sm'
+                                                : 'text-stone-600 hover:text-stone-900'
+                                        }`}
+                                        style={activeLandingSection === 'faq' ? { background: C.brownMid } : undefined}
+                                    >
+                                        Landing FAQs
+                                    </button>
+                                </div>
+                            </div>
+
+                            {activeLandingSection === 'about' ? (
+                                <GroupCard title="Landing About OSFA" icon={Globe}>
                                 <div className="space-y-3">
                                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-100 bg-stone-50 px-3 py-2.5">
                                         <div>
@@ -723,20 +761,13 @@ export default function GeneralPanel() {
                                         />
                                     </div>
                                 </div>
-                            </GroupCard>
+                                </GroupCard>
+                            ) : null}
 
-                            <GroupCard title="Landing FAQ Records" icon={LayoutTemplate}>
+                            {activeLandingSection === 'faq' ? (
+                                <GroupCard title="Landing FAQs" icon={LayoutTemplate}>
                                 <div className="space-y-4">
                                     <div className="flex flex-col gap-3 rounded-xl border border-stone-100 bg-stone-50/80 p-3 md:flex-row md:items-center md:justify-between">
-                                        <div>
-                                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                                FAQ Records
-                                            </p>
-                                            <p className="mt-1 text-sm font-semibold text-stone-900">
-                                                {currentFaqs.length} current · {archivedFaqs.length} archived
-                                            </p>
-                                        </div>
-
                                         <div className="flex flex-wrap items-center gap-2">
                                             <button
                                                 type="button"
@@ -852,13 +883,14 @@ export default function GeneralPanel() {
                                             title={activeFaqTab === 'archived' ? 'No archived FAQs' : 'No current FAQs'}
                                             subtitle={
                                                 activeFaqTab === 'archived'
-                                                    ? 'Archived FAQ records will appear here.'
+                                                    ? 'Archived landing FAQs will appear here.'
                                                     : 'Add a landing FAQ to start building the public help section.'
                                             }
                                         />
                                     )}
                                 </div>
                             </GroupCard>
+                            ) : null}
                         </div>
                     </SectionFrame>
                 ) : null}

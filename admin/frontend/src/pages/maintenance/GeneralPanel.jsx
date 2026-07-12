@@ -70,10 +70,8 @@ export default function GeneralPanel() {
     const [officeAddress, setOfficeAddress] = useState('Abangan Norte, Marilao, Bulacan');
     const [landlineNumber, setLandlineNumber] = useState('(044) 919-8191');
     const [officeHours, setOfficeHours] = useState('Monday - Friday, 8:00 AM - 5:00 PM');
-    const [aboutOsfa, setAboutOsfa] = useState(
-        'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.'
-    );
-    const [landingFaqs, setLandingFaqs] = useState(defaultFaqs);
+    const [aboutOsfa, setAboutOsfa] = useState(DEFAULT_ABOUT_OSFA);
+    const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState('2026-03-31');
     const [appOpen, setAppOpen] = useState(true);
     const [loading, setLoading] = useState(true);

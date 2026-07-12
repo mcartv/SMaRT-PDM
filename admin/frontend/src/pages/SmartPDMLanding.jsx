@@ -418,8 +418,15 @@ export default function SmartPDMLanding() {
     setBenefactorSlide((current) => Math.min(current, benefactorSlides.length - 1));
   }, [benefactorSlides]);
 
-  const canGoPrevBenefactor = benefactorSlide > 0;
-  const canGoNextBenefactor = benefactorSlide < benefactorSlides.length - 1;
+  useEffect(() => {
+    if (benefactorSlides.length <= 1) return undefined;
+
+    const autoplay = window.setInterval(() => {
+      setBenefactorSlide((current) => (current + 1) % benefactorSlides.length);
+    }, 3800);
+
+    return () => window.clearInterval(autoplay);
+  }, [benefactorSlides.length]);
 
   return (
     <div
@@ -665,9 +672,12 @@ export default function SmartPDMLanding() {
                   <div className="hidden items-center gap-2 md:flex">
                     <button
                       type="button"
-                      onClick={() => setBenefactorSlide((current) => Math.max(0, current - 1))}
-                      disabled={!canGoPrevBenefactor}
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition disabled:cursor-not-allowed disabled:opacity-40"
+                      onClick={() =>
+                        setBenefactorSlide((current) =>
+                          current === 0 ? benefactorSlides.length - 1 : current - 1
+                        )
+                      }
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:brightness-[0.98]"
                     >
                       <ChevronLeft size={18} />
                     </button>
@@ -675,10 +685,9 @@ export default function SmartPDMLanding() {
                     <button
                       type="button"
                       onClick={() =>
-                        setBenefactorSlide((current) => Math.min(benefactorSlides.length - 1, current + 1))
+                        setBenefactorSlide((current) => (current + 1) % benefactorSlides.length)
                       }
-                      disabled={!canGoNextBenefactor}
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:brightness-[0.98]"
                     >
                       <ChevronRight size={18} />
                     </button>

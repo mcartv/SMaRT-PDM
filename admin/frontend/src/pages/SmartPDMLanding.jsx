@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Bell,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Phone,
   Download,
   FileCheck2,
@@ -79,7 +82,7 @@ const features = [
   },
 ];
 
-const faqItems = [
+const defaultFaqItems = [
   {
     question: 'Who can apply?',
     answer:
@@ -219,7 +222,7 @@ function StepCard({ step, title, description, theme }) {
 function BenefactorCard({ benefactor, theme }) {
   return (
     <div
-      className="rounded-[1.5rem] border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="h-full rounded-[1.5rem] border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       style={{ borderColor: theme.border }}
     >
       <div className="flex items-start justify-between gap-3">
@@ -243,13 +246,17 @@ function BenefactorCard({ benefactor, theme }) {
   );
 }
 
-function FaqCard({ item, theme }) {
+function FaqCard({ item, theme, isOpen, onToggle }) {
   return (
     <div
       className="rounded-[1.5rem] border bg-white p-5 shadow-sm"
       style={{ borderColor: theme.border }}
     >
-      <div className="flex items-start gap-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start gap-3 text-left"
+      >
         <div
           className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
           style={{ background: theme.soft, color: theme.base }}
@@ -257,11 +264,26 @@ function FaqCard({ item, theme }) {
           <HelpCircle size={18} />
         </div>
 
-        <div>
+        <div className="flex-1">
           <h3 className="text-sm font-bold text-stone-900">{item.question}</h3>
-          <p className="mt-2 text-sm leading-6 text-stone-500">{item.answer}</p>
         </div>
-      </div>
+
+        <div
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-stone-500"
+          aria-hidden="true"
+        >
+          <ChevronDown
+            size={16}
+            className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </button>
+
+      {isOpen ? (
+        <div className="ml-12 mt-3 border-t border-stone-100 pt-3">
+          <p className="text-sm leading-6 text-stone-500">{item.answer}</p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -269,12 +291,17 @@ function FaqCard({ item, theme }) {
 export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
+  const [activeFaq, setActiveFaq] = useState(0);
+  const [benefactorSlide, setBenefactorSlide] = useState(0);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
     office_email: 'osfa@pdm.edu.ph',
     office_address: 'Abangan Norte, Marilao, Bulacan',
     landline_number: '(044) 919-8191',
     office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
+    about_osfa:
+      'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
+    landing_faqs: defaultFaqItems,
   });
 
   useEffect(() => {
@@ -330,6 +357,11 @@ export default function SmartPDMLanding() {
             office_address: payload?.office_address || current.office_address,
             landline_number: payload?.landline_number || current.landline_number,
             office_hours: payload?.office_hours || current.office_hours,
+            about_osfa: payload?.about_osfa || current.about_osfa,
+            landing_faqs:
+              Array.isArray(payload?.landing_faqs) && payload.landing_faqs.length
+                ? payload.landing_faqs
+                : current.landing_faqs,
           }));
         }
       } catch (error) {
@@ -358,10 +390,36 @@ export default function SmartPDMLanding() {
         office_address: settings?.office_address || current.office_address,
         landline_number: settings?.landline_number || current.landline_number,
         office_hours: settings?.office_hours || current.office_hours,
+        about_osfa: settings?.about_osfa || current.about_osfa,
+        landing_faqs:
+          Array.isArray(settings?.landing_faqs) && settings.landing_faqs.length
+            ? settings.landing_faqs
+            : current.landing_faqs,
       }));
     },
     []
   );
+
+  const benefactorSlides = useMemo(() => {
+    const chunkSize = 3;
+    const chunks = [];
+    for (let index = 0; index < benefactors.length; index += chunkSize) {
+      chunks.push(benefactors.slice(index, index + chunkSize));
+    }
+    return chunks;
+  }, [benefactors]);
+
+  useEffect(() => {
+    if (!benefactorSlides.length) {
+      setBenefactorSlide(0);
+      return;
+    }
+
+    setBenefactorSlide((current) => Math.min(current, benefactorSlides.length - 1));
+  }, [benefactorSlides]);
+
+  const canGoPrevBenefactor = benefactorSlide > 0;
+  const canGoNextBenefactor = benefactorSlide < benefactorSlides.length - 1;
 
   return (
     <div
@@ -588,7 +646,7 @@ export default function SmartPDMLanding() {
             className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
             style={{ background: '#ffffff', borderColor: theme.border }}
           >
-            <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
                   Benefactors
@@ -598,21 +656,80 @@ export default function SmartPDMLanding() {
                 </h2>
               </div>
 
-              <p className="max-w-md text-sm leading-6 text-stone-500">
-                These partner organizations and funding sources help make scholarship access possible for PDM students.
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="max-w-md text-sm leading-6 text-stone-500">
+                  These partner organizations and funding sources help make scholarship access possible for PDM students.
+                </p>
+
+                {benefactorSlides.length > 1 ? (
+                  <div className="hidden items-center gap-2 md:flex">
+                    <button
+                      type="button"
+                      onClick={() => setBenefactorSlide((current) => Math.max(0, current - 1))}
+                      disabled={!canGoPrevBenefactor}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBenefactorSlide((current) => Math.min(benefactorSlides.length - 1, current + 1))
+                      }
+                      disabled={!canGoNextBenefactor}
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {benefactors.map((benefactor) => (
-                <BenefactorCard key={benefactor.benefactor_id} benefactor={benefactor} theme={theme} />
-              ))}
+            <div className="overflow-hidden">
+              <div
+                className="flex transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(-${benefactorSlide * 100}%)` }}
+              >
+                {benefactorSlides.map((slide, slideIndex) => (
+                  <div key={`benefactor-slide-${slideIndex}`} className="w-full shrink-0">
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {slide.map((benefactor) => (
+                        <BenefactorCard
+                          key={benefactor.benefactor_id}
+                          benefactor={benefactor}
+                          theme={theme}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {benefactorSlides.length > 1 ? (
+              <div className="mt-5 flex items-center justify-center gap-2">
+                {benefactorSlides.map((_, index) => (
+                  <button
+                    key={`benefactor-dot-${index}`}
+                    type="button"
+                    onClick={() => setBenefactorSlide(index)}
+                    className="h-2.5 rounded-full transition"
+                    style={{
+                      width: benefactorSlide === index ? '28px' : '10px',
+                      background: benefactorSlide === index ? theme.base : '#d6d3d1',
+                    }}
+                    aria-label={`Go to benefactor slide ${index + 1}`}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+      <section className="mx-auto w-full max-w-6xl px-5 pb-14">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
           style={{ background: '#fffdfb', borderColor: theme.border }}
@@ -723,10 +840,7 @@ export default function SmartPDMLanding() {
               Supporting scholarship access with a clearer process
             </h2>
             <p className="mt-4 text-sm leading-7 text-stone-600">
-              The Office for Scholarship and Financial Assistance helps manage scholarship access,
-              application review coordination, and student support monitoring for qualified PDM students.
-              Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements,
-              endorsement, status tracking, and final scholar readiness.
+              {generalSettings.about_osfa}
             </p>
           </div>
 
@@ -780,9 +894,18 @@ export default function SmartPDMLanding() {
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {faqItems.map((item) => (
-              <FaqCard key={item.question} item={item} theme={theme} />
+          <div className="grid gap-4">
+            {(Array.isArray(generalSettings.landing_faqs) && generalSettings.landing_faqs.length
+              ? generalSettings.landing_faqs
+              : defaultFaqItems
+            ).map((item, index) => (
+              <FaqCard
+                key={item.question}
+                item={item}
+                theme={theme}
+                isOpen={activeFaq === index}
+                onToggle={() => setActiveFaq((current) => (current === index ? -1 : index))}
+              />
             ))}
           </div>
         </div>

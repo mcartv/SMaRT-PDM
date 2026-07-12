@@ -7,12 +7,35 @@ import { useSocketEvent } from '@/hooks/useSocket';
 import { C, FieldLabel, GroupCard, Toggle } from './components/MaintenanceShared';
 
 export default function GeneralPanel() {
+    const defaultFaqs = [
+        {
+            question: 'Who can apply?',
+            answer: 'Applicants must meet the eligibility requirements of the scholarship program and submit the required records through the SMaRT-PDM application process.',
+        },
+        {
+            question: 'What documents are required?',
+            answer: 'Required documents depend on the scholarship program, but applicants are expected to upload the listed requirements in the system before final review.',
+        },
+        {
+            question: 'How does endorsement work?',
+            answer: 'The endorsement slip passes through SDO, Guidance, and Program Director review. Each office records its decision before the slip can be completed.',
+        },
+        {
+            question: 'When does scholar activation happen?',
+            answer: 'Scholar activation only happens after both requirements and endorsement are complete and the admin side confirms final readiness.',
+        },
+    ];
+
     const [instName, setInstName] = useState('Pambayang Dalubhasaan ng Marilao');
     const [officeName, setOfficeName] = useState('Office for Scholarship and Financial Assistance');
     const [officeEmail, setOfficeEmail] = useState('osfa@pdm.edu.ph');
     const [officeAddress, setOfficeAddress] = useState('Abangan Norte, Marilao, Bulacan');
     const [landlineNumber, setLandlineNumber] = useState('(044) 919-8191');
     const [officeHours, setOfficeHours] = useState('Monday - Friday, 8:00 AM - 5:00 PM');
+    const [aboutOsfa, setAboutOsfa] = useState(
+        'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.'
+    );
+    const [landingFaqs, setLandingFaqs] = useState(defaultFaqs);
     const [globalDeadline, setGlobalDeadline] = useState('2026-03-31');
     const [appOpen, setAppOpen] = useState(true);
     const [loading, setLoading] = useState(true);
@@ -41,6 +64,18 @@ export default function GeneralPanel() {
             setOfficeAddress(payload?.office_address || 'Abangan Norte, Marilao, Bulacan');
             setLandlineNumber(payload?.landline_number || '(044) 919-8191');
             setOfficeHours(payload?.office_hours || 'Monday - Friday, 8:00 AM - 5:00 PM');
+            setAboutOsfa(
+                payload?.about_osfa ||
+                    'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.'
+            );
+            setLandingFaqs(
+                Array.isArray(payload?.landing_faqs) && payload.landing_faqs.length
+                    ? payload.landing_faqs.slice(0, 6).map((item, index) => ({
+                        question: item?.question || defaultFaqs[index]?.question || '',
+                        answer: item?.answer || defaultFaqs[index]?.answer || '',
+                    }))
+                    : defaultFaqs
+            );
             setGlobalDeadline(payload?.global_deadline || '2026-03-31');
             setAppOpen(typeof payload?.applications_open === 'boolean' ? payload.applications_open : true);
         } catch (nextError) {
@@ -80,6 +115,8 @@ export default function GeneralPanel() {
                     office_address: officeAddress,
                     landline_number: landlineNumber,
                     office_hours: officeHours,
+                    about_osfa: aboutOsfa,
+                    landing_faqs: landingFaqs,
                     global_deadline: globalDeadline,
                     applications_open: appOpen,
                 }),
@@ -95,6 +132,14 @@ export default function GeneralPanel() {
         } catch (nextError) {
             setError(nextError.message || 'Failed to save general settings.');
         }
+    };
+
+    const updateFaq = (index, field, value) => {
+        setLandingFaqs((current) =>
+            current.map((item, itemIndex) =>
+                itemIndex === index ? { ...item, [field]: value } : item
+            )
+        );
     };
 
     return (
@@ -227,6 +272,48 @@ export default function GeneralPanel() {
                                 className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                             />
                         </div>
+                    </div>
+                </GroupCard>
+
+                <GroupCard title="Landing About OSFA" icon={Globe}>
+                    <div className="space-y-3">
+                        <div>
+                            <FieldLabel>About OSFA Text</FieldLabel>
+                            <textarea
+                                value={aboutOsfa}
+                                onChange={(e) => setAboutOsfa(e.target.value)}
+                                rows={7}
+                                className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
+                                placeholder="Write the public About OSFA description shown on the landing page."
+                            />
+                        </div>
+                    </div>
+                </GroupCard>
+
+                <GroupCard title="Landing FAQ" icon={Building2}>
+                    <div className="space-y-4">
+                        {landingFaqs.map((item, index) => (
+                            <div key={`landing-faq-${index}`} className="rounded-lg border border-stone-100 bg-stone-50/70 p-3">
+                                <div>
+                                    <FieldLabel>Question {index + 1}</FieldLabel>
+                                    <Input
+                                        value={item.question}
+                                        onChange={(e) => updateFaq(index, 'question', e.target.value)}
+                                        className="h-9 rounded-lg border-stone-200 bg-white text-sm"
+                                    />
+                                </div>
+
+                                <div className="mt-3">
+                                    <FieldLabel>Answer {index + 1}</FieldLabel>
+                                    <textarea
+                                        value={item.answer}
+                                        onChange={(e) => updateFaq(index, 'answer', e.target.value)}
+                                        rows={4}
+                                        className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </GroupCard>
             </div>

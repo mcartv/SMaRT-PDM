@@ -5,12 +5,15 @@ import {
   Bell,
   Phone,
   Download,
+  Facebook,
   FileCheck2,
   MapPin,
   Clock3,
+  HelpCircle,
   LockKeyhole,
+  Mail,
   MessageSquare,
-  School,
+  ShieldCheck,
   Smartphone,
   UsersRound,
 } from 'lucide-react';
@@ -23,6 +26,7 @@ import pdmFacade from '../assets/PDM-Facade.png';
 
 const APP_DOWNLOAD_URL =
   'https://www.mediafire.com/file/8157hvb8nuqiprf/SMaRT_PDM.apk/file';
+const PDM_FACEBOOK_URL = 'https://www.facebook.com/PDM2010Official';
 
 const portalLinks = [
   { label: 'Admin', href: '/admin/login' },
@@ -72,6 +76,29 @@ const features = [
     icon: LockKeyhole,
     title: 'Secure Access',
     description: 'Role-based portals protect sensitive scholarship workflows.',
+  },
+];
+
+const faqItems = [
+  {
+    question: 'Who can apply?',
+    answer:
+      'Applicants must meet the eligibility requirements of the scholarship program and submit the required records through the SMaRT-PDM application process.',
+  },
+  {
+    question: 'What documents are required?',
+    answer:
+      'Required documents depend on the scholarship program, but applicants are expected to upload the listed requirements in the system before final review.',
+  },
+  {
+    question: 'How does endorsement work?',
+    answer:
+      'The endorsement slip passes through SDO, Guidance, and Program Director review. Each office records its decision before the slip can be completed.',
+  },
+  {
+    question: 'When does scholar activation happen?',
+    answer:
+      'Scholar activation only happens after both requirements and endorsement are complete and the admin side confirms final readiness.',
   },
 ];
 
@@ -216,12 +243,35 @@ function BenefactorCard({ benefactor, theme }) {
   );
 }
 
+function FaqCard({ item, theme }) {
+  return (
+    <div
+      className="rounded-[1.5rem] border bg-white p-5 shadow-sm"
+      style={{ borderColor: theme.border }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: theme.soft, color: theme.base }}
+        >
+          <HelpCircle size={18} />
+        </div>
+
+        <div>
+          <h3 className="text-sm font-bold text-stone-900">{item.question}</h3>
+          <p className="mt-2 text-sm leading-6 text-stone-500">{item.answer}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
   const [generalSettings, setGeneralSettings] = useState({
-    institution_name: 'Pambayang Dalubhasaan ng Marilao',
     office_name: 'Office for Scholarship and Financial Assistance',
+    office_email: 'osfa@pdm.edu.ph',
     office_address: 'Abangan Norte, Marilao, Bulacan',
     landline_number: '(044) 919-8191',
     office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
@@ -275,8 +325,8 @@ export default function SmartPDMLanding() {
         if (active) {
           setGeneralSettings((current) => ({
             ...current,
-            institution_name: payload?.institution_name || current.institution_name,
             office_name: payload?.office_name || current.office_name,
+            office_email: payload?.office_email || current.office_email,
             office_address: payload?.office_address || current.office_address,
             landline_number: payload?.landline_number || current.landline_number,
             office_hours: payload?.office_hours || current.office_hours,
@@ -303,8 +353,8 @@ export default function SmartPDMLanding() {
       const settings = payload?.settings || {};
       setGeneralSettings((current) => ({
         ...current,
-        institution_name: settings?.institution_name || current.institution_name,
         office_name: settings?.office_name || current.office_name,
+        office_email: settings?.office_email || current.office_email,
         office_address: settings?.office_address || current.office_address,
         landline_number: settings?.landline_number || current.landline_number,
         office_hours: settings?.office_hours || current.office_hours,
@@ -660,25 +710,99 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
+      <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+        <div
+          className="grid gap-6 rounded-[2rem] border px-6 py-7 md:px-8 md:py-8 lg:grid-cols-[1.05fr_0.95fr]"
+          style={{ background: '#ffffff', borderColor: theme.border }}
+        >
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+              About OSFA
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-stone-900">
+              Supporting scholarship access with a clearer process
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-stone-600">
+              The Office for Scholarship and Financial Assistance helps manage scholarship access,
+              application review coordination, and student support monitoring for qualified PDM students.
+              Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements,
+              endorsement, status tracking, and final scholar readiness.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50/70 p-5">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-xl"
+                style={{ background: theme.soft, color: theme.base }}
+              >
+                <ShieldCheck size={19} />
+              </div>
+              <p className="mt-4 text-sm font-bold text-stone-900">Guided office review</p>
+              <p className="mt-2 text-sm leading-6 text-stone-500">
+                SDO, Guidance, and Program Director reviews are tracked by stage for better accountability.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50/70 p-5">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-xl"
+                style={{ background: theme.soft, color: theme.base }}
+              >
+                <FileCheck2 size={19} />
+              </div>
+              <p className="mt-4 text-sm font-bold text-stone-900">Readiness-based activation</p>
+              <p className="mt-2 text-sm leading-6 text-stone-500">
+                Scholar activation happens only after both requirements and endorsement are fully completed.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+        <div
+          className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
+          style={{ background: '#fffdfb', borderColor: theme.border }}
+        >
+          <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                Frequently Asked Questions
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-stone-900">
+                Quick answers for applicants and families
+              </h2>
+            </div>
+
+            <p className="max-w-md text-sm leading-6 text-stone-500">
+              A short public guide to make the scholarship process easier to understand before applying.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {faqItems.map((item) => (
+              <FaqCard key={item.question} item={item} theme={theme} />
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="mx-auto w-full max-w-6xl px-5 pb-14">
         <div
           className="rounded-[2rem] border px-6 py-6 md:px-8"
           style={{ background: theme.base, borderColor: theme.border }}
         >
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <School className="h-4 w-4" />
-                Institution
-              </div>
-              <p className="mt-3 text-base font-semibold">
-                {generalSettings.institution_name}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                {generalSettings.office_name}
-              </p>
-            </div>
+          <div className="mb-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/70">
+              Contact Information
+            </p>
+            <p className="mt-2 text-lg font-semibold text-white">
+              {generalSettings.office_name}
+            </p>
+          </div>
 
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <MapPin className="h-4 w-4" />
@@ -688,7 +812,7 @@ export default function SmartPDMLanding() {
                 {generalSettings.office_address}
               </p>
               <p className="mt-2 text-sm leading-6 text-white/75">
-                Campus and office destination for OSFA-related transactions.
+                Main office destination for OSFA-related transactions and follow-up.
               </p>
             </div>
 
@@ -721,7 +845,79 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <footer className="border-t border-stone-200 bg-white px-5 py-6">
+      <footer className="border-t border-stone-200 bg-white px-5 py-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-6 rounded-[2rem] border border-stone-200 bg-stone-50/60 px-6 py-6 md:px-8 lg:grid-cols-[1.15fr_0.85fr_0.85fr]">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                Contact / Visit Us
+              </p>
+              <h3 className="mt-2 text-lg font-bold text-stone-900">{generalSettings.office_name}</h3>
+              <p className="mt-3 text-sm leading-6 text-stone-600">
+                Public scholarship inquiries, application follow-up, and office coordination can be directed through the contact details below.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-4 w-4 text-stone-500" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Office Address</p>
+                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.office_address}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Phone className="mt-0.5 h-4 w-4 text-stone-500" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Landline Number</p>
+                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.landline_number}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Clock3 className="mt-0.5 h-4 w-4 text-stone-500" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Office Hours</p>
+                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.office_hours}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Mail className="mt-0.5 h-4 w-4 text-stone-500" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Email</p>
+                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.office_email}</p>
+                </div>
+              </div>
+
+              <a
+                href={PDM_FACEBOOK_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
+              >
+                <Facebook className="h-4 w-4" />
+                Follow PDM on Facebook
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2 text-center md:flex-row md:items-center md:justify-between md:text-left">
+            <p className="text-xs font-semibold text-stone-600">
+              SMaRT-PDM · Office for Scholarship and Financial Assistance
+            </p>
+
+            <p className="text-xs text-stone-400">
+              © 2026 Pambayang Dalubhasaan ng Marilao
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      <footer className="hidden border-t border-stone-200 bg-white px-5 py-6">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 text-center md:flex-row md:items-center md:justify-between md:text-left">
           <p className="text-xs font-semibold text-stone-600">
             SMaRT-PDM · Office for Scholarship and Financial Assistance

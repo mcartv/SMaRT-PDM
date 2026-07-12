@@ -3,16 +3,17 @@ import { CalendarDays, Clock3, FileText } from 'lucide-react';
 
 function formatDateParts(now) {
   return {
-    dayName: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(now),
-    dateLabel: new Intl.DateTimeFormat('en-US', {
-      month: 'short',
+    dayName: new Intl.DateTimeFormat('en-PH', { weekday: 'long' }).format(now),
+    dateLabel: new Intl.DateTimeFormat('en-PH', {
+      month: 'long',
       day: 'numeric',
       year: 'numeric',
     }).format(now),
-    timeLabel: new Intl.DateTimeFormat('en-US', {
+    timeLabel: new Intl.DateTimeFormat('en-PH', {
       hour: 'numeric',
       minute: '2-digit',
       second: '2-digit',
+      hour12: true,
     }).format(now),
   };
 }
@@ -84,7 +85,7 @@ export default function PortalQuickTools({
   };
 
   const savedLabel = savedAt
-    ? new Intl.DateTimeFormat('en-US', {
+    ? new Intl.DateTimeFormat('en-PH', {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
@@ -135,8 +136,8 @@ export default function PortalQuickTools({
         )}
       </div>
 
-      <div className="hidden items-center gap-3 rounded-2xl border border-stone-200 bg-white px-3 py-2 shadow-sm lg:flex">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
+      <div className="hidden items-center gap-3 rounded-2xl border border-stone-200 bg-white/95 px-3.5 py-2.5 shadow-sm backdrop-blur lg:flex">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
           <CalendarDays className="h-4 w-4" />
         </div>
 
@@ -144,7 +145,7 @@ export default function PortalQuickTools({
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-400">
             {dayName}
           </p>
-          <p className="truncate text-xs font-semibold text-stone-800">{dateLabel}</p>
+          <p className="truncate text-sm font-semibold text-stone-900">{dateLabel}</p>
         </div>
 
         <div className="h-8 w-px bg-stone-200" />
@@ -152,9 +153,9 @@ export default function PortalQuickTools({
         <div className="min-w-0">
           <div className="flex items-center gap-1 text-stone-500">
             <Clock3 className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">Live</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">Philippine Standard Time</span>
           </div>
-          <p className="text-sm font-semibold text-stone-800 tabular-nums">{timeLabel}</p>
+          <p className="text-sm font-semibold text-stone-900 tabular-nums">{timeLabel}</p>
         </div>
       </div>
     </>

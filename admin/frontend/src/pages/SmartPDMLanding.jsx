@@ -59,6 +59,16 @@ const howItWorks = [
   },
 ];
 
+function normalizePublicFaqItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => item?.is_archived !== true)
+    .map((item) => ({
+      question: String(item?.question || '').trim(),
+      answer: String(item?.answer || '').trim(),
+    }))
+    .filter((item) => item.question && item.answer);
+}
+
 const features = [
   {
     icon: FileCheck2,
@@ -359,8 +369,8 @@ export default function SmartPDMLanding() {
             office_hours: payload?.office_hours || current.office_hours,
             about_osfa: payload?.about_osfa || current.about_osfa,
             landing_faqs:
-              Array.isArray(payload?.landing_faqs) && payload.landing_faqs.length
-                ? payload.landing_faqs
+              normalizePublicFaqItems(payload?.landing_faqs).length
+                ? normalizePublicFaqItems(payload?.landing_faqs)
                 : current.landing_faqs,
           }));
         }
@@ -392,8 +402,8 @@ export default function SmartPDMLanding() {
         office_hours: settings?.office_hours || current.office_hours,
         about_osfa: settings?.about_osfa || current.about_osfa,
         landing_faqs:
-          Array.isArray(settings?.landing_faqs) && settings.landing_faqs.length
-            ? settings.landing_faqs
+          normalizePublicFaqItems(settings?.landing_faqs).length
+            ? normalizePublicFaqItems(settings?.landing_faqs)
             : current.landing_faqs,
       }));
     },

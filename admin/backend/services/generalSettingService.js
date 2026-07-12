@@ -14,24 +14,32 @@ const DEFAULT_GENERAL_SETTINGS = {
     'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
   landing_faqs: [
     {
+      faq_id: 'faq-1',
       question: 'Who can apply?',
       answer:
         'Applicants must meet the eligibility requirements of the scholarship program and submit the required records through the SMaRT-PDM application process.',
+      is_archived: false,
     },
     {
+      faq_id: 'faq-2',
       question: 'What documents are required?',
       answer:
         'Required documents depend on the scholarship program, but applicants are expected to upload the listed requirements in the system before final review.',
+      is_archived: false,
     },
     {
+      faq_id: 'faq-3',
       question: 'How does endorsement work?',
       answer:
         'The endorsement slip passes through SDO, Guidance, and Program Director review. Each office records its decision before the slip can be completed.',
+      is_archived: false,
     },
     {
+      faq_id: 'faq-4',
       question: 'When does scholar activation happen?',
       answer:
         'Scholar activation only happens after both requirements and endorsement are complete and the admin side confirms final readiness.',
+      is_archived: false,
     },
   ],
   global_deadline: '2026-03-31',
@@ -100,27 +108,43 @@ function sanitizeSettings(payload = {}) {
 }
 
 function sanitizeFaqItem(item = {}, fallback = {}) {
+  const faqId = safeText(item.faq_id, 80) || safeText(fallback.faq_id, 80);
   const question = safeText(item.question, 180);
   const answer = safeText(item.answer, 700);
 
   return {
+    faq_id: faqId,
     question: question || safeText(fallback.question, 180),
     answer: answer || safeText(fallback.answer, 700),
+    is_archived: typeof item.is_archived === 'boolean'
+      ? item.is_archived
+      : Boolean(fallback.is_archived),
   };
 }
 
 function sanitizeFaqs(faqs) {
   const source = Array.isArray(faqs) ? faqs : DEFAULT_GENERAL_SETTINGS.landing_faqs;
   const normalized = source
-    .slice(0, 6)
-    .map((item, index) => sanitizeFaqItem(item, DEFAULT_GENERAL_SETTINGS.landing_faqs[index] || {}))
+    .slice(0, 20)
+    .map((item, index) => {
+      const sanitized = sanitizeFaqItem(item, DEFAULT_GENERAL_SETTINGS.landing_faqs[index] || {});
+      return {
+        faq_id: sanitized.faq_id || `faq-${index + 1}`,
+        question: sanitized.question,
+        answer: sanitized.answer,
+        is_archived: Boolean(sanitized.is_archived),
+      };
+    })
     .filter((item) => item.question && item.answer);
 
   return normalized.length ? normalized : DEFAULT_GENERAL_SETTINGS.landing_faqs;
 }
 
 function buildFallbackSettings() {
-  return { ...DEFAULT_GENERAL_SETTINGS };
+  return {
+    ...DEFAULT_GENERAL_SETTINGS,
+    landing_faqs: sanitizeFaqs(DEFAULT_GENERAL_SETTINGS.landing_faqs),
+  };
 }
 
 function canManage(actor = {}) {
@@ -143,11 +167,19 @@ async function getGeneralSettings() {
     throw error;
   }
 
-  return data || buildFallbackSettings();
+  const source = data || buildFallbackSettings();
+  return {
+    ...source,
+    landing_faqs: sanitizeFaqs(source.landing_faqs),
+  };
 }
 
 async function getPublicGeneralSettings() {
-  return getGeneralSettings();
+  const settings = await getGeneralSettings();
+  return {
+    ...settings,
+    landing_faqs: sanitizeFaqs(settings.landing_faqs).filter((item) => item.is_archived !== true),
+  };
 }
 
 async function updateGeneralSettings(payload = {}, actor = {}) {
@@ -155,7 +187,11 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     throw createHttpError(403, 'Access denied for general settings.');
   }
 
-  const sanitized = sanitizeSettings(payload);
+  const currentSettings = await getGeneralSettings();
+  const sanitized = sanitizeSettings({
+    ...currentSettings,
+    ...payload,
+  });
 
   const upsertPayload = {
     general_settings_id: 1,

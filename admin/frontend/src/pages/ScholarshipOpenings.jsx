@@ -1,23 +1,27 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import {
     Plus,
     Search,
     Loader2,
-    CalendarDays,
     FolderOpen,
     Pencil,
     Archive,
     ArchiveRestore,
     X,
-    CheckCircle2,
     Clock3,
     Sparkles,
     Megaphone,
@@ -52,6 +56,19 @@ const STATUS_META = {
     archived: { label: 'Archived', color: '#57534e', bg: '#f5f5f4' },
 };
 
+const INITIAL_FORM = {
+    program_id: '',
+    opening_title: '',
+    academic_year_id: '',
+    academic_year: '',
+    allocated_slots: '',
+    filled_slots_preview: 0,
+    financial_allocation: '',
+    announcement_text: '',
+    posting_status: 'draft',
+    target_audience: 'Applicants',
+};
+
 function fmtMoney(v) {
     const n = Number(v || 0);
     return `₱${n.toLocaleString()}`;
@@ -59,10 +76,12 @@ function fmtMoney(v) {
 
 function normalizeAudience(value) {
     if (!value) return '';
+
     const raw = String(value).trim();
 
     if (raw === 'Applicants') return 'Applicants';
     if (raw === 'Scholars') return 'Scholars';
+
     if (
         raw === 'Both' ||
         raw === 'Applicants,Scholars' ||
@@ -88,6 +107,7 @@ function deriveTargetAudience(source) {
         .toLowerCase();
 
     const isTES = /\btes\b|tertiary education subsidy/.test(joined);
+
     return isTES ? 'Both' : 'Applicants';
 }
 
@@ -97,7 +117,41 @@ function targetAudienceLabel(value) {
     if (normalized === 'Both') return 'Scholars & Applicants';
     if (normalized === 'Applicants') return 'Applicants';
     if (normalized === 'Scholars') return 'Scholars';
+
     return normalized || 'Applicants';
+}
+
+function getCurrentSchoolYearLabel(date = new Date()) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+
+    const startYear = month >= 6 ? year : year - 1;
+    const endYear = startYear + 1;
+
+    return `${startYear}-${endYear}`;
+}
+
+function getVisibleAcademicYears(rows = []) {
+    return (Array.isArray(rows) ? rows : []).filter((year) => {
+        const isArchived =
+            year?.is_archived === true ||
+            year?.archived === true ||
+            year?.academic_year_is_archived === true ||
+            String(year?.status || '').toLowerCase() === 'archived';
+
+        return !isArchived;
+    });
+}
+
+function getDefaultAcademicYear(academicYears = []) {
+    const currentLabel = getCurrentSchoolYearLabel();
+
+    return (
+        academicYears.find((year) => String(year.label || '') === currentLabel) ||
+        academicYears.find((year) => year.is_active === true) ||
+        academicYears[0] ||
+        null
+    );
 }
 
 function getFilledSlots(openingLike = {}) {
@@ -124,6 +178,7 @@ function getComputedDisplayStatus(openingLike = {}) {
     if (isArchived || rawStatus === 'archived') return 'archived';
     if (rawStatus === 'closed') return 'closed';
     if (rawStatus === 'draft') return 'draft';
+
     return 'open';
 }
 
@@ -141,6 +196,7 @@ function derivePersistedOpeningStatus(payload, existingStatus = '') {
         Number(payload.allocated_slots || 0) > 0;
 
     if (!hasRequiredFields) return 'draft';
+
     return 'open';
 }
 
@@ -188,13 +244,16 @@ function FilterModal({
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
                     <div>
-                        <h3 className="text-base font-semibold text-stone-800">Filter Openings</h3>
+                        <h3 className="text-base font-semibold text-stone-800">
+                            Filter Openings
+                        </h3>
                         <p className="mt-0.5 text-xs text-stone-500">
                             Refine the openings and template results
                         </p>
                     </div>
 
                     <button
+                        type="button"
                         onClick={onClose}
                         className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
                     >
@@ -294,8 +353,6 @@ function OpeningModal({
             : 0;
 
     const audienceLabel = targetAudienceLabel(form.target_audience);
-    const selectedAcademicYear =
-        academicYears.find((y) => y.academic_year_id === form.academic_year_id) || null;
 
     const canSubmit =
         !!form.opening_title?.trim() &&
@@ -321,6 +378,7 @@ function OpeningModal({
                     </div>
 
                     <button
+                        type="button"
                         onClick={onClose}
                         className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
                     >
@@ -345,7 +403,10 @@ function OpeningModal({
                                             {selectedTemplate.program_name || 'Untitled Program'}
                                         </p>
 
-                                        <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
+                                        <Badge
+                                            variant="outline"
+                                            className="border-stone-200 bg-white text-[10px] text-stone-600"
+                                        >
                                             {selectedTemplate.benefactor_name || 'No Organization'}
                                         </Badge>
 
@@ -360,12 +421,12 @@ function OpeningModal({
                                         <Badge
                                             variant="outline"
                                             className={`text-[10px] ${previewStatus === 'open'
-                                                    ? 'border-green-200 bg-green-50 text-green-700'
-                                                    : previewStatus === 'closed'
-                                                        ? 'border-red-200 bg-red-50 text-red-700'
-                                                        : previewStatus === 'draft'
-                                                            ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                                            : 'border-stone-200 bg-white text-stone-600'
+                                                ? 'border-green-200 bg-green-50 text-green-700'
+                                                : previewStatus === 'closed'
+                                                    ? 'border-red-200 bg-red-50 text-red-700'
+                                                    : previewStatus === 'draft'
+                                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                        : 'border-stone-200 bg-white text-stone-600'
                                                 }`}
                                         >
                                             {STATUS_META[previewStatus]?.label || 'Draft'}
@@ -390,6 +451,7 @@ function OpeningModal({
                                     value={form.program_id}
                                     onValueChange={(value) => {
                                         const selected = templates.find((t) => t.program_id === value);
+
                                         setForm((prev) => ({
                                             ...prev,
                                             program_id: value,
@@ -430,7 +492,12 @@ function OpeningModal({
                                 </label>
                                 <Input
                                     value={form.opening_title}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, opening_title: e.target.value }))}
+                                    onChange={(e) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            opening_title: e.target.value,
+                                        }))
+                                    }
                                     placeholder="e.g. Kaizen Scholarship Opening 2026-2027"
                                     className="h-10 rounded-lg border-stone-200 text-sm"
                                 />
@@ -443,7 +510,10 @@ function OpeningModal({
                                 <Select
                                     value={form.academic_year_id}
                                     onValueChange={(value) => {
-                                        const selected = academicYears.find((y) => y.academic_year_id === value);
+                                        const selected = academicYears.find(
+                                            (y) => y.academic_year_id === value
+                                        );
+
                                         setForm((prev) => ({
                                             ...prev,
                                             academic_year_id: value,
@@ -461,25 +531,16 @@ function OpeningModal({
                                             </SelectItem>
                                         ) : (
                                             academicYears.map((year) => (
-                                                <SelectItem key={year.academic_year_id} value={year.academic_year_id}>
+                                                <SelectItem
+                                                    key={year.academic_year_id}
+                                                    value={year.academic_year_id}
+                                                >
                                                     {year.label}
                                                 </SelectItem>
                                             ))
                                         )}
                                     </SelectContent>
                                 </Select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Selected School Year
-                                </label>
-                                <Input
-                                    value={selectedAcademicYear?.label || form.academic_year || ''}
-                                    readOnly
-                                    className="h-10 rounded-lg border-stone-200 bg-stone-100 text-sm font-medium"
-                                    style={{ color: C.brownMid }}
-                                />
                             </div>
 
                             <div className="space-y-1.5">
@@ -504,7 +565,12 @@ function OpeningModal({
                                     type="number"
                                     min="0"
                                     value={form.allocated_slots}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, allocated_slots: e.target.value }))}
+                                    onChange={(e) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            allocated_slots: e.target.value,
+                                        }))
+                                    }
                                     placeholder="0"
                                     className="h-10 rounded-lg border-stone-200 text-sm"
                                 />
@@ -519,7 +585,12 @@ function OpeningModal({
                                     min="0"
                                     step="1000"
                                     value={form.financial_allocation}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, financial_allocation: e.target.value }))}
+                                    onChange={(e) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            financial_allocation: e.target.value,
+                                        }))
+                                    }
                                     placeholder="0"
                                     className="h-10 rounded-lg border-stone-200 text-sm"
                                 />
@@ -540,9 +611,11 @@ function OpeningModal({
 
                             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
                                 <p className="text-xs text-emerald-700">
-                                    <span className="font-semibold">Allocated Slots:</span> {allocatedSlots}
+                                    <span className="font-semibold">Allocated Slots:</span>{' '}
+                                    {allocatedSlots}
                                     {' · '}
-                                    <span className="font-semibold">Per Scholar:</span> ₱{perScholarFinancial.toLocaleString()}
+                                    <span className="font-semibold">Per Scholar:</span>{' '}
+                                    ₱{perScholarFinancial.toLocaleString()}
                                 </p>
                             </div>
                         </div>
@@ -554,7 +627,12 @@ function OpeningModal({
                         </label>
                         <Textarea
                             value={form.announcement_text}
-                            onChange={(e) => setForm((prev) => ({ ...prev, announcement_text: e.target.value }))}
+                            onChange={(e) =>
+                                setForm((prev) => ({
+                                    ...prev,
+                                    announcement_text: e.target.value,
+                                }))
+                            }
                             placeholder="Instructions, reminders, notes, or conditions..."
                             className="min-h-[120px] resize-none rounded-lg border-stone-200 text-sm"
                         />
@@ -576,10 +654,96 @@ function OpeningModal({
                         className="h-9 rounded-lg border-none text-xs text-white disabled:opacity-50"
                         style={{ background: C.brownMid }}
                     >
-                        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        {saving ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <Sparkles className="mr-2 h-4 w-4" />
+                        )}
                         {isEdit ? 'Save Changes' : 'Create Opening'}
                     </Button>
                 </div>
+            </Card>
+        </div>
+    );
+}
+
+function CreateOpeningConfirmModal({
+    open,
+    onClose,
+    onOpenNow,
+    onSaveDraft,
+    saving,
+}) {
+    if (!open) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
+                    <h3 className="text-base font-semibold text-stone-800">
+                        Create Scholarship Opening
+                    </h3>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                        Choose how you want to save this opening.
+                    </p>
+                </div>
+
+                <CardContent className="space-y-4 p-5">
+                    <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+                        <p className="text-sm font-medium text-stone-800">
+                            Do you want to open this scholarship opening now?
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-stone-500">
+                            If you open it now, it can appear as an available opening.
+                            If you save it as draft, it will stay hidden until you click Open.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={saving}
+                            className="h-9 rounded-lg border-stone-200 text-xs"
+                        >
+                            Cancel
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            onClick={onSaveDraft}
+                            disabled={saving}
+                            className="h-9 rounded-lg border-amber-200 text-xs text-amber-700 hover:bg-amber-50"
+                        >
+                            {saving ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Clock3 className="mr-2 h-4 w-4" />
+                            )}
+                            Save as Draft
+                        </Button>
+
+                        <Button
+                            onClick={onOpenNow}
+                            disabled={saving}
+                            className="h-9 rounded-lg border-none text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            {saving ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Unlock className="mr-2 h-4 w-4" />
+                            )}
+                            Open Now
+                        </Button>
+                    </div>
+                </CardContent>
             </Card>
         </div>
     );
@@ -598,7 +762,9 @@ function PostCreatePrompt({ open, opening, onClose, onCreateAnnouncement }) {
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
-                    <h3 className="text-base font-semibold text-stone-800">Opening Created</h3>
+                    <h3 className="text-base font-semibold text-stone-800">
+                        Opening Created
+                    </h3>
                     <p className="mt-0.5 text-xs text-stone-500">
                         {opening.opening_title || 'Scholarship opening created successfully.'}
                     </p>
@@ -648,7 +814,10 @@ function TemplateCard({ template, onOpen }) {
                                 {template.program_name || 'Untitled Program'}
                             </h3>
 
-                            <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
+                            <Badge
+                                variant="outline"
+                                className="border-stone-200 bg-white text-[10px] text-stone-600"
+                            >
                                 {template.benefactor_name || 'No Organization'}
                             </Badge>
 
@@ -657,7 +826,9 @@ function TemplateCard({ template, onOpen }) {
                                 className="border-purple-200 bg-purple-50 text-[10px] text-purple-700"
                             >
                                 <Users className="mr-1 h-3 w-3" />
-                                {targetAudienceLabel(template.target_audience || deriveTargetAudience(template))}
+                                {targetAudienceLabel(
+                                    template.target_audience || deriveTargetAudience(template)
+                                )}
                             </Badge>
                         </div>
 
@@ -735,17 +906,20 @@ function OpeningCard({
                             </div>
 
                             <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <Badge variant="outline" className="border-stone-200 bg-white text-[10px] text-stone-600">
+                                <Badge
+                                    variant="outline"
+                                    className="border-stone-200 bg-white text-[10px] text-stone-600"
+                                >
                                     {opening.program_name || 'No Program'}
                                 </Badge>
 
                                 <Badge
                                     variant="outline"
                                     className={`text-[10px] ${audience === 'Both'
-                                            ? 'border-purple-200 bg-purple-50 text-purple-700'
-                                            : audience === 'Scholars'
-                                                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
-                                                : 'border-sky-200 bg-sky-50 text-sky-700'
+                                        ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                        : audience === 'Scholars'
+                                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                                            : 'border-sky-200 bg-sky-50 text-sky-700'
                                         }`}
                                 >
                                     <Users className="mr-1 h-3 w-3" />
@@ -759,20 +933,39 @@ function OpeningCard({
 
                             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">AY</p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{opening.academic_year || 'N/A'}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        AY
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {opening.academic_year || 'N/A'}
+                                    </p>
                                 </div>
+
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Slots</p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{allocatedSlots}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        Slots
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {allocatedSlots}
+                                    </p>
                                 </div>
+
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Filled</p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{filledSlots}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        Filled
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {filledSlots}
+                                    </p>
                                 </div>
+
                                 <div className="rounded-lg bg-stone-50 px-3 py-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">Per Scholar</p>
-                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">{fmtMoney(perScholar)}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                        Per Scholar
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold text-stone-900">
+                                        {fmtMoney(perScholar)}
+                                    </p>
                                 </div>
                             </div>
 
@@ -934,59 +1127,73 @@ export default function ScholarshipOpenings() {
     const [modalMode, setModalMode] = useState('create');
     const [activeTemplate, setActiveTemplate] = useState(null);
     const [editingOpeningId, setEditingOpeningId] = useState(null);
+    const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
 
     const [postCreateOpen, setPostCreateOpen] = useState(false);
     const [newOpeningForPrompt, setNewOpeningForPrompt] = useState(null);
 
-    const emptyForm = {
-        program_id: '',
-        opening_title: '',
-        academic_year_id: '',
-        academic_year: '',
-        allocated_slots: '',
-        filled_slots_preview: 0,
-        financial_allocation: '',
-        announcement_text: '',
-        posting_status: 'draft',
-        target_audience: 'Applicants',
-    };
+    const [form, setForm] = useState(INITIAL_FORM);
 
-    const [form, setForm] = useState(emptyForm);
+    const buildEmptyForm = useCallback(() => {
+        const defaultAcademicYear = getDefaultAcademicYear(academicYears);
 
-    const fetchData = async () => {
+        return {
+            ...INITIAL_FORM,
+            academic_year_id: defaultAcademicYear?.academic_year_id || '',
+            academic_year: defaultAcademicYear?.label || '',
+        };
+    }, [academicYears]);
+
+    const fetchData = useCallback(async (options = {}) => {
+        const silent = options.silent === true;
+
         try {
-            setLoading(true);
+            if (!silent) {
+                setLoading(true);
+            }
+
+            const token = sessionStorage.getItem('adminToken');
 
             const [templatesRes, openingsRes, academicYearsRes] = await Promise.all([
                 fetch(buildApiUrl('/api/scholarship-program'), {
                     headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                 }),
                 fetch(buildApiUrl('/api/program-openings'), {
                     headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                 }),
                 fetch(buildApiUrl('/api/academic-years'), {
                     headers: {
-                        Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                        Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                 }),
             ]);
 
-            if (!templatesRes.ok) throw new Error('Failed to load scholarship program templates..');
-            if (!openingsRes.ok) throw new Error('Failed to load scholarship openings');
-            if (!academicYearsRes.ok) throw new Error('Failed to load academic years');
+            if (!templatesRes.ok) {
+                throw new Error('Failed to load scholarship program templates.');
+            }
+
+            if (!openingsRes.ok) {
+                throw new Error('Failed to load scholarship openings.');
+            }
+
+            if (!academicYearsRes.ok) {
+                throw new Error('Failed to load academic years.');
+            }
 
             const templatesData = await templatesRes.json();
             const openingsData = await openingsRes.json();
             const academicYearsData = await academicYearsRes.json();
 
-            setAcademicYears(Array.isArray(academicYearsData) ? academicYearsData : []);
+            const visibleAcademicYears = getVisibleAcademicYears(academicYearsData);
+
+            setAcademicYears(visibleAcademicYears);
 
             setTemplates(
                 Array.isArray(templatesData)
@@ -999,29 +1206,49 @@ export default function ScholarshipOpenings() {
             );
 
             setOpenings(Array.isArray(openingsData) ? openingsData : []);
+
+            setForm((prev) => {
+                if (prev.academic_year_id) return prev;
+
+                const defaultAcademicYear = getDefaultAcademicYear(visibleAcademicYears);
+
+                return {
+                    ...prev,
+                    academic_year_id: defaultAcademicYear?.academic_year_id || '',
+                    academic_year: defaultAcademicYear?.label || '',
+                };
+            });
         } catch (err) {
             console.error('SCHOLARSHIP OPENINGS FETCH ERROR:', err);
-            alert(err.message || 'Failed to load scholarship openings');
+            alert(err.message || 'Failed to load scholarship openings.');
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     useSocketEvent('opening:created', () => {
-        fetchData();
-    }, []);
+        fetchData({ silent: true });
+    }, [fetchData]);
 
     useSocketEvent('opening:updated', () => {
-        fetchData();
-    }, []);
+        fetchData({ silent: true });
+    }, [fetchData]);
 
     useSocketEvent('opening:closed', () => {
-        fetchData();
-    }, []);
+        fetchData({ silent: true });
+    }, [fetchData]);
+
+    useSocketEvent('maintenance:updated', (payload) => {
+        if (!payload?.module || payload.module === 'scholarship_openings') {
+            fetchData({ silent: true });
+        }
+    }, [fetchData]);
 
     const visibleOpenings = useMemo(() => {
         return openings.filter((o) => {
@@ -1043,6 +1270,7 @@ export default function ScholarshipOpenings() {
     const programOptions = useMemo(() => {
         const source = pageTab === 'templates' ? templates : visibleOpenings;
         const values = source.map((o) => o.program_name).filter(Boolean);
+
         return ['All Programs', ...new Set(values)];
     }, [templates, visibleOpenings, pageTab]);
 
@@ -1058,7 +1286,9 @@ export default function ScholarshipOpenings() {
                 (t.benefactor_name || '').toLowerCase().includes(q) ||
                 (t.description || '').toLowerCase().includes(q);
 
-            const templateAudience = normalizeAudience(t.target_audience) || deriveTargetAudience(t);
+            const templateAudience =
+                normalizeAudience(t.target_audience) || deriveTargetAudience(t);
+
             const matchAudience =
                 audienceFilter === 'All Audiences' ||
                 templateAudience === audienceFilter;
@@ -1078,8 +1308,10 @@ export default function ScholarshipOpenings() {
             .filter((o) => {
                 const computedStatus = getComputedDisplayStatus(o);
 
-                const inCurrentTab = pageTab === 'current' && computedStatus !== 'archived';
-                const inArchivedTab = pageTab === 'archived' && computedStatus === 'archived';
+                const inCurrentTab =
+                    pageTab === 'current' && computedStatus !== 'archived';
+                const inArchivedTab =
+                    pageTab === 'archived' && computedStatus === 'archived';
 
                 if (pageTab === 'templates') return false;
                 if (!inCurrentTab && !inArchivedTab) return false;
@@ -1096,6 +1328,7 @@ export default function ScholarshipOpenings() {
                     (o.program_name || '') === programFilter;
 
                 const openingAudience = normalizeAudience(o.target_audience) || 'Applicants';
+
                 const matchAudience =
                     audienceFilter === 'All Audiences' ||
                     openingAudience === audienceFilter;
@@ -1142,6 +1375,7 @@ export default function ScholarshipOpenings() {
     const openCreateFromTemplate = (template) => {
         const currentYear = new Date().getFullYear();
         const computedAudience = deriveTargetAudience(template);
+        const defaultAcademicYear = getDefaultAcademicYear(academicYears);
 
         const existingDraft = openings.find(
             (o) =>
@@ -1155,13 +1389,27 @@ export default function ScholarshipOpenings() {
             setActiveTemplate(template);
             setForm({
                 program_id: existingDraft.program_id || template.program_id,
-                opening_title: existingDraft.opening_title || `${template.program_name} ${currentYear}-${currentYear + 1}`,
-                academic_year_id: existingDraft.academic_year_id || '',
-                academic_year: existingDraft.academic_year || '',
+                opening_title:
+                    existingDraft.opening_title ||
+                    `${template.program_name} ${currentYear}-${currentYear + 1}`,
+                academic_year_id:
+                    existingDraft.academic_year_id ||
+                    defaultAcademicYear?.academic_year_id ||
+                    '',
+                academic_year:
+                    existingDraft.academic_year ||
+                    defaultAcademicYear?.label ||
+                    '',
                 allocated_slots: existingDraft.allocated_slots ?? '',
-                filled_slots_preview: existingDraft.qualified_count ?? existingDraft.filled_slots ?? 0,
+                filled_slots_preview:
+                    existingDraft.qualified_count ??
+                    existingDraft.filled_slots ??
+                    0,
                 financial_allocation: existingDraft.financial_allocation ?? '',
-                announcement_text: existingDraft.announcement_text ?? template.description ?? '',
+                announcement_text:
+                    existingDraft.announcement_text ??
+                    template.description ??
+                    '',
                 posting_status: existingDraft.posting_status || 'draft',
                 target_audience: deriveTargetAudience(existingDraft),
             });
@@ -1175,8 +1423,8 @@ export default function ScholarshipOpenings() {
         setForm({
             program_id: template.program_id,
             opening_title: `${template.program_name} ${currentYear}-${currentYear + 1}`,
-            academic_year_id: '',
-            academic_year: '',
+            academic_year_id: defaultAcademicYear?.academic_year_id || '',
+            academic_year: defaultAcademicYear?.label || '',
             allocated_slots: '',
             filled_slots_preview: 0,
             financial_allocation: '',
@@ -1200,7 +1448,10 @@ export default function ScholarshipOpenings() {
             academic_year_id: opening.academic_year_id || '',
             academic_year: opening.academic_year || '',
             allocated_slots: opening.allocated_slots ?? '',
-            filled_slots_preview: opening.qualified_count ?? opening.filled_slots ?? 0,
+            filled_slots_preview:
+                opening.qualified_count ??
+                opening.filled_slots ??
+                0,
             financial_allocation: opening.financial_allocation ?? '',
             announcement_text: opening.announcement_text || '',
             posting_status: opening.posting_status || 'draft',
@@ -1210,7 +1461,7 @@ export default function ScholarshipOpenings() {
         setModalOpen(true);
     };
 
-    const handleSaveOpening = async () => {
+    const handleSaveOpening = async (forcedStatus = null) => {
         try {
             if (!form.program_id) {
                 alert('Program is required.');
@@ -1228,6 +1479,7 @@ export default function ScholarshipOpenings() {
             }
 
             const allocatedSlots = Number(form.allocated_slots || 0);
+
             if (allocatedSlots <= 0) {
                 alert('Allocated slots must be greater than 0.');
                 return;
@@ -1241,7 +1493,14 @@ export default function ScholarshipOpenings() {
 
             setSaving(true);
 
-            const computedStatus = derivePersistedOpeningStatus(form, form.posting_status);
+            const isEdit = modalMode === 'edit' && editingOpeningId;
+
+            const computedStatus = forcedStatus
+                ? forcedStatus
+                : derivePersistedOpeningStatus(
+                    form,
+                    isEdit ? form.posting_status : ''
+                );
 
             const payload = {
                 program_id: form.program_id,
@@ -1254,7 +1513,6 @@ export default function ScholarshipOpenings() {
                 posting_status: computedStatus,
             };
 
-            const isEdit = modalMode === 'edit' && editingOpeningId;
             const url = isEdit
                 ? buildApiUrl(`/api/program-openings/${editingOpeningId}`)
                 : buildApiUrl('/api/program-openings');
@@ -1273,25 +1531,27 @@ export default function ScholarshipOpenings() {
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to save scholarship opening');
+                throw new Error(
+                    data.error ||
+                    data.message ||
+                    'Failed to save scholarship opening'
+                );
             }
 
+            setCreateConfirmOpen(false);
             setModalOpen(false);
-            setForm(emptyForm);
+            setForm(buildEmptyForm());
             setEditingOpeningId(null);
             setActiveTemplate(null);
-            await fetchData();
+
+            await fetchData({ silent: true });
 
             if (!isEdit && String(computedStatus).toLowerCase() === 'open') {
                 setNewOpeningForPrompt({
-                    ...(data || payload),
+                    ...(data?.data || data || payload),
                     target_audience: form.target_audience,
                 });
                 setPostCreateOpen(true);
-            }
-
-            if (String(computedStatus).toLowerCase() === 'draft') {
-                alert('Opening saved as draft. Use the Open button in the registry once all required fields are complete.');
             }
         } catch (err) {
             console.error('SAVE OPENING ERROR:', err);
@@ -1299,6 +1559,17 @@ export default function ScholarshipOpenings() {
         } finally {
             setSaving(false);
         }
+    };
+
+    const requestSaveOpening = () => {
+        const isEdit = modalMode === 'edit' && editingOpeningId;
+
+        if (isEdit) {
+            handleSaveOpening();
+            return;
+        }
+
+        setCreateConfirmOpen(true);
     };
 
     const updateOpeningStatus = async (openingId, nextStatus, extraPayload = {}) => {
@@ -1320,10 +1591,14 @@ export default function ScholarshipOpenings() {
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(data.error || data.message || 'Failed to update opening status');
+                throw new Error(
+                    data.error ||
+                    data.message ||
+                    'Failed to update opening status'
+                );
             }
 
-            await fetchData();
+            await fetchData({ silent: true });
         } catch (err) {
             console.error('UPDATE OPENING STATUS ERROR:', err);
             alert(err.message || 'Failed to update opening status');
@@ -1339,29 +1614,42 @@ export default function ScholarshipOpenings() {
     const handleUnarchiveOpening = async (opening) => {
         const availableSlots = getAvailableSlots(opening);
         const nextStatus = availableSlots > 0 ? 'open' : 'closed';
-        await updateOpeningStatus(opening.opening_id, nextStatus, { is_archived: false });
+
+        await updateOpeningStatus(opening.opening_id, nextStatus, {
+            is_archived: false,
+        });
     };
 
     const handleOpenDraftOpening = async (opening) => {
         if (!canOpeningBeOpened(opening)) {
-            alert('This draft cannot be opened yet. Make sure it has an opening title, academic year, and allocated slots greater than 0.');
+            alert(
+                'This draft cannot be opened yet. Make sure it has an opening title, academic year, and allocated slots greater than 0.'
+            );
             return;
         }
 
-        await updateOpeningStatus(opening.opening_id, 'open', { is_archived: false });
+        await updateOpeningStatus(opening.opening_id, 'open', {
+            is_archived: false,
+        });
     };
 
     const handleCloseOpening = async (openingId) => {
-        await updateOpeningStatus(openingId, 'closed', { is_archived: false });
+        await updateOpeningStatus(openingId, 'closed', {
+            is_archived: false,
+        });
     };
 
     const handleMoveToDraft = async (opening) => {
         if (getFilledSlots(opening) > 0) {
-            alert('This opening cannot be moved to draft because it already has approved/filled slots.');
+            alert(
+                'This opening cannot be moved to draft because it already has approved/filled slots.'
+            );
             return;
         }
 
-        await updateOpeningStatus(opening.opening_id, 'draft', { is_archived: false });
+        await updateOpeningStatus(opening.opening_id, 'draft', {
+            is_archived: false,
+        });
     };
 
     const handleReopenOpening = async (opening) => {
@@ -1372,7 +1660,9 @@ export default function ScholarshipOpenings() {
             return;
         }
 
-        await updateOpeningStatus(opening.opening_id, 'open', { is_archived: false });
+        await updateOpeningStatus(opening.opening_id, 'open', {
+            is_archived: false,
+        });
     };
 
     const handleCreateAnnouncementRedirect = () => {
@@ -1417,12 +1707,21 @@ export default function ScholarshipOpenings() {
                 academicYears={academicYears}
                 onClose={() => {
                     setModalOpen(false);
+                    setCreateConfirmOpen(false);
                     setActiveTemplate(null);
                     setEditingOpeningId(null);
-                    setForm(emptyForm);
+                    setForm(buildEmptyForm());
                 }}
-                onSave={handleSaveOpening}
+                onSave={requestSaveOpening}
                 saving={saving}
+            />
+
+            <CreateOpeningConfirmModal
+                open={createConfirmOpen}
+                saving={saving}
+                onClose={() => setCreateConfirmOpen(false)}
+                onOpenNow={() => handleSaveOpening('open')}
+                onSaveDraft={() => handleSaveOpening('draft')}
             />
 
             <PostCreatePrompt
@@ -1455,30 +1754,33 @@ export default function ScholarshipOpenings() {
                 <div className="space-y-3">
                     <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
                         <button
+                            type="button"
                             onClick={() => setPageTab('templates')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'templates'
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
                                 }`}
                         >
                             Templates
                         </button>
 
                         <button
+                            type="button"
                             onClick={() => setPageTab('current')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'current'
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
                                 }`}
                         >
                             Current
                         </button>
 
                         <button
+                            type="button"
                             onClick={() => setPageTab('archived')}
                             className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${pageTab === 'archived'
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
                                 }`}
                         >
                             Archived
@@ -1519,7 +1821,7 @@ export default function ScholarshipOpenings() {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={fetchData}
+                                onClick={() => fetchData()}
                                 className="h-10 rounded-xl border-stone-200 text-xs text-stone-600"
                             >
                                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
@@ -1534,7 +1836,7 @@ export default function ScholarshipOpenings() {
                                     setModalMode('create');
                                     setEditingOpeningId(null);
                                     setActiveTemplate(null);
-                                    setForm(emptyForm);
+                                    setForm(buildEmptyForm());
                                     setModalOpen(true);
                                 }}
                             >
@@ -1565,7 +1867,9 @@ export default function ScholarshipOpenings() {
                     style={{ borderColor: C.line }}
                 >
                     <div className="border-b border-stone-100 px-5 py-4">
-                        <h2 className="text-sm font-semibold text-stone-800">Published Scholarship Program Templates</h2>
+                        <h2 className="text-sm font-semibold text-stone-800">
+                            Published Scholarship Program Templates
+                        </h2>
                         <p className="mt-1 text-xs text-stone-500">
                             Use a published template to create a new scholarship opening quickly.
                         </p>
@@ -1613,7 +1917,11 @@ export default function ScholarshipOpenings() {
                         {filteredOpenings.length === 0 ? (
                             <EmptyState
                                 icon={EyeOff}
-                                title={pageTab === 'current' ? 'No scholarship openings found' : 'No archived openings found'}
+                                title={
+                                    pageTab === 'current'
+                                        ? 'No scholarship openings found'
+                                        : 'No archived openings found'
+                                }
                                 subtitle={
                                     pageTab === 'current'
                                         ? 'Open a scholarship program from a published template to create one.'

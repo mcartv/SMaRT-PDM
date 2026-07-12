@@ -67,15 +67,15 @@ function TemplateCard({ report, active, onClick }) {
       type="button"
       onClick={() => onClick(report.id)}
       className={`w-full rounded-2xl border p-4 text-left transition-all ${active
-          ? 'border-[#7c4a2e] bg-amber-50'
-          : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
+        ? 'border-[#7c4a2e] bg-amber-50'
+        : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
         }`}
     >
       <div className="flex items-start gap-4">
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${active
-              ? 'border-[#7c4a2e] bg-[#7c4a2e] text-white'
-              : 'border-stone-200 bg-stone-50 text-stone-500'
+            ? 'border-[#7c4a2e] bg-[#7c4a2e] text-white'
+            : 'border-stone-200 bg-stone-50 text-stone-500'
             }`}
         >
           <FileText className="h-4 w-4" />
@@ -111,6 +111,21 @@ function formatCellValue(value) {
 }
 
 function formatHeader(key) {
+  const customLabels = {
+    pdm_id: 'Student Number',
+    student_name: 'Student Name',
+    course_code: 'Course',
+    year_level: 'Year Level',
+    program_name: 'Program',
+    academic_year: 'Academic Year',
+    scholarship_status: 'Scholarship Status',
+    date_awarded: 'Date Awarded',
+    ro_status: 'RO Status',
+    benefactor_name: 'Benefactor',
+  };
+
+  if (customLabels[key]) return customLabels[key];
+
   return String(key || '')
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -323,26 +338,98 @@ export default function ReportGeneration({
     } finally {
       setPreviewLoading(false);
     }
-  }, [academicYearId, benefactorId, dateFrom, dateTo, programId, reviewResult, selected, selectedReport?.name, semester, tokenStorageKey]);
+  }, [
+    academicYearId,
+    benefactorId,
+    dateFrom,
+    dateTo,
+    programId,
+    reviewResult,
+    selected,
+    selectedReport?.name,
+    semester,
+    tokenStorageKey,
+  ]);
 
-  useSocketEvent('maintenance:updated', () => {
-    loadMetadata();
-  }, [loadMetadata]);
+  const refreshReportData = useCallback(async () => {
+    await loadMetadata();
 
-  useSocketEvent('report:updated', () => {
-    loadMetadata();
     if (hasPreviewed) {
-      handlePreviewReport();
+      await handlePreviewReport();
     }
   }, [handlePreviewReport, hasPreviewed, loadMetadata]);
 
+  useSocketEvent('maintenance:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('report:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('application:created', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('application:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('application:approved', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('application:rejected', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('application:disqualified', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('application-document:reviewed', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('scholar:created', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('scholar:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('payout:created', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('payout:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('payout:deleted', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
   useSocketEvent('endorsement:updated', () => {
-    if (isOfficeEndorsementReport) {
-      if (hasPreviewed) {
-        handlePreviewReport();
-      }
-    }
-  }, [handlePreviewReport, hasPreviewed, isOfficeEndorsementReport]);
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('ro:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('ticket:created', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('ticket:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('ticket:resolved', () => {
+    refreshReportData();
+  }, [refreshReportData]);
 
   async function handleGenerateReport() {
     await handleDownloadByFormat('xlsx');
@@ -440,20 +527,18 @@ export default function ReportGeneration({
     <div className="space-y-5 py-2">
       {feedback ? (
         <div
-          className={`rounded-2xl border px-4 py-4 shadow-sm ${
-            feedback.tone === 'success'
-              ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
-              : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
-          }`}
+          className={`rounded-2xl border px-4 py-4 shadow-sm ${feedback.tone === 'success'
+            ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
+            : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
+            }`}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <div
-                className={`rounded-2xl p-2 ${
-                  feedback.tone === 'success'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-red-100 text-red-700'
-                }`}
+                className={`rounded-2xl p-2 ${feedback.tone === 'success'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700'
+                  }`}
               >
                 {feedback.tone === 'success' ? (
                   <CheckCircle2 className="h-5 w-5" />

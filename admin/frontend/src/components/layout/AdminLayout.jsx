@@ -22,6 +22,7 @@ import AdminMessages from '../../pages/AdminMessages';
 import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
 import usePortalTheme from '../../hooks/usePortalTheme';
+import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -74,6 +75,8 @@ export default function AdminLayout() {
     tokenStorageKey: 'adminToken',
     portalRootPath: '/admin',
   });
+
+  useDocumentTitleBadge('SMaRT-PDM', unreadCount);
 
   useEffect(() => {
     const initializeLayout = () => {

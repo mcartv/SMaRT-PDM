@@ -244,6 +244,10 @@ export default function SmartPDMLanding() {
     };
   }, []);
 
+  useEffect(() => {
+    document.title = 'SMaRT-PDM';
+  }, []);
+
   return (
     <div
       className="min-h-screen text-stone-900"

@@ -15,6 +15,7 @@ import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
 import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
+import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -76,6 +77,8 @@ export default function DepartmentPortalLayout({
     tokenStorageKey,
     portalRootPath: `/${portalKey}`,
   });
+
+  useDocumentTitleBadge('SMaRT-PDM', unreadCount);
 
   useEffect(() => {
     const token = sessionStorage.getItem(tokenStorageKey);

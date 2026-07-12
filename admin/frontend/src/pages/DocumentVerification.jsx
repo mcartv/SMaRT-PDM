@@ -103,6 +103,18 @@ const REQUIRED_DOCUMENTS = [
   },
 ];
 
+// Transitional until document contract status is persisted with OCR snapshots.
+// eslint-disable-next-line react-refresh/only-export-components
+export const REVIEW_ONLY_DOCUMENT_KEYS = Object.freeze([
+  'certificate_of_indigency',
+  'student_grade_forms',
+]);
+// eslint-disable-next-line react-refresh/only-export-components
+export const REVIEW_ONLY_MESSAGES = Object.freeze([
+  'Structured extraction not implemented',
+  'Manual review required',
+]);
+
 const REJECTION_OPTIONS = [
   'Wrong document uploaded',
   'Blurred or unreadable image',
@@ -264,163 +276,76 @@ function groupEducationRecords(educationRecords = []) {
   });
 }
 
-function buildExtractedData(activeDoc, application) {
-  if (!activeDoc) return [];
+// eslint-disable-next-line react-refresh/only-export-components
+export function formatOcrConfidence(confidence, scannedViaIot = false) {
+  if (confidence === null || confidence === undefined || confidence === '') return 'Unavailable';
 
-  const student = application?.student || {};
-  const ocr = activeDoc?.ocr || {};
-
-  const fallbackName = ocr.extracted_name || student.name || 'Not detected';
-  const fallbackGwa = ocr.extracted_gwa ?? student.gwa ?? 'Not detected';
-  const confidence = ocr.confidence ?? activeDoc.ocr_confidence ?? null;
-
-  const base = [
-    {
-      label: 'Student Name',
-      value: fallbackName,
-      verified: !!fallbackName && fallbackName !== 'Not detected',
-    },
-    {
-      label: 'PDM ID',
-      value: student.pdm_id || 'Not detected',
-      verified: !!student.pdm_id,
-    },
-    {
-      label: 'Program',
-      value: student.program || 'Not detected',
-      verified: !!student.program,
-    },
-    {
-      label: 'Course',
-      value: student.course || 'Not detected',
-      verified: !!student.course,
-    },
-    {
-      label: 'OCR Confidence',
-      value: confidence !== null && confidence !== undefined ? `${confidence}%` : 'N/A',
-      verified: confidence !== null && confidence !== undefined,
-    },
-  ];
-
-  switch (activeDoc.id) {
-    case 'certificate_of_registration':
-      return [
-        ...base,
-        { label: 'Document Type', value: 'Certificate of Registration', verified: true },
-        {
-          label: 'Academic Year',
-          value: student.year || 'Not detected',
-          verified: !!student.year,
-        },
-        {
-          label: 'Enrollment Status',
-          value: activeDoc.url ? 'Detected from uploaded document' : 'Unknown',
-          verified: !!activeDoc.url,
-        },
-      ];
-
-    case 'student_grade_forms':
-      return [
-        ...base,
-        { label: 'Document Type', value: 'Grade Report', verified: true },
-        {
-          label: 'Detected GWA',
-          value: fallbackGwa,
-          verified: fallbackGwa !== 'Not detected' && fallbackGwa !== 'N/A',
-        },
-        {
-          label: 'GWA Eligibility',
-          value: Number(student.gwa) <= 2.0 ? 'Eligible' : 'Needs Review',
-          verified: Number(student.gwa) <= 2.0,
-        },
-      ];
-
-    case 'certificate_of_indigency':
-      return [
-        ...base,
-        { label: 'Document Type', value: 'Certificate of Indigency', verified: true },
-        {
-          label: 'Barangay Certification',
-          value: activeDoc.url ? 'Detected and ready for review' : 'No uploaded file detected',
-          verified: !!activeDoc.url,
-        },
-      ];
-
-    case 'letter_of_request':
-      return [
-        ...base,
-        { label: 'Document Type', value: 'Letter of Request', verified: true },
-        {
-          label: 'Request Letter',
-          value: activeDoc.url ? 'Detected and ready for admin review' : 'No uploaded file detected',
-          verified: !!activeDoc.url,
-        },
-        {
-          label: 'Signature Presence',
-          value: activeDoc.url ? 'Detected' : 'Not detected',
-          verified: !!activeDoc.url,
-        },
-      ];
-
-    case 'application_form':
-      return [
-        ...base,
-        { label: 'Document Type', value: 'Application Form', verified: true },
-        {
-          label: 'Profile Section',
-          value: application?.student_profile ? 'Available' : 'Not found',
-          verified: !!application?.student_profile,
-        },
-        {
-          label: 'Family Records',
-          value: (application?.family_members || []).length
-            ? `${application.family_members.length} record(s)`
-            : 'No records',
-          verified: (application?.family_members || []).length > 0,
-        },
-        {
-          label: 'Education Records',
-          value: (application?.education_records || []).length
-            ? `${application.education_records.length} record(s)`
-            : 'No records',
-          verified: (application?.education_records || []).length > 0,
-        },
-      ];
-
-    default:
-      return base;
+  const numericConfidence = Number(confidence);
+  if (!Number.isFinite(numericConfidence) || numericConfidence < 0 || numericConfidence > 100) {
+    return 'Unavailable';
   }
+  if (scannedViaIot === true && numericConfidence === 0.99) return 'Unavailable';
+
+  const percentage = numericConfidence <= 1 ? numericConfidence * 100 : numericConfidence;
+  return `${Number(percentage.toFixed(2))}%`;
 }
 
-function buildRawOcrSnapshot(activeDoc, application) {
-  if (!activeDoc) return '';
+// eslint-disable-next-line react-refresh/only-export-components
+export function buildExtractedData(activeDoc, application) {
+  if (!activeDoc) {
+    return {
+      applicationMetadata: [],
+      extractedFields: [],
+      confidence: 'Unavailable',
+      reviewOnly: false,
+    };
+  }
 
   const student = application?.student || {};
   const ocr = activeDoc?.ocr || {};
-  const rawText = String(ocr.raw_text || ocr.text || '').trim();
-  const confidence = ocr.confidence ?? activeDoc?.ocr_confidence ?? null;
-  const extractedName = ocr.extracted_name || null;
-  const extractedGwa = ocr.extracted_gwa ?? null;
+  const documentKey = activeDoc.document_key || activeDoc.id;
+  const reviewOnly = REVIEW_ONLY_DOCUMENT_KEYS.includes(documentKey);
+  const scannedViaIot = ocr.scanned_via_iot === true || activeDoc.scanned_via_iot === true;
+  const confidence = ocr.confidence ?? activeDoc.ocr_confidence ?? null;
 
-  return [
-    `Document: ${activeDoc.name || 'N/A'}`,
-    `Student: ${student.name || 'Unknown'}`,
-    `PDM ID: ${student.pdm_id || 'N/A'}`,
-    `Program: ${student.program || 'N/A'}`,
-    `Course: ${student.course || 'N/A'}`,
-    confidence !== null && confidence !== undefined
-      ? `OCR Confidence: ${confidence}%`
-      : 'OCR Confidence: N/A',
-    extractedName ? `Extracted Name: ${extractedName}` : null,
-    extractedGwa !== null && extractedGwa !== undefined
-      ? `Extracted GWA: ${extractedGwa}`
-      : null,
-    '',
-    'Extracted Text:',
-    rawText || '(No OCR text yet)',
-  ]
-    .filter((value) => value !== null)
-    .join('\n');
+  const applicationMetadata = [
+    { label: 'Student Name', value: student.name || 'Unavailable', badge: 'Application' },
+    { label: 'PDM ID', value: student.pdm_id || 'Unavailable', badge: 'Application' },
+    { label: 'Program', value: student.program || 'Unavailable', badge: 'Application' },
+    { label: 'Course', value: student.course || 'Unavailable', badge: 'Application' },
+  ];
+
+  const extractedFields = [];
+  if (!reviewOnly && typeof ocr.extracted_name === 'string' && ocr.extracted_name.trim()) {
+    extractedFields.push({
+      label: 'Extracted Name',
+      value: ocr.extracted_name.trim(),
+      badge: 'Extracted',
+    });
+  }
+  if (!reviewOnly && ocr.extracted_gwa !== null && ocr.extracted_gwa !== undefined) {
+    extractedFields.push({
+      label: 'Extracted GWA',
+      value: ocr.extracted_gwa,
+      badge: 'Extracted',
+    });
+  }
+
+  return {
+    applicationMetadata,
+    extractedFields,
+    confidence: formatOcrConfidence(confidence, scannedViaIot),
+    reviewOnly,
+  };
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function buildRawOcrSnapshot(activeDoc) {
+  if (!activeDoc) return '';
+
+  const ocr = activeDoc?.ocr || {};
+  const rawText = String(ocr.raw_text || ocr.text || '').trim();
+  return rawText || '(No OCR text yet)';
 }
 
 function InfoRow({ label, value, mono, className = '' }) {
@@ -705,7 +630,7 @@ function OCRPanel({
   onSaveRawOcr,
   savingRawOcr,
 }) {
-  const confidence = activeDoc?.ocr?.confidence ?? activeDoc?.ocr_confidence ?? null;
+  const confidence = extractedData?.confidence || 'Unavailable';
   const canRunIotOcr = activeDoc?.id !== 'application_form';
 
   return (
@@ -740,11 +665,9 @@ function OCRPanel({
             )}
           </Button>
 
-          {confidence !== null && confidence !== undefined && (
-            <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-[10px] font-medium">
-              Confidence: {confidence}%
-            </Badge>
-          )}
+          <Badge className="bg-stone-100 text-stone-700 border-stone-200 text-[10px] font-medium">
+            Confidence: {confidence}
+          </Badge>
 
           <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] font-medium">
             Extracted Preview
@@ -763,12 +686,12 @@ function OCRPanel({
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-4 h-4 text-green-600" />
             <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">
-              Parsed Metadata
+              Application Metadata
             </p>
           </div>
 
           <div className="space-y-2">
-            {extractedData.map((item, index) => (
+            {extractedData.applicationMetadata.map((item, index) => (
               <div
                 key={`${item.label}-${index}`}
                 className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
@@ -783,14 +706,52 @@ function OCRPanel({
                 </div>
 
                 <span
-                  className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${item.verified ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
-                    }`}
+                  className="text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700"
                 >
-                  {item.verified ? 'Detected' : 'Review'}
+                  {item.badge}
                 </span>
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <ScanText className="w-4 h-4 text-stone-600" />
+            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wide">
+              Extracted Fields
+            </p>
+          </div>
+
+          {extractedData.reviewOnly ? (
+            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 space-y-1">
+              <p className="font-medium">{REVIEW_ONLY_MESSAGES[0]}</p>
+              <p>{REVIEW_ONLY_MESSAGES[1]}</p>
+            </div>
+          ) : extractedData.extractedFields.length ? (
+            <div className="space-y-2">
+              {extractedData.extractedFields.map((item, index) => (
+                <div
+                  key={`${item.label}-${index}`}
+                  className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
+                >
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-stone-400">
+                      {item.label}
+                    </p>
+                    <p className="text-sm font-medium text-stone-800 mt-0.5">
+                      {item.value}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap bg-green-50 text-green-700">
+                    {item.badge}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-stone-500">No structured fields extracted.</p>
+          )}
         </div>
 
         <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">

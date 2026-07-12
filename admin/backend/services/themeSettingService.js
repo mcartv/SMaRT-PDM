@@ -1,8 +1,9 @@
 const supabase = require('../config/supabase');
 
-const PORTAL_KEYS = ['admin', 'sdo', 'guidance', 'pd'];
-const PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic', 'coral', 'mint'];
+const PORTAL_KEYS = ['admin', 'sdo', 'guidance', 'pd', 'landing'];
+const PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic', 'coral', 'mint', 'custom'];
 const TABLE_NAME = 'portal_theme_settings';
+const LANDING_COLOR_KEYS = ['dark', 'base', 'heroEnd', 'soft', 'border', 'pageBg'];
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -38,10 +39,32 @@ function buildFallbackSetting(portalKey) {
   return {
     portal_key: portalKey,
     preset_key: 'default',
+    custom_colors: null,
     updated_at: null,
     updated_by_user_id: null,
     is_fallback: true,
   };
+}
+
+function isValidHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || '').trim());
+}
+
+function sanitizeCustomColors(customColors = null) {
+  if (!customColors || typeof customColors !== 'object' || Array.isArray(customColors)) {
+    return null;
+  }
+
+  const nextColors = {};
+
+  LANDING_COLOR_KEYS.forEach((key) => {
+    const value = customColors[key];
+    if (isValidHexColor(value)) {
+      nextColors[key] = String(value).trim();
+    }
+  });
+
+  return Object.keys(nextColors).length ? nextColors : null;
 }
 
 function isMissingTableError(error, tableName) {
@@ -63,7 +86,7 @@ async function getPublicThemeSetting(portalKey) {
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .select('portal_key, preset_key, updated_at, updated_by_user_id')
+    .select('portal_key, preset_key, custom_colors, updated_at, updated_by_user_id')
     .eq('portal_key', normalizedPortal)
     .maybeSingle();
 
@@ -80,7 +103,7 @@ async function getPublicThemeSetting(portalKey) {
 async function getThemeSettings() {
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .select('portal_key, preset_key, updated_at, updated_by_user_id');
+    .select('portal_key, preset_key, custom_colors, updated_at, updated_by_user_id');
 
   if (error) {
     if (isMissingTableError(error, TABLE_NAME)) {
@@ -98,11 +121,12 @@ async function getThemeSettings() {
 }
 
 function canManagePortal(actorRole, portalKey) {
+  if (portalKey === 'landing') return actorRole === 'admin';
   if (actorRole === 'admin') return true;
   return actorRole === portalKey;
 }
 
-async function updateThemeSetting(portalKey, presetKey, actor = {}) {
+async function updateThemeSetting(portalKey, presetKey, actor = {}, customColors = null) {
   const normalizedPortal = validatePortalKey(portalKey);
   const normalizedPreset = validatePresetKey(presetKey);
   const actorRole = normalizePortalKey(actor.role);
@@ -111,9 +135,19 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}) {
     throw createHttpError(403, 'Access denied for this theme setting.');
   }
 
+  const sanitizedCustomColors =
+    normalizedPortal === 'landing' && normalizedPreset === 'custom'
+      ? sanitizeCustomColors(customColors)
+      : null;
+
+  if (normalizedPortal === 'landing' && normalizedPreset === 'custom' && !sanitizedCustomColors) {
+    throw createHttpError(400, 'Custom landing colors are required.');
+  }
+
   const payload = {
     portal_key: normalizedPortal,
     preset_key: normalizedPreset,
+    custom_colors: sanitizedCustomColors,
     updated_by_user_id: actor.userId || actor.user_id || null,
     updated_at: new Date().toISOString(),
   };
@@ -121,7 +155,7 @@ async function updateThemeSetting(portalKey, presetKey, actor = {}) {
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .upsert(payload, { onConflict: 'portal_key' })
-    .select('portal_key, preset_key, updated_at, updated_by_user_id')
+    .select('portal_key, preset_key, custom_colors, updated_at, updated_by_user_id')
     .single();
 
   if (error) {

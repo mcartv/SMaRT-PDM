@@ -35,7 +35,8 @@ async function updateThemeSetting(req, res) {
     const result = await themeSettingService.updateThemeSetting(
       req.params.portalKey,
       req.body?.preset_key,
-      req.user || {}
+      req.user || {},
+      req.body?.custom_colors || null
     );
 
     const io = req.app.get('io');
@@ -43,6 +44,7 @@ async function updateThemeSetting(req, res) {
       source: 'theme_settings',
       portal_key: result.portal_key,
       preset_key: result.preset_key,
+      custom_colors: result.custom_colors || null,
       updated_at: result.updated_at || new Date().toISOString(),
     });
 

@@ -169,6 +169,8 @@ const socketEvents = {
     openingCreated: (io, data) => emitEvent(io, 'opening:created', data),
     openingUpdated: (io, data) => emitEvent(io, 'opening:updated', data),
     openingClosed: (io, data) => emitEvent(io, 'opening:closed', data),
+    maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
+    reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
 
     ticketCreated: (io, data) => emitEvent(io, 'ticket:created', data),
     ticketUpdated: (io, data) => emitEvent(io, 'ticket:updated', data),

@@ -23,6 +23,7 @@ import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
 import AccountsPanel from './AccountsPanel';
 import ThemePanel from './ThemePanel';
+import LandingThemePanel from './LandingThemePanel';
 import usePortalTheme from '@/hooks/usePortalTheme';
 
 const TABS = [
@@ -72,6 +73,7 @@ function TopNav({ tabs, active, onChange, accentColor }) {
 
 export default function Maintenance() {
   const [tab, setTab] = useState('general');
+  const [themeView, setThemeView] = useState('landing');
   const { theme } = usePortalTheme('admin');
 
   const renderActiveTab = () => {
@@ -82,12 +84,55 @@ export default function Maintenance() {
         return <AccountsPanel />;
       case 'theme':
         return (
-          <ThemePanel
-            tokenStorageKey="adminToken"
-            allowedPortals={['admin', 'sdo', 'guidance', 'pd']}
-            editablePortals={['admin']}
-            subtitle="Manage the admin portal theme here. Other office themes are shown as quick previews only."
-          />
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                Theme Presets
+              </p>
+              <p className="mt-1 text-sm text-stone-500">
+                Choose which theme area you want to manage.
+              </p>
+
+              <div className="mt-4 inline-flex rounded-full border border-stone-200 bg-stone-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setThemeView('landing')}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    themeView === 'landing'
+                      ? 'text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                  style={themeView === 'landing' ? { background: theme.base } : undefined}
+                >
+                  Landing Page
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setThemeView('admin')}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    themeView === 'admin'
+                      ? 'text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                  style={themeView === 'admin' ? { background: theme.base } : undefined}
+                >
+                  Admin Theme
+                </button>
+              </div>
+            </div>
+
+            {themeView === 'landing' ? (
+              <LandingThemePanel tokenStorageKey="adminToken" />
+            ) : (
+              <ThemePanel
+                tokenStorageKey="adminToken"
+                allowedPortals={['admin', 'sdo', 'guidance', 'pd']}
+                editablePortals={['admin']}
+                title="Admin Theme"
+                subtitle="Manage the admin portal theme here. Other office themes are shown as quick previews only."
+              />
+            )}
+          </div>
         );
       case 'benefactors':
         return <BenefactorsPanel />;

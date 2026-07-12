@@ -144,7 +144,7 @@ function PortalChip({ label, href }) {
   return (
     <Link
       to={href}
-      className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-xs font-semibold text-white/85 transition hover:bg-white/12 hover:text-white"
+      className="rounded-full border border-white/15 bg-white/8 px-4 py-2 text-[13px] font-semibold text-white/90 transition hover:bg-white/12 hover:text-white"
     >
       {label}
     </Link>
@@ -260,18 +260,18 @@ export default function SmartPDMLanding() {
             src={pdmFacade}
             alt=""
             aria-hidden="true"
-            className="absolute inset-y-0 right-0 h-full w-[62%] object-cover object-center opacity-[0.16] mix-blend-screen"
+            className="absolute inset-0 h-full w-full object-cover object-center opacity-[0.18] mix-blend-screen"
           />
           <div
-            className="absolute inset-y-0 right-0 w-[68%]"
+            className="absolute inset-0"
             style={{
-              background: `linear-gradient(90deg, ${theme.dark} 0%, transparent 28%, transparent 100%)`,
+              background: `linear-gradient(90deg, ${theme.dark} 0%, rgba(0,0,0,0.18) 26%, rgba(0,0,0,0.08) 58%, rgba(255,255,255,0.02) 100%)`,
             }}
           />
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.14) 100%)`,
+              background: `linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.2) 100%)`,
             }}
           />
         </div>

@@ -12,7 +12,11 @@ import os
 from typing import Any, Dict, Optional
 
 import requests
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - test/runtime fallback
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 load_dotenv()
 

@@ -20,7 +20,11 @@ import time
 from pathlib import Path
 from typing import Dict, Tuple
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - test/runtime fallback
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 from api import ApiClient
 from document_contracts import build_extracted_fields, get_contract

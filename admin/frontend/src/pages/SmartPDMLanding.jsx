@@ -5,10 +5,10 @@ import {
   Bell,
   Phone,
   Download,
-  Facebook,
   FileCheck2,
   MapPin,
   Clock3,
+  Globe2,
   HelpCircle,
   LockKeyhole,
   Mail,
@@ -899,7 +899,7 @@ export default function SmartPDMLanding() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
               >
-                <Facebook className="h-4 w-4" />
+                <Globe2 className="h-4 w-4" />
                 Follow PDM on Facebook
               </a>
             </div>

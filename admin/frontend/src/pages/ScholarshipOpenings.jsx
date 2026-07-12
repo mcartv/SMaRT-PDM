@@ -856,7 +856,7 @@ function OpeningCard({
     opening,
     actionLoadingId,
     openEditModal,
-    handleUnarchiveOpening,
+    handleRestoreOpening,
     handleOpenDraftOpening,
     handleMoveToDraft,
     handleCloseOpening,
@@ -986,7 +986,7 @@ function OpeningCard({
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => handleUnarchiveOpening(opening)}
+                                    onClick={() => handleRestoreOpening(opening)}
                                     className="h-7 rounded-md border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50"
                                     disabled={isBusy}
                                 >
@@ -995,7 +995,7 @@ function OpeningCard({
                                     ) : (
                                         <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
                                     )}
-                                    Unarchive
+                                    Restore
                                 </Button>
                             )}
 
@@ -1611,7 +1611,7 @@ export default function ScholarshipOpenings() {
         await updateOpeningStatus(openingId, 'archived', { is_archived: true });
     };
 
-    const handleUnarchiveOpening = async (opening) => {
+    const handleRestoreOpening = async (opening) => {
         const availableSlots = getAvailableSlots(opening);
         const nextStatus = availableSlots > 0 ? 'open' : 'closed';
 
@@ -1936,7 +1936,7 @@ export default function ScholarshipOpenings() {
                                         opening={opening}
                                         actionLoadingId={actionLoadingId}
                                         openEditModal={openEditModal}
-                                        handleUnarchiveOpening={handleUnarchiveOpening}
+                                        handleRestoreOpening={handleRestoreOpening}
                                         handleOpenDraftOpening={handleOpenDraftOpening}
                                         handleMoveToDraft={handleMoveToDraft}
                                         handleCloseOpening={handleCloseOpening}

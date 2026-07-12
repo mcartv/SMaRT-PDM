@@ -64,6 +64,11 @@ exports.getBenefactors = async () => {
     return (data || []).map(mapBenefactorRow);
 };
 
+exports.getPublicBenefactors = async () => {
+    const benefactors = await exports.getBenefactors();
+    return benefactors.filter((item) => item.is_archived !== true);
+};
+
 exports.createBenefactor = async (payload = {}) => {
     const insertData = {
         benefactor_name: normalizeRequiredText(
@@ -164,6 +169,7 @@ exports.updateBenefactor = async (benefactorId, payload = {}) => {
 
 module.exports = {
     getBenefactors: exports.getBenefactors,
+    getPublicBenefactors: exports.getPublicBenefactors,
     createBenefactor: exports.createBenefactor,
     updateBenefactor: exports.updateBenefactor,
 };

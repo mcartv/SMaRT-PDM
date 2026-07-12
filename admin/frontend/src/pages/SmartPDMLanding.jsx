@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -11,6 +11,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import useLandingTheme from '@/hooks/useLandingTheme';
+import { buildApiUrl } from '@/api';
 
 import pdmLogo from '../assets/pdm-logo.png';
 
@@ -182,8 +183,65 @@ function StepCard({ step, title, description, theme }) {
   );
 }
 
+function BenefactorCard({ benefactor, theme }) {
+  return (
+    <div
+      className="rounded-[1.5rem] border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      style={{ borderColor: theme.border }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-stone-900">{benefactor.benefactor_name}</p>
+          <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
+            {benefactor.benefactor_type || 'Benefactor'}
+          </p>
+        </div>
+        <span
+          className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+          style={{ background: theme.soft, color: theme.base }}
+        >
+          Partner
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-stone-500">
+        {benefactor.description || 'Supports scholarship opportunities and student access through OSFA programs.'}
+      </p>
+    </div>
+  );
+}
+
 export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
+  const [benefactors, setBenefactors] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadBenefactors = async () => {
+      try {
+        const response = await fetch(buildApiUrl('/api/benefactors/public'));
+        const payload = await response.json().catch(() => []);
+
+        if (!response.ok) {
+          throw new Error('Failed to load benefactors');
+        }
+
+        if (active) {
+          setBenefactors(Array.isArray(payload) ? payload.slice(0, 6) : []);
+        }
+      } catch (error) {
+        if (active) {
+          setBenefactors([]);
+        }
+      }
+    };
+
+    loadBenefactors();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div
@@ -196,6 +254,21 @@ export default function SmartPDMLanding() {
           background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 58%, ${theme.heroEnd} 100%)`,
         }}
       >
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <img
+            src={pdmLogo}
+            alt=""
+            aria-hidden="true"
+            className="absolute -right-20 top-8 h-[320px] w-[320px] object-contain opacity-[0.08] blur-[1px] md:h-[460px] md:w-[460px]"
+          />
+          <img
+            src={pdmLogo}
+            alt=""
+            aria-hidden="true"
+            className="absolute -left-16 bottom-0 h-[220px] w-[220px] object-contain opacity-[0.05] md:h-[300px] md:w-[300px]"
+          />
+        </div>
+
         <div className="pointer-events-none absolute inset-0 opacity-[0.08]">
           <div
             className="h-full w-full"
@@ -304,8 +377,8 @@ export default function SmartPDMLanding() {
                   <Link
                     key={item.href}
                     to={item.href}
-                    className="group flex items-center justify-between rounded-2xl border border-stone-100 bg-stone-50 px-4 py-3 transition hover:border-[#e9dcc8] hover:bg-[#f7f1e9]"
-                    style={{ borderColor: theme.border }}
+                    className="group flex items-center justify-between rounded-2xl border border-stone-100 bg-stone-50 px-4 py-3 transition hover:brightness-[0.98]"
+                    style={{ borderColor: theme.border, background: theme.soft }}
                   >
                     <div>
                       <p className="text-sm font-bold text-stone-900">
@@ -382,6 +455,36 @@ export default function SmartPDMLanding() {
           ))}
         </div>
       </section>
+
+      {benefactors.length ? (
+        <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+          <div
+            className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
+            style={{ background: '#ffffff', borderColor: theme.border }}
+          >
+            <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                  Benefactors
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-stone-900">
+                  Scholarship partners and funding support
+                </h2>
+              </div>
+
+              <p className="max-w-md text-sm leading-6 text-stone-500">
+                These partner organizations and funding sources help make scholarship access possible for PDM students.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {benefactors.map((benefactor) => (
+                <BenefactorCard key={benefactor.benefactor_id} benefactor={benefactor} theme={theme} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-12">
         <div

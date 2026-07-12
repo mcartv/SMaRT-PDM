@@ -17,6 +17,20 @@ exports.getBenefactors = async (req, res) => {
     }
 };
 
+exports.getPublicBenefactors = async (req, res) => {
+    try {
+        const benefactors = await benefactorService.getPublicBenefactors();
+        res.status(200).json(benefactors);
+    } catch (err) {
+        console.error('GET PUBLIC BENEFACTORS CONTROLLER ERROR:', err);
+
+        res.status(500).json({
+            message: err.message || 'Failed to fetch benefactors',
+            error: err.message || 'Unknown backend error',
+        });
+    }
+};
+
 exports.createBenefactor = async (req, res) => {
     await auditLogService.logAudit({
         req,

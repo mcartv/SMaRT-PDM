@@ -14,6 +14,7 @@ import useLandingTheme from '@/hooks/useLandingTheme';
 import { buildApiUrl } from '@/api';
 
 import pdmLogo from '../assets/pdm-logo.png';
+import pdmFacade from '../assets/PDM-Facade.png';
 
 const APP_DOWNLOAD_URL =
   'https://www.mediafire.com/file/8157hvb8nuqiprf/SMaRT_PDM.apk/file';
@@ -256,16 +257,22 @@ export default function SmartPDMLanding() {
       >
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <img
-            src={pdmLogo}
+            src={pdmFacade}
             alt=""
             aria-hidden="true"
-            className="absolute -right-20 top-8 h-[320px] w-[320px] object-contain opacity-[0.08] blur-[1px] md:h-[460px] md:w-[460px]"
+            className="absolute inset-y-0 right-0 h-full w-[62%] object-cover object-center opacity-[0.16] mix-blend-screen"
           />
-          <img
-            src={pdmLogo}
-            alt=""
-            aria-hidden="true"
-            className="absolute -left-16 bottom-0 h-[220px] w-[220px] object-contain opacity-[0.05] md:h-[300px] md:w-[300px]"
+          <div
+            className="absolute inset-y-0 right-0 w-[68%]"
+            style={{
+              background: `linear-gradient(90deg, ${theme.dark} 0%, transparent 28%, transparent 100%)`,
+            }}
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.14) 100%)`,
+            }}
           />
         </div>
 

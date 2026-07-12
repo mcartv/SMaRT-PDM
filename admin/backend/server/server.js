@@ -38,6 +38,7 @@ const ocrRoutes = require('../routes/ocrRoutes');
 const reportRoutes = require('../routes/reportRoutes');
 const roSettingRoutes = require('../routes/roSettingRoutes');
 const themeSettingRoutes = require('../routes/themeSettingRoutes');
+const generalSettingRoutes = require('../routes/generalSettingRoutes');
 
 const piRoutes = require('../routes/piRoutes');
 const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
@@ -216,6 +217,7 @@ app.use('/api/pi/iot-ocr', piIotOcrRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/ro-settings', roSettingRoutes);
 app.use('/api/theme-settings', themeSettingRoutes);
+app.use('/api/general-settings', generalSettingRoutes);
 
 app.use('/api/pi/iot-ocr', piIotOcrRoutes);
 app.use('/api/pi', piRoutes);

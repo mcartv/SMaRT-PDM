@@ -3,15 +3,20 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Bell,
+  Phone,
   Download,
   FileCheck2,
+  MapPin,
+  Clock3,
   LockKeyhole,
   MessageSquare,
+  School,
   Smartphone,
   UsersRound,
 } from 'lucide-react';
 import useLandingTheme from '@/hooks/useLandingTheme';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 import pdmLogo from '../assets/pdm-logo.png';
 import pdmFacade from '../assets/PDM-Facade.png';
@@ -214,6 +219,13 @@ function BenefactorCard({ benefactor, theme }) {
 export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
+  const [generalSettings, setGeneralSettings] = useState({
+    institution_name: 'Pambayang Dalubhasaan ng Marilao',
+    office_name: 'Office for Scholarship and Financial Assistance',
+    office_address: 'Abangan Norte, Marilao, Bulacan',
+    landline_number: '(044) 919-8191',
+    office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
+  });
 
   useEffect(() => {
     let active = true;
@@ -247,6 +259,59 @@ export default function SmartPDMLanding() {
   useEffect(() => {
     document.title = 'SMaRT-PDM';
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadGeneralSettings = async () => {
+      try {
+        const response = await fetch(buildApiUrl('/api/general-settings/public'));
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to load general settings');
+        }
+
+        if (active) {
+          setGeneralSettings((current) => ({
+            ...current,
+            institution_name: payload?.institution_name || current.institution_name,
+            office_name: payload?.office_name || current.office_name,
+            office_address: payload?.office_address || current.office_address,
+            landline_number: payload?.landline_number || current.landline_number,
+            office_hours: payload?.office_hours || current.office_hours,
+          }));
+        }
+      } catch (error) {
+        if (active) {
+          setGeneralSettings((current) => ({ ...current }));
+        }
+      }
+    };
+
+    loadGeneralSettings();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useSocketEvent(
+    'maintenance:updated',
+    (payload) => {
+      if (payload?.source !== 'general_settings') return;
+      const settings = payload?.settings || {};
+      setGeneralSettings((current) => ({
+        ...current,
+        institution_name: settings?.institution_name || current.institution_name,
+        office_name: settings?.office_name || current.office_name,
+        office_address: settings?.office_address || current.office_address,
+        landline_number: settings?.landline_number || current.landline_number,
+        office_hours: settings?.office_hours || current.office_hours,
+      }));
+    },
+    []
+  );
 
   return (
     <div
@@ -591,6 +656,67 @@ export default function SmartPDMLanding() {
             <p className="mt-3 text-sm leading-6 text-stone-600">
               Applicants can use the mobile app for updates, reminders, and status tracking without depending only on manual follow-up.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pb-14">
+        <div
+          className="rounded-[2rem] border px-6 py-6 md:px-8"
+          style={{ background: theme.base, borderColor: theme.border }}
+        >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <School className="h-4 w-4" />
+                Institution
+              </div>
+              <p className="mt-3 text-base font-semibold">
+                {generalSettings.institution_name}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/75">
+                {generalSettings.office_name}
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <MapPin className="h-4 w-4" />
+                Office Address
+              </div>
+              <p className="mt-3 text-base font-semibold">
+                {generalSettings.office_address}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/75">
+                Campus and office destination for OSFA-related transactions.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Phone className="h-4 w-4" />
+                Landline Number
+              </div>
+              <p className="mt-3 text-base font-semibold">
+                {generalSettings.landline_number}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/75">
+                Office contact line for public inquiries and coordination.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Clock3 className="h-4 w-4" />
+                Office Hours
+              </div>
+              <p className="mt-3 text-base font-semibold">
+                {generalSettings.office_hours}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/75">
+                Public service window for in-person follow-up and scholarship transactions.
+              </p>
+            </div>
           </div>
         </div>
       </section>

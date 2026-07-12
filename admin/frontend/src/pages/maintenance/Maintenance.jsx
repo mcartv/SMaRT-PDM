@@ -23,6 +23,7 @@ import AuditPanel from './AuditPanel';
 import AcademicYearPanel from './AcademicYearPanel';
 import AccountsPanel from './AccountsPanel';
 import ThemePanel from './ThemePanel';
+import LandingThemePanel from './LandingThemePanel';
 import usePortalTheme from '@/hooks/usePortalTheme';
 
 const TABS = [
@@ -82,12 +83,15 @@ export default function Maintenance() {
         return <AccountsPanel />;
       case 'theme':
         return (
-          <ThemePanel
-            tokenStorageKey="adminToken"
-            allowedPortals={['admin', 'sdo', 'guidance', 'pd']}
-            editablePortals={['admin']}
-            subtitle="Manage the admin portal theme here. Other office themes are shown as quick previews only."
-          />
+          <div className="space-y-5">
+            <ThemePanel
+              tokenStorageKey="adminToken"
+              allowedPortals={['admin', 'sdo', 'guidance', 'pd']}
+              editablePortals={['admin']}
+              subtitle="Manage the admin portal theme here. Other office themes are shown as quick previews only."
+            />
+            <LandingThemePanel tokenStorageKey="adminToken" />
+          </div>
         );
       case 'benefactors':
         return <BenefactorsPanel />;

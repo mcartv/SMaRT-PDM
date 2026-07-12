@@ -1,6 +1,7 @@
 create table if not exists public.portal_theme_settings (
   portal_key text primary key,
   preset_key text not null default 'default',
+  custom_colors jsonb null,
   updated_by_user_id text null,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now()
@@ -8,6 +9,7 @@ create table if not exists public.portal_theme_settings (
 
 alter table public.portal_theme_settings
   add column if not exists preset_key text not null default 'default',
+  add column if not exists custom_colors jsonb null,
   add column if not exists updated_by_user_id text null,
   add column if not exists updated_at timestamptz not null default now(),
   add column if not exists created_at timestamptz not null default now();
@@ -17,7 +19,7 @@ alter table public.portal_theme_settings
 
 alter table public.portal_theme_settings
   add constraint portal_theme_settings_portal_key_check
-  check (portal_key in ('admin', 'sdo', 'guidance', 'pd'));
+  check (portal_key in ('admin', 'sdo', 'guidance', 'pd', 'landing'));
 
 alter table public.portal_theme_settings
   drop constraint if exists portal_theme_settings_preset_key_check;
@@ -39,7 +41,8 @@ alter table public.portal_theme_settings
     'lavender',
     'arctic',
     'coral',
-    'mint'
+    'mint',
+    'custom'
   ));
 
 insert into public.portal_theme_settings (portal_key, preset_key)
@@ -47,5 +50,6 @@ values
   ('admin', 'default'),
   ('sdo', 'default'),
   ('guidance', 'default'),
-  ('pd', 'default')
+  ('pd', 'default'),
+  ('landing', 'default')
 on conflict (portal_key) do nothing;

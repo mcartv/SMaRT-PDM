@@ -10,22 +10,39 @@ import {
   Smartphone,
   UsersRound,
 } from 'lucide-react';
+import useLandingTheme from '@/hooks/useLandingTheme';
 
 import pdmLogo from '../assets/pdm-logo.png';
 
 const APP_DOWNLOAD_URL =
   'https://www.mediafire.com/file/8157hvb8nuqiprf/SMaRT_PDM.apk/file';
 
-const SB_BASE = '#7c4a2e';
-const SB_DARK = '#56321f';
-const SB_SOFT = '#f7f1e9';
-const SB_BORDER = '#e9dcc8';
-
 const portalLinks = [
   { label: 'Admin', href: '/admin/login' },
-  { label: 'Program Director', href: '/pd/login' },
-  { label: 'Guidance', href: '/guidance/login' },
   { label: 'SDO', href: '/sdo/login' },
+  { label: 'Guidance', href: '/guidance/login' },
+  { label: 'Program Director', href: '/pd/login' },
+];
+
+const howItWorks = [
+  {
+    step: '01',
+    title: 'Apply and submit requirements',
+    description:
+      'Applicants complete the scholarship form, upload required documents, and track their submission in one place.',
+  },
+  {
+    step: '02',
+    title: 'Offices review the endorsement',
+    description:
+      'SDO, Guidance, and Program Director handle endorsement decisions by stage with visible progress and office remarks.',
+  },
+  {
+    step: '03',
+    title: 'Admin finalizes scholar readiness',
+    description:
+      'The admin side confirms requirements and endorsement completion before final scholar activation.',
+  },
 ];
 
 const features = [
@@ -62,6 +79,7 @@ function Button({
   size = 'md',
   fullWidth = false,
   icon: Icon,
+  theme,
 }) {
   const external = isExternalUrl(href);
 
@@ -77,9 +95,18 @@ function Button({
       ? 'text-white shadow-lg hover:brightness-95'
       : variant === 'ghost'
         ? 'border border-white/15 bg-white/8 text-white hover:bg-white/12'
-        : 'border border-[#e9dcc8] bg-white text-[#7c4a2e] hover:bg-[#f7f1e9]';
+        : 'border bg-white hover:brightness-[0.98]';
 
-  const style = variant === 'primary' ? { background: SB_BASE } : undefined;
+  const style =
+    variant === 'primary'
+      ? { background: theme?.base || '#7c4a2e' }
+      : variant === 'secondary'
+        ? {
+            borderColor: theme?.border || '#e9dcc8',
+            color: theme?.base || '#7c4a2e',
+            background: '#ffffff',
+          }
+        : undefined;
 
   const content = (
     <>
@@ -122,12 +149,12 @@ function PortalChip({ label, href }) {
   );
 }
 
-function FeatureCard({ icon: Icon, title, description }) {
+function FeatureCard({ icon: Icon, title, description, theme }) {
   return (
     <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div
         className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl"
-        style={{ background: SB_SOFT, color: SB_BASE }}
+        style={{ background: theme.soft, color: theme.base }}
       >
         <Icon size={19} />
       </div>
@@ -139,16 +166,34 @@ function FeatureCard({ icon: Icon, title, description }) {
   );
 }
 
+function StepCard({ step, title, description, theme }) {
+  return (
+    <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div
+        className="inline-flex rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]"
+        style={{ background: theme.soft, color: theme.base }}
+      >
+        Step {step}
+      </div>
+
+      <h3 className="mt-4 text-base font-bold text-stone-900">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-stone-500">{description}</p>
+    </div>
+  );
+}
+
 export default function SmartPDMLanding() {
+  const { theme } = useLandingTheme();
+
   return (
     <div
-      className="min-h-screen bg-[#f8f5f1] text-stone-900"
-      style={{ fontFamily: "'Inter', sans-serif" }}
+      className="min-h-screen text-stone-900"
+      style={{ background: theme.pageBg, fontFamily: "'Inter', sans-serif" }}
     >
       <section
         className="relative overflow-hidden"
         style={{
-          background: `linear-gradient(135deg, ${SB_DARK} 0%, ${SB_BASE} 58%, #8a5a38 100%)`,
+          background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 58%, ${theme.heroEnd} 100%)`,
         }}
       >
         <div className="pointer-events-none absolute inset-0 opacity-[0.08]">
@@ -207,11 +252,11 @@ export default function SmartPDMLanding() {
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <Button href={APP_DOWNLOAD_URL} icon={Download}>
+              <Button href={APP_DOWNLOAD_URL} icon={Download} theme={theme}>
                 Download APK
               </Button>
 
-              <Button href="/admin/login" variant="ghost" icon={ArrowRight}>
+              <Button href="/admin/login" variant="ghost" icon={ArrowRight} theme={theme}>
                 Open Portal
               </Button>
             </div>
@@ -248,7 +293,7 @@ export default function SmartPDMLanding() {
 
                 <div
                   className="flex h-10 w-10 items-center justify-center rounded-xl"
-                  style={{ background: SB_SOFT, color: SB_BASE }}
+                  style={{ background: theme.soft, color: theme.base }}
                 >
                   <UsersRound size={19} />
                 </div>
@@ -260,6 +305,7 @@ export default function SmartPDMLanding() {
                     key={item.href}
                     to={item.href}
                     className="group flex items-center justify-between rounded-2xl border border-stone-100 bg-stone-50 px-4 py-3 transition hover:border-[#e9dcc8] hover:bg-[#f7f1e9]"
+                    style={{ borderColor: theme.border }}
                   >
                     <div>
                       <p className="text-sm font-bold text-stone-900">
@@ -273,6 +319,7 @@ export default function SmartPDMLanding() {
                     <ArrowRight
                       size={17}
                       className="text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-[#7c4a2e]"
+                      style={{ color: theme.base }}
                     />
                   </Link>
                 ))}
@@ -280,12 +327,12 @@ export default function SmartPDMLanding() {
 
               <div
                 className="mt-5 rounded-2xl border p-4"
-                style={{ background: SB_SOFT, borderColor: SB_BORDER }}
+                style={{ background: theme.soft, borderColor: theme.border }}
               >
                 <div className="flex items-start gap-3">
                   <div
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                    style={{ background: '#fff', color: SB_BASE }}
+                    style={{ background: '#fff', color: theme.base }}
                   >
                     <Smartphone size={18} />
                   </div>
@@ -300,7 +347,7 @@ export default function SmartPDMLanding() {
                     </p>
 
                     <div className="mt-3">
-                      <Button href={APP_DOWNLOAD_URL} size="sm" icon={Download}>
+                      <Button href={APP_DOWNLOAD_URL} size="sm" icon={Download} theme={theme}>
                         Download App
                       </Button>
                     </div>
@@ -315,7 +362,7 @@ export default function SmartPDMLanding() {
       <section className="mx-auto w-full max-w-6xl px-5 py-12">
         <div className="mb-7 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#92500f]">
+            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
               Platform Features
             </p>
             <h2 className="mt-2 text-2xl font-bold text-stone-900">
@@ -331,19 +378,47 @@ export default function SmartPDMLanding() {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {features.map((feature) => (
-            <FeatureCard key={feature.title} {...feature} />
+            <FeatureCard key={feature.title} {...feature} theme={theme} />
           ))}
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+        <div
+          className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
+          style={{ background: '#fffdfb', borderColor: theme.border }}
+        >
+          <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                How It Works
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-stone-900">
+                Scholarship flow in 3 simple steps
+              </h2>
+            </div>
+
+            <p className="max-w-md text-sm leading-6 text-stone-500">
+              A shorter overview for applicants and offices so the process is easier to understand at a glance.
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {howItWorks.map((item) => (
+              <StepCard key={item.step} {...item} theme={theme} />
+            ))}
+          </div>
         </div>
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 pb-14">
         <div
           className="rounded-[2rem] border p-6 md:p-8"
-          style={{ background: SB_SOFT, borderColor: SB_BORDER }}
+          style={{ background: theme.soft, borderColor: theme.border }}
         >
           <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#92500f]">
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
                 Department Access
               </p>
 
@@ -365,11 +440,43 @@ export default function SmartPDMLanding() {
                   variant={item.label === 'Admin' ? 'primary' : 'secondary'}
                   size="sm"
                   fullWidth
+                  theme={theme}
                 >
                   {item.label}
                 </Button>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pb-14">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+              Clear workflow
+            </p>
+            <p className="mt-3 text-sm leading-6 text-stone-600">
+              Applications, requirements, endorsement, and scholar readiness stay separated so each step is easier to manage.
+            </p>
+          </div>
+
+          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+              Office visibility
+            </p>
+            <p className="mt-3 text-sm leading-6 text-stone-600">
+              SDO, Guidance, and Program Director can monitor active applicants, processed slips, and downloadable records in their own portals.
+            </p>
+          </div>
+
+          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+              Student-friendly access
+            </p>
+            <p className="mt-3 text-sm leading-6 text-stone-600">
+              Applicants can use the mobile app for updates, reminders, and status tracking without depending only on manual follow-up.
+            </p>
           </div>
         </div>
       </section>

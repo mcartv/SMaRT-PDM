@@ -90,16 +90,22 @@ const QUEUE_ACCENT = {
     card: 'from-orange-50 via-white to-white',
     border: 'border-orange-200',
     badge: 'bg-orange-100 text-orange-800',
+    panel: 'border-orange-200 bg-orange-50/50',
+    button: 'border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100',
   },
   guidance: {
     card: 'from-blue-50 via-white to-white',
     border: 'border-blue-200',
     badge: 'bg-blue-100 text-blue-800',
+    panel: 'border-blue-200 bg-blue-50/50',
+    button: 'border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100',
   },
   pd: {
     card: 'from-emerald-50 via-white to-white',
     border: 'border-emerald-200',
     badge: 'bg-emerald-100 text-emerald-800',
+    panel: 'border-emerald-200 bg-emerald-50/50',
+    button: 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
   },
 };
 
@@ -546,11 +552,11 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           </Button>
           <Button
             variant="outline"
-            className="h-10 border-amber-200 text-amber-700 hover:bg-amber-50"
+            className="h-10 border-amber-200 px-3 text-[13px] text-amber-700 hover:bg-amber-50"
             disabled={loading || row.current_stage === 'held'}
             onClick={() => onSubmit(row, 'hold')}
           >
-            For Counseling / Hold
+            Counsel / Hold
           </Button>
           <Button
             variant="outline"
@@ -684,6 +690,7 @@ export default function EndorsementQueue({
 
   const hasAccess = meta.allowedRoles.includes(profile.role);
   const accent = QUEUE_ACCENT[queueKey] || QUEUE_ACCENT.pd;
+  const isPdQueue = queueKey === 'pd';
 
   const loadQueue = async ({ soft = false } = {}) => {
     if (!hasAccess) return;
@@ -1149,7 +1156,7 @@ export default function EndorsementQueue({
                       </div>
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
+                    <div className={`grid gap-4 ${isPdQueue ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,340px)]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]'}`}>
                     <div className="space-y-3">
                       {queueKey === 'pd' ? (
                         <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
@@ -1167,7 +1174,25 @@ export default function EndorsementQueue({
                         </div>
                       ) : null}
 
-                      {queueKey !== 'sdo' ? (
+                      {queueKey === 'pd' ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Previous SDO Review</p>
+                            <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
+                            {row.sdo_offense_detail?.offense_type ? (
+                              <p className="mt-2 text-xs leading-5 text-stone-500">
+                                {row.sdo_offense_detail.offense_type}
+                                {row.sdo_offense_detail.incident_date ? ` | ${row.sdo_offense_detail.incident_date}` : ''}
+                                {row.sdo_offense_detail.case_reference_number ? ` | ${row.sdo_offense_detail.case_reference_number}` : ''}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Review</p>
+                            <p className="mt-2 font-medium text-stone-900">{row.office_results?.guidance || 'Pending Guidance review'}</p>
+                          </div>
+                        </div>
+                      ) : queueKey !== 'sdo' ? (
                         <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Previous SDO Review</p>
                           <p className="mt-2 font-medium text-stone-900">{row.office_results?.sdo || 'Pending SDO review'}</p>
@@ -1180,20 +1205,13 @@ export default function EndorsementQueue({
                           ) : null}
                         </div>
                       ) : null}
-
-                      {queueKey === 'pd' ? (
-                        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Guidance Review</p>
-                          <p className="mt-2 font-medium text-stone-900">{row.office_results?.guidance || 'Pending Guidance review'}</p>
-                        </div>
-                      ) : null}
                     </div>
 
                     <div className="space-y-3">
-                      <div className="rounded-[24px] border border-stone-200 bg-white/85 p-4">
+                      <div className={`rounded-[24px] border p-4 ${accent.panel}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-600">
                       {queueKey === 'pd' ? 'PD Grade Review' : 'Slip Access'}
                         </p>
                       </div>
@@ -1310,7 +1328,7 @@ export default function EndorsementQueue({
                     ) : null}
                     <Button
                       variant="outline"
-                      className="mt-3 h-10 w-full border-blue-200 bg-blue-50 font-medium text-blue-800 hover:bg-blue-100"
+                      className={`mt-3 h-10 w-full font-medium ${accent.button}`}
                       title="Open the full endorsement slip"
                       onClick={() => navigate(`${detailBasePath}/${row.slip_id}`)}
                     >

@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
 import { useSocketEvent } from '@/hooks/useSocket';
+import usePortalTheme from '@/hooks/usePortalTheme';
 
 const STAGE_META = {
   completed: 'bg-green-50 text-green-700',
@@ -66,7 +67,9 @@ function portalMeta(tokenStorageKey) {
   if (tokenStorageKey === 'adminToken') {
     return {
       name: 'Admin',
-      accent: 'from-stone-800 via-stone-700 to-stone-600',
+      cardTint: 'border-stone-200 bg-stone-50/70',
+      sectionBorder: 'border-stone-200',
+      softBadge: 'border-stone-200 bg-stone-50 text-stone-700',
       actionPath: 'documents',
     };
   }
@@ -74,7 +77,9 @@ function portalMeta(tokenStorageKey) {
   if (tokenStorageKey === 'sdoToken') {
     return {
       name: 'SDO',
-      accent: 'from-emerald-700 via-emerald-600 to-teal-600',
+      cardTint: 'border-emerald-200 bg-emerald-50/70',
+      sectionBorder: 'border-emerald-200',
+      softBadge: 'border-emerald-200 bg-emerald-50 text-emerald-800',
       actionPath: null,
     };
   }
@@ -82,14 +87,18 @@ function portalMeta(tokenStorageKey) {
   if (tokenStorageKey === 'guidanceToken') {
     return {
       name: 'Guidance',
-      accent: 'from-sky-700 via-sky-600 to-blue-600',
+      cardTint: 'border-blue-200 bg-blue-50/70',
+      sectionBorder: 'border-blue-200',
+      softBadge: 'border-blue-200 bg-blue-50 text-blue-800',
       actionPath: null,
     };
   }
 
   return {
     name: 'PD',
-    accent: 'from-violet-700 via-violet-600 to-fuchsia-600',
+    cardTint: 'border-violet-200 bg-violet-50/70',
+    sectionBorder: 'border-violet-200',
+    softBadge: 'border-violet-200 bg-violet-50 text-violet-800',
     actionPath: null,
   };
 }
@@ -131,6 +140,15 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
   const [downloading, setDownloading] = useState(false);
   const meta = portalMeta(tokenStorageKey);
   const isAdminView = tokenStorageKey === 'adminToken';
+  const portalKey =
+    tokenStorageKey === 'sdoToken'
+      ? 'sdo'
+      : tokenStorageKey === 'guidanceToken'
+        ? 'guidance'
+        : tokenStorageKey === 'pdToken'
+          ? 'pd'
+          : 'admin';
+  const { theme } = usePortalTheme(portalKey);
 
   const loadDetail = useCallback(
     async ({ soft = false } = {}) => {
@@ -255,7 +273,12 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
 
   return (
     <div className="space-y-5 py-2">
-      <section className={`overflow-hidden rounded-[28px] bg-gradient-to-r ${meta.accent} text-white shadow-sm`}>
+      <section
+        className="overflow-hidden rounded-[28px] text-white shadow-sm"
+        style={{
+          background: `linear-gradient(90deg, ${theme.base} 0%, ${theme.active} 52%, ${theme.accent} 100%)`,
+        }}
+      >
         <div className="flex flex-col gap-5 px-6 py-6 lg:flex-row lg:items-end lg:justify-between lg:px-7">
           <div className="max-w-3xl">
             <Button
@@ -332,7 +355,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
       </section>
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <Card className="rounded-[22px] border-stone-200 shadow-none">
+        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
           <CardContent className="p-4">
             <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Current Office</p>
             <p className="mt-2 text-lg font-semibold text-stone-900">
@@ -340,19 +363,19 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
             </p>
           </CardContent>
         </Card>
-        <Card className="rounded-[22px] border-stone-200 shadow-none">
+        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
           <CardContent className="p-4">
             <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Submitted</p>
             <p className="mt-2 text-sm font-semibold text-stone-900">{formatDate(slip.submitted_at)}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-[22px] border-stone-200 shadow-none">
+        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
           <CardContent className="p-4">
             <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Last Activity</p>
             <p className="mt-2 text-sm font-semibold text-stone-900">{formatDate(lastActionAt)}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-[22px] border-stone-200 shadow-none">
+        <Card className={`rounded-[22px] shadow-none ${meta.sectionBorder}`}>
           <CardContent className="p-4">
             <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Files Attached</p>
             <p className="mt-2 text-lg font-semibold text-stone-900">{(slip.documents || []).length}</p>
@@ -360,14 +383,14 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
         </Card>
       </section>
 
-      <Card className="rounded-[24px] border-stone-200 shadow-none">
+      <Card className={`rounded-[24px] shadow-none ${meta.sectionBorder}`}>
         <CardContent className="grid gap-3 p-5 md:grid-cols-3">
-          <div className="rounded-[20px] border border-stone-200 bg-stone-50/70 px-4 py-4">
+          <div className={`rounded-[20px] border px-4 py-4 ${meta.cardTint}`}>
             <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Slip Code</p>
             <p className="mt-2 font-mono text-sm font-semibold text-stone-900">{slip.slip_code || 'N/A'}</p>
             <p className="mt-2 text-xs text-stone-500">Use this code when cross-checking the printed slip, registry, and admin records.</p>
           </div>
-          <div className="rounded-[20px] border border-stone-200 bg-stone-50/70 px-4 py-4">
+          <div className={`rounded-[20px] border px-4 py-4 ${meta.cardTint}`}>
             <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">Final Handling</p>
             <p className="mt-2 text-sm font-semibold text-stone-900">
               {slip.overall_status === 'completed'
@@ -378,7 +401,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
               Final scholar activation still depends on endorsement completion and admin requirements readiness.
             </p>
           </div>
-          <div className="rounded-[20px] border border-stone-200 bg-stone-50/70 px-4 py-4">
+          <div className={`rounded-[20px] border px-4 py-4 ${meta.cardTint}`}>
             <p className="text-[10px] uppercase tracking-[0.18em] text-stone-500">PDF Access</p>
             <p className="mt-2 text-sm font-semibold text-stone-900">
               {slip.final_pdf_url ? 'Stored final copy available' : 'Use generated PDF download'}
@@ -391,7 +414,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
       </Card>
 
       <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="rounded-[24px] border-stone-200 shadow-none">
+        <Card className={`rounded-[24px] shadow-none ${meta.sectionBorder}`}>
           <CardHeader className="border-b border-stone-100">
             <div>
               <h2 className="text-base font-semibold text-stone-900">At a Glance</h2>
@@ -423,7 +446,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
           </CardContent>
         </Card>
 
-        <Card className="rounded-[24px] border-stone-200 shadow-none">
+        <Card className={`rounded-[24px] shadow-none ${meta.sectionBorder}`}>
           <CardHeader className="border-b border-stone-100">
             <div>
               <h2 className="text-base font-semibold text-stone-900">Workflow Overview</h2>
@@ -462,7 +485,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
         </Card>
       </div>
 
-      <Card className="rounded-[24px] border-stone-200 shadow-none">
+      <Card className={`rounded-[24px] shadow-none ${meta.sectionBorder}`}>
         <CardHeader className="border-b border-stone-100">
           <div>
             <h2 className="text-base font-semibold text-stone-900">Detailed Workflow History</h2>
@@ -515,7 +538,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
         </CardContent>
       </Card>
 
-      <Card className="rounded-[24px] border-stone-200 shadow-none">
+      <Card className={`rounded-[24px] shadow-none ${meta.sectionBorder}`}>
         <CardHeader className="border-b border-stone-100">
           <div>
             <h2 className="text-base font-semibold text-stone-900">Application Files</h2>

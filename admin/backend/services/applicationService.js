@@ -704,6 +704,42 @@ function normalizeOcrPayload(payload = {}) {
     };
 }
 
+function resolveIotExtractedName(extractedFields = {}) {
+    if (!extractedFields || typeof extractedFields !== 'object') return null;
+
+    const nestedFields =
+        extractedFields.fields && typeof extractedFields.fields === 'object'
+            ? extractedFields.fields
+            : {};
+    const candidates = [
+        extractedFields.extracted_name,
+        extractedFields.student_name,
+        extractedFields.name,
+        nestedFields.extracted_name,
+        nestedFields.student_name,
+        nestedFields.name,
+    ];
+
+    for (const value of candidates) {
+        if (typeof value !== 'string') continue;
+        const normalized = value.trim();
+        if (normalized) return normalized;
+    }
+
+    return null;
+}
+
+function resolveStoredExtractedName({
+    extractedFields = {},
+    scannedViaIot = false,
+    existingExtractedName = null,
+    studentName = null,
+} = {}) {
+    const extractedName = resolveIotExtractedName(extractedFields);
+    if (scannedViaIot === true) return extractedName;
+    return extractedName || existingExtractedName || studentName || null;
+}
+
 function isUuid(value) {
     if (!value) return false;
 
@@ -1559,13 +1595,6 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         extractedFields && typeof extractedFields === 'object'
             ? extractedFields
             : {};
-    const extractedNameCandidate = [
-        normalizedExtractedFields.extracted_name,
-        normalizedExtractedFields.student_name,
-        normalizedExtractedFields.name,
-    ]
-        .map((value) => (value === undefined || value === null ? '' : String(value).trim()))
-        .find(Boolean);
     const extractedGwaCandidate =
         normalizedExtractedFields.extracted_gwa ??
         normalizedExtractedFields.gwa ??
@@ -1634,11 +1663,12 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         iot_device_id:
             normalizedIotDeviceId ||
             (isUuid(existingRow?.iot_device_id) ? existingRow.iot_device_id : null),
-        ocr_extracted_name:
-            extractedNameCandidate ||
-            existingRow?.ocr_extracted_name ||
-            studentName ||
-            null,
+        ocr_extracted_name: resolveStoredExtractedName({
+            extractedFields: normalizedExtractedFields,
+            scannedViaIot,
+            existingExtractedName: existingRow?.ocr_extracted_name,
+            studentName,
+        }),
         ocr_extracted_gwa:
             normalizedExtractedGwa !== null && Number.isFinite(normalizedExtractedGwa)
                 ? normalizedExtractedGwa
@@ -2444,4 +2474,6 @@ module.exports = {
     normalizeDocumentType,
     getDocumentTypeName: (documentKey) => DOCUMENT_TYPE_TO_NAME[documentKey] || null,
     normalizeOcrPayload,
+    resolveIotExtractedName,
+    resolveStoredExtractedName,
 };

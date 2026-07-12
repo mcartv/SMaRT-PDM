@@ -9,15 +9,19 @@ from .models import (
     ReviewReason,
     ValidationIssue,
 )
+from .region_locator import BIRTH_REGION_FALLBACKS, RegionLocatorConfig, locate_birth_regions
 from .stage_result import StageResult
 
 __all__ = [
     "AnchorResult",
     "BirthExtractionResult",
+    "BIRTH_REGION_FALLBACKS",
     "FieldCandidate",
     "NormalizedBounds",
     "NormalizedImageMetadata",
     "ReviewReason",
+    "RegionLocatorConfig",
     "StageResult",
     "ValidationIssue",
+    "locate_birth_regions",
 ]

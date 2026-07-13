@@ -329,6 +329,7 @@ export default function SmartPDMLanding() {
     about_osfa:
       'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
     featured_notice: null,
+    featured_notice_next_change_at: null,
     landing_faqs: defaultFaqItems,
   });
   const hasFeaturedNotice = Boolean(generalSettings.featured_notice);
@@ -426,10 +427,10 @@ export default function SmartPDMLanding() {
             office_hours: payload?.office_hours || current.office_hours,
             about_osfa: payload?.about_osfa || current.about_osfa,
             featured_notice: payload?.featured_notice || null,
-            landing_faqs:
-              normalizePublicFaqItems(payload?.landing_faqs).length
-                ? normalizePublicFaqItems(payload?.landing_faqs)
-                : current.landing_faqs,
+            featured_notice_next_change_at: payload?.featured_notice_next_change_at || null,
+            landing_faqs: Array.isArray(payload?.landing_faqs)
+              ? normalizePublicFaqItems(payload.landing_faqs)
+              : current.landing_faqs,
           }));
         }
       } catch {
@@ -463,14 +464,57 @@ export default function SmartPDMLanding() {
           Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
             ? settings.featured_notice
             : current.featured_notice,
-        landing_faqs:
-          normalizePublicFaqItems(settings?.landing_faqs).length
-            ? normalizePublicFaqItems(settings?.landing_faqs)
-            : current.landing_faqs,
+        featured_notice_next_change_at:
+          Object.prototype.hasOwnProperty.call(settings, 'featured_notice_next_change_at')
+            ? settings.featured_notice_next_change_at
+            : current.featured_notice_next_change_at,
+        landing_faqs: Array.isArray(settings?.landing_faqs)
+          ? normalizePublicFaqItems(settings.landing_faqs)
+          : current.landing_faqs,
       }));
     },
     []
   );
+
+  useEffect(() => {
+    const boundary = Date.parse(generalSettings.featured_notice_next_change_at || '');
+    if (!Number.isFinite(boundary)) return undefined;
+
+    let timeoutId;
+    let cancelled = false;
+    const maxTimeout = 2147483000;
+
+    const scheduleBoundaryRefresh = () => {
+      const remaining = Math.max(0, boundary - Date.now()) + 500;
+      timeoutId = window.setTimeout(async () => {
+        if (cancelled) return;
+        if (remaining > maxTimeout) {
+          scheduleBoundaryRefresh();
+          return;
+        }
+
+        try {
+          const response = await fetch(buildApiUrl('/api/general-settings/public'));
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) return;
+
+          setGeneralSettings((current) => ({
+            ...current,
+            featured_notice: payload?.featured_notice || null,
+            featured_notice_next_change_at: payload?.featured_notice_next_change_at || null,
+          }));
+        } catch {
+          // The next socket update or page visit will retry public settings.
+        }
+      }, Math.min(remaining, maxTimeout));
+    };
+
+    scheduleBoundaryRefresh();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [generalSettings.featured_notice_next_change_at]);
 
   return (
     <div
@@ -499,6 +543,7 @@ export default function SmartPDMLanding() {
         }
         .landing-zone-discover,
         .landing-zone-process,
+        .landing-zone-bridge,
         .landing-zone-support {
           position: relative;
           isolation: isolate;
@@ -520,6 +565,31 @@ export default function SmartPDMLanding() {
             linear-gradient(90deg, ${theme.base}0c 1px, transparent 1px);
           background-size: 34px 34px;
         }
+        .landing-zone-bridge {
+          --zone-background: #f4f7f5;
+          background:
+            radial-gradient(circle at 4% 82%, ${theme.base}14 0, transparent 25%),
+            radial-gradient(circle at 96% 16%, ${theme.accent}18 0, transparent 24%),
+            linear-gradient(135deg, #f8faf9 0%, ${theme.soft} 52%, #f6f3ee 100%);
+        }
+        .landing-zone-notice {
+          background:
+            linear-gradient(180deg, ${theme.dark}10 0%, transparent 72%),
+            ${theme.pageBg};
+          box-shadow: 0 0 0 100vmax ${theme.pageBg};
+          clip-path: inset(0 -100vmax);
+        }
+        .landing-highlight-card {
+          background: rgba(255, 255, 255, 0.82);
+          border-color: ${theme.border};
+          backdrop-filter: blur(8px);
+          transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+        }
+        .landing-highlight-card:hover {
+          transform: translateY(-3px);
+          border-color: ${theme.base}42;
+          box-shadow: 0 16px 38px -26px ${theme.dark}66;
+        }
         .landing-zone-support {
           --zone-background: #f7f4ef;
           background:
@@ -537,6 +607,11 @@ export default function SmartPDMLanding() {
           border-radius: 999px;
           background: ${theme.base}0d;
           filter: blur(2px);
+        }
+        .landing-footer {
+          background:
+            radial-gradient(circle at 82% 0%, ${theme.accent}14 0, transparent 28%),
+            linear-gradient(180deg, #f4f0e9 0%, #ffffff 70%);
         }
       `}</style>
       <section
@@ -730,7 +805,7 @@ export default function SmartPDMLanding() {
       </section>
 
       {generalSettings.featured_notice ? (
-        <section className="mx-auto w-full max-w-6xl px-5 pt-8">
+        <section className="landing-zone-notice mx-auto w-full max-w-6xl px-5 pb-8 pt-8">
           <div
             className="relative overflow-hidden rounded-[1.75rem] border px-5 py-5 shadow-sm md:px-7"
             style={{ background: theme.soft, borderColor: theme.border }}
@@ -911,7 +986,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-14">
+      <section className="landing-zone-bridge mx-auto w-full max-w-6xl px-5 pb-14 pt-14">
         <div
           className="rounded-[2rem] border p-6 md:p-8"
           style={{ background: theme.soft, borderColor: theme.border }}
@@ -950,9 +1025,9 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-14">
+      <section className="landing-zone-bridge mx-auto w-full max-w-6xl px-5 pb-14">
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="landing-highlight-card rounded-[1.75rem] border p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
               Clear workflow
             </p>
@@ -961,7 +1036,7 @@ export default function SmartPDMLanding() {
             </p>
           </div>
 
-          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="landing-highlight-card rounded-[1.75rem] border p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
               Office visibility
             </p>
@@ -970,7 +1045,7 @@ export default function SmartPDMLanding() {
             </p>
           </div>
 
-          <div className="rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="landing-highlight-card rounded-[1.75rem] border p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
               Student-friendly access
             </p>
@@ -1028,6 +1103,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
+      {generalSettings.landing_faqs.length ? (
       <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-12">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
@@ -1049,10 +1125,7 @@ export default function SmartPDMLanding() {
           </div>
 
           <div className="grid gap-4">
-            {(Array.isArray(generalSettings.landing_faqs) && generalSettings.landing_faqs.length
-              ? generalSettings.landing_faqs
-              : defaultFaqItems
-            ).map((item, index) => (
+            {generalSettings.landing_faqs.map((item, index) => (
               <FaqCard
                 key={item.question}
                 item={item}
@@ -1064,6 +1137,7 @@ export default function SmartPDMLanding() {
           </div>
         </div>
       </section>
+      ) : null}
 
       <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-14">
         <div
@@ -1122,7 +1196,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <footer className="border-t border-stone-200 bg-white px-5 py-8">
+      <footer className="landing-footer border-t border-stone-200 px-5 py-8">
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-6 rounded-[2rem] border border-stone-200 bg-stone-50/60 px-6 py-6 md:px-8 lg:grid-cols-[1.15fr_0.85fr_0.85fr]">
             <div>

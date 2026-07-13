@@ -33,12 +33,13 @@ async function getGeneralSettings(req, res) {
 async function updateGeneralSettings(req, res) {
   try {
     const result = await generalSettingService.updateGeneralSettings(req.body || {}, req.user || {});
+    const publicResult = await generalSettingService.getPublicGeneralSettings();
 
     const io = req.app.get('io');
     socketEvents.maintenanceUpdated(io, {
       source: 'general_settings',
       updated_at: result.updated_at || new Date().toISOString(),
-      settings: result,
+      settings: publicResult,
     });
 
     return res.status(200).json(result);

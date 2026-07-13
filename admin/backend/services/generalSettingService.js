@@ -90,10 +90,37 @@ function sanitizeFeaturedNotice(notice = {}) {
 
 function isFeaturedNoticePublished(notice = {}) {
   if (!notice.is_visible || !notice.title || !notice.message) return false;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getManilaDateKey();
   if (notice.start_date && notice.start_date > today) return false;
   if (notice.end_date && notice.end_date < today) return false;
   return true;
+}
+
+function getManilaDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getFeaturedNoticeNextChangeAt(notice = {}) {
+  if (!notice.is_visible || !notice.title || !notice.message) return null;
+  const today = getManilaDateKey();
+
+  if (notice.start_date && notice.start_date > today) {
+    return new Date(`${notice.start_date}T00:00:00+08:00`).toISOString();
+  }
+
+  if ((!notice.start_date || notice.start_date <= today) && notice.end_date && notice.end_date >= today) {
+    const endBoundary = new Date(`${notice.end_date}T00:00:00+08:00`).getTime() + 86400000;
+    return new Date(endBoundary).toISOString();
+  }
+
+  return null;
 }
 
 function isMissingTableError(error, tableName) {
@@ -212,6 +239,7 @@ async function getPublicGeneralSettings() {
   return {
     ...settings,
     featured_notice: isFeaturedNoticePublished(featuredNotice) ? featuredNotice : null,
+    featured_notice_next_change_at: getFeaturedNoticeNextChangeAt(featuredNotice),
     landing_faqs: sanitizeFaqs(settings.landing_faqs).filter((item) => item.is_archived !== true),
   };
 }

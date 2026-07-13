@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
+  ArrowUp,
   Bell,
   ChevronDown,
   ChevronLeft,
@@ -230,17 +231,34 @@ function StepCard({ step, title, description, theme }) {
 }
 
 function BenefactorCard({ benefactor, theme }) {
+  const initials = String(benefactor.benefactor_name || 'Benefactor')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
+
   return (
     <div
       className="h-full rounded-[1.5rem] border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       style={{ borderColor: theme.border }}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-stone-900">{benefactor.benefactor_name}</p>
-          <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            {benefactor.benefactor_type || 'Benefactor'}
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold"
+            style={{ background: theme.soft, color: theme.base }}
+            aria-hidden="true"
+          >
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-stone-900">{benefactor.benefactor_name}</p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
+              {benefactor.benefactor_type || 'Benefactor'}
+            </p>
+          </div>
         </div>
         <span
           className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
@@ -303,6 +321,7 @@ export default function SmartPDMLanding() {
   const [benefactors, setBenefactors] = useState([]);
   const [activeFaq, setActiveFaq] = useState(0);
   const [benefactorSlide, setBenefactorSlide] = useState(0);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
     office_email: 'osfa@pdm.edu.ph',
@@ -345,6 +364,14 @@ export default function SmartPDMLanding() {
 
   useEffect(() => {
     document.title = 'SMaRT-PDM';
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => setShowBackToTop(window.scrollY > 640);
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   useEffect(() => {
@@ -433,7 +460,7 @@ export default function SmartPDMLanding() {
 
     const autoplay = window.setInterval(() => {
       setBenefactorSlide((current) => (current + 1) % benefactorSlides.length);
-    }, 3800);
+    }, 4200);
 
     return () => window.clearInterval(autoplay);
   }, [benefactorSlides.length]);
@@ -706,9 +733,13 @@ export default function SmartPDMLanding() {
               </div>
             </div>
 
-            <div className="overflow-hidden">
+            <div
+              className="overflow-hidden rounded-[1.5rem]"
+              aria-roledescription="carousel"
+              aria-label="Scholarship benefactors"
+            >
               <div
-                className="flex transition-transform duration-300 ease-out"
+                className="flex transition-transform duration-700 ease-in-out"
                 style={{ transform: `translateX(-${benefactorSlide * 100}%)` }}
               >
                 {benefactorSlides.map((slide, slideIndex) => (
@@ -727,23 +758,6 @@ export default function SmartPDMLanding() {
               </div>
             </div>
 
-            {benefactorSlides.length > 1 ? (
-              <div className="mt-5 flex items-center justify-center gap-2">
-                {benefactorSlides.map((_, index) => (
-                  <button
-                    key={`benefactor-dot-${index}`}
-                    type="button"
-                    onClick={() => setBenefactorSlide(index)}
-                    className="h-2.5 rounded-full transition"
-                    style={{
-                      width: benefactorSlide === index ? '28px' : '10px',
-                      background: benefactorSlide === index ? theme.base : '#d6d3d1',
-                    }}
-                    aria-label={`Go to benefactor slide ${index + 1}`}
-                  />
-                ))}
-              </div>
-            ) : null}
           </div>
         </section>
       ) : null}
@@ -772,6 +786,33 @@ export default function SmartPDMLanding() {
             {howItWorks.map((item) => (
               <StepCard key={item.step} {...item} theme={theme} />
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-5 pb-14" aria-label="PDM campus">
+        <div className="group relative min-h-[240px] overflow-hidden rounded-[2rem] md:min-h-[300px]">
+          <img
+            src={pdmFacade}
+            alt="Pambayang Dalubhasaan ng Marilao campus facade"
+            className="absolute inset-0 h-full w-full object-cover object-center transition duration-700 group-hover:scale-[1.02]"
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(90deg, ${theme.dark}e6 0%, ${theme.base}9e 48%, rgba(0,0,0,0.12) 100%)`,
+            }}
+          />
+          <div className="relative flex min-h-[240px] max-w-xl flex-col justify-end p-7 text-white md:min-h-[300px] md:p-10">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              Pambayang Dalubhasaan ng Marilao
+            </p>
+            <h2 className="mt-3 text-2xl font-bold leading-tight md:text-3xl">
+              Scholarship support built around PDM students.
+            </h2>
+            <p className="mt-3 max-w-lg text-sm leading-6 text-white/80">
+              One connected platform for scholarship access, office endorsement, requirements, and student progress.
+            </p>
           </div>
         </div>
       </section>
@@ -1070,6 +1111,21 @@ export default function SmartPDMLanding() {
           </p>
         </div>
       </footer>
+
+      <button
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className={`fixed bottom-5 right-5 z-40 flex h-11 w-11 items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:brightness-95 focus:outline-none focus:ring-4 md:bottom-7 md:right-7 ${
+          showBackToTop
+            ? 'pointer-events-auto translate-y-0 opacity-100'
+            : 'pointer-events-none translate-y-3 opacity-0'
+        }`}
+        style={{ background: theme.base, '--tw-ring-color': `${theme.base}33` }}
+        aria-label="Back to top"
+        title="Back to top"
+      >
+        <ArrowUp size={19} strokeWidth={2.4} />
+      </button>
     </div>
   );
 }

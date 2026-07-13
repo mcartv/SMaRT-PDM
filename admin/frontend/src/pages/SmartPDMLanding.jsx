@@ -372,6 +372,36 @@ export default function SmartPDMLanding() {
   }, []);
 
   useEffect(() => {
+    const sections = Array.from(
+      document.querySelectorAll('.landing-page > section:not(:first-child), .landing-page > footer')
+    );
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      sections.forEach((section) => section.classList.add('landing-reveal-visible'));
+      return undefined;
+    }
+
+    sections.forEach((section, index) => {
+      section.classList.add('landing-reveal');
+      section.style.setProperty('--landing-reveal-delay', `${Math.min(index % 3, 2) * 70}ms`);
+    });
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('landing-reveal-visible');
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -48px' }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [benefactors.length]);
+
+  useEffect(() => {
     let active = true;
 
     const loadGeneralSettings = async () => {
@@ -436,9 +466,30 @@ export default function SmartPDMLanding() {
 
   return (
     <div
-      className="min-h-screen text-stone-900"
+      className="landing-page min-h-screen text-stone-900"
       style={{ background: theme.pageBg, fontFamily: "'Inter', sans-serif" }}
     >
+      <style>{`
+        .landing-reveal {
+          opacity: 0;
+          transform: translateY(26px);
+          transition:
+            opacity 650ms ease var(--landing-reveal-delay, 0ms),
+            transform 650ms cubic-bezier(0.22, 1, 0.36, 1) var(--landing-reveal-delay, 0ms);
+        }
+        .landing-reveal.landing-reveal-visible,
+        .landing-reveal-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .landing-reveal {
+            opacity: 1;
+            transform: none;
+            transition: none;
+          }
+        }
+      `}</style>
       <section
         className="relative overflow-hidden"
         style={{

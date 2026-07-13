@@ -1,4 +1,4 @@
-# SMaRT-PDM: Scholarship Management and Recipient Tracking - Program Document Management
+# SMART-PDM: A WEB-BASED AND MOBILE APPLICATION SCHOLARSHIP MONITORING SYSTEM USING OPTICAL CHARACTER RECOGNITION DOCUMENT PROCESSING FOR PAMBAYANG DALUBHASAAN NG MARILAO
 
 A comprehensive web-based and mobile application scholarship monitoring system with optical character recognition (OCR) document processing for **Pambayang Dalubhasaan ng Marilao (PDM)**.
 

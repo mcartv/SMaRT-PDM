@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import {
   AlertTriangle,
   AlertOctagon,
@@ -14,7 +15,6 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
-  X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -680,7 +680,6 @@ export default function EndorsementQueue({
   const [refreshing, setRefreshing] = useState(false);
   const [savingSlipId, setSavingSlipId] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(null);
   const [search, setSearch] = useState('');
   const [programFilter, setProgramFilter] = useState('all');
   const [resultFilter, setResultFilter] = useState('all');
@@ -740,16 +739,6 @@ export default function EndorsementQueue({
     [queueKey, hasAccess]
   );
 
-  useEffect(() => {
-    if (!success) return undefined;
-
-    const timer = window.setTimeout(() => {
-      setSuccess(null);
-    }, 5000);
-
-    return () => window.clearTimeout(timer);
-  }, [success]);
-
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
@@ -798,7 +787,6 @@ export default function EndorsementQueue({
     try {
       setSavingSlipId(row.slip_id);
       setError('');
-      setSuccess(null);
       setConfirmAction(null);
 
       const response = await fetch(buildApiUrl(meta.actionEndpoint(row.slip_id)), {
@@ -840,17 +828,16 @@ export default function EndorsementQueue({
         };
 
         const actionLabel = actionLabelMap[action] || 'saved successfully';
-        setSuccess(
-          {
-            slipId: row.slip_id,
-            title: 'Decision saved successfully',
-            studentName: row.student_name,
-            actionLabel,
-            detail: nextStageLabel
-              ? `Status updated to ${nextStageLabel}.`
-              : 'The endorsement slip was updated successfully.',
-          }
-        );
+        const detail = nextStageLabel
+          ? `Status updated to ${nextStageLabel}.`
+          : 'The endorsement slip was updated successfully.';
+        toast.success('Decision saved successfully', {
+          description: `${row.student_name} ${actionLabel}. ${detail}`,
+          action: {
+            label: 'View Slip',
+            onClick: () => navigate(`${detailBasePath}/${row.slip_id}`),
+          },
+        });
       }
 
       await loadQueue({ soft: true });
@@ -1072,43 +1059,6 @@ export default function EndorsementQueue({
               </span>
             ) : null}
           </div>
-          {success ? (
-            <div className="rounded-2xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-4 text-green-900 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 rounded-2xl bg-green-100 p-2 text-green-700">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{success.title}</p>
-                    <p className="mt-1 text-sm text-green-800">
-                      {success.studentName} {success.actionLabel}.
-                    </p>
-                    <p className="mt-1 text-xs text-green-700">{success.detail}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-green-200 bg-white text-green-800 hover:bg-green-50"
-                    onClick={() => navigate(`${detailBasePath}/${success.slipId}`)}
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    View Slip
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => setSuccess(null)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-green-200 bg-white text-green-700 transition hover:bg-green-50"
-                    title="Dismiss success message"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </CardHeader>
         <CardContent className="space-y-4 p-5">
           {filteredRows.length === 0 ? (

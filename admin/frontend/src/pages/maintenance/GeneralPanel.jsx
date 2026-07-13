@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { toast } from 'sonner';
 import { C, FieldLabel, GroupCard, Toggle, EmptyState } from './components/MaintenanceShared';
 
 const DEFAULT_ABOUT_OSFA =
@@ -226,7 +227,6 @@ export default function GeneralPanel() {
     const [appOpen, setAppOpen] = useState(DEFAULT_APPLICATION.applications_open);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [successMessage, setSuccessMessage] = useState('');
     const [activeSection, setActiveSection] = useState('office');
     const [activeLandingSection, setActiveLandingSection] = useState('about');
     const [activeFaqTab, setActiveFaqTab] = useState('current');
@@ -238,9 +238,12 @@ export default function GeneralPanel() {
     const [faqActionId, setFaqActionId] = useState('');
 
     const showSuccess = useCallback((message, key = '') => {
-        setSuccessMessage(message);
         setSavedKey(key);
-        window.setTimeout(() => setSuccessMessage(''), 2600);
+        if (key) {
+            toast.success('Changes saved', { description: message });
+        } else {
+            toast.info('Ready to save', { description: message });
+        }
         if (key) {
             window.setTimeout(() => setSavedKey((current) => (current === key ? '' : current)), 2200);
         }
@@ -585,12 +588,6 @@ export default function GeneralPanel() {
             {error ? (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                     {error}
-                </div>
-            ) : null}
-
-            {successMessage ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
-                    {successMessage}
                 </div>
             ) : null}
 

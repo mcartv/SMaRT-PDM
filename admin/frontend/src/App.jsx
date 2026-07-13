@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from './components/ui/sonner';
 
 // --- LAYOUTS ---
 import AdminLayout from './components/layout/AdminLayout';
@@ -289,6 +290,13 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/admin/login" replace />} />
       </Routes>
+      <Toaster
+        position="top-right"
+        closeButton
+        richColors
+        duration={3600}
+        visibleToasts={4}
+      />
     </BrowserRouter>
   );
 }

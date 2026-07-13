@@ -7,8 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
+import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/applicant_home_controller.dart';
+import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/applicant_home_coordinator.dart';
+import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/applicant_home_role_resolver.dart';
+import 'package:smartpdm_mobileapp/features/dashboard/presentation/models/applicant_home_presentation.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/office_update_article_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
@@ -95,14 +100,220 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
+typedef DashboardScholarAccessResolver =
+    Future<bool> Function(
+      NotificationProvider provider,
+      SessionService sessionService,
+    );
+
 class DashboardContent extends StatefulWidget {
-  const DashboardContent({super.key});
+  const DashboardContent({
+    super.key,
+    this.applicantHomeController,
+    this.sessionService = const SessionService(),
+    this.scholarAccessResolver,
+  });
+
+  /// Optional Home-only seam for widget tests. Production creates and owns a
+  /// controller backed by the existing services.
+  final ApplicantHomeController? applicantHomeController;
+  final SessionService sessionService;
+  final DashboardScholarAccessResolver? scholarAccessResolver;
 
   @override
   State<DashboardContent> createState() => _DashboardContentState();
 }
 
 class _DashboardContentState extends State<DashboardContent> {
+  NotificationProvider? _roleProvider;
+  Future<bool>? _roleResolution;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.read<NotificationProvider>();
+    if (!identical(_roleProvider, provider)) {
+      _roleProvider = provider;
+      _roleResolution = _resolveScholarAccess(provider);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sessionService != widget.sessionService ||
+        oldWidget.scholarAccessResolver != widget.scholarAccessResolver) {
+      final provider = _roleProvider;
+      if (provider != null) {
+        _roleResolution = _resolveScholarAccess(provider);
+      }
+    }
+  }
+
+  Future<bool> _resolveScholarAccess(NotificationProvider provider) async {
+    final override = widget.scholarAccessResolver;
+    if (override != null) return override(provider, widget.sessionService);
+
+    return ApplicantHomeRoleResolver(
+      sessionService: widget.sessionService,
+    ).resolve(liveScholarAccess: provider.hasScholarAccess);
+  }
+
+  void _retryRoleResolution() {
+    final provider = _roleProvider;
+    if (provider == null) return;
+    setState(() {
+      _roleResolution = _resolveScholarAccess(provider);
+    });
+  }
+
+  void _handleApplicantAction(ApplicantHomeActionPresentation action) {
+    switch (action.target) {
+      case ApplicantHomeActionTarget.scholarships:
+        Navigator.pushNamed(context, AppRoutes.scholarshipOpenings);
+        break;
+      case ApplicantHomeActionTarget.application:
+        final openingId = action.openingId?.trim() ?? '';
+        final openingTitle = action.openingTitle?.trim() ?? '';
+        final programName = action.programName?.trim() ?? '';
+        Navigator.pushNamed(
+          context,
+          AppRoutes.application,
+          arguments: openingId.isEmpty
+              ? null
+              : <String, dynamic>{
+                  'openingId': openingId,
+                  if (openingTitle.isNotEmpty) 'openingTitle': openingTitle,
+                  if (programName.isNotEmpty) 'programName': programName,
+                },
+        );
+        break;
+      case ApplicantHomeActionTarget.documents:
+        final openingTitle = action.openingTitle?.trim() ?? '';
+        final programName = action.programName?.trim() ?? '';
+        Navigator.pushNamed(
+          context,
+          AppRoutes.documents,
+          arguments: openingTitle.isEmpty && programName.isEmpty
+              ? null
+              : <String, dynamic>{
+                  if (openingTitle.isNotEmpty) 'initialTitle': openingTitle,
+                  if (programName.isNotEmpty) 'initialProgramName': programName,
+                },
+        );
+        break;
+      case ApplicantHomeActionTarget.status:
+        Navigator.pushNamed(context, AppRoutes.status);
+        break;
+      case ApplicantHomeActionTarget.endorsement:
+        Navigator.pushNamed(context, AppRoutes.endorsement);
+        break;
+      case ApplicantHomeActionTarget.notifications:
+        Navigator.pushNamed(context, AppRoutes.notifications);
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<NotificationProvider>();
+
+    if (provider.hasScholarAccess) {
+      return const _LegacyDashboardContent(
+        key: ValueKey('legacy-scholar-dashboard'),
+      );
+    }
+
+    return FutureBuilder<bool>(
+      future: _roleResolution,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _DashboardRoleLoading();
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return _DashboardRoleFailure(onRetry: _retryRoleResolution);
+        }
+        if (snapshot.data!) {
+          return const _LegacyDashboardContent(
+            key: ValueKey('legacy-scholar-dashboard'),
+          );
+        }
+
+        return ApplicantHomeCoordinator(
+          key: const ValueKey('applicant-home-coordinator'),
+          notificationProvider: provider,
+          sessionService: widget.sessionService,
+          controller: widget.applicantHomeController,
+          onAction: _handleApplicantAction,
+          onViewAllOpenings: () =>
+              Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
+          onViewAllUpdates: () =>
+              Navigator.pushNamed(context, AppRoutes.notifications),
+        );
+      },
+    );
+  }
+}
+
+class _DashboardRoleLoading extends StatelessWidget {
+  const _DashboardRoleLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Center(
+        child: Semantics(
+          liveRegion: true,
+          label: 'Loading Home',
+          child: const CircularProgressIndicator(),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardRoleFailure extends StatelessWidget {
+  const _DashboardRoleFailure({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off_rounded, size: 32),
+              const SizedBox(height: 12),
+              Text(
+                'We could not load Home right now.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: onRetry, child: const Text('Try again')),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegacyDashboardContent extends StatefulWidget {
+  const _LegacyDashboardContent({super.key});
+
+  @override
+  State<_LegacyDashboardContent> createState() =>
+      _LegacyDashboardContentState();
+}
+
+class _LegacyDashboardContentState extends State<_LegacyDashboardContent> {
   final TextEditingController _searchController = TextEditingController();
   final ApplicantDocumentsService _documentsService =
       ApplicantDocumentsService();
@@ -294,7 +505,8 @@ class _DashboardContentState extends State<DashboardContent> {
 
   Future<void> _loadApplicantStatus() async {
     try {
-      final summary = await _applicationService.fetchMyApplicationStatusSummary();
+      final summary = await _applicationService
+          .fetchMyApplicationStatusSummary();
 
       if (!mounted) return;
 
@@ -515,8 +727,7 @@ class _DashboardContentState extends State<DashboardContent> {
               icon: Icons.verified_user_outlined,
               title: 'Endorsement',
               subtitle: 'Office review',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.endorsement),
+              onTap: () => Navigator.pushNamed(context, AppRoutes.endorsement),
               isLoading: false,
             ),
           ];
@@ -566,8 +777,7 @@ class _DashboardContentState extends State<DashboardContent> {
               icon: Icons.verified_user_outlined,
               title: 'Track Endorsement',
               subtitle: 'Follow SDO, Guidance, and PD review',
-              onTap: () =>
-                  Navigator.pushNamed(context, AppRoutes.endorsement),
+              onTap: () => Navigator.pushNamed(context, AppRoutes.endorsement),
             ),
             _MenuAction(
               icon: Icons.help_outline_rounded,
@@ -1381,7 +1591,10 @@ class _DashboardContentState extends State<DashboardContent> {
     final workflow = summary?.workflow;
     final applicationTitle = _safeText(
       summary?.openingTitle,
-      fallback: _safeText(summary?.programName, fallback: 'Scholarship Application'),
+      fallback: _safeText(
+        summary?.programName,
+        fallback: 'Scholarship Application',
+      ),
     );
 
     return _ApplicantProgressCard(
@@ -2172,7 +2385,9 @@ class _ApplicantProgressCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               _ChipLabel(
-                label: hasApplication ? 'Application active' : 'No application yet',
+                label: hasApplication
+                    ? 'Application active'
+                    : 'No application yet',
                 isDark: isDark,
                 filled: hasApplication,
               ),

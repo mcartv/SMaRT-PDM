@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
+  ArrowLeft,
   Eye,
   EyeOff,
   ShieldCheck,
@@ -194,6 +195,16 @@ export default function AdminLogin() {
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="w-full max-w-[380px]">
+          <button
+            type="button"
+            onClick={() => navigate('/landing')}
+            className="mb-7 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold transition hover:bg-stone-100"
+            style={{ color: theme.base }}
+          >
+            <ArrowLeft size={15} />
+            Back to portal directory
+          </button>
+
           <div className="mb-8">
             <div className="mb-2 flex items-center gap-2" style={{ color: theme.base }}>
               <ShieldCheck size={18} />

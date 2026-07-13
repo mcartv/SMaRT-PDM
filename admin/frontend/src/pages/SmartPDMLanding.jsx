@@ -1,12 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   ArrowUp,
   Bell,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Phone,
   Download,
   FileCheck2,
@@ -320,7 +318,6 @@ export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
   const [activeFaq, setActiveFaq] = useState(0);
-  const [benefactorSlide, setBenefactorSlide] = useState(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
@@ -436,34 +433,6 @@ export default function SmartPDMLanding() {
     },
     []
   );
-
-  const benefactorSlides = useMemo(() => {
-    const chunkSize = 3;
-    const chunks = [];
-    for (let index = 0; index < benefactors.length; index += chunkSize) {
-      chunks.push(benefactors.slice(index, index + chunkSize));
-    }
-    return chunks;
-  }, [benefactors]);
-
-  useEffect(() => {
-    if (!benefactorSlides.length) {
-      setBenefactorSlide(0);
-      return;
-    }
-
-    setBenefactorSlide((current) => Math.min(current, benefactorSlides.length - 1));
-  }, [benefactorSlides]);
-
-  useEffect(() => {
-    if (benefactorSlides.length <= 1) return undefined;
-
-    const autoplay = window.setInterval(() => {
-      setBenefactorSlide((current) => (current + 1) % benefactorSlides.length);
-    }, 4200);
-
-    return () => window.clearInterval(autoplay);
-  }, [benefactorSlides.length]);
 
   return (
     <div
@@ -700,59 +669,37 @@ export default function SmartPDMLanding() {
                 </h2>
               </div>
 
-              <div className="flex items-center gap-3">
-                <p className="max-w-md text-sm leading-6 text-stone-500">
-                  These partner organizations and funding sources help make scholarship access possible for PDM students.
-                </p>
-
-                {benefactorSlides.length > 1 ? (
-                  <div className="hidden items-center gap-2 md:flex">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setBenefactorSlide((current) =>
-                          current === 0 ? benefactorSlides.length - 1 : current - 1
-                        )
-                      }
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:brightness-[0.98]"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setBenefactorSlide((current) => (current + 1) % benefactorSlides.length)
-                      }
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:brightness-[0.98]"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+              <p className="max-w-md text-sm leading-6 text-stone-500">
+                These partner organizations and funding sources help make scholarship access possible for PDM students.
+              </p>
             </div>
 
-            <div
-              className="overflow-hidden rounded-[1.5rem]"
-              aria-roledescription="carousel"
-              aria-label="Scholarship benefactors"
-            >
-              <div
-                className="flex transition-transform duration-700 ease-in-out"
-                style={{ transform: `translateX(-${benefactorSlide * 100}%)` }}
-              >
-                {benefactorSlides.map((slide, slideIndex) => (
-                  <div key={`benefactor-slide-${slideIndex}`} className="w-full shrink-0">
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {slide.map((benefactor) => (
-                        <BenefactorCard
-                          key={benefactor.benefactor_id}
-                          benefactor={benefactor}
-                          theme={theme}
-                        />
-                      ))}
-                    </div>
+            <style>{`
+              @keyframes benefactor-carousel-scroll {
+                from { transform: translateX(0); }
+                to { transform: translateX(-50%); }
+              }
+              .benefactor-carousel-track {
+                animation: benefactor-carousel-scroll ${Math.max(18, benefactors.length * 6)}s linear infinite;
+              }
+              @media (prefers-reduced-motion: reduce) {
+                .benefactor-carousel-track { animation-duration: 60s; }
+              }
+            `}</style>
+
+            <div className="overflow-hidden rounded-[1.5rem]" aria-roledescription="carousel" aria-label="Scholarship benefactors">
+              <div className="benefactor-carousel-track flex w-max">
+                {[0, 1].map((copyIndex) => (
+                  <div
+                    key={`benefactor-set-${copyIndex}`}
+                    className="flex shrink-0 gap-4 pr-4"
+                    aria-hidden={copyIndex === 1 ? 'true' : undefined}
+                  >
+                    {benefactors.map((benefactor) => (
+                      <div key={`${copyIndex}-${benefactor.benefactor_id}`} className="w-[280px] shrink-0 sm:w-[320px] lg:w-[350px]">
+                        <BenefactorCard benefactor={benefactor} theme={theme} />
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>

@@ -14,6 +14,7 @@ import {
   HelpCircle,
   LockKeyhole,
   Mail,
+  Megaphone,
   MessageSquare,
   ShieldCheck,
   Smartphone,
@@ -202,7 +203,7 @@ function FeatureCard({ icon: Icon, title, description, theme }) {
         className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl"
         style={{ background: theme.soft, color: theme.base }}
       >
-        <Icon size={19} />
+        {React.createElement(Icon, { size: 19 })}
       </div>
 
       <h3 className="text-sm font-bold text-stone-900">{title}</h3>
@@ -327,8 +328,10 @@ export default function SmartPDMLanding() {
     office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
     about_osfa:
       'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
+    featured_notice: null,
     landing_faqs: defaultFaqItems,
   });
+  const hasFeaturedNotice = Boolean(generalSettings.featured_notice);
 
   useEffect(() => {
     let active = true;
@@ -345,7 +348,7 @@ export default function SmartPDMLanding() {
         if (active) {
           setBenefactors(Array.isArray(payload) ? payload.slice(0, 6) : []);
         }
-      } catch (error) {
+      } catch {
         if (active) {
           setBenefactors([]);
         }
@@ -373,7 +376,7 @@ export default function SmartPDMLanding() {
 
   useEffect(() => {
     const sections = Array.from(
-      document.querySelectorAll('.landing-page > section:not(:first-child), .landing-page > footer')
+      document.querySelectorAll('.landing-page > section:not(.landing-hero), .landing-page > footer')
     );
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -399,7 +402,7 @@ export default function SmartPDMLanding() {
 
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
-  }, [benefactors.length]);
+  }, [benefactors.length, hasFeaturedNotice]);
 
   useEffect(() => {
     let active = true;
@@ -422,13 +425,14 @@ export default function SmartPDMLanding() {
             landline_number: payload?.landline_number || current.landline_number,
             office_hours: payload?.office_hours || current.office_hours,
             about_osfa: payload?.about_osfa || current.about_osfa,
+            featured_notice: payload?.featured_notice || null,
             landing_faqs:
               normalizePublicFaqItems(payload?.landing_faqs).length
                 ? normalizePublicFaqItems(payload?.landing_faqs)
                 : current.landing_faqs,
           }));
         }
-      } catch (error) {
+      } catch {
         if (active) {
           setGeneralSettings((current) => ({ ...current }));
         }
@@ -455,6 +459,10 @@ export default function SmartPDMLanding() {
         landline_number: settings?.landline_number || current.landline_number,
         office_hours: settings?.office_hours || current.office_hours,
         about_osfa: settings?.about_osfa || current.about_osfa,
+        featured_notice:
+          Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
+            ? settings.featured_notice
+            : current.featured_notice,
         landing_faqs:
           normalizePublicFaqItems(settings?.landing_faqs).length
             ? normalizePublicFaqItems(settings?.landing_faqs)
@@ -489,9 +497,50 @@ export default function SmartPDMLanding() {
             transition: none;
           }
         }
+        .landing-zone-discover,
+        .landing-zone-process,
+        .landing-zone-support {
+          position: relative;
+          isolation: isolate;
+          box-shadow: 0 0 0 100vmax var(--zone-background);
+          clip-path: inset(0 -100vmax);
+        }
+        .landing-zone-discover {
+          --zone-background: ${theme.soft};
+          background:
+            radial-gradient(circle at 8% 18%, ${theme.accent}22 0, transparent 24%),
+            radial-gradient(circle at 92% 72%, ${theme.base}12 0, transparent 26%),
+            ${theme.soft};
+        }
+        .landing-zone-process {
+          --zone-background: #fffdf9;
+          background-color: #fffdf9;
+          background-image:
+            linear-gradient(${theme.base}0c 1px, transparent 1px),
+            linear-gradient(90deg, ${theme.base}0c 1px, transparent 1px);
+          background-size: 34px 34px;
+        }
+        .landing-zone-support {
+          --zone-background: #f7f4ef;
+          background:
+            radial-gradient(ellipse at 90% 10%, ${theme.accent}18 0, transparent 30%),
+            linear-gradient(180deg, #faf8f4 0%, #f4f0e9 100%);
+        }
+        .landing-zone-support::before {
+          content: '';
+          position: absolute;
+          z-index: -1;
+          left: -9rem;
+          top: 2rem;
+          width: 19rem;
+          height: 19rem;
+          border-radius: 999px;
+          background: ${theme.base}0d;
+          filter: blur(2px);
+        }
       `}</style>
       <section
-        className="relative overflow-hidden"
+        className="landing-hero relative overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 58%, ${theme.heroEnd} 100%)`,
         }}
@@ -680,7 +729,54 @@ export default function SmartPDMLanding() {
         </main>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 py-12">
+      {generalSettings.featured_notice ? (
+        <section className="mx-auto w-full max-w-6xl px-5 pt-8">
+          <div
+            className="relative overflow-hidden rounded-[1.75rem] border px-5 py-5 shadow-sm md:px-7"
+            style={{ background: theme.soft, borderColor: theme.border }}
+          >
+            <div
+              className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full opacity-40 blur-2xl"
+              style={{ background: theme.accent }}
+            />
+            <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white"
+                  style={{ background: theme.base }}
+                >
+                  <Megaphone size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: theme.base }}>
+                    Featured OSFA Notice
+                  </p>
+                  <h2 className="mt-1.5 text-lg font-bold text-stone-900 md:text-xl">
+                    {generalSettings.featured_notice.title}
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
+                    {generalSettings.featured_notice.message}
+                  </p>
+                </div>
+              </div>
+
+              {generalSettings.featured_notice.link_label && generalSettings.featured_notice.link_url ? (
+                <Button
+                  href={generalSettings.featured_notice.link_url}
+                  variant="primary"
+                  size="sm"
+                  icon={ArrowRight}
+                  theme={theme}
+                >
+                  {generalSettings.featured_notice.link_label}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="landing-zone-discover mx-auto w-full max-w-6xl px-5 py-12">
         <div className="mb-7 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
@@ -705,7 +801,7 @@ export default function SmartPDMLanding() {
       </section>
 
       {benefactors.length ? (
-        <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+        <section className="landing-zone-discover mx-auto w-full max-w-6xl px-5 pb-12">
           <div
             className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
             style={{ background: '#ffffff', borderColor: theme.border }}
@@ -760,7 +856,7 @@ export default function SmartPDMLanding() {
         </section>
       ) : null}
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-14">
+      <section className="landing-zone-process mx-auto w-full max-w-6xl px-5 pb-14 pt-12">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
           style={{ background: '#fffdfb', borderColor: theme.border }}
@@ -788,7 +884,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-14" aria-label="PDM campus">
+      <section className="landing-zone-process mx-auto w-full max-w-6xl px-5 pb-14" aria-label="PDM campus">
         <div className="group relative min-h-[240px] overflow-hidden rounded-[2rem] md:min-h-[300px]">
           <img
             src={pdmFacade}
@@ -885,7 +981,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+      <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-12 pt-12">
         <div
           className="grid gap-6 rounded-[2rem] border px-6 py-7 md:px-8 md:py-8 lg:grid-cols-[1.05fr_0.95fr]"
           style={{ background: '#ffffff', borderColor: theme.border }}
@@ -932,7 +1028,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-12">
+      <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-12">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
           style={{ background: '#fffdfb', borderColor: theme.border }}
@@ -969,7 +1065,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-5 pb-14">
+      <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-14">
         <div
           className="rounded-[2rem] border px-6 py-6 md:px-8"
           style={{ background: theme.base, borderColor: theme.border }}

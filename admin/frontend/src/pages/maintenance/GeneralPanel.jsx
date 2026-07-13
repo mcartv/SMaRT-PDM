@@ -25,6 +25,7 @@ import {
     Archive,
     ArchiveRestore,
     HelpCircle,
+    Megaphone,
     Loader2,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -74,6 +75,26 @@ const DEFAULT_APPLICATION = {
     global_deadline: '2026-03-31',
     applications_open: true,
 };
+
+const DEFAULT_FEATURED_NOTICE = {
+    title: 'Welcome to SMaRT-PDM',
+    message: 'Check the mobile application and official OSFA channels for current scholarship updates.',
+    link_label: '',
+    link_url: '',
+    is_visible: false,
+    start_date: '',
+    end_date: '',
+};
+
+function normalizeFeaturedNotice(notice) {
+    return {
+        ...DEFAULT_FEATURED_NOTICE,
+        ...(notice && typeof notice === 'object' ? notice : {}),
+        start_date: String(notice?.start_date || ''),
+        end_date: String(notice?.end_date || ''),
+        is_visible: notice?.is_visible === true,
+    };
+}
 
 const DEFAULT_FAQ_FORM = {
     faq_id: '',
@@ -199,6 +220,7 @@ export default function GeneralPanel() {
     const [landlineNumber, setLandlineNumber] = useState(DEFAULT_OFFICE.landline_number);
     const [officeHours, setOfficeHours] = useState(DEFAULT_OFFICE.office_hours);
     const [aboutOsfa, setAboutOsfa] = useState(DEFAULT_ABOUT_OSFA);
+    const [featuredNotice, setFeaturedNotice] = useState(DEFAULT_FEATURED_NOTICE);
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
     const [appOpen, setAppOpen] = useState(DEFAULT_APPLICATION.applications_open);
@@ -247,6 +269,7 @@ export default function GeneralPanel() {
             setLandlineNumber(payload?.landline_number || DEFAULT_OFFICE.landline_number);
             setOfficeHours(payload?.office_hours || DEFAULT_OFFICE.office_hours);
             setAboutOsfa(payload?.about_osfa || DEFAULT_ABOUT_OSFA);
+            setFeaturedNotice(normalizeFeaturedNotice(payload?.featured_notice));
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
             setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
             setAppOpen(typeof payload?.applications_open === 'boolean' ? payload.applications_open : DEFAULT_APPLICATION.applications_open);
@@ -295,6 +318,9 @@ export default function GeneralPanel() {
                 }
                 if (typeof payload?.about_osfa === 'string') {
                     setAboutOsfa(payload.about_osfa);
+                }
+                if (payload?.featured_notice && typeof payload.featured_notice === 'object') {
+                    setFeaturedNotice(normalizeFeaturedNotice(payload.featured_notice));
                 }
                 if (typeof payload?.institution_name === 'string') {
                     setInstName(payload.institution_name);
@@ -356,6 +382,14 @@ export default function GeneralPanel() {
         );
     };
 
+    const saveFeaturedNotice = async () => {
+        await updateGeneralSettings(
+            { featured_notice: featuredNotice },
+            'notice',
+            'Featured public notice saved successfully.'
+        );
+    };
+
     const saveApplicationSettings = async () => {
         await updateGeneralSettings(
             {
@@ -380,6 +414,11 @@ export default function GeneralPanel() {
     const restoreAboutDefaults = () => {
         setAboutOsfa(DEFAULT_ABOUT_OSFA);
         showSuccess('Landing About OSFA restored locally. Save to apply.');
+    };
+
+    const restoreFeaturedNoticeDefaults = () => {
+        setFeaturedNotice(DEFAULT_FEATURED_NOTICE);
+        showSuccess('Featured notice restored locally. Save to apply.');
     };
 
     const restoreFaqDefaults = async () => {
@@ -699,6 +738,18 @@ export default function GeneralPanel() {
                                     </button>
                                     <button
                                         type="button"
+                                        onClick={() => setActiveLandingSection('notice')}
+                                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                            activeLandingSection === 'notice'
+                                                ? 'text-white shadow-sm'
+                                                : 'text-stone-600 hover:text-stone-900'
+                                        }`}
+                                        style={activeLandingSection === 'notice' ? { background: C.brownMid } : undefined}
+                                    >
+                                        Featured Notice
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={() => setActiveLandingSection('faq')}
                                         className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                                             activeLandingSection === 'faq'
@@ -761,6 +812,118 @@ export default function GeneralPanel() {
                                         />
                                     </div>
                                 </div>
+                                </GroupCard>
+                            ) : null}
+
+                            {activeLandingSection === 'notice' ? (
+                                <GroupCard title="Featured Public Notice" icon={Megaphone}>
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col gap-3 rounded-xl border border-stone-100 bg-stone-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-xs font-semibold text-stone-800">Landing-page notice</p>
+                                                <p className="mt-1 text-[11px] text-stone-500">
+                                                    Publish one important public update without exposing internal office notifications.
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="h-8 rounded-lg border-stone-200 px-3 text-xs"
+                                                    onClick={restoreFeaturedNoticeDefaults}
+                                                >
+                                                    <RotateCcw size={13} className="mr-1.5" />
+                                                    Restore
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                                                    style={{ background: savedKey === 'notice' ? C.green : C.brownMid }}
+                                                    onClick={saveFeaturedNotice}
+                                                    disabled={savingKey === 'notice'}
+                                                >
+                                                    {savingKey === 'notice' ? (
+                                                        <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                                    ) : savedKey === 'notice' ? (
+                                                        <Check size={14} className="mr-1.5" />
+                                                    ) : (
+                                                        <Save size={14} className="mr-1.5" />
+                                                    )}
+                                                    {savingKey === 'notice' ? 'Saving' : savedKey === 'notice' ? 'Saved' : 'Save'}
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-100 bg-stone-50 p-3">
+                                            <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-stone-400">Visibility</p>
+                                            <Toggle
+                                                value={featuredNotice.is_visible}
+                                                onChange={(value) => setFeaturedNotice((current) => ({ ...current, is_visible: value }))}
+                                                labels={['Published', 'Hidden']}
+                                            />
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="md:col-span-2">
+                                                <FieldLabel>Notice Title</FieldLabel>
+                                                <Input
+                                                    value={featuredNotice.title}
+                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, title: event.target.value }))}
+                                                    maxLength={140}
+                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                    placeholder="Important scholarship update"
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <FieldLabel>Public Message</FieldLabel>
+                                                <textarea
+                                                    value={featuredNotice.message}
+                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, message: event.target.value }))}
+                                                    maxLength={500}
+                                                    rows={5}
+                                                    className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
+                                                    placeholder="Write a short public notice for applicants and families."
+                                                />
+                                            </div>
+                                            <div>
+                                                <FieldLabel>Button Label (Optional)</FieldLabel>
+                                                <Input
+                                                    value={featuredNotice.link_label}
+                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, link_label: event.target.value }))}
+                                                    maxLength={60}
+                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                    placeholder="Learn more"
+                                                />
+                                            </div>
+                                            <div>
+                                                <FieldLabel>Button Link (Optional)</FieldLabel>
+                                                <Input
+                                                    value={featuredNotice.link_url}
+                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, link_url: event.target.value }))}
+                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                    placeholder="https://... or /landing"
+                                                />
+                                            </div>
+                                            <div>
+                                                <FieldLabel>Publish From (Optional)</FieldLabel>
+                                                <Input
+                                                    type="date"
+                                                    value={featuredNotice.start_date}
+                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, start_date: event.target.value }))}
+                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <FieldLabel>Publish Until (Optional)</FieldLabel>
+                                                <Input
+                                                    type="date"
+                                                    value={featuredNotice.end_date}
+                                                    onChange={(event) => setFeaturedNotice((current) => ({ ...current, end_date: event.target.value }))}
+                                                    className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </GroupCard>
                             ) : null}
 

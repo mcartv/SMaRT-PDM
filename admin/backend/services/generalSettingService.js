@@ -12,6 +12,15 @@ const DEFAULT_GENERAL_SETTINGS = {
   office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
   about_osfa:
     'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
+  featured_notice: {
+    title: 'Welcome to SMaRT-PDM',
+    message: 'Check the mobile application and official OSFA channels for current scholarship updates.',
+    link_label: '',
+    link_url: '',
+    is_visible: false,
+    start_date: null,
+    end_date: null,
+  },
   landing_faqs: [
     {
       faq_id: 'faq-1',
@@ -67,6 +76,26 @@ function normalizeDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
 }
 
+function sanitizeFeaturedNotice(notice = {}) {
+  return {
+    title: safeText(notice.title, 140),
+    message: safeText(notice.message, 500),
+    link_label: safeText(notice.link_label, 60),
+    link_url: safeText(notice.link_url, 500),
+    is_visible: notice.is_visible === true,
+    start_date: normalizeDate(notice.start_date),
+    end_date: normalizeDate(notice.end_date),
+  };
+}
+
+function isFeaturedNoticePublished(notice = {}) {
+  if (!notice.is_visible || !notice.title || !notice.message) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  if (notice.start_date && notice.start_date > today) return false;
+  if (notice.end_date && notice.end_date < today) return false;
+  return true;
+}
+
 function isMissingTableError(error, tableName) {
   const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
@@ -97,6 +126,7 @@ function sanitizeSettings(payload = {}) {
       safeText(payload.office_hours, 120) || DEFAULT_GENERAL_SETTINGS.office_hours,
     about_osfa:
       safeText(payload.about_osfa, 2000) || DEFAULT_GENERAL_SETTINGS.about_osfa,
+    featured_notice: sanitizeFeaturedNotice(payload.featured_notice),
     landing_faqs: sanitizeFaqs(payload.landing_faqs),
     global_deadline:
       normalizeDate(payload.global_deadline) || DEFAULT_GENERAL_SETTINGS.global_deadline,
@@ -143,6 +173,7 @@ function sanitizeFaqs(faqs) {
 function buildFallbackSettings() {
   return {
     ...DEFAULT_GENERAL_SETTINGS,
+    featured_notice: sanitizeFeaturedNotice(DEFAULT_GENERAL_SETTINGS.featured_notice),
     landing_faqs: sanitizeFaqs(DEFAULT_GENERAL_SETTINGS.landing_faqs),
   };
 }
@@ -155,7 +186,7 @@ async function getGeneralSettings() {
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .eq('general_settings_id', 1)
     .maybeSingle();
@@ -170,14 +201,17 @@ async function getGeneralSettings() {
   const source = data || buildFallbackSettings();
   return {
     ...source,
+    featured_notice: sanitizeFeaturedNotice(source.featured_notice),
     landing_faqs: sanitizeFaqs(source.landing_faqs),
   };
 }
 
 async function getPublicGeneralSettings() {
   const settings = await getGeneralSettings();
+  const featuredNotice = sanitizeFeaturedNotice(settings.featured_notice);
   return {
     ...settings,
+    featured_notice: isFeaturedNoticePublished(featuredNotice) ? featuredNotice : null,
     landing_faqs: sanitizeFaqs(settings.landing_faqs).filter((item) => item.is_archived !== true),
   };
 }
@@ -204,7 +238,7 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     .from(TABLE_NAME)
     .upsert(upsertPayload, { onConflict: 'general_settings_id' })
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .single();
 

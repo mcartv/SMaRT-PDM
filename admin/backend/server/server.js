@@ -15,6 +15,7 @@ const cors = require('cors');
 
 // Route imports
 const authRoutes = require('../routes/authRoutes');
+const dashboardRoutes = require('../routes/dashboardRoutes');
 const scholarRoutes = require('../routes/scholarRoutes');
 const applicationRoutes = require('../routes/applicationRoutes');
 const messageRoutes = require('../routes/messageRoutes');
@@ -192,6 +193,7 @@ app.get('/', (req, res) => {
 // =========================
 
 app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/scholars', scholarRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/messages', messageRoutes);

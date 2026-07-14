@@ -1,18 +1,40 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Users,
   GraduationCap,
   TrendingUp,
   TrendingDown,
-  Download,
   AlertCircle,
   Award,
+  FileCheck2,
+  ClipboardList,
+  Building2,
+  Loader2,
+  RefreshCw,
+  FileWarning,
 } from 'lucide-react';
 import {
   BarChart,
@@ -26,8 +48,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { buildApiUrl } from '@/api';
 
-// ─── Theme ───────────────────────────────────────────────────────
 const C = {
   brown: 'var(--portal-base)',
   brownMid: 'var(--portal-chart-primary)',
@@ -39,6 +61,7 @@ const C = {
   green: 'var(--portal-chart-positive)',
   greenSoft: 'color-mix(in srgb, var(--portal-chart-positive) 12%, white)',
   red: 'var(--portal-chart-negative)',
+  redSoft: 'color-mix(in srgb, var(--portal-chart-negative) 12%, white)',
   border: 'var(--portal-border)',
   muted: 'var(--portal-muted)',
   text: 'var(--portal-text)',
@@ -63,281 +86,572 @@ const AXIS_PROPS = {
   tickLine: false,
 };
 
-// ─── Data ────────────────────────────────────────────────────────
-const STATS = [
-  {
-    label: 'UAQTEA Beneficiaries',
-    value: '2,418',
-    sub: '1st Sem · AY 2025–26',
-    icon: Users,
-    accent: C.brown,
-    soft: C.amberSoft,
-    trend: '+15.9%',
-    up: true,
-  },
-  {
-    label: 'TDP Scholars',
-    value: '24',
-    sub: '15 + 9 per semester',
-    icon: Award,
-    accent: C.amber,
-    soft: C.amberSoft,
-    trend: '−71.1%',
-    up: false,
-  },
-  {
-    label: 'FHE Graduates',
-    value: '1,517',
-    sub: 'Cumulative 2020–2025',
-    icon: GraduationCap,
-    accent: C.green,
-    soft: C.greenSoft,
-    trend: '+Total',
-    up: true,
-  },
-  {
-    label: 'Private Beneficiaries',
-    value: '126',
-    sub: '1st Sem · AY 2025–26',
-    icon: Users,
-    accent: C.brownLight,
-    soft: C.sand,
-    trend: 'New AY',
-    up: true,
-  },
+const CHART_COLORS = [
+  C.brownMid,
+  C.yellow,
+  C.amber,
+  C.brownLight,
+  C.green,
+  C.red,
 ];
 
-const UAQTEA_DATA = [
-  { year: '18–19', sem1: 1473, sem2: 1441 },
-  { year: '19–20', sem1: 1523, sem2: 1390 },
-  { year: '20–21', sem1: 1630, sem2: 1468 },
-  { year: '21–22', sem1: 1654, sem2: 1565 },
-  { year: '22–23', sem1: 1727, sem2: 1685 },
-  { year: '23–24', sem1: 1876, sem2: 1750 },
-  { year: '24–25', sem1: 2087, sem2: 1966 },
-  { year: '25–26', sem1: 2418, sem2: null },
-];
+const ICON_MAP = {
+  total_applications: ClipboardList,
+  pending_review: FileWarning,
+  verified_documents: FileCheck2,
+  active_scholars: GraduationCap,
+  open_openings: Award,
+  benefactors: Building2,
+  default: Users,
+};
 
-const TDP_DATA = [
-  { year: '19–20', sem1: 138, sem2: 128 },
-  { year: '20–21', sem1: 154, sem2: 167 },
-  { year: '21–22', sem1: 196, sem2: 190 },
-  { year: '22–23', sem1: 105, sem2: 95 },
-  { year: '23–24', sem1: 46, sem2: 37 },
-  { year: '24–25', sem1: 15, sem2: 9 },
-];
+function formatNumber(value) {
+  const num = Number(value || 0);
+  return num.toLocaleString();
+}
 
-const FHE_GRAD_DATA = [
-  { batch: '2020', n: 160 },
-  { batch: '2021', n: 134 },
-  { batch: '2022', n: 268 },
-  { batch: '2023', n: 382 },
-  { batch: '2024', n: 279 },
-  { batch: '2025', n: 294 },
-];
+function getStatusMeta(status) {
+  const normalized = String(status || '').toLowerCase();
 
-const FHE_SUMMER_DATA = [
-  { year: '18–19', n: 162, pandemic: false },
-  { year: '19–20', n: 0, pandemic: true },
-  { year: '20–21', n: 0, pandemic: true },
-  { year: '21–22', n: 0, pandemic: true },
-  { year: '22–23', n: 125, pandemic: false },
-  { year: '23–24', n: 162, pandemic: false },
-  { year: '24–25', n: 240, pandemic: false },
-];
+  if (normalized.includes('approved') || normalized.includes('verified') || normalized.includes('active')) {
+    return {
+      bg: C.greenSoft,
+      color: C.green,
+    };
+  }
 
-const BENEFACTORS = [
-  { name: 'Kaizen', value: 96, color: C.brown },
-  { name: 'Genmart', value: 15, color: C.brownMid },
-  { name: 'Food Crafters', value: 10, color: C.amber },
-  { name: 'BC Packaging', value: 5, color: C.yellow },
-];
+  if (normalized.includes('pending') || normalized.includes('review') || normalized.includes('queued')) {
+    return {
+      bg: C.amberSoft,
+      color: C.amber,
+    };
+  }
 
-const BENEFACTOR_TOTAL = BENEFACTORS.reduce((s, b) => s + b.value, 0);
+  if (normalized.includes('rejected') || normalized.includes('flagged') || normalized.includes('disqualified')) {
+    return {
+      bg: C.redSoft,
+      color: C.red,
+    };
+  }
 
-const FAB_ROWS = [
-  { program: 'BECED', bcPkg: 1, food: 3, gen: 1, kai: 16, total: 21 },
-  { program: 'BSCS', bcPkg: 0, food: 0, gen: 0, kai: 11, total: 11 },
-  { program: 'BSHM', bcPkg: 1, food: 2, gen: 2, kai: 10, total: 13 },
-  { program: 'BSIT', bcPkg: 2, food: 2, gen: 6, kai: 24, total: 34 },
-  { program: 'BSOA', bcPkg: 0, food: 2, gen: 3, kai: 5, total: 10 },
-  { program: 'BSTM', bcPkg: 1, food: 2, gen: 3, kai: 23, total: 29 },
-  { program: 'BTLED', bcPkg: 0, food: 1, gen: 0, kai: 7, total: 8 },
-];
+  return {
+    bg: C.sand,
+    color: C.muted,
+  };
+}
 
-// ─── Component ───────────────────────────────────────────────────
+function EmptyChart({ label }) {
+  return (
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-stone-200 bg-stone-50/70">
+      <AlertCircle className="mb-2 h-5 w-5 text-stone-300" />
+      <p className="text-xs font-medium text-stone-500">{label}</p>
+    </div>
+  );
+}
+
+function StatCard({ item }) {
+  const Icon = ICON_MAP[item.key] || ICON_MAP.default;
+  const up = item.up !== false;
+
+  return (
+    <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4">
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-xl"
+          style={{
+            background: item.soft || C.amberSoft,
+          }}
+        >
+          <Icon
+            className="h-4 w-4"
+            style={{
+              color: item.accent || C.brown,
+            }}
+          />
+        </div>
+
+        <Badge
+          variant="outline"
+          className="border-none text-xs font-medium"
+          style={{
+            background: up ? C.greenSoft : C.redSoft,
+            color: up ? C.green : C.red,
+          }}
+        >
+          {up ? (
+            <TrendingUp className="mr-1 h-3 w-3" />
+          ) : (
+            <TrendingDown className="mr-1 h-3 w-3" />
+          )}
+          {item.trend || 'Live'}
+        </Badge>
+      </CardHeader>
+
+      <CardContent className="px-4 pb-4">
+        <div className="text-2xl font-semibold">{formatNumber(item.value)}</div>
+        <p className="text-xs text-stone-500">{item.label}</p>
+        <p className="text-[11px] text-stone-400">{item.sub || 'Current system data'}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminDashboard() {
-  useSocketEvent('scholar:created', () => { });
-  useSocketEvent('payout:created', () => { });
-  useSocketEvent('opening:created', () => { });
+  const [dashboard, setDashboard] = useState({
+    summaryCards: [],
+    applicationStatus: [],
+    openingStatus: [],
+    documentSummary: [],
+    scholarsByBenefactor: [],
+    recentApplications: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [silentLoading, setSilentLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadDashboard = useCallback(async (options = {}) => {
+    const silent = options.silent === true;
+    const audit = options.audit === true;
+
+    try {
+      if (silent) {
+        setSilentLoading(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError('');
+
+      const token = sessionStorage.getItem('adminToken') || '';
+
+      const res = await fetch(buildApiUrl(`/api/dashboard${audit ? '?audit=1' : ''}`), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(payload?.message || payload?.error || 'Failed to load dashboard data.');
+      }
+
+      setDashboard({
+        summaryCards: Array.isArray(payload.summaryCards) ? payload.summaryCards : [],
+        applicationStatus: Array.isArray(payload.applicationStatus) ? payload.applicationStatus : [],
+        openingStatus: Array.isArray(payload.openingStatus) ? payload.openingStatus : [],
+        documentSummary: Array.isArray(payload.documentSummary) ? payload.documentSummary : [],
+        scholarsByBenefactor: Array.isArray(payload.scholarsByBenefactor) ? payload.scholarsByBenefactor : [],
+        recentApplications: Array.isArray(payload.recentApplications) ? payload.recentApplications : [],
+      });
+    } catch (err) {
+      console.error('DASHBOARD LOAD ERROR:', err);
+      setError(err.message || 'Failed to load dashboard data.');
+    } finally {
+      setLoading(false);
+      setSilentLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDashboard({ audit: true });
+  }, [loadDashboard]);
+
+  const refreshRealtime = useCallback(() => {
+    loadDashboard({ silent: true });
+  }, [loadDashboard]);
+
+  useSocketEvent('dashboard:updated', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('application:created', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('application:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('application:approved', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('application:rejected', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('application:disqualified', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('application-document:uploaded', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('application-document:reviewed', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('application-ocr:queued', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('application-ocr:snapshot-saved', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('scholar:created', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('scholar:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('scholar:archived', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('scholar:restored', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('opening:created', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('opening:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('opening:closed', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('opening:archived', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('opening:restored', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('payout:created', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('payout:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('payout:archived', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('payout:restored', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('scholar:released', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('ro:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('ro:archived', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('ro:restored', refreshRealtime, [refreshRealtime]);
+
+  useSocketEvent('maintenance:updated', refreshRealtime, [refreshRealtime]);
+  useSocketEvent('report:updated', refreshRealtime, [refreshRealtime]);
+
+  const summaryCards = useMemo(() => {
+    if (dashboard.summaryCards.length) return dashboard.summaryCards;
+
+    return [
+      {
+        key: 'total_applications',
+        label: 'Total Applications',
+        value: 0,
+        sub: 'Current active records',
+        trend: 'Live',
+        up: true,
+        accent: C.brown,
+        soft: C.amberSoft,
+      },
+      {
+        key: 'pending_review',
+        label: 'Pending Review',
+        value: 0,
+        sub: 'Applications needing action',
+        trend: 'Needs action',
+        up: false,
+        accent: C.amber,
+        soft: C.amberSoft,
+      },
+      {
+        key: 'verified_documents',
+        label: 'Verified Documents',
+        value: 0,
+        sub: 'Completed verification',
+        trend: 'Verified',
+        up: true,
+        accent: C.green,
+        soft: C.greenSoft,
+      },
+      {
+        key: 'active_scholars',
+        label: 'Active Scholars',
+        value: 0,
+        sub: 'Current scholar records',
+        trend: 'Current',
+        up: true,
+        accent: C.brownLight,
+        soft: C.sand,
+      },
+    ];
+  }, [dashboard.summaryCards]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3" style={{ background: C.bg }}>
+        <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
+        <p className="text-xs uppercase tracking-widest text-stone-400">
+          Loading dashboard...
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4 py-2" style={{ background: C.bg }}>
+        <div className="rounded-xl border border-red-100 bg-red-50 p-6 text-center">
+          <AlertCircle className="mx-auto mb-3 h-7 w-7 text-red-400" />
+          <p className="text-sm font-semibold text-red-800">Failed to load dashboard</p>
+          <p className="mt-1 text-xs text-red-600">{error}</p>
+          <Button
+            onClick={() => loadDashboard({ audit: true })}
+            variant="outline"
+            size="sm"
+            className="mt-4 border-red-200 text-xs text-red-600"
+          >
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 py-2" style={{ background: C.bg }}>
+      <div className="flex items-center justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 rounded-lg border-stone-200 text-xs"
+          onClick={() => loadDashboard({ silent: true })}
+          disabled={silentLoading}
+        >
+          {silentLoading ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          Refresh
+        </Button>
+      </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {STATS.map((s) => (
-          <Card key={s.label} className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pb-2 pt-4">
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-xl"
-                style={{ background: s.soft }}
-              >
-                <s.icon className="h-4 w-4" style={{ color: s.accent }} />
-              </div>
-
-              <Badge
-                variant="outline"
-                className="border-none text-xs font-medium"
-                style={{
-                  background: s.up ? C.greenSoft : 'color-mix(in srgb, var(--portal-chart-negative) 12%, white)',
-                  color: s.up ? C.green : C.red,
-                }}
-              >
-                {s.up ? (
-                  <TrendingUp className="mr-1 h-3 w-3" />
-                ) : (
-                  <TrendingDown className="mr-1 h-3 w-3" />
-                )}
-                {s.trend}
-              </Badge>
-            </CardHeader>
-
-            <CardContent className="px-4 pb-4">
-              <div className="text-2xl font-semibold">{s.value}</div>
-              <p className="text-xs text-stone-500">{s.label}</p>
-              <p className="text-[11px] text-stone-400">{s.sub}</p>
-            </CardContent>
-          </Card>
+        {summaryCards.map((item) => (
+          <StatCard key={item.key || item.label} item={item} />
         ))}
       </div>
 
-      {/* Enrollment Trends */}
       <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
-        <Tabs defaultValue="uaqtea" className="w-full">
+        <Tabs defaultValue="applications" className="w-full">
           <CardHeader className="flex flex-col gap-3 border-b border-stone-100 pb-4 md:flex-row md:items-center md:justify-between">
-            <CardTitle className="text-sm font-semibold">Enrollment Trends</CardTitle>
+            <CardTitle className="text-sm font-semibold">
+              Scholarship Operations Overview
+            </CardTitle>
 
-            <TabsList className="h-8 rounded-lg p-1" style={{ background: 'color-mix(in srgb, var(--portal-base) 8%, white)' }}>
-              <TabsTrigger value="uaqtea" className="text-xs px-4">UAQTEA</TabsTrigger>
-              <TabsTrigger value="tdp" className="text-xs px-4">TDP</TabsTrigger>
-              <TabsTrigger value="fhe" className="text-xs px-4">FHE</TabsTrigger>
+            <TabsList
+              className="h-8 rounded-lg p-1"
+              style={{ background: 'color-mix(in srgb, var(--portal-base) 8%, white)' }}
+            >
+              <TabsTrigger value="applications" className="px-4 text-xs">
+                Applications
+              </TabsTrigger>
+              <TabsTrigger value="openings" className="px-4 text-xs">
+                Openings
+              </TabsTrigger>
+              <TabsTrigger value="documents" className="px-4 text-xs">
+                Documents
+              </TabsTrigger>
             </TabsList>
           </CardHeader>
 
-          <CardContent className="pt-4 h-72">
-            <TabsContent value="uaqtea" className="h-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={UAQTEA_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                  <XAxis dataKey="year" {...AXIS_PROPS} />
-                  <YAxis {...AXIS_PROPS} />
-                  <Tooltip {...TOOLTIP_STYLE} />
-                  <Bar dataKey="sem1" fill={C.brownMid} />
-                  <Bar dataKey="sem2" fill={C.yellow} />
-                </BarChart>
-              </ResponsiveContainer>
+          <CardContent className="h-72 pt-4">
+            <TabsContent value="applications" className="h-full">
+              {dashboard.applicationStatus.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboard.applicationStatus}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                    <XAxis dataKey="name" {...AXIS_PROPS} />
+                    <YAxis {...AXIS_PROPS} allowDecimals={false} />
+                    <Tooltip {...TOOLTIP_STYLE} />
+                    <Bar dataKey="value" fill={C.brownMid} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChart label="No application status data available." />
+              )}
             </TabsContent>
 
-            <TabsContent value="tdp" className="h-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={TDP_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                  <XAxis dataKey="year" {...AXIS_PROPS} />
-                  <YAxis {...AXIS_PROPS} />
-                  <Tooltip {...TOOLTIP_STYLE} />
-                  <Bar dataKey="sem1" fill={C.brownMid} />
-                  <Bar dataKey="sem2" fill={C.amber} />
-                </BarChart>
-              </ResponsiveContainer>
+            <TabsContent value="openings" className="h-full">
+              {dashboard.openingStatus.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboard.openingStatus}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                    <XAxis dataKey="name" {...AXIS_PROPS} />
+                    <YAxis {...AXIS_PROPS} allowDecimals={false} />
+                    <Tooltip {...TOOLTIP_STYLE} />
+                    <Bar dataKey="value" fill={C.yellow} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChart label="No scholarship opening data available." />
+              )}
             </TabsContent>
 
-            <TabsContent value="fhe" className="h-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={FHE_GRAD_DATA}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                  <XAxis dataKey="batch" {...AXIS_PROPS} />
-                  <YAxis {...AXIS_PROPS} />
-                  <Tooltip {...TOOLTIP_STYLE} />
-                  <Bar dataKey="n" fill={C.brownLight} />
-                </BarChart>
-              </ResponsiveContainer>
+            <TabsContent value="documents" className="h-full">
+              {dashboard.documentSummary.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboard.documentSummary}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                    <XAxis dataKey="name" {...AXIS_PROPS} />
+                    <YAxis {...AXIS_PROPS} allowDecimals={false} />
+                    <Tooltip {...TOOLTIP_STYLE} />
+                    <Bar dataKey="value" fill={C.amber} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChart label="No document verification data available." />
+              )}
             </TabsContent>
           </CardContent>
         </Tabs>
       </Card>
 
-      {/* Secondary Charts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-
-        {/* Summer */}
         <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
           <CardHeader>
-            <CardTitle className="text-sm">FHE Summer Enrollment</CardTitle>
+            <CardTitle className="text-sm">Document / OCR Verification Summary</CardTitle>
           </CardHeader>
 
           <CardContent className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={FHE_SUMMER_DATA}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
-                <XAxis dataKey="year" {...AXIS_PROPS} />
-                <YAxis {...AXIS_PROPS} />
-                <Tooltip {...TOOLTIP_STYLE} />
-                <Bar dataKey="n" fill={C.brownMid} />
-              </BarChart>
-            </ResponsiveContainer>
+            {dashboard.documentSummary.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboard.documentSummary}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                  <XAxis dataKey="name" {...AXIS_PROPS} />
+                  <YAxis {...AXIS_PROPS} allowDecimals={false} />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  <Bar dataKey="value" fill={C.brownMid} radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyChart label="No OCR or document records found." />
+            )}
           </CardContent>
         </Card>
 
-        {/* Benefactors */}
         <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
           <CardHeader>
-            <CardTitle className="text-sm">Benefactor Distribution</CardTitle>
+            <CardTitle className="text-sm">Scholars by Benefactor</CardTitle>
           </CardHeader>
 
-          <CardContent className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={BENEFACTORS} dataKey="value">
-                  {BENEFACTORS.map((e, i) => (
-                    <Cell key={i} fill={e.color} />
+          <CardContent className="grid h-56 grid-cols-1 gap-3 md:grid-cols-[1fr_180px]">
+            {dashboard.scholarsByBenefactor.length ? (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={dashboard.scholarsByBenefactor}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={2}
+                    >
+                      {dashboard.scholarsByBenefactor.map((entry, index) => (
+                        <Cell
+                          key={`${entry.name}-${index}`}
+                          fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip {...TOOLTIP_STYLE} />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="flex flex-col justify-center gap-2 overflow-y-auto">
+                  {dashboard.scholarsByBenefactor.map((item, index) => (
+                    <div key={`${item.name}-${index}`} className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
+                        />
+                        <span className="truncate text-xs text-stone-600">{item.name}</span>
+                      </div>
+                      <span className="text-xs font-semibold text-stone-800">
+                        {formatNumber(item.value)}
+                      </span>
+                    </div>
                   ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+                </div>
+              </>
+            ) : (
+              <div className="md:col-span-2">
+                <EmptyChart label="No benefactor-scholar distribution available." />
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Matrix */}
-        <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
+      <Card className="shadow-none" style={{ borderColor: C.border, background: C.surface }}>
+        <CardHeader className="border-b border-stone-100">
+          <CardTitle className="text-sm">Recent Applications Needing Action</CardTitle>
+        </CardHeader>
+
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Program</TableHead>
-              <TableHead>BC</TableHead>
-              <TableHead>Food</TableHead>
-              <TableHead>Gen</TableHead>
-              <TableHead>Kaizen</TableHead>
-              <TableHead>Total</TableHead>
+              <TableHead>Student</TableHead>
+              <TableHead>Program / Opening</TableHead>
+              <TableHead>Application Status</TableHead>
+              <TableHead>Document Status</TableHead>
+              <TableHead>Submitted</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {FAB_ROWS.map((row) => (
-              <TableRow key={row.program}>
-                <TableCell>{row.program}</TableCell>
-                <TableCell>{row.bcPkg || '-'}</TableCell>
-                <TableCell>{row.food || '-'}</TableCell>
-                <TableCell>{row.gen || '-'}</TableCell>
-                <TableCell>{row.kai || '-'}</TableCell>
-                <TableCell className="font-semibold">{row.total}</TableCell>
+            {dashboard.recentApplications.length ? (
+              dashboard.recentApplications.map((row) => {
+                const appMeta = getStatusMeta(row.application_status);
+                const docMeta = getStatusMeta(row.document_status);
+
+                return (
+                  <TableRow key={row.application_id}>
+                    <TableCell>
+                      <div>
+                        <p className="text-sm font-medium text-stone-800">
+                          {row.student_name || 'Unknown Student'}
+                        </p>
+                        <p className="text-xs text-stone-400">
+                          {row.student_number || 'No Student ID'}
+                        </p>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <div>
+                        <p className="text-sm text-stone-700">
+                          {row.program_name || 'No Program'}
+                        </p>
+                        <p className="text-xs text-stone-400">
+                          {row.opening_title || 'No Opening'}
+                        </p>
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <span
+                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                        style={{
+                          background: appMeta.bg,
+                          color: appMeta.color,
+                        }}
+                      >
+                        {row.application_status || 'Unknown'}
+                      </span>
+                    </TableCell>
+
+                    <TableCell>
+                      <span
+                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                        style={{
+                          background: docMeta.bg,
+                          color: docMeta.color,
+                        }}
+                      >
+                        {row.document_status || 'Unknown'}
+                      </span>
+                    </TableCell>
+
+                    <TableCell className="text-xs text-stone-500">
+                      {row.submission_date
+                        ? new Date(row.submission_date).toLocaleDateString()
+                        : 'N/A'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5}>
+                  <div className="flex min-h-[120px] flex-col items-center justify-center gap-2 text-center">
+                    <AlertCircle className="h-5 w-5 text-stone-300" />
+                    <p className="text-sm font-medium text-stone-500">
+                      No pending application work items.
+                    </p>
+                    <p className="text-xs text-stone-400">
+                      Recent applications needing review will appear here.
+                    </p>
+                  </div>
+                </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
         </Table>
       </Card>
-
     </div>
   );
 }

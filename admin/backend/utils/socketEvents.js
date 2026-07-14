@@ -111,6 +111,7 @@ const socketEvents = {
     emitToRoom,
 
     /** Dashboard-wide refresh channels. */
+    dashboardUpdated: (io, data) => emitEvent(io, 'dashboard:updated', data),
     maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
     reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
     auditCreated: (io, data) => emitEvent(io, 'audit:created', data),

@@ -65,6 +65,10 @@ class PSAFormRegistrationConfig:
     review_corner_deviation: float = 0.070
     success_opposite_edge_ratio: float = 1.15
     review_opposite_edge_ratio: float = 1.25
+    success_canonical_edge_deviation: float = 0.010
+    review_canonical_edge_deviation: float = 0.020
+    minimum_canonical_vertical_landmarks: int = 3
+    minimum_canonical_horizontal_landmarks: int = 3
     boundary_search_distance: float = 0.090
     line_cluster_distance: float = 0.006
     line_angle_tolerance_degrees: float = 12.0
@@ -101,6 +105,8 @@ class PSAFormRegistrationConfig:
             "review_corner_deviation",
             "success_opposite_edge_ratio",
             "review_opposite_edge_ratio",
+            "success_canonical_edge_deviation",
+            "review_canonical_edge_deviation",
             "boundary_search_distance",
             "line_cluster_distance",
             "line_angle_tolerance_degrees",
@@ -129,6 +135,8 @@ class PSAFormRegistrationConfig:
             raise ValueError("corner deviation thresholds are not ordered")
         if self.success_opposite_edge_ratio >= self.review_opposite_edge_ratio:
             raise ValueError("opposite-edge thresholds are not ordered")
+        if self.success_canonical_edge_deviation >= self.review_canonical_edge_deviation:
+            raise ValueError("canonical edge thresholds are not ordered")
         if not 0.0 < self.expected_area_ratio < 1.0:
             raise ValueError("expected_area_ratio must be between 0.0 and 1.0")
         if not 0.0 < self.line_angle_tolerance_degrees < 45.0:
@@ -171,6 +179,13 @@ class PSAFormTransformationMetadata:
     aspect_ratio: float
     maximum_corner_deviation: float
     opposite_edge_ratio: float
+    maximum_canonical_edge_deviation: float
+    canonical_left_boundary: float
+    canonical_right_boundary: float
+    canonical_top_boundary: float
+    canonical_bottom_boundary: float
+    canonical_vertical_landmarks: tuple[float, ...]
+    canonical_horizontal_landmarks: tuple[float, ...]
     perspective_applied: bool
     boundary_inferred: bool
 
@@ -686,6 +701,145 @@ def _deduplicate_candidates(
     return unique
 
 
+def _profile_peaks(
+    profile: np.ndarray, minimum_distance: int, threshold: float
+) -> tuple[int, ...]:
+    if profile.ndim != 1 or profile.size == 0:
+        return ()
+    peaks: list[int] = []
+    last = -minimum_distance
+    for index in range(1, profile.size - 1):
+        if profile[index] < threshold:
+            continue
+        if profile[index] < profile[index - 1] or profile[index] < profile[index + 1]:
+            continue
+        if peaks and index - last < minimum_distance:
+            if profile[index] > profile[peaks[-1]]:
+                peaks[-1] = index
+                last = index
+            continue
+        peaks.append(index)
+        last = index
+    return tuple(peaks)
+
+
+def _canonical_landmark_sequence_is_valid(
+    vertical_landmarks: Sequence[float], horizontal_landmarks: Sequence[float]
+) -> bool:
+    return not (
+        any(
+            second <= first
+            for first, second in zip(vertical_landmarks, vertical_landmarks[1:])
+        )
+        or any(
+            second <= first
+            for first, second in zip(horizontal_landmarks, horizontal_landmarks[1:])
+        )
+    )
+
+
+def _canonical_edge_status(
+    maximum_canonical_edge_deviation: float, config: PSAFormRegistrationConfig
+) -> str:
+    if maximum_canonical_edge_deviation <= config.success_canonical_edge_deviation:
+        return "success"
+    if maximum_canonical_edge_deviation <= config.review_canonical_edge_deviation:
+        return "review_required"
+    return "failed"
+
+
+def _canonical_landmarks(
+    registered: np.ndarray, config: PSAFormRegistrationConfig
+) -> tuple[float, float, float, float, tuple[float, ...], tuple[float, ...], float] | None:
+    if registered.ndim == 3:
+        gray = cv2.cvtColor(registered, cv2.COLOR_BGR2GRAY)
+    elif registered.ndim == 2:
+        gray = registered
+    else:
+        return None
+    if gray.size == 0 or not np.isfinite(gray).all():
+        return None
+
+    dark = 255.0 - gray.astype(np.float64)
+    column_profile = dark.mean(axis=0)
+    row_profile = dark.mean(axis=1)
+    width = int(registered.shape[1])
+    height = int(registered.shape[0])
+    if width < 4 or height < 4:
+        return None
+
+    left_window = max(4, min(width // 6, int(width * 0.08)))
+    right_window = left_window
+    top_window = max(4, min(height // 6, int(height * 0.08)))
+    bottom_window = top_window
+
+    def edge_index(profile: np.ndarray, start: bool, window: int) -> int:
+        band = profile[:window] if start else profile[-window:]
+        if band.size == 0:
+            return 0 if start else profile.size - 1
+        baseline = float(np.median(band))
+        spread = float(np.std(band))
+        threshold = baseline + max(8.0, spread * 0.5)
+        candidates = np.flatnonzero(band >= threshold)
+        if candidates.size == 0:
+            index = int(np.argmax(band))
+        else:
+            index = int(candidates[0] if start else candidates[-1])
+        return index if start else profile.size - window + index
+
+    left_index = edge_index(column_profile, True, left_window)
+    right_index = edge_index(column_profile, False, right_window)
+    top_index = edge_index(row_profile, True, top_window)
+    bottom_index = edge_index(row_profile, False, bottom_window)
+
+    vertical_threshold = float(np.percentile(column_profile, 80.0))
+    horizontal_threshold = float(np.percentile(row_profile, 80.0))
+    vertical_landmarks = _profile_peaks(
+        column_profile, max(12, width // 80), vertical_threshold
+    )
+    horizontal_landmarks = _profile_peaks(
+        row_profile, max(12, height // 80), horizontal_threshold
+    )
+    vertical_landmarks = tuple(
+        index / float(width - 1)
+        for index in vertical_landmarks
+        if 0 < index < width - 1
+    )
+    horizontal_landmarks = tuple(
+        index / float(height - 1)
+        for index in horizontal_landmarks
+        if 0 < index < height - 1
+    )
+    if len(vertical_landmarks) < config.minimum_canonical_vertical_landmarks:
+        return None
+    if len(horizontal_landmarks) < config.minimum_canonical_horizontal_landmarks:
+        return None
+    if not _canonical_landmark_sequence_is_valid(
+        vertical_landmarks, horizontal_landmarks
+    ):
+        return None
+
+    left_boundary = left_index / float(width - 1)
+    right_boundary = right_index / float(width - 1)
+    top_boundary = top_index / float(height - 1)
+    bottom_boundary = bottom_index / float(height - 1)
+    maximum_edge_deviation = max(
+        abs(left_boundary - 0.0),
+        abs(right_boundary - 1.0),
+        abs(top_boundary - 0.0),
+        abs(bottom_boundary - 1.0),
+    )
+    return (
+        left_boundary,
+        right_boundary,
+        top_boundary,
+        bottom_boundary,
+        vertical_landmarks,
+        horizontal_landmarks,
+        maximum_edge_deviation,
+    )
+
+
 def _find_candidates(
     horizontal: Sequence[_DetectedLine],
     vertical: Sequence[_DetectedLine],
@@ -927,7 +1081,119 @@ def register_psa_birth_form(
         return _failure("REGISTERED_IMAGE_INVALID")
     registered = registered.copy()
 
+    canonical = _canonical_landmarks(registered, resolved)
+    if canonical is None:
+        return _failure(
+            "CANONICAL_GRID_LANDMARKS_INVALID",
+            horizontal_line_count=horizontal_count,
+            vertical_line_count=vertical_count,
+            candidate_count=len(candidates),
+        )
+
+    canonical_status = _canonical_edge_status(canonical[-1], resolved)
+    if canonical_status == "failed":
+        inferable_boundary = (
+            horizontal_count < resolved.expected_horizontal_lines
+            or vertical_count < resolved.expected_vertical_lines
+        )
+        near_canonical_grid = selected.corner_deviation <= resolved.review_corner_deviation
+        if not inferable_boundary and not near_canonical_grid:
+            return _failure(
+                "CANONICAL_GRID_ALIGNMENT_FAILED",
+                horizontal_line_count=horizontal_count,
+                vertical_line_count=vertical_count,
+                candidate_count=len(candidates),
+                maximum_canonical_edge_deviation=canonical[-1],
+            )
+        canonical_status = "review_required"
+    if canonical_status == "review_required":
+        source_quad = np.asarray(
+            [
+                [canonical[0] * (resolved.output_width - 1), canonical[2] * (resolved.output_height - 1)],
+                [canonical[1] * (resolved.output_width - 1), canonical[2] * (resolved.output_height - 1)],
+                [canonical[1] * (resolved.output_width - 1), canonical[3] * (resolved.output_height - 1)],
+                [canonical[0] * (resolved.output_width - 1), canonical[3] * (resolved.output_height - 1)],
+            ],
+            dtype=np.float32,
+        )
+        canonical_destination = np.asarray(
+            [
+                [0, 0],
+                [resolved.output_width - 1, 0],
+                [resolved.output_width - 1, resolved.output_height - 1],
+                [0, resolved.output_height - 1],
+            ],
+            dtype=np.float32,
+        )
+        try:
+            canonical_homography = cv2.getPerspectiveTransform(
+                source_quad, canonical_destination
+            )
+            if canonical_homography.shape != (3, 3) or not np.isfinite(canonical_homography).all():
+                return _failure(
+                    "CANONICAL_GRID_ALIGNMENT_FAILED",
+                    horizontal_line_count=horizontal_count,
+                    vertical_line_count=vertical_count,
+                    candidate_count=len(candidates),
+                )
+            registered = cv2.warpPerspective(
+                registered,
+                canonical_homography,
+                (resolved.output_width, resolved.output_height),
+                flags=cv2.INTER_CUBIC,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
+        except cv2.error:
+            return _failure(
+                "CANONICAL_GRID_ALIGNMENT_FAILED",
+                horizontal_line_count=horizontal_count,
+                vertical_line_count=vertical_count,
+                candidate_count=len(candidates),
+            )
+
+        canonical = _canonical_landmarks(registered, resolved)
+        if canonical is None:
+            return _failure(
+                "CANONICAL_GRID_LANDMARKS_INVALID",
+                horizontal_line_count=horizontal_count,
+                vertical_line_count=vertical_count,
+                candidate_count=len(candidates),
+            )
+
+    (
+        canonical_left_boundary,
+        canonical_right_boundary,
+        canonical_top_boundary,
+        canonical_bottom_boundary,
+        canonical_vertical_landmarks,
+        canonical_horizontal_landmarks,
+        maximum_canonical_edge_deviation,
+    ) = canonical
+    canonical_status = _canonical_edge_status(maximum_canonical_edge_deviation, resolved)
+    if canonical_status == "failed":
+        inferable_boundary = (
+            horizontal_count < resolved.expected_horizontal_lines
+            or vertical_count < resolved.expected_vertical_lines
+        )
+        near_canonical_grid = selected.corner_deviation <= resolved.review_corner_deviation
+        if not inferable_boundary and not near_canonical_grid:
+            return _failure(
+                "CANONICAL_GRID_ALIGNMENT_FAILED",
+                horizontal_line_count=horizontal_count,
+                vertical_line_count=vertical_count,
+                candidate_count=len(candidates),
+                maximum_canonical_edge_deviation=maximum_canonical_edge_deviation,
+            )
+        canonical_status = "review_required"
+
     orientation_deviation = _orientation_deviation(selected.corners, resolved, width, height)
+    canonical_boundary_inferred = (
+        canonical_status == "review_required"
+        and (
+            horizontal_count < resolved.expected_horizontal_lines
+            or vertical_count < resolved.expected_vertical_lines
+        )
+    )
     issues: list[dict[str, str]] = []
     if horizontal_count < resolved.success_horizontal_lines or vertical_count < resolved.success_vertical_lines:
         issues.append(_issue("FORM_LINE_EVIDENCE_WEAK"))
@@ -937,6 +1203,10 @@ def register_psa_birth_form(
         issues.append(_issue("FORM_POSITION_DEVIATION_ELEVATED"))
     if selected.opposite_edge_ratio > resolved.success_opposite_edge_ratio:
         issues.append(_issue("FORM_PERSPECTIVE_ELEVATED"))
+    if canonical_status == "review_required":
+        issues.append(_issue("CANONICAL_GRID_ALIGNMENT_ELEVATED"))
+    if selected.boundary_inferred or canonical_boundary_inferred:
+        issues.append(_issue("CANONICAL_GRID_BOUNDARY_INFERRED"))
     if (
         float(np.std(gray)) < resolved.minimum_contrast_standard_deviation
         or float(cv2.Laplacian(gray, cv2.CV_64F).var()) < resolved.minimum_laplacian_variance
@@ -959,8 +1229,15 @@ def register_psa_birth_form(
         aspect_ratio=selected.aspect_ratio,
         maximum_corner_deviation=selected.corner_deviation,
         opposite_edge_ratio=selected.opposite_edge_ratio,
+        maximum_canonical_edge_deviation=maximum_canonical_edge_deviation,
+        canonical_left_boundary=canonical_left_boundary,
+        canonical_right_boundary=canonical_right_boundary,
+        canonical_top_boundary=canonical_top_boundary,
+        canonical_bottom_boundary=canonical_bottom_boundary,
+        canonical_vertical_landmarks=canonical_vertical_landmarks,
+        canonical_horizontal_landmarks=canonical_horizontal_landmarks,
         perspective_applied=not np.allclose(homography, np.eye(3), atol=1e-6),
-        boundary_inferred=selected.boundary_inferred,
+        boundary_inferred=selected.boundary_inferred or canonical_boundary_inferred,
     )
     output = PSAFormRegistrationOutput(registered_image=registered, transformation_metadata=metadata)
     return StageResult(
@@ -978,6 +1255,7 @@ def register_psa_birth_form(
             "aspect_ratio": selected.aspect_ratio,
             "maximum_corner_deviation": selected.corner_deviation,
             "opposite_edge_ratio": selected.opposite_edge_ratio,
+            "maximum_canonical_edge_deviation": maximum_canonical_edge_deviation,
             "orientation_deviation_degrees": orientation_deviation,
         },
     )

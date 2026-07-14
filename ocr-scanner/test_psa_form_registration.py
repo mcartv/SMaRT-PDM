@@ -11,6 +11,9 @@ from extraction.psa_form_registration import (
     NormalizedPoint,
     PSAFormRegistrationConfig,
     _Candidate,
+    _canonical_edge_status,
+    _canonical_landmark_sequence_is_valid,
+    _canonical_landmarks,
     _deduplicate_candidates,
     _intersection,
     _line_from_segment,
@@ -104,6 +107,13 @@ class PSAFormRegistrationTest(unittest.TestCase):
         self.assertEqual(len(metadata.normalized_registration_corners), 4)
         self.assertGreaterEqual(metadata.horizontal_line_count, 10)
         self.assertGreaterEqual(metadata.vertical_line_count, 4)
+        self.assertLessEqual(metadata.maximum_canonical_edge_deviation, 0.010)
+        self.assertAlmostEqual(metadata.canonical_left_boundary, 0.0, places=2)
+        self.assertAlmostEqual(metadata.canonical_top_boundary, 0.0, places=2)
+        self.assertAlmostEqual(metadata.canonical_right_boundary, 1.0, places=2)
+        self.assertAlmostEqual(metadata.canonical_bottom_boundary, 1.0, places=2)
+        self.assertGreaterEqual(len(metadata.canonical_vertical_landmarks), 3)
+        self.assertGreaterEqual(len(metadata.canonical_horizontal_landmarks), 3)
 
     def test_shuffled_corner_ordering_is_stable(self):
         shuffled = DEFAULT_CORNERS[[2, 0, 3, 1]]
@@ -130,6 +140,8 @@ class PSAFormRegistrationTest(unittest.TestCase):
         dark = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY) < 80
         self.assertGreater(float(dark[:, :12].mean()), 0.5)
         self.assertGreater(float(dark[:, -12:].mean()), 0.5)
+        self.assertGreater(float(dark[:12, :].mean()), 0.5)
+        self.assertGreater(float(dark[-12:, :].mean()), 0.5)
 
     def test_weak_horizontal_line_evidence_requires_review(self):
         levels = (0.0, 0.14, 0.408, 0.493, 0.65, 0.794, 0.863, 1.0)
@@ -187,6 +199,7 @@ class PSAFormRegistrationTest(unittest.TestCase):
         self.assertTrue(result.success, result.issues)
         self.assertEqual(result.status, "review_required")
         self.assertIn("FORM_POSITION_DEVIATION_ELEVATED", issue_codes(result))
+        self.assertLessEqual(result.data.transformation_metadata.maximum_canonical_edge_deviation, 0.020)
 
     def test_grid_shifted_right_keeps_registered_target_bands(self):
         translated = DEFAULT_CORNERS + np.asarray([0.045 * (WIDTH - 1), 0], dtype=np.float32)
@@ -196,6 +209,7 @@ class PSAFormRegistrationTest(unittest.TestCase):
         self.assertTrue(result.success, result.issues)
         self.assertEqual(result.data.registered_image.shape[:2], (1375, 1400))
         self.assertNotIn("TARGET_ROWS_OUTSIDE_FRAME", issue_codes(result))
+        self.assertLessEqual(result.data.transformation_metadata.maximum_canonical_edge_deviation, 0.020)
 
     def test_four_degree_rotation_requires_position_review(self):
         result = register_psa_birth_form(synthetic_grid(rotate_corners(DEFAULT_CORNERS, 4.0)))
@@ -261,6 +275,29 @@ class PSAFormRegistrationTest(unittest.TestCase):
 
         self.assertFalse(result.success)
         self.assertIn("TARGET_ROWS_OUTSIDE_FRAME", issue_codes(result))
+
+    def test_canonical_edge_thresholds_cover_success_review_and_failure(self):
+        config = PSAFormRegistrationConfig()
+        self.assertEqual(_canonical_edge_status(0.005, config), "success")
+        self.assertEqual(_canonical_edge_status(0.015, config), "review_required")
+        self.assertEqual(_canonical_edge_status(0.030, config), "failed")
+
+    def test_canonical_landmarks_are_immutable_and_ordered(self):
+        result = register_psa_birth_form(synthetic_grid())
+
+        metadata = result.data.transformation_metadata
+        with self.assertRaises(AttributeError):
+            metadata.canonical_left_boundary = 0.5
+        self.assertTrue(
+            _canonical_landmark_sequence_is_valid(
+                metadata.canonical_vertical_landmarks,
+                metadata.canonical_horizontal_landmarks,
+            )
+        )
+        self.assertIsNone(_canonical_landmarks(np.zeros((10, 10, 3), dtype=np.uint8), PSAFormRegistrationConfig()))
+
+    def test_invalid_landmark_ordering_fails(self):
+        self.assertFalse(_canonical_landmark_sequence_is_valid((0.2, 0.1), (0.3, 0.4)))
 
     def test_output_and_source_mutation_are_isolated(self):
         source = synthetic_grid()

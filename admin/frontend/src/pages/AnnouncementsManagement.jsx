@@ -530,6 +530,79 @@ function ConfirmTemplateApplyModal({
   );
 }
 
+function FeedbackModal({
+  open,
+  tone = 'success',
+  title,
+  message,
+  onClose,
+}) {
+  if (!open) return null;
+
+  const meta = {
+    success: {
+      heading: title || 'Success',
+      bg: C.greenSoft,
+      color: C.green,
+      button: C.brownMid,
+    },
+    error: {
+      heading: title || 'Something went wrong',
+      bg: C.redSoft,
+      color: C.red,
+      button: C.red,
+    },
+    info: {
+      heading: title || 'Notice',
+      bg: C.blueSoft,
+      color: C.blue,
+      button: C.brownMid,
+    },
+  };
+
+  const current = meta[tone] || meta.info;
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-md overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-stone-100 bg-stone-50/70 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span
+              className="h-3 w-3 rounded-full"
+              style={{ background: current.color }}
+            />
+
+            <div>
+              <h3 className="text-sm font-semibold text-stone-800">
+                {current.heading}
+              </h3>
+              <p className="mt-1 text-xs text-stone-500">
+                {message || 'Action completed.'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <CardContent className="flex justify-end p-5">
+          <Button
+            onClick={onClose}
+            className="h-9 rounded-lg border-none px-5 text-xs text-white"
+            style={{ background: current.button }}
+          >
+            Okay
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function EmptyList({ archived }) {
   return (
     <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
@@ -682,6 +755,82 @@ function AnnouncementRow({
   );
 }
 
+function normalizePrefillAudience(value) {
+  const raw = String(value || '').trim().toLowerCase();
+
+  if (!raw) return 'all';
+
+  if (raw === 'all' || raw === 'all students') return 'all';
+
+  if (
+    raw === 'applicant' ||
+    raw === 'applicants' ||
+    raw === 'new applicants' ||
+    raw === 'new_applicants'
+  ) {
+    return 'applicants';
+  }
+
+  if (
+    raw === 'scholar' ||
+    raw === 'scholars' ||
+    raw === 'current scholars' ||
+    raw === 'current_scholars'
+  ) {
+    return 'scholars';
+  }
+
+  if (raw === 'tes' || raw.includes('tertiary education subsidy')) return 'tes';
+  if (raw === 'tdp') return 'tdp';
+
+  return 'all';
+}
+
+function buildOpeningPrefillContent(params) {
+  const openingTitle = params.get('opening_title') || 'Scholarship Opening';
+  const openingText = params.get('announcement_text') || '';
+  const academicYear = params.get('academic_year') || '';
+  const postingStatus = params.get('posting_status') || '';
+
+  const lines = [
+    openingText || `A scholarship opening for ${openingTitle} is now available.`,
+    academicYear ? `\nAcademic Year: ${academicYear}` : '',
+    postingStatus ? `Status: ${postingStatus}` : '',
+    '\nPlease check the scholarship system for complete details and requirements.',
+  ];
+
+  return lines.filter(Boolean).join('\n');
+}
+
+function buildPayoutPrefillContent(params) {
+  const payoutTitle = params.get('title') || params.get('subject') || 'Scholarship Payout Announcement';
+  const content = params.get('content');
+
+  if (content) return content;
+
+  const payoutDate = params.get('payout_date') || '';
+  const paymentMode = params.get('payment_mode') || '';
+  const amountPerScholar = params.get('amount_per_scholar') || '';
+  const academicYear = params.get('academic_year') || '';
+  const semester = params.get('semester') || '';
+
+  return [
+    'Good day, scholars.',
+    '',
+    `Please be informed that ${payoutTitle} has been created.`,
+    '',
+    payoutDate ? `Payout Date: ${payoutDate}` : '',
+    paymentMode ? `Payment Mode: ${paymentMode}` : '',
+    amountPerScholar ? `Amount per Scholar: ${amountPerScholar}` : '',
+    academicYear ? `Academic Year: ${academicYear}` : '',
+    semester ? `Semester: ${semester}` : '',
+    '',
+    'Please wait for further instructions from OSFA regarding the release process.',
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
+}
+
 export default function AnnouncementsManagement() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -711,6 +860,22 @@ export default function AnnouncementsManagement() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+
+  const [feedbackModal, setFeedbackModal] = useState({
+    open: false,
+    tone: 'success',
+    title: '',
+    message: '',
+  });
+
+  const showFeedback = useCallback((tone, title, message) => {
+    setFeedbackModal({
+      open: true,
+      tone,
+      title,
+      message,
+    });
+  }, []);
 
   const loadAnnouncements = useCallback(async (options = {}) => {
     const silent = options.silent === true;
@@ -763,14 +928,18 @@ export default function AnnouncementsManagement() {
       console.error('LOAD ANNOUNCEMENTS ERROR:', err);
 
       if (!silent) {
-        alert(err.message || 'Failed to load announcements');
+        showFeedback(
+          'error',
+          'Failed to load announcements',
+          err.message || 'Failed to load announcements'
+        );
       }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [showFeedback]);
 
   useEffect(() => {
     loadAnnouncements();
@@ -813,20 +982,61 @@ export default function AnnouncementsManagement() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const prefill = params.get('prefill');
+    const prefill = String(params.get('prefill') || '').toLowerCase();
+
+    if (!prefill) return;
 
     if (prefill === 'opening') {
-      const openingTitle = params.get('opening_title') || 'Scholarship Opening Announcement';
-      const openingText = params.get('announcement_text') || '';
+      const openingTitle =
+        params.get('opening_title') ||
+        params.get('title') ||
+        params.get('subject') ||
+        'Scholarship Opening Announcement';
+
+      const targetAudience =
+        params.get('target_audience') ||
+        params.get('audience') ||
+        'all';
 
       setEditingAnnouncementId(null);
       setTitle(openingTitle);
-      setContent(openingText);
-      setAudience('all');
+      setContent(buildOpeningPrefillContent(params));
+      setAudience(normalizePrefillAudience(targetAudience));
       setSchedDate('');
       setIsRoVoluntary('false');
       setSelectedTemplate('blank');
       setValidationErrors({});
+      setSearch('');
+      setStatusFilter('All');
+      setTab('active');
+      setShowForm(true);
+
+      navigate(location.pathname, { replace: true });
+      return;
+    }
+
+    if (prefill === 'payout') {
+      const payoutTitle =
+        params.get('title') ||
+        params.get('subject') ||
+        'Scholarship Payout Announcement';
+
+      const targetAudience =
+        params.get('target_audience') ||
+        params.get('audience') ||
+        'scholars';
+
+      setEditingAnnouncementId(null);
+      setTitle(payoutTitle);
+      setContent(buildPayoutPrefillContent(params));
+      setAudience(normalizePrefillAudience(targetAudience));
+      setSchedDate('');
+      setIsRoVoluntary('false');
+      setSelectedTemplate('payout_notice');
+      setValidationErrors({});
+      setSearch('');
+      setStatusFilter('All');
+      setTab('active');
       setShowForm(true);
 
       navigate(location.pathname, { replace: true });
@@ -996,13 +1206,17 @@ export default function AnnouncementsManagement() {
     try {
       if (!validateForPublish()) return;
 
+      const wasEditing = !!editingAnnouncementId;
+
       setPosting(true);
 
       const data = await saveAnnouncementRequest({ forceDraft: false });
 
       if (data?.data) {
         if (editingAnnouncementId) {
-          setItems((prev) => prev.map((item) => (item.id === data.data.id ? data.data : item)));
+          setItems((prev) =>
+            prev.map((item) => (item.id === data.data.id ? data.data : item))
+          );
         } else {
           setItems((prev) => [data.data, ...prev]);
         }
@@ -1011,10 +1225,22 @@ export default function AnnouncementsManagement() {
       resetForm();
       setShowForm(false);
       setShowDiscardModal(false);
-      alert(editingAnnouncementId ? 'Announcement updated successfully.' : 'Announcement saved successfully.');
+
+      showFeedback(
+        'success',
+        wasEditing ? 'Announcement updated' : 'Announcement saved',
+        wasEditing
+          ? 'The announcement was updated successfully.'
+          : 'The announcement was saved successfully.'
+      );
     } catch (err) {
       console.error('POST ANNOUNCEMENT ERROR:', err);
-      alert(err.message || 'Failed to save announcement');
+
+      showFeedback(
+        'error',
+        'Save failed',
+        err.message || 'Failed to save announcement'
+      );
     } finally {
       setPosting(false);
     }
@@ -1035,7 +1261,9 @@ export default function AnnouncementsManagement() {
 
       if (data?.data) {
         if (editingAnnouncementId) {
-          setItems((prev) => prev.map((item) => (item.id === data.data.id ? data.data : item)));
+          setItems((prev) =>
+            prev.map((item) => (item.id === data.data.id ? data.data : item))
+          );
         } else {
           setItems((prev) => [data.data, ...prev]);
         }
@@ -1044,10 +1272,20 @@ export default function AnnouncementsManagement() {
       resetForm();
       setShowForm(false);
       setShowDiscardModal(false);
-      alert('Draft saved successfully.');
+
+      showFeedback(
+        'success',
+        'Draft saved',
+        'The announcement draft was saved successfully.'
+      );
     } catch (err) {
       console.error('SAVE DRAFT ERROR:', err);
-      alert(err.message || 'Failed to save draft');
+
+      showFeedback(
+        'error',
+        'Draft save failed',
+        err.message || 'Failed to save draft'
+      );
     } finally {
       setDraftSaving(false);
     }
@@ -1089,7 +1327,11 @@ export default function AnnouncementsManagement() {
       );
     } catch (err) {
       console.error('ARCHIVE ANNOUNCEMENT ERROR:', err);
-      alert(err.message || 'Failed to archive announcement');
+      showFeedback(
+        'error',
+        'Archive failed',
+        err.message || 'Failed to archive announcement'
+      );
     } finally {
       setDeletingId(null);
     }
@@ -1120,7 +1362,11 @@ export default function AnnouncementsManagement() {
       await loadAnnouncements({ silent: true });
     } catch (err) {
       console.error('RESTORE ANNOUNCEMENT ERROR:', err);
-      alert(err.message || 'Failed to restore announcement');
+      showFeedback(
+        'error',
+        'Restore failed',
+        err.message || 'Failed to restore announcement'
+      );
     } finally {
       setRestoringId(null);
     }
@@ -1128,7 +1374,7 @@ export default function AnnouncementsManagement() {
 
   const handlePublish = async (id) => {
     await loadAnnouncements({ silent: true });
-    
+
     try {
       setPublishingId(id);
 
@@ -1153,7 +1399,11 @@ export default function AnnouncementsManagement() {
       }
     } catch (err) {
       console.error('PUBLISH ANNOUNCEMENT ERROR:', err);
-      alert(err.message || 'Failed to publish announcement');
+      showFeedback(
+        'error',
+        'Publish failed',
+        err.message || 'Failed to publish announcement'
+      );
     } finally {
       setPublishingId(null);
     }
@@ -1204,10 +1454,17 @@ export default function AnnouncementsManagement() {
         draftSaving={draftSaving}
       />
 
-      <ConfirmTemplateApplyModal
-        open={showTemplateConfirmModal}
-        onCancel={() => setShowTemplateConfirmModal(false)}
-        onConfirm={applyTemplateNow}
+      <FeedbackModal
+        open={feedbackModal.open}
+        tone={feedbackModal.tone}
+        title={feedbackModal.title}
+        message={feedbackModal.message}
+        onClose={() =>
+          setFeedbackModal((prev) => ({
+            ...prev,
+            open: false,
+          }))
+        }
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

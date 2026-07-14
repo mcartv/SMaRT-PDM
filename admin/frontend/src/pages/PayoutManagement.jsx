@@ -860,8 +860,8 @@ export default function PayoutManagement() {
               type="button"
               onClick={() => setActiveSection('batches')}
               className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'batches'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-600'
                 }`}
             >
               Batches
@@ -871,8 +871,8 @@ export default function PayoutManagement() {
               type="button"
               onClick={() => setActiveSection('archived')}
               className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'archived'
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-600'
                 }`}
             >
               Archived

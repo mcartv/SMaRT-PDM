@@ -1739,18 +1739,12 @@ export default function ScholarMonitoring() {
     results = [...results].sort((a, b) => {
       const nameA = (a.student_name || '').toLowerCase();
       const nameB = (b.student_name || '').toLowerCase();
-      const gwaA = Number(a.gwa);
-      const gwaB = Number(b.gwa);
       const batchA = Number(String(a.batch_year || '').split('-')[0]) || 0;
       const batchB = Number(String(b.batch_year || '').split('-')[0]) || 0;
 
       switch (sortBy) {
         case 'Name Z-A':
           return nameB.localeCompare(nameA);
-        case 'GWA Asc':
-          return gwaA - gwaB;
-        case 'GWA Desc':
-          return gwaB - gwaA;
         case 'Batch Newest':
           return batchB - batchA;
         case 'Batch Oldest':
@@ -1791,8 +1785,6 @@ export default function ScholarMonitoring() {
   const sortOptions = [
     'Name A-Z',
     'Name Z-A',
-    'GWA Asc',
-    'GWA Desc',
     'Batch Newest',
     'Batch Oldest',
   ];
@@ -2017,7 +2009,6 @@ export default function ScholarMonitoring() {
                     <TableHead>Program</TableHead>
                     <TableHead>Batch</TableHead>
                     <TableHead>Renewal Status</TableHead>
-                    <TableHead>GWA</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2042,9 +2033,6 @@ export default function ScholarMonitoring() {
                           >
                             {renewalMeta.label}
                           </span>
-                        </TableCell>
-                        <TableCell>
-                          {Number.isFinite(Number(s.gwa)) ? Number(s.gwa).toFixed(2) : '—'}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -2072,7 +2060,6 @@ export default function ScholarMonitoring() {
                     <TableHead>Program</TableHead>
                     <TableHead>Batch</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>GWA</TableHead>
                     <TableHead>Condition</TableHead>
                     <TableHead>RO</TableHead>
                     <TableHead className="text-right">Action</TableHead>
@@ -2114,10 +2101,6 @@ export default function ScholarMonitoring() {
                           >
                             {s.status || 'Unknown'}
                           </span>
-                        </TableCell>
-
-                        <TableCell>
-                          {Number.isFinite(Number(s.gwa)) ? Number(s.gwa).toFixed(2) : '—'}
                         </TableCell>
 
                         <TableCell>

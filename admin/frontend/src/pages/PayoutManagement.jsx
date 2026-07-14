@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { useNavigate } from 'react-router';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useSocketEvent } from '@/hooks/useSocket';
 import {
   Loader2,
   Plus,
-  CalendarDays,
   Wallet,
   CheckCircle2,
   Clock3,
@@ -18,6 +18,7 @@ import {
   Users,
   Building2,
   Archive,
+  Megaphone,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -40,8 +41,22 @@ const C = {
   line: '#e7e5e4',
 };
 
+const EMPTY_FORM = {
+  opening_id: '',
+  semester: '',
+  academic_year_id: '',
+  school_year: '',
+  payout_title: '',
+  payout_date: new Date().toISOString().slice(0, 10),
+  payment_mode: 'Cash',
+  amount_per_scholar: '',
+  remarks: '',
+  scholar_ids: [],
+};
+
 function getAuthHeaders(json = true) {
   const token = sessionStorage.getItem('adminToken');
+
   return {
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     Authorization: `Bearer ${token}`,
@@ -88,10 +103,16 @@ function isBatchFinished(batch) {
   return scholars.every((s) => s.release_status && s.release_status !== 'Pending');
 }
 
+function formatMoney(value) {
+  return `₱${Number(value || 0).toLocaleString()}`;
+}
+
 function SmallMetric({ label, value }) {
   return (
     <div className="rounded-lg bg-stone-50 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wide text-stone-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-wide text-stone-500">
+        {label}
+      </p>
       <p className="mt-0.5 text-sm font-semibold text-stone-900">{value}</p>
     </div>
   );
@@ -101,15 +122,96 @@ function ReadOnlyField({ label, value }) {
   return (
     <div className="rounded-xl border bg-stone-50 p-3">
       <p className="text-[11px] text-stone-500">{label}</p>
-      <p className="text-sm font-semibold mt-1">{value || '—'}</p>
+      <p className="mt-1 text-sm font-semibold">{value || '—'}</p>
+    </div>
+  );
+}
+
+function PostPayoutCreatePrompt({
+  open,
+  payout,
+  onClose,
+  onCreateAnnouncement,
+}) {
+  if (!open || !payout) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-w-md overflow-hidden border-stone-200 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-stone-100 bg-stone-50 px-5 py-4">
+          <h3 className="text-base font-semibold text-stone-900">
+            Payout Batch Created
+          </h3>
+          <p className="mt-0.5 text-xs text-stone-500">
+            {payout.payout_title || 'Payout batch created successfully.'}
+          </p>
+        </div>
+
+        <CardContent className="space-y-4 p-5">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-4">
+            <p className="text-sm font-medium text-stone-800">
+              Create an announcement for the scholars in this scholarship opening?
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-stone-500">
+              This will open the Announcements module with the payout details already filled in.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-stone-200 bg-white px-4 py-3">
+            <p className="text-xs font-semibold text-stone-700">
+              {payout.opening_title || payout.payout_title || 'Scholarship Payout'}
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              {payout.program_name || 'No Program'}
+              {payout.benefactor_name ? ` • ${payout.benefactor_name}` : ''}
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              {payout.scholar_count || 0} scholar(s) selected
+              {payout.amount_per_scholar
+                ? ` • ${formatMoney(payout.amount_per_scholar)} per scholar`
+                : ''}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="h-9 rounded-lg border-stone-200 text-xs"
+            >
+              Skip for Now
+            </Button>
+
+            <Button
+              onClick={onCreateAnnouncement}
+              className="h-9 rounded-lg border-none text-xs text-white"
+              style={{ background: C.brownMid }}
+            >
+              <Megaphone className="mr-2 h-4 w-4" />
+              Create Announcement
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 export default function PayoutManagement() {
+  const navigate = useNavigate();
+
   const [batches, setBatches] = useState([]);
   const [openings, setOpenings] = useState([]);
-  const [eligiblePayload, setEligiblePayload] = useState({ opening: null, scholars: [] });
+  const [eligiblePayload, setEligiblePayload] = useState({
+    opening: null,
+    scholars: [],
+  });
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -123,24 +225,15 @@ export default function PayoutManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [academicYears, setAcademicYears] = useState([]);
 
-  const [form, setForm] = useState({
-    opening_id: '',
-    semester: '',
-    academic_year_id: '',
-    school_year: '',
-    payout_title: '',
-    payout_date: new Date().toISOString().slice(0, 10),
-    payment_mode: 'Cash',
-    amount_per_scholar: '',
-    remarks: '',
-    scholar_ids: [],
-  });
+  const [postCreateOpen, setPostCreateOpen] = useState(false);
+  const [newPayoutForPrompt, setNewPayoutForPrompt] = useState(null);
+
+  const [form, setForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
     loadAll();
   }, []);
 
-  // Realtime updates for payouts
   useSocketEvent('payout:created', (data) => {
     console.log('[Realtime] Payout created:', data);
     loadAll();
@@ -168,7 +261,7 @@ export default function PayoutManagement() {
   useEffect(() => {
     if (!form.opening_id) {
       setEligiblePayload({ opening: null, scholars: [] });
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         semester: '',
         academic_year_id: '',
@@ -202,12 +295,22 @@ export default function PayoutManagement() {
       const academicYearData = await academicYearRes.json();
 
       setBatches(Array.isArray(batchData) ? batchData : []);
+
       setOpenings(
         (Array.isArray(openingData) ? openingData : []).filter(
-          (o) => !o.is_archived && String(o.status || '').toLowerCase() !== 'archived'
+          (o) =>
+            !o.is_archived &&
+            String(o.status || o.posting_status || '').toLowerCase() !== 'archived'
         )
       );
-      setAcademicYears(Array.isArray(academicYearData) ? academicYearData : []);
+
+      setAcademicYears(
+        (Array.isArray(academicYearData) ? academicYearData : []).filter(
+          (ay) =>
+            ay?.is_archived !== true &&
+            String(ay?.status || '').toLowerCase() !== 'archived'
+        )
+      );
     } catch (err) {
       console.error('PAYOUT MANAGEMENT LOAD ERROR:', err);
       alert(err.message || 'Failed to load payout module');
@@ -223,7 +326,9 @@ export default function PayoutManagement() {
         { headers: getAuthHeaders(false) }
       );
 
-      if (!res.ok) throw new Error('Failed to load eligible scholars for opening');
+      if (!res.ok) {
+        throw new Error('Failed to load eligible scholars for opening');
+      }
 
       const data = await res.json();
       const scholars = Array.isArray(data?.scholars) ? data.scholars : [];
@@ -236,14 +341,17 @@ export default function PayoutManagement() {
 
       setEligiblePayload({ opening, scholars: filteredScholars });
 
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         semester: opening?.semester || '',
         academic_year_id: opening?.academic_year_id || '',
         school_year: opening?.academic_year || '',
         payout_title: opening?.opening_title || '',
-        amount_per_scholar: opening?.amount_per_scholar ?? '',
-        scholar_ids: filteredScholars.map(s => s.scholar_id),
+        amount_per_scholar:
+          opening?.amount_per_scholar ??
+          opening?.per_scholar_amount ??
+          '',
+        scholar_ids: filteredScholars.map((s) => s.scholar_id),
       }));
     } catch (err) {
       console.error('OPENING ELIGIBILITY LOAD ERROR:', err);
@@ -251,8 +359,15 @@ export default function PayoutManagement() {
     }
   };
 
-  const activeBatches = useMemo(() => batches.filter((b) => !b.is_archived), [batches]);
-  const archivedBatches = useMemo(() => batches.filter((b) => b.is_archived), [batches]);
+  const activeBatches = useMemo(
+    () => batches.filter((b) => !b.is_archived),
+    [batches]
+  );
+
+  const archivedBatches = useMemo(
+    () => batches.filter((b) => b.is_archived),
+    [batches]
+  );
 
   const displayedBatches = useMemo(() => {
     if (activeSection === 'batches') return activeBatches;
@@ -272,43 +387,31 @@ export default function PayoutManagement() {
         b.benefactor_name,
         b.semester,
         b.school_year,
+        b.academic_year,
         b.payout_date,
       ]
         .filter(Boolean)
-        .some(value => String(value).toLowerCase().includes(q));
+        .some((value) => String(value).toLowerCase().includes(q));
     });
   }, [displayedBatches, search]);
 
   const pageData = useMemo(() => {
-    return filteredDisplayedBatches.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    return filteredDisplayedBatches.slice(
+      (page - 1) * PAGE_SIZE,
+      page * PAGE_SIZE
+    );
   }, [filteredDisplayedBatches, page]);
 
   const totalPages = useMemo(() => {
     return Math.max(1, Math.ceil(filteredDisplayedBatches.length / PAGE_SIZE));
   }, [filteredDisplayedBatches.length]);
 
-  const totalDisbursed = useMemo(() => {
-    return batches.reduce((acc, b) => acc + Number(b.total_amount || 0), 0);
-  }, [batches]);
-
-  const totalPending = useMemo(() => {
-    return batches.reduce((acc, b) => {
-      const scholars = Array.isArray(b.scholars) ? b.scholars : [];
-      return acc + scholars.filter(s => s.release_status === 'Pending').length;
-    }, 0);
-  }, [batches]);
-
-  const totalReleased = useMemo(() => {
-    return batches.reduce((acc, b) => {
-      const scholars = Array.isArray(b.scholars) ? b.scholars : [];
-      return acc + scholars.filter(s => s.release_status === 'Released').length;
-    }, 0);
-  }, [batches]);
-
-  const totalArchived = useMemo(() => archivedBatches.length, [archivedBatches]);
-
   const selectedOpeningDetails = useMemo(() => {
-    return openings.find(o => o.opening_id === form.opening_id) || eligiblePayload.opening || null;
+    return (
+      openings.find((o) => o.opening_id === form.opening_id) ||
+      eligiblePayload.opening ||
+      null
+    );
   }, [openings, form.opening_id, eligiblePayload.opening]);
 
   const filteredEligibleScholars = useMemo(() => {
@@ -324,15 +427,75 @@ export default function PayoutManagement() {
   }, [selectedBatch]);
 
   const toggleScholar = (scholarId) => {
-    setForm(prev => {
+    setForm((prev) => {
       const exists = prev.scholar_ids.includes(scholarId);
+
       return {
         ...prev,
         scholar_ids: exists
-          ? prev.scholar_ids.filter(id => id !== scholarId)
+          ? prev.scholar_ids.filter((id) => id !== scholarId)
           : [...prev.scholar_ids, scholarId],
       };
     });
+  };
+
+  const resetCreateForm = () => {
+    setForm({
+      ...EMPTY_FORM,
+      payout_date: new Date().toISOString().slice(0, 10),
+    });
+    setEligiblePayload({ opening: null, scholars: [] });
+  };
+
+  const handleCreatePayoutAnnouncementRedirect = () => {
+    if (!newPayoutForPrompt) return;
+
+    const amountPerScholar = Number(newPayoutForPrompt.amount_per_scholar || 0);
+    const payoutDate =
+      newPayoutForPrompt.payout_date || new Date().toISOString().slice(0, 10);
+
+    const openingTitle =
+      newPayoutForPrompt.opening_title ||
+      newPayoutForPrompt.payout_title ||
+      'your scholarship opening';
+
+    const title = `${newPayoutForPrompt.payout_title || 'Scholarship Payout'} Announcement`;
+
+    const content = [
+      'Good day, scholars.',
+      '',
+      `Please be informed that the payout batch for ${openingTitle} has been created.`,
+      '',
+      `Payout Date: ${payoutDate}`,
+      `Payment Mode: ${newPayoutForPrompt.payment_mode || 'Cash'}`,
+      amountPerScholar > 0
+        ? `Amount per Scholar: ${formatMoney(amountPerScholar)}`
+        : '',
+      newPayoutForPrompt.scholar_count
+        ? `Number of Scholars Included: ${newPayoutForPrompt.scholar_count}`
+        : '',
+      '',
+      'Please wait for further instructions from OSFA regarding the release process.',
+    ]
+      .filter((line) => line !== '')
+      .join('\n');
+
+    const params = new URLSearchParams({
+      prefill: 'payout',
+      title,
+      subject: title,
+      content,
+      audience: 'scholars',
+      target_audience: 'scholars',
+      opening_id: newPayoutForPrompt.opening_id || '',
+      payout_batch_id: newPayoutForPrompt.payout_batch_id || '',
+      program_id: newPayoutForPrompt.program_id || '',
+      academic_year_id: newPayoutForPrompt.academic_year_id || '',
+      academic_year: newPayoutForPrompt.academic_year || '',
+      semester: newPayoutForPrompt.semester || '',
+    });
+
+    navigate(`/admin/announcements?${params.toString()}`);
   };
 
   const handleCreateBatch = async () => {
@@ -371,26 +534,58 @@ export default function PayoutManagement() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data?.message || 'Failed to create payout batch');
+        throw new Error(data?.message || data?.error || 'Failed to create payout batch');
       }
 
+      const createdBatch = data?.data || data || {};
+
+      const payoutForPrompt = {
+        ...createdBatch,
+        payout_batch_id:
+          createdBatch.payout_batch_id ||
+          createdBatch.batch_id ||
+          createdBatch.id ||
+          '',
+        opening_id: form.opening_id,
+        opening_title:
+          selectedOpeningDetails?.opening_title ||
+          selectedOpeningDetails?.title ||
+          form.payout_title,
+        program_id: selectedOpeningDetails?.program_id || createdBatch.program_id || '',
+        program_name:
+          selectedOpeningDetails?.program_name ||
+          createdBatch.program_name ||
+          '',
+        benefactor_name:
+          selectedOpeningDetails?.benefactor_name ||
+          createdBatch.benefactor_name ||
+          '',
+        academic_year_id:
+          form.academic_year_id ||
+          selectedOpeningDetails?.academic_year_id ||
+          createdBatch.academic_year_id ||
+          '',
+        academic_year:
+          form.school_year ||
+          selectedOpeningDetails?.academic_year ||
+          createdBatch.academic_year ||
+          '',
+        semester: form.semester,
+        payout_title: form.payout_title,
+        payout_date: form.payout_date,
+        payment_mode: form.payment_mode,
+        amount_per_scholar: form.amount_per_scholar,
+        scholar_count: form.scholar_ids.length,
+      };
+
       setShowCreateModal(false);
-      setForm({
-        opening_id: '',
-        semester: '',
-        academic_year_id: '',
-        school_year: '',
-        payout_title: '',
-        payout_date: new Date().toISOString().slice(0, 10),
-        payment_mode: 'Cash',
-        amount_per_scholar: '',
-        remarks: '',
-        scholar_ids: [],
-      });
-      setEligiblePayload({ opening: null, scholars: [] });
+      setNewPayoutForPrompt(payoutForPrompt);
+      setPostCreateOpen(true);
+
+      resetCreateForm();
 
       await loadAll();
       setActiveSection('batches');
@@ -429,7 +624,11 @@ export default function PayoutManagement() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data?.message || data?.error || 'Failed to update payout status');
+        throw new Error(
+          data?.message ||
+          data?.error ||
+          'Failed to update payout status'
+        );
       }
 
       setSelectedBatch((prev) => {
@@ -468,24 +667,23 @@ export default function PayoutManagement() {
       const hasPending = scholars.some((s) => s.release_status === 'Pending');
 
       if (hasPending) {
-        alert('This payout batch cannot be archived yet because some scholars are still pending.');
+        alert(
+          'This payout batch cannot be archived yet because some scholars are still pending.'
+        );
         return;
       }
 
       setArchivingBatchId(batch.payout_batch_id);
 
-      const res = await fetch(
-        `${API_BASE}/payouts/${batch.payout_batch_id}/archive`,
-        {
-          method: 'PATCH',
-          headers: getAuthHeaders(true),
-        }
-      );
+      const res = await fetch(`${API_BASE}/payouts/${batch.payout_batch_id}/archive`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(true),
+      });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data?.message || 'Failed to archive payout batch');
+        throw new Error(data?.message || data?.error || 'Failed to archive payout batch');
       }
 
       await loadAll();
@@ -506,27 +704,27 @@ export default function PayoutManagement() {
       Released: {
         bg: C.greenSoft,
         color: C.green,
-        icon: <CheckCircle2 className="w-3 h-3 mr-1" />,
+        icon: <CheckCircle2 className="mr-1 h-3 w-3" />,
       },
       Pending: {
         bg: C.orangeSoft,
         color: C.orange,
-        icon: <Clock3 className="w-3 h-3 mr-1" />,
+        icon: <Clock3 className="mr-1 h-3 w-3" />,
       },
       Absent: {
         bg: C.redSoft,
         color: C.red,
-        icon: <XCircle className="w-3 h-3 mr-1" />,
+        icon: <XCircle className="mr-1 h-3 w-3" />,
       },
       'On Hold': {
         bg: C.blueSoft,
         color: C.blue,
-        icon: <CircleSlash className="w-3 h-3 mr-1" />,
+        icon: <CircleSlash className="mr-1 h-3 w-3" />,
       },
       Cancelled: {
         bg: C.redSoft,
         color: C.red,
-        icon: <XCircle className="w-3 h-3 mr-1" />,
+        icon: <XCircle className="mr-1 h-3 w-3" />,
       },
     };
 
@@ -534,7 +732,7 @@ export default function PayoutManagement() {
 
     return (
       <Badge
-        className="text-[10px] inline-flex items-center"
+        className="inline-flex items-center text-[10px]"
         style={{ background: current.bg, color: current.color }}
       >
         {current.icon}
@@ -545,9 +743,9 @@ export default function PayoutManagement() {
 
   const renderBatchCard = (b) => {
     const scholars = b.scholars || [];
-    const released = scholars.filter(s => s.release_status === 'Released').length;
-    const absent = scholars.filter(s => s.release_status === 'Absent').length;
-    const onHold = scholars.filter(s => s.release_status === 'On Hold').length;
+    const released = scholars.filter((s) => s.release_status === 'Released').length;
+    const absent = scholars.filter((s) => s.release_status === 'Absent').length;
+    const onHold = scholars.filter((s) => s.release_status === 'On Hold').length;
     const finished = isBatchFinished(b);
 
     return (
@@ -585,11 +783,17 @@ export default function PayoutManagement() {
                 </Badge>
 
                 {b.is_archived ? (
-                  <Badge className="text-[10px]" style={{ background: C.slateSoft, color: C.slate }}>
+                  <Badge
+                    className="text-[10px]"
+                    style={{ background: C.slateSoft, color: C.slate }}
+                  >
                     Archived
                   </Badge>
                 ) : finished ? (
-                  <Badge className="text-[10px]" style={{ background: C.orangeSoft, color: C.orange }}>
+                  <Badge
+                    className="text-[10px]"
+                    style={{ background: C.orangeSoft, color: C.orange }}
+                  >
                     Ready to Archive
                   </Badge>
                 ) : null}
@@ -606,7 +810,7 @@ export default function PayoutManagement() {
               <div>
                 <p className="text-xs text-stone-500">Total Amount</p>
                 <p className="text-base font-semibold text-stone-900">
-                  ₱{Number(b.total_amount || 0).toLocaleString()}
+                  {formatMoney(b.total_amount)}
                 </p>
               </div>
 
@@ -628,7 +832,7 @@ export default function PayoutManagement() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[300px]">
+      <div className="flex h-[300px] items-center justify-center">
         <Loader2 className="animate-spin text-stone-400" />
       </div>
     );
@@ -636,6 +840,16 @@ export default function PayoutManagement() {
 
   return (
     <div className="space-y-4 py-3" style={{ background: C.bg }}>
+      <PostPayoutCreatePrompt
+        open={postCreateOpen}
+        payout={newPayoutForPrompt}
+        onClose={() => {
+          setPostCreateOpen(false);
+          setNewPayoutForPrompt(null);
+        }}
+        onCreateAnnouncement={handleCreatePayoutAnnouncementRedirect}
+      />
+
       <section
         className="rounded-2xl border bg-white p-3 sm:p-4"
         style={{ borderColor: C.line }}
@@ -643,8 +857,9 @@ export default function PayoutManagement() {
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
             <button
+              type="button"
               onClick={() => setActiveSection('batches')}
-              className={`px-4 py-2 rounded-lg text-sm ${activeSection === 'batches'
+              className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'batches'
                 ? 'bg-white text-stone-900 shadow-sm'
                 : 'text-stone-600'
                 }`}
@@ -653,8 +868,9 @@ export default function PayoutManagement() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveSection('archived')}
-              className={`px-4 py-2 rounded-lg text-sm ${activeSection === 'archived'
+              className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'archived'
                 ? 'bg-white text-stone-900 shadow-sm'
                 : 'text-stone-600'
                 }`}
@@ -664,22 +880,18 @@ export default function PayoutManagement() {
           </div>
 
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            {(activeSection === 'batches' || activeSection === 'archived') && (
-              <>
-                <div className="relative w-full lg:w-[320px]">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                  <Input
-                    className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10"
-                    placeholder="Search payout title, benefactor, program..."
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </div>
-              </>
-            )}
+            <div className="relative w-full lg:w-[320px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              <Input
+                className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10"
+                placeholder="Search payout title, benefactor, program..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </div>
 
             <Button
               style={{ background: C.brownMid }}
@@ -693,73 +905,80 @@ export default function PayoutManagement() {
         </div>
       </section>
 
-      {(activeSection === 'batches' || activeSection === 'archived') && (
-        <>
-          {pageData.length === 0 ? (
-            <Card className="border-stone-200 shadow-none">
-              <CardContent className="px-6 py-12 text-center text-sm text-stone-400">
-                {activeSection === 'archived'
-                  ? 'No archived payout batches found.'
-                  : 'No payout batches found.'}
-              </CardContent>
-            </Card>
-          ) : (
-            <section className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {pageData.map(renderBatchCard)}
-            </section>
-          )}
-
-          <div className="flex items-center justify-between">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(prev => Math.max(1, prev - 1))}
-              className="rounded-xl border-stone-200"
-            >
-              Previous
-            </Button>
-
-            <p className="text-sm text-stone-500">
-              Page {page} of {totalPages}
-            </p>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-              className="rounded-xl border-stone-200"
-            >
-              Next
-            </Button>
-          </div>
-        </>
+      {pageData.length === 0 ? (
+        <Card className="border-stone-200 shadow-none">
+          <CardContent className="px-6 py-12 text-center text-sm text-stone-400">
+            {activeSection === 'archived'
+              ? 'No archived payout batches found.'
+              : 'No payout batches found.'}
+          </CardContent>
+        </Card>
+      ) : (
+        <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {pageData.map(renderBatchCard)}
+        </section>
       )}
+
+      <div className="flex items-center justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          className="rounded-xl border-stone-200"
+        >
+          Previous
+        </Button>
+
+        <p className="text-sm text-stone-500">
+          Page {page} of {totalPages}
+        </p>
+
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          className="rounded-xl border-stone-200"
+        >
+          Next
+        </Button>
+      </div>
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-6xl max-h-[92vh] overflow-auto rounded-2xl border bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
               <div>
-                <h2 className="text-xl font-semibold text-stone-900">Create Payout Batch</h2>
+                <h2 className="text-xl font-semibold text-stone-900">
+                  Create Payout Batch
+                </h2>
                 <p className="text-sm text-stone-500">
                   Select an opening. The system will auto-fill amount and eligible scholars.
                 </p>
               </div>
 
-              <Button variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-xl">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetCreateForm();
+                }}
+                className="rounded-xl"
+              >
                 Close
               </Button>
             </div>
 
             <div className="space-y-6 p-6">
-              <div className="grid lg:grid-cols-2 gap-6">
+              <div className="grid gap-6 lg:grid-cols-2">
                 <Card className="border-stone-200 shadow-none">
                   <CardContent className="space-y-4 p-4">
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-stone-500" />
-                      <h3 className="font-semibold text-stone-900">Opening Source</h3>
+                      <h3 className="font-semibold text-stone-900">
+                        Opening Source
+                      </h3>
                     </div>
 
                     <div className="space-y-1">
@@ -767,7 +986,12 @@ export default function PayoutManagement() {
                       <select
                         className="h-11 w-full rounded-md border px-3"
                         value={form.opening_id}
-                        onChange={(e) => setForm(prev => ({ ...prev, opening_id: e.target.value }))}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            opening_id: e.target.value,
+                          }))
+                        }
                       >
                         <option value="">Select opening</option>
                         {openings.map((o) => (
@@ -778,15 +1002,28 @@ export default function PayoutManagement() {
                       </select>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-3">
-                      <ReadOnlyField label="Program" value={selectedOpeningDetails?.program_name || '—'} />
-                      <ReadOnlyField label="Benefactor" value={selectedOpeningDetails?.benefactor_name || '—'} />
-                      <ReadOnlyField label="Opening Status" value={selectedOpeningDetails?.status || '—'} />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <ReadOnlyField
+                        label="Program"
+                        value={selectedOpeningDetails?.program_name || '—'}
+                      />
+                      <ReadOnlyField
+                        label="Benefactor"
+                        value={selectedOpeningDetails?.benefactor_name || '—'}
+                      />
+                      <ReadOnlyField
+                        label="Opening Status"
+                        value={
+                          selectedOpeningDetails?.status ||
+                          selectedOpeningDetails?.posting_status ||
+                          '—'
+                        }
+                      />
                       <ReadOnlyField
                         label="Amount per Scholar"
                         value={
                           form.amount_per_scholar !== ''
-                            ? `₱${Number(form.amount_per_scholar || 0).toLocaleString()}`
+                            ? formatMoney(form.amount_per_scholar)
                             : '—'
                         }
                       />
@@ -798,16 +1035,23 @@ export default function PayoutManagement() {
                   <CardContent className="space-y-4 p-4">
                     <div className="flex items-center gap-2">
                       <Wallet className="h-4 w-4 text-stone-500" />
-                      <h3 className="font-semibold text-stone-900">Batch Details</h3>
+                      <h3 className="font-semibold text-stone-900">
+                        Batch Details
+                      </h3>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-3">
+                    <div className="grid gap-3 md:grid-cols-2">
                       <div className="space-y-1">
                         <label className="text-sm font-medium">Semester</label>
                         <select
                           className="h-11 w-full rounded-md border px-3"
                           value={form.semester}
-                          onChange={(e) => setForm(prev => ({ ...prev, semester: e.target.value }))}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              semester: e.target.value,
+                            }))
+                          }
                         >
                           <option value="">Select semester</option>
                           <option value="First Semester">First Semester</option>
@@ -826,7 +1070,7 @@ export default function PayoutManagement() {
                               (ay) => ay.academic_year_id === selectedId
                             );
 
-                            setForm(prev => ({
+                            setForm((prev) => ({
                               ...prev,
                               academic_year_id: selectedId,
                               school_year: selectedYear?.label || '',
@@ -835,8 +1079,12 @@ export default function PayoutManagement() {
                         >
                           <option value="">Select school year</option>
                           {academicYears.map((ay) => (
-                            <option key={ay.academic_year_id} value={ay.academic_year_id}>
-                              {ay.label}{ay.is_active ? ' (Active)' : ''}
+                            <option
+                              key={ay.academic_year_id}
+                              value={ay.academic_year_id}
+                            >
+                              {ay.label}
+                              {ay.is_active ? ' (Active)' : ''}
                             </option>
                           ))}
                         </select>
@@ -846,7 +1094,12 @@ export default function PayoutManagement() {
                         <label className="text-sm font-medium">Payout Title</label>
                         <Input
                           value={form.payout_title}
-                          onChange={(e) => setForm(prev => ({ ...prev, payout_title: e.target.value }))}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              payout_title: e.target.value,
+                            }))
+                          }
                           placeholder="Example: Kaizen First Semester Payout"
                         />
                       </div>
@@ -856,7 +1109,12 @@ export default function PayoutManagement() {
                         <Input
                           type="date"
                           value={form.payout_date}
-                          onChange={(e) => setForm(prev => ({ ...prev, payout_date: e.target.value }))}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              payout_date: e.target.value,
+                            }))
+                          }
                         />
                       </div>
 
@@ -865,7 +1123,12 @@ export default function PayoutManagement() {
                         <select
                           className="h-11 w-full rounded-md border px-3"
                           value={form.payment_mode}
-                          onChange={(e) => setForm(prev => ({ ...prev, payment_mode: e.target.value }))}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              payment_mode: e.target.value,
+                            }))
+                          }
                         >
                           <option value="Cash">Cash</option>
                           <option value="Other">Other</option>
@@ -878,7 +1141,12 @@ export default function PayoutManagement() {
                       <textarea
                         className="min-h-[90px] w-full rounded-md border p-3 text-sm"
                         value={form.remarks}
-                        onChange={(e) => setForm(prev => ({ ...prev, remarks: e.target.value }))}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            remarks: e.target.value,
+                          }))
+                        }
                         placeholder="Optional notes for the payout batch"
                       />
                     </div>
@@ -888,20 +1156,20 @@ export default function PayoutManagement() {
 
               <Card className="border-stone-200 shadow-none">
                 <CardContent className="space-y-4 p-4">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-stone-500" />
                       <div>
-                        <h3 className="font-semibold text-stone-900">Eligible Scholars</h3>
+                        <h3 className="font-semibold text-stone-900">
+                          Eligible Scholars
+                        </h3>
                         <p className="text-sm text-stone-500">
                           Auto-loaded from the selected opening. All are preselected by default.
                         </p>
                       </div>
                     </div>
 
-                    <Badge variant="outline">
-                      {form.scholar_ids.length} selected
-                    </Badge>
+                    <Badge variant="outline">{form.scholar_ids.length} selected</Badge>
                   </div>
 
                   <div className="max-h-[320px] overflow-auto rounded-xl border">
@@ -925,7 +1193,9 @@ export default function PayoutManagement() {
                                 onChange={() => toggleScholar(s.scholar_id)}
                               />
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-stone-900">{s.student_name}</p>
+                                <p className="truncate text-sm font-medium text-stone-900">
+                                  {s.student_name}
+                                </p>
                                 <p className="text-xs text-stone-500">
                                   {s.pdm_id || '—'} • Batch {s.batch_year || '—'}
                                 </p>
@@ -942,16 +1212,26 @@ export default function PayoutManagement() {
               </Card>
 
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-xl">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    resetCreateForm();
+                  }}
+                  className="rounded-xl"
+                >
                   Cancel
                 </Button>
+
                 <Button
                   style={{ background: C.brownMid }}
-                  className="text-white rounded-xl"
+                  className="rounded-xl text-white"
                   disabled={creating}
                   onClick={handleCreateBatch}
                 >
-                  {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {creating ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
                   Save Payout Batch
                 </Button>
               </div>
@@ -962,14 +1242,16 @@ export default function PayoutManagement() {
 
       {selectedBatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-5xl max-h-[92vh] overflow-auto rounded-2xl border bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
               <div>
                 <h2 className="text-xl font-semibold text-stone-900">
                   {selectedBatch.payout_title || 'Payout Batch'}
                 </h2>
                 <p className="text-sm text-stone-500">
-                  {selectedBatch.program_name || 'No Program'} • {selectedBatch.benefactor_name || 'No Benefactor'} • {selectedBatch.payout_date || '—'}
+                  {selectedBatch.program_name || 'No Program'} •{' '}
+                  {selectedBatch.benefactor_name || 'No Benefactor'} •{' '}
+                  {selectedBatch.payout_date || '—'}
                 </p>
               </div>
 
@@ -977,8 +1259,11 @@ export default function PayoutManagement() {
                 {!selectedBatch.is_archived && (
                   <Button
                     variant="outline"
-                    className="border-stone-300 rounded-xl"
-                    disabled={!isBatchFinished(selectedBatch) || archivingBatchId === selectedBatch.payout_batch_id}
+                    className="rounded-xl border-stone-300"
+                    disabled={
+                      !isBatchFinished(selectedBatch) ||
+                      archivingBatchId === selectedBatch.payout_batch_id
+                    }
                     onClick={() => handleArchiveBatch(selectedBatch)}
                   >
                     {archivingBatchId === selectedBatch.payout_batch_id ? (
@@ -990,7 +1275,11 @@ export default function PayoutManagement() {
                   </Button>
                 )}
 
-                <Button variant="outline" onClick={() => setSelectedBatch(null)} className="rounded-xl">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedBatch(null)}
+                  className="rounded-xl"
+                >
                   Close
                 </Button>
               </div>
@@ -1005,21 +1294,32 @@ export default function PayoutManagement() {
                 </Card>
               ) : (
                 filteredSelectedBatchScholars.map((entry) => (
-                  <Card key={entry.payout_entry_id} className="border-stone-200 shadow-none">
+                  <Card
+                    key={entry.payout_entry_id}
+                    className="border-stone-200 shadow-none"
+                  >
                     <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-semibold text-stone-900">{entry.student_name}</h3>
+                          <h3 className="text-sm font-semibold text-stone-900">
+                            {entry.student_name}
+                          </h3>
                           {renderStatusBadge(entry.release_status)}
                         </div>
 
                         <p className="mt-1 text-xs text-stone-500">
-                          {entry.pdm_id || '—'} • ₱{Number(entry.amount_received || 0).toLocaleString()}
+                          {entry.pdm_id || '—'} • {formatMoney(entry.amount_received)}
                         </p>
 
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {entry.payment_mode ? <Badge variant="outline">{entry.payment_mode}</Badge> : null}
-                          {entry.check_number ? <Badge variant="outline">Check #{entry.check_number}</Badge> : null}
+                          {entry.payment_mode ? (
+                            <Badge variant="outline">{entry.payment_mode}</Badge>
+                          ) : null}
+                          {entry.check_number ? (
+                            <Badge variant="outline">
+                              Check #{entry.check_number}
+                            </Badge>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1029,8 +1329,11 @@ export default function PayoutManagement() {
                             <Button
                               size="sm"
                               style={{ background: C.green }}
-                              className="text-white rounded-lg"
-                              disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
+                              className="rounded-lg text-white"
+                              disabled={
+                                workingEntryId === entry.payout_entry_id ||
+                                selectedBatch?.is_archived
+                              }
                               onClick={() => handleStatusUpdate(entry, 'Released')}
                             >
                               {workingEntryId === entry.payout_entry_id ? (
@@ -1043,8 +1346,11 @@ export default function PayoutManagement() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-red-200 text-red-700 hover:bg-red-50 rounded-lg"
-                              disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
+                              className="rounded-lg border-red-200 text-red-700 hover:bg-red-50"
+                              disabled={
+                                workingEntryId === entry.payout_entry_id ||
+                                selectedBatch?.is_archived
+                              }
                               onClick={() => handleStatusUpdate(entry, 'Absent')}
                             >
                               Absent
@@ -1053,8 +1359,11 @@ export default function PayoutManagement() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-blue-200 text-blue-700 hover:bg-blue-50 rounded-lg"
-                              disabled={workingEntryId === entry.payout_entry_id || selectedBatch?.is_archived}
+                              className="rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50"
+                              disabled={
+                                workingEntryId === entry.payout_entry_id ||
+                                selectedBatch?.is_archived
+                              }
                               onClick={() => handleStatusUpdate(entry, 'On Hold')}
                             >
                               On Hold

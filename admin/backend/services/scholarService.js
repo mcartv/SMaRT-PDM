@@ -123,7 +123,7 @@ exports.fetchAllScholars = async () => {
         ay.label AS academic_year,
         ap.term AS semester,
         cs.date_awarded,
-        COALESCE(cs.ro_progress, 0) AS ro_progress,
+        COALESCE(cs.ro_status, 'Pending') AS ro_status,
         cs.remarks,
         cs.is_archived,
 
@@ -201,7 +201,7 @@ exports.fetchAllScholars = async () => {
             ay.label AS academic_year,
             ap.term AS semester,
             st.date_awarded,
-            COALESCE(st.ro_progress, 0) AS ro_progress,
+            COALESCE(st.ro_status, 'Pending') AS ro_status,
             st.scholar_remarks AS remarks,
             st.scholar_is_archived AS is_archived,
 
@@ -266,7 +266,7 @@ exports.fetchAllScholars = async () => {
             ay.label AS academic_year,
             ap.term AS semester,
             st.date_awarded,
-            COALESCE(st.ro_progress, 0) AS ro_progress,
+            COALESCE(st.ro_status, 'Pending') AS ro_status,
             st.scholar_remarks AS remarks,
             st.scholar_is_archived AS is_archived,
 
@@ -332,7 +332,7 @@ exports.fetchAllScholars = async () => {
           ay.label AS academic_year,
           ap.term AS semester,
           st.date_awarded,
-          COALESCE(st.ro_progress, 0) AS ro_progress,
+          COALESCE(st.ro_status, 'Pending') AS ro_status,
           st.scholar_remarks AS remarks,
           st.scholar_is_archived AS is_archived,
 
@@ -403,7 +403,7 @@ exports.fetchAllScholars = async () => {
       batch_year: row.academic_year || null,
       semester: row.semester,
       date_awarded: row.date_awarded,
-      ro_progress: row.ro_progress,
+      ro_status: row.ro_status || 'Pending',
       remarks: row.remarks,
 
       user_id: row.user_id,
@@ -449,7 +449,7 @@ exports.fetchScholarById = async (studentId) => {
       ay.label AS academic_year,
       ap.term AS semester,
       st.date_awarded,
-      COALESCE(st.ro_progress, 0) AS ro_progress,
+      COALESCE(st.ro_status, 'Pending') AS ro_status,
       st.scholar_remarks AS remarks,
 
       st.user_id,
@@ -538,7 +538,7 @@ exports.fetchScholarById = async (studentId) => {
     batch_year: row.academic_year || null,
 
     date_awarded: row.date_awarded || null,
-    ro_progress: Number(row.ro_progress || 0),
+    ro_status: row.ro_status || 'Pending',
     remarks: row.remarks || null,
 
     student_number: row.student_number || 'N/A',

@@ -1271,53 +1271,53 @@ exports.fetchApplications = async () => {
     }
 
     const mappedRows = rows.map((row) => {
-            const firstName = row.first_name || '';
-            const lastName = row.last_name || '';
-            const fullName =
-                `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim() || 'Unnamed Applicant';
+        const firstName = row.first_name || '';
+        const lastName = row.last_name || '';
+        const fullName =
+            `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim() || 'Unnamed Applicant';
 
-            return {
-                application_id: row.application_id,
-                student_id: row.student_id,
-                program_id: row.program_id,
-                opening_id: row.opening_id,
-                evaluator_id: row.evaluator_id,
+        return {
+            application_id: row.application_id,
+            student_id: row.student_id,
+            program_id: row.program_id,
+            opening_id: row.opening_id,
+            evaluator_id: row.evaluator_id,
 
-                first_name: firstName,
-                last_name: lastName,
-                student_name: fullName,
-                applicant_name: fullName,
-                pdm_id: row.pdm_id || 'N/A',
-                gwa: row.gwa ?? null,
-                sdo_status: row.sdo_status || 'Clear',
+            first_name: firstName,
+            last_name: lastName,
+            student_name: fullName,
+            applicant_name: fullName,
+            pdm_id: row.pdm_id || 'N/A',
+            gwa: row.gwa ?? null,
+            sdo_status: row.sdo_status || 'Clear',
 
-                program_name: row.program_name || 'No Program',
+            program_name: row.program_name || 'No Program',
 
-                opening_title: row.opening_title || 'Untitled Opening',
-                semester: row.semester || null,
-                academic_year: row.academic_year || null,
-                allocated_slots: Number(row.allocated_slots || 0),
-                filled_slots: Number(row.filled_slots || 0),
-                financial_allocation: row.financial_allocation ?? null,
-                per_scholar_amount: row.per_scholar_amount ?? null,
-                posting_status: row.posting_status || 'Open',
-                opening_status: row.posting_status || 'Open',
-                opening_is_archived: !!row.opening_is_archived,
+            opening_title: row.opening_title || 'Untitled Opening',
+            semester: row.semester || null,
+            academic_year: row.academic_year || null,
+            allocated_slots: Number(row.allocated_slots || 0),
+            filled_slots: Number(row.filled_slots || 0),
+            financial_allocation: row.financial_allocation ?? null,
+            per_scholar_amount: row.per_scholar_amount ?? null,
+            posting_status: row.posting_status || 'Open',
+            opening_status: row.posting_status || 'Open',
+            opening_is_archived: !!row.opening_is_archived,
 
-                application_status: row.application_status || 'Pending Review',
-                status: row.application_status || 'Pending Review',
+            application_status: row.application_status || 'Pending Review',
+            status: row.application_status || 'Pending Review',
 
-                document_status: row.document_status || 'Missing Docs',
-                remarks: row.remarks || null,
+            document_status: row.document_status || 'Missing Docs',
+            remarks: row.remarks || null,
 
-                is_disqualified: !!row.is_disqualified,
-                rejection_reason: row.rejection_reason || null,
+            is_disqualified: !!row.is_disqualified,
+            rejection_reason: row.rejection_reason || null,
 
-                submission_date: row.submission_date || null,
-                submitted_at: row.submission_date || null,
-                is_archived: !!row.is_archived,
-            };
-        });
+            submission_date: row.submission_date || null,
+            submitted_at: row.submission_date || null,
+            is_archived: !!row.is_archived,
+        };
+    });
 
     const readinessRows = await decorateApplicationRecordsWithReadiness(mappedRows);
 
@@ -2402,7 +2402,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId) => {
                 active_academic_year_id = $4,
                 active_period_id = $5,
                 date_awarded = CURRENT_DATE,
-                ro_progress = 0,
+                ro_status = 'Pending',
                 updated_at = NOW()
             WHERE student_id = $1
             `,

@@ -72,10 +72,9 @@ const SDU_STYLE = {
   major: { label: 'Major', color: C.red, bg: C.redSoft },
 };
 
-const RO_COLOR = {
-  complete: C.green,
-  progress: C.amber,
-  behind: C.red,
+const RO_STATUS_STYLE = {
+  Pending: { label: 'Pending', color: C.amber, bg: C.amberSoft },
+  Cleared: { label: 'Cleared', color: C.green, bg: C.greenSoft },
 };
 
 const CONDITION_STYLE = {
@@ -126,6 +125,16 @@ function getScholarConditionMeta(gwa, sdu) {
   if (level === 'minor') return CONDITION_STYLE.monitor;
 
   return CONDITION_STYLE.good;
+}
+
+function getRoStatusMeta(value) {
+  const normalized = String(value || 'Pending').trim();
+
+  if (normalized.toLowerCase() === 'cleared') {
+    return RO_STATUS_STYLE.Cleared;
+  }
+
+  return RO_STATUS_STYLE.Pending;
 }
 
 function getFileTypeLabel(url = '', name = '') {
@@ -396,12 +405,8 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
   const s = scholar || {};
   const gwaValue = Number(s.gwa);
   const sduStyle = SDU_STYLE[s.sdu_level || 'none'] || SDU_STYLE.none;
-  const pct = Number(s.ro_progress || 0);
+  const roMeta = getRoStatusMeta(s.ro_status);
   const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
-
-  const roStatus =
-    pct === 100 ? 'complete' :
-      pct >= 50 ? 'progress' : 'behind';
 
   return (
     <div
@@ -526,23 +531,17 @@ function ScholarProfileModal({ scholar, loading, onClose }) {
                   </div>
 
                   <div className="rounded-xl border border-stone-200 p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-medium text-stone-700">RO Progress</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-stone-700">RO Status</p>
                       <span
-                        className="text-[11px] font-semibold"
-                        style={{ color: RO_COLOR[roStatus] }}
-                      >
-                        {pct}%
-                      </span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
-                      <div
-                        className="h-2 rounded-full"
+                        className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
                         style={{
-                          width: `${pct}%`,
-                          background: RO_COLOR[roStatus],
+                          background: roMeta.bg,
+                          color: roMeta.color,
                         }}
-                      />
+                      >
+                        {roMeta.label}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -1001,8 +1000,8 @@ function RenewalModal({ open, scholar, onClose }) {
                       key={doc.id}
                       onClick={() => setSelectedDocId(doc.id)}
                       className={`w-full text-left rounded-xl border px-3 py-2.5 transition-all ${selected
-                          ? 'border-amber-300 bg-amber-50 shadow-sm'
-                          : 'border-stone-200 bg-white hover:bg-stone-50'
+                        ? 'border-amber-300 bg-amber-50 shadow-sm'
+                        : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -1937,8 +1936,8 @@ export default function ScholarMonitoring() {
               <button
                 onClick={() => setSectionMode('registry')}
                 className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'registry'
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-600'
                   }`}
               >
                 Registry
@@ -1947,8 +1946,8 @@ export default function ScholarMonitoring() {
               <button
                 onClick={() => setSectionMode('renewals')}
                 className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${sectionMode === 'renewals'
-                    ? 'bg-white text-stone-900 shadow-sm'
-                    : 'text-stone-600'
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-600'
                   }`}
               >
                 Renewals
@@ -2083,7 +2082,7 @@ export default function ScholarMonitoring() {
                 <TableBody>
                   {pageData.map((s) => {
                     const condition = getScholarConditionMeta(s.gwa, s.sdu_level);
-                    const pct = Number(s.ro_progress || 0);
+                    const roMeta = getRoStatusMeta(s.ro_status);
 
                     return (
                       <TableRow key={s.scholar_id} className="hover:bg-stone-50/70">
@@ -2131,19 +2130,15 @@ export default function ScholarMonitoring() {
                         </TableCell>
 
                         <TableCell>
-                          <div className="min-w-[100px]">
-                            <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${pct}%`,
-                                  background:
-                                    pct === 100 ? C.green : pct >= 50 ? C.amber : C.red,
-                                }}
-                              />
-                            </div>
-                            <p className="text-[11px] text-stone-500 mt-1">{pct}%</p>
-                          </div>
+                          <span
+                            className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                            style={{
+                              background: roMeta.bg,
+                              color: roMeta.color,
+                            }}
+                          >
+                            {roMeta.label}
+                          </span>
                         </TableCell>
 
                         <TableCell className="text-right">

@@ -407,7 +407,11 @@ export default function ReportGeneration({
     refreshReportData();
   }, [refreshReportData]);
 
-  useSocketEvent('payout:deleted', () => {
+  useSocketEvent('payout:archived', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('payout:restored', () => {
     refreshReportData();
   }, [refreshReportData]);
 
@@ -428,6 +432,38 @@ export default function ReportGeneration({
   }, [refreshReportData]);
 
   useSocketEvent('ticket:resolved', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('announcement:created', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('announcement:updated', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('announcement:archived', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('announcement:restored', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('opening:archived', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('opening:restored', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('ticket:archived', () => {
+    refreshReportData();
+  }, [refreshReportData]);
+
+  useSocketEvent('ticket:restored', () => {
     refreshReportData();
   }, [refreshReportData]);
 

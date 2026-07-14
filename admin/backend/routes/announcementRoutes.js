@@ -4,14 +4,46 @@ const router = express.Router();
 const announcementController = require('../controllers/announcementController');
 const { protect } = require('../middleware/authMiddleware');
 
-router.get('/', protect, announcementController.getAnnouncements);
-router.get('/archived', protect, announcementController.getArchivedAnnouncements);
+router.get(
+    '/',
+    protect,
+    announcementController.getAnnouncements
+);
 
-router.post('/', protect, announcementController.createAnnouncement);
+router.get(
+    '/archived',
+    protect,
+    announcementController.getArchivedAnnouncements
+);
 
-router.patch('/:id', protect, announcementController.updateAnnouncement);
-router.patch('/:id/publish', protect, announcementController.publishAnnouncement);
-router.patch('/:id/archive', protect, announcementController.archiveAnnouncement);
-router.patch('/:id/restore', protect, announcementController.restoreAnnouncement);
+router.post(
+    '/',
+    protect,
+    announcementController.createAnnouncement
+);
+
+router.patch(
+    '/:id',
+    protect,
+    announcementController.updateAnnouncement
+);
+
+router.patch(
+    '/:id/publish',
+    protect,
+    announcementController.publishAnnouncement
+);
+
+router.patch(
+    '/:id/archive',
+    protect,
+    announcementController.archiveAnnouncement
+);
+
+router.patch(
+    '/:id/restore',
+    protect,
+    announcementController.restoreAnnouncement
+);
 
 module.exports = router;

@@ -1,5 +1,32 @@
 const roSettingService = require('../services/roSettingService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+
+function getActorUserId(req) {
+    return req.user?.user_id || req.user?.userId || req.user?.id || null;
+}
+
+async function writeRoSettingAudit(req, actionTaken, description, entityType, entityId, result, changes = {}) {
+    try {
+        if (typeof auditLogService?.logAudit !== 'function') return;
+
+        await auditLogService.logAudit({
+            req,
+            userId: getActorUserId(req),
+            actionTaken,
+            module: 'Maintenance - RO Settings',
+            entityType,
+            entityId: entityId ? String(entityId) : null,
+            description,
+            metadata: {
+                result,
+                changes,
+            },
+        });
+    } catch (error) {
+        console.error('RO SETTINGS AUDIT ERROR:', error.message);
+    }
+}
 
 function getSafeStatusCode(error) {
     const parsed = Number.parseInt(error?.statusCode, 10);
@@ -42,6 +69,7 @@ async function createSetting(req, res) {
             action: 'create',
             data: result,
         });
+        await writeRoSettingAudit(req, 'CREATE_RO_SETTING', 'Created RO setting.', 'ro_setting', result?.setting_id || result?.id || null, result, req.body || {});
         return res.status(201).json(result);
     } catch (error) {
         console.error('CREATE RO SETTING ERROR:', error);
@@ -65,6 +93,7 @@ async function updateSetting(req, res) {
             setting_id: req.params.settingId,
             data: result,
         });
+        await writeRoSettingAudit(req, 'UPDATE_RO_SETTING', 'Updated RO setting.', 'ro_setting', req.params.settingId, result, req.body || {});
         return res.status(200).json(result);
     } catch (error) {
         console.error('UPDATE RO SETTING ERROR:', error);
@@ -85,6 +114,7 @@ async function activateSetting(req, res) {
             setting_id: req.params.settingId,
             data: result,
         });
+        await writeRoSettingAudit(req, 'ACTIVATE_RO_SETTING', 'Activated RO setting.', 'ro_setting', req.params.settingId, result, {});
         return res.status(200).json(result);
     } catch (error) {
         console.error('ACTIVATE RO SETTING ERROR:', error);
@@ -116,6 +146,7 @@ async function createDepartment(req, res) {
             action: 'create',
             data: result,
         });
+        await writeRoSettingAudit(req, 'CREATE_RO_SETTING', 'Created RO setting.', 'ro_setting', result?.setting_id || result?.id || null, result, req.body || {});
         return res.status(201).json(result);
     } catch (error) {
         console.error('CREATE RO DEPARTMENT ERROR:', error);
@@ -139,6 +170,7 @@ async function updateDepartment(req, res) {
             department_id: req.params.departmentId,
             data: result,
         });
+        await writeRoSettingAudit(req, 'UPDATE_RO_DEPARTMENT', 'Updated RO department.', 'ro_department', req.params.departmentId, result, req.body || {});
         return res.status(200).json(result);
     } catch (error) {
         console.error('UPDATE RO DEPARTMENT ERROR:', error);
@@ -159,6 +191,7 @@ async function toggleDepartment(req, res) {
             department_id: req.params.departmentId,
             data: result,
         });
+        await writeRoSettingAudit(req, 'TOGGLE_RO_DEPARTMENT', 'Toggled RO department active/archive state.', 'ro_department', req.params.departmentId, result, {});
         return res.status(200).json(result);
     } catch (error) {
         console.error('TOGGLE RO DEPARTMENT ERROR:', error);

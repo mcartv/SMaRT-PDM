@@ -1,5 +1,29 @@
 const supportTicketService = require('../services/supportTicketService');
+const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+
+function getActorUserId(req) {
+    return req.user?.user_id || req.user?.userId || req.user?.id || null;
+}
+
+async function writeTicketAudit(req, actionTaken, description, ticketId, metadata = {}) {
+    try {
+        if (typeof auditLogService?.logAudit !== 'function') return;
+
+        await auditLogService.logAudit({
+            req,
+            userId: getActorUserId(req),
+            actionTaken,
+            module: 'Support Tickets',
+            entityType: 'support_ticket',
+            entityId: ticketId ? String(ticketId) : null,
+            description,
+            metadata,
+        });
+    } catch (error) {
+        console.error('SUPPORT TICKET AUDIT ERROR:', error.message);
+    }
+}
 
 exports.getSupportTickets = async (req, res) => {
     try {
@@ -28,11 +52,37 @@ exports.updateSupportTicket = async (req, res) => {
         });
 
         const io = req.app.get('io');
-        socketEvents.ticketUpdated(io, {
+        const eventPayload = {
             ticket_id: ticketId,
             status: updated.status,
             updated_at: new Date().toISOString()
+        };
+
+        socketEvents.ticketUpdated(io, eventPayload);
+
+        if (String(updated.status || '').toLowerCase() === 'resolved') {
+            socketEvents.ticketResolved(io, eventPayload);
+        }
+
+        socketEvents.reportUpdated(io, {
+            module: 'reports',
+            source: 'support_tickets',
+            action: 'updated',
+            ticket_id: ticketId,
+            updated_at: eventPayload.updated_at,
         });
+
+        await writeTicketAudit(
+            req,
+            'UPDATE_SUPPORT_TICKET',
+            `Updated support ticket status to ${updated.status || status || 'updated'}.`,
+            ticketId,
+            {
+                status: updated.status || status || null,
+                assignToSelf: !!assignToSelf,
+                changes: req.body || {},
+            }
+        );
 
         res.status(200).json({
             data: updated,

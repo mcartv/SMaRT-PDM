@@ -1,5 +1,34 @@
 const socketEvents = require('../utils/socketEvents');
+const auditLogService = require('../services/auditLogService');
 const themeSettingService = require('../services/themeSettingService');
+
+function getActorUserId(req) {
+  return req.user?.user_id || req.user?.userId || req.user?.id || null;
+}
+
+async function writeThemeSettingAudit(req, result) {
+  try {
+    if (typeof auditLogService?.logAudit !== 'function') return;
+
+    await auditLogService.logAudit({
+      req,
+      userId: getActorUserId(req),
+      actionTaken: 'UPDATE_THEME_SETTING',
+      module: 'Maintenance - Theme Settings',
+      entityType: 'theme_setting',
+      entityId: result?.portal_key || req.params.portalKey || null,
+      description: `Updated theme setting for ${result?.portal_key || req.params.portalKey || 'portal'}.`,
+      metadata: {
+        portal_key: result?.portal_key || req.params.portalKey || null,
+        preset_key: result?.preset_key || req.body?.preset_key || null,
+        custom_colors: result?.custom_colors || req.body?.custom_colors || null,
+        changes: req.body || {},
+      },
+    });
+  } catch (error) {
+    console.error('THEME SETTINGS AUDIT ERROR:', error.message);
+  }
+}
 
 function getSafeStatusCode(error) {
   const parsed = Number.parseInt(error?.statusCode, 10);
@@ -47,6 +76,16 @@ async function updateThemeSetting(req, res) {
       custom_colors: result.custom_colors || null,
       updated_at: result.updated_at || new Date().toISOString(),
     });
+
+    socketEvents.reportUpdated(io, {
+      module: 'reports',
+      source: 'theme_settings',
+      action: 'updated',
+      portal_key: result.portal_key,
+      updated_at: result.updated_at || new Date().toISOString(),
+    });
+
+    await writeThemeSettingAudit(req, result);
 
     return res.status(200).json(result);
   } catch (error) {

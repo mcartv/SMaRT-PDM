@@ -18,6 +18,7 @@ import {
   Users,
   Building2,
   Archive,
+  ArchiveRestore,
   Megaphone,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -217,6 +218,7 @@ export default function PayoutManagement() {
   const [creating, setCreating] = useState(false);
   const [workingEntryId, setWorkingEntryId] = useState(null);
   const [archivingBatchId, setArchivingBatchId] = useState(null);
+  const [restoringBatchId, setRestoringBatchId] = useState(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -244,8 +246,13 @@ export default function PayoutManagement() {
     loadAll();
   }, []);
 
-  useSocketEvent('payout:deleted', (data) => {
-    console.log('[Realtime] Payout deleted:', data);
+  useSocketEvent('payout:archived', (data) => {
+    console.log('[Realtime] Payout archived:', data);
+    loadAll();
+  }, []);
+
+  useSocketEvent('payout:restored', (data) => {
+    console.log('[Realtime] Payout restored:', data);
     loadAll();
   }, []);
 
@@ -697,6 +704,36 @@ export default function PayoutManagement() {
     }
   };
 
+
+
+  const handleRestoreBatch = async (batch) => {
+    try {
+      if (!batch?.payout_batch_id) return;
+
+      setRestoringBatchId(batch.payout_batch_id);
+
+      const res = await fetch(`${API_BASE}/payouts/${batch.payout_batch_id}/restore`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(true),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || 'Failed to restore payout batch');
+      }
+
+      await loadAll();
+      setSelectedBatch(null);
+      setActiveSection('batches');
+    } catch (err) {
+      console.error('RESTORE PAYOUT BATCH ERROR:', err);
+      alert(err.message || 'Failed to restore payout batch');
+    } finally {
+      setRestoringBatchId(null);
+    }
+  };
+
   const renderStatusBadge = (status) => {
     const value = status || 'Pending';
 
@@ -860,8 +897,8 @@ export default function PayoutManagement() {
               type="button"
               onClick={() => setActiveSection('batches')}
               className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'batches'
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-600'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
                 }`}
             >
               Batches
@@ -871,8 +908,8 @@ export default function PayoutManagement() {
               type="button"
               onClick={() => setActiveSection('archived')}
               className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'archived'
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-600'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
                 }`}
             >
               Archived
@@ -1256,7 +1293,7 @@ export default function PayoutManagement() {
               </div>
 
               <div className="flex items-center gap-2">
-                {!selectedBatch.is_archived && (
+                {!selectedBatch.is_archived ? (
                   <Button
                     variant="outline"
                     className="rounded-xl border-stone-300"
@@ -1272,6 +1309,20 @@ export default function PayoutManagement() {
                       <Archive className="mr-2 h-4 w-4" />
                     )}
                     Archive Batch
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="rounded-xl border-stone-300"
+                    disabled={restoringBatchId === selectedBatch.payout_batch_id}
+                    onClick={() => handleRestoreBatch(selectedBatch)}
+                  >
+                    {restoringBatchId === selectedBatch.payout_batch_id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArchiveRestore className="mr-2 h-4 w-4" />
+                    )}
+                    Unarchive Batch
                   </Button>
                 )}
 

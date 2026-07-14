@@ -1,28 +1,49 @@
 const express = require('express');
 const router = express.Router();
 
-const {
-    getPayoutBatches,
-    getPayoutOpenings,
-    getEligibleScholarsByOpening,
-    createPayoutBatch,
-    updateScholarStatus,
-    archivePayoutBatch,
-    getAcademicYears,
-    getMyPayouts,
-} = require('../controllers/payoutController');
-
+const payoutController = require('../controllers/payoutController');
 const { protect } = require('../middleware/authMiddleware');
 
-router.get('/', protect, getPayoutBatches);
-router.get('/openings', protect, getPayoutOpenings);
-router.get('/eligible-scholars', protect, getEligibleScholarsByOpening);
-router.get('/academic-years', protect, getAcademicYears);
-router.get('/me', protect, getMyPayouts);
+router.get(
+    '/',
+    protect,
+    payoutController.getPayoutBatches
+);
 
-router.post('/', protect, createPayoutBatch);
+router.get(
+    '/openings',
+    protect,
+    payoutController.getPayoutOpenings
+);
 
-router.patch('/entries/:payoutEntryId/status', protect, updateScholarStatus);
-router.patch('/:batchId/archive', protect, archivePayoutBatch);
+router.get(
+    '/eligible-scholars',
+    protect,
+    payoutController.getEligibleScholarsByOpening
+);
+
+router.post(
+    '/',
+    protect,
+    payoutController.createPayoutBatch
+);
+
+router.patch(
+    '/entries/:payoutEntryId/status',
+    protect,
+    payoutController.updateScholarStatus
+);
+
+router.patch(
+    '/:payoutBatchId/archive',
+    protect,
+    payoutController.archivePayoutBatch
+);
+
+router.patch(
+    '/:payoutBatchId/restore',
+    protect,
+    payoutController.restorePayoutBatch
+);
 
 module.exports = router;

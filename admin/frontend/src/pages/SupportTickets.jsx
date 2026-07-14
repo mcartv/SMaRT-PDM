@@ -122,6 +122,16 @@ export default function SupportTickets() {
     loadTickets();
   }, []);
 
+  useSocketEvent('ticket:archived', (data) => {
+    console.log('[Realtime] Ticket archived:', data);
+    loadTickets();
+  }, []);
+
+  useSocketEvent('ticket:restored', (data) => {
+    console.log('[Realtime] Ticket restored:', data);
+    loadTickets();
+  }, []);
+
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
       const text = [

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import {
   Plus,
   Edit,
-  Trash2,
+  Archive,
   Send,
   Eye,
   Calendar,
@@ -622,7 +622,7 @@ function AnnouncementRow({
   announcement,
   tab,
   publishingId,
-  deletingId,
+  archivingId,
   restoringId,
   onEdit,
   onPublish,
@@ -716,14 +716,14 @@ function AnnouncementRow({
               variant="outline"
               size="sm"
               onClick={() => onArchive(announcement.id)}
-              disabled={deletingId === announcement.id}
+              disabled={archivingId === announcement.id}
               className="h-8 border-red-200 text-[11px] text-red-500 disabled:opacity-60"
             >
-              {deletingId === announcement.id ? (
+              {archivingId === announcement.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <>
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  <Archive className="mr-1.5 h-3.5 w-3.5" />
                   Archive
                 </>
               )}
@@ -853,7 +853,7 @@ export default function AnnouncementsManagement() {
   const [posting, setPosting] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [publishingId, setPublishingId] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
+  const [archivingId, setArchivingId] = useState(null);
   const [restoringId, setRestoringId] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [editingAnnouncementId, setEditingAnnouncementId] = useState(null);
@@ -970,8 +970,13 @@ export default function AnnouncementsManagement() {
     loadAnnouncements({ silent: true });
   }, [loadAnnouncements]);
 
-  useSocketEvent('announcement:deleted', () => {
-    console.log('[Socket] announcement:deleted received');
+  useSocketEvent('announcement:archived', () => {
+    console.log('[Socket] announcement:archived received');
+    loadAnnouncements({ silent: true });
+  }, [loadAnnouncements]);
+
+  useSocketEvent('announcement:restored', () => {
+    console.log('[Socket] announcement:restored received');
     loadAnnouncements({ silent: true });
   }, [loadAnnouncements]);
 
@@ -1295,7 +1300,7 @@ export default function AnnouncementsManagement() {
     await loadAnnouncements({ silent: true });
 
     try {
-      setDeletingId(id);
+      setArchivingId(id);
 
       const token = sessionStorage.getItem('adminToken');
 
@@ -1333,7 +1338,7 @@ export default function AnnouncementsManagement() {
         err.message || 'Failed to archive announcement'
       );
     } finally {
-      setDeletingId(null);
+      setArchivingId(null);
     }
   };
 
@@ -1560,7 +1565,7 @@ export default function AnnouncementsManagement() {
                 announcement={announcement}
                 tab={tab}
                 publishingId={publishingId}
-                deletingId={deletingId}
+                archivingId={archivingId}
                 restoringId={restoringId}
                 onEdit={handleEdit}
                 onPublish={handlePublish}

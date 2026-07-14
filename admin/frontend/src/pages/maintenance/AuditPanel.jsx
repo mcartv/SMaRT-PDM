@@ -55,7 +55,7 @@ function actionTone(action = '') {
         return 'bg-green-50 text-green-700 border-green-100';
     }
 
-    if (text.includes('archive') || text.includes('delete') || text.includes('reject')) {
+    if (text.includes('archive') || text.includes('reject')) {
         return 'bg-red-50 text-red-700 border-red-100';
     }
 

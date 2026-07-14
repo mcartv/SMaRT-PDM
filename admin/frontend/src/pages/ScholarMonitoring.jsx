@@ -1583,6 +1583,15 @@ export default function ScholarMonitoring() {
     fetchScholars();
   }, []);
 
+
+  useSocketEvent('scholar:archived', () => {
+    window.location.reload();
+  }, []);
+
+  useSocketEvent('scholar:restored', () => {
+    window.location.reload();
+  }, []);
+
   const handleArchiveScholar = async (payload) => {
     if (!archiveModalScholar) return;
 

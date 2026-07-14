@@ -1244,6 +1244,14 @@ export default function ScholarshipOpenings() {
         fetchData({ silent: true });
     }, [fetchData]);
 
+    useSocketEvent('opening:archived', () => {
+        fetchData({ silent: true });
+    }, [fetchData]);
+
+    useSocketEvent('opening:restored', () => {
+        fetchData({ silent: true });
+    }, [fetchData]);
+
     useSocketEvent('maintenance:updated', (payload) => {
         if (!payload?.module || payload.module === 'scholarship_openings') {
             fetchData({ silent: true });

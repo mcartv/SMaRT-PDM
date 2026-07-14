@@ -1,5 +1,32 @@
 const socketEvents = require('../utils/socketEvents');
+const auditLogService = require('../services/auditLogService');
 const generalSettingService = require('../services/generalSettingService');
+
+function getActorUserId(req) {
+  return req.user?.user_id || req.user?.userId || req.user?.id || null;
+}
+
+async function writeGeneralSettingAudit(req, result) {
+  try {
+    if (typeof auditLogService?.logAudit !== 'function') return;
+
+    await auditLogService.logAudit({
+      req,
+      userId: getActorUserId(req),
+      actionTaken: 'UPDATE_GENERAL_SETTINGS',
+      module: 'Maintenance - General Settings',
+      entityType: 'general_settings',
+      entityId: 'general_settings',
+      description: 'Updated public general system settings.',
+      metadata: {
+        changes: req.body || {},
+        updated_at: result?.updated_at || new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('GENERAL SETTINGS AUDIT ERROR:', error.message);
+  }
+}
 
 function getSafeStatusCode(error) {
   const parsed = Number.parseInt(error?.statusCode, 10);
@@ -41,6 +68,15 @@ async function updateGeneralSettings(req, res) {
       updated_at: result.updated_at || new Date().toISOString(),
       settings: publicResult,
     });
+
+    socketEvents.reportUpdated(io, {
+      module: 'reports',
+      source: 'general_settings',
+      action: 'updated',
+      updated_at: result.updated_at || new Date().toISOString(),
+    });
+
+    await writeGeneralSettingAudit(req, result);
 
     return res.status(200).json(result);
   } catch (error) {

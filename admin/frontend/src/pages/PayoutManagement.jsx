@@ -20,6 +20,8 @@ import {
   Archive,
   ArchiveRestore,
   Megaphone,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -68,6 +70,17 @@ function normalizeId(value) {
   return value == null ? '' : String(value).trim();
 }
 
+function normalizeReleaseStatus(value) {
+  const raw = String(value || 'Pending').trim().toLowerCase();
+
+  if (raw === 'released' || raw === 'release' || raw === 'got payout') return 'Released';
+  if (raw === 'absent' || raw === 'still absent') return 'Absent';
+  if (raw === 'on hold' || raw === 'hold' || raw === 'held') return 'On Hold';
+  if (raw === 'cancelled' || raw === 'canceled') return 'Cancelled';
+
+  return 'Pending';
+}
+
 function belongsToOpening(item, openingId) {
   const target = normalizeId(openingId);
   if (!target) return true;
@@ -97,15 +110,52 @@ function getBatchScholars(batch) {
   return filterScholarsByOpening(batch?.scholars, batch?.opening_id);
 }
 
+function isTerminalPayoutStatus(status) {
+  const normalized = normalizeReleaseStatus(status);
+  return ['Released', 'Absent', 'Cancelled'].includes(normalized);
+}
+
 function isBatchFinished(batch) {
   const scholars = getBatchScholars(batch);
   if (!scholars.length) return false;
 
-  return scholars.every((s) => s.release_status && s.release_status !== 'Pending');
+  return scholars.every((s) => isTerminalPayoutStatus(s.release_status));
+}
+
+function hasManageablePayoutEntries(batch) {
+  const scholars = getBatchScholars(batch);
+
+  return scholars.some((s) => {
+    const status = normalizeReleaseStatus(s.release_status);
+    return status === 'Pending' || status === 'On Hold';
+  });
 }
 
 function formatMoney(value) {
   return `₱${Number(value || 0).toLocaleString()}`;
+}
+
+function getEntryId(entry) {
+  return (
+    entry?.payout_entry_id ||
+    entry?.payout_batch_student_id ||
+    entry?.entry_id ||
+    entry?.id ||
+    ''
+  );
+}
+
+function getPayoutCounts(batch) {
+  const scholars = getBatchScholars(batch);
+
+  return {
+    total: scholars.length,
+    released: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Released').length,
+    pending: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Pending').length,
+    absent: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Absent').length,
+    onHold: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'On Hold').length,
+    cancelled: scholars.filter((s) => normalizeReleaseStatus(s.release_status) === 'Cancelled').length,
+  };
 }
 
 function SmallMetric({ label, value }) {
@@ -125,6 +175,55 @@ function ReadOnlyField({ label, value }) {
       <p className="text-[11px] text-stone-500">{label}</p>
       <p className="mt-1 text-sm font-semibold">{value || '—'}</p>
     </div>
+  );
+}
+
+function PaginationFooter({
+  total,
+  page,
+  totalPages,
+  pageSize,
+  onPrev,
+  onNext,
+}) {
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+
+  return (
+    <section
+      className="overflow-hidden rounded-2xl border bg-white"
+      style={{ borderColor: C.line }}
+    >
+      <div className="flex items-center justify-between px-4 py-3">
+        <p className="text-xs text-stone-400">
+          Showing {start}-{end} of {total}
+        </p>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={onPrev}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-200 text-stone-500 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <p className="text-xs font-medium text-stone-600">
+            Page {page} / {totalPages}
+          </p>
+
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={onNext}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-stone-200 text-stone-500 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -236,28 +335,23 @@ export default function PayoutManagement() {
     loadAll();
   }, []);
 
-  useSocketEvent('payout:created', (data) => {
-    console.log('[Realtime] Payout created:', data);
+  useSocketEvent('payout:created', () => {
     loadAll();
   }, []);
 
-  useSocketEvent('payout:updated', (data) => {
-    console.log('[Realtime] Payout updated:', data);
+  useSocketEvent('payout:updated', () => {
     loadAll();
   }, []);
 
-  useSocketEvent('payout:archived', (data) => {
-    console.log('[Realtime] Payout archived:', data);
+  useSocketEvent('payout:archived', () => {
     loadAll();
   }, []);
 
-  useSocketEvent('payout:restored', (data) => {
-    console.log('[Realtime] Payout restored:', data);
+  useSocketEvent('payout:restored', () => {
     loadAll();
   }, []);
 
-  useSocketEvent('scholar:released', (data) => {
-    console.log('[Realtime] Scholar released:', data);
+  useSocketEvent('scholar:released', () => {
     loadAll();
   }, []);
 
@@ -376,11 +470,35 @@ export default function PayoutManagement() {
     [batches]
   );
 
+  const inProgressBatches = useMemo(
+    () => activeBatches.filter((b) => !isBatchFinished(b)),
+    [activeBatches]
+  );
+
+  const statusManagerBatches = useMemo(
+    () => activeBatches.filter(hasManageablePayoutEntries),
+    [activeBatches]
+  );
+
+  const completedBatches = useMemo(
+    () => activeBatches.filter(isBatchFinished),
+    [activeBatches]
+  );
+
   const displayedBatches = useMemo(() => {
-    if (activeSection === 'batches') return activeBatches;
+    if (activeSection === 'batches') return inProgressBatches;
+    if (activeSection === 'status') return statusManagerBatches;
+    if (activeSection === 'completed') return completedBatches;
     if (activeSection === 'archived') return archivedBatches;
+
     return [];
-  }, [activeSection, activeBatches, archivedBatches]);
+  }, [
+    activeSection,
+    inProgressBatches,
+    statusManagerBatches,
+    completedBatches,
+    archivedBatches,
+  ]);
 
   const filteredDisplayedBatches = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -432,6 +550,39 @@ export default function PayoutManagement() {
     if (!selectedBatch) return [];
     return selectedBatch.scholars || [];
   }, [selectedBatch]);
+
+  const sectionMeta = useMemo(() => {
+    const map = {
+      batches: {
+        title: 'Active Payout Batches',
+        subtitle: `${inProgressBatches.length} active batch${inProgressBatches.length !== 1 ? 'es' : ''} still being processed`,
+        empty: 'No active payout batches found.',
+      },
+      status: {
+        title: 'Payout Status Manager',
+        subtitle: `${statusManagerBatches.length} batch${statusManagerBatches.length !== 1 ? 'es' : ''} with Pending or On Hold scholars`,
+        empty: 'No payout batches currently need status updates.',
+      },
+      completed: {
+        title: 'Completed Payouts',
+        subtitle: `${completedBatches.length} completed payout batch${completedBatches.length !== 1 ? 'es' : ''}`,
+        empty: 'No completed payout batches yet.',
+      },
+      archived: {
+        title: 'Archived Payout Batches',
+        subtitle: `${archivedBatches.length} archived payout batch${archivedBatches.length !== 1 ? 'es' : ''}`,
+        empty: 'No archived payout batches found.',
+      },
+    };
+
+    return map[activeSection] || map.batches;
+  }, [
+    activeSection,
+    inProgressBatches.length,
+    statusManagerBatches.length,
+    completedBatches.length,
+    archivedBatches.length,
+  ]);
 
   const toggleScholar = (scholarId) => {
     setForm((prev) => {
@@ -605,16 +756,14 @@ export default function PayoutManagement() {
   };
 
   const handleStatusUpdate = async (entry, nextStatus) => {
-    const entryId =
-      entry?.payout_entry_id ||
-      entry?.payout_batch_student_id ||
-      entry?.entry_id ||
-      entry?.id;
+    const entryId = getEntryId(entry);
 
     if (!entryId) {
       alert('Missing payout entry ID.');
       return;
     }
+
+    const finalStatus = normalizeReleaseStatus(nextStatus);
 
     try {
       setWorkingEntryId(entryId);
@@ -623,8 +772,8 @@ export default function PayoutManagement() {
         method: 'PATCH',
         headers: getAuthHeaders(true),
         body: JSON.stringify({
-          release_status: nextStatus,
-          status: nextStatus,
+          release_status: finalStatus,
+          status: finalStatus,
         }),
       });
 
@@ -644,14 +793,10 @@ export default function PayoutManagement() {
         return {
           ...prev,
           scholars: (prev.scholars || []).map((scholar) => {
-            const scholarEntryId =
-              scholar?.payout_entry_id ||
-              scholar?.payout_batch_student_id ||
-              scholar?.entry_id ||
-              scholar?.id;
+            const scholarEntryId = getEntryId(scholar);
 
             return String(scholarEntryId) === String(entryId)
-              ? { ...scholar, release_status: nextStatus }
+              ? { ...scholar, release_status: finalStatus }
               : scholar;
           }),
         };
@@ -670,12 +815,9 @@ export default function PayoutManagement() {
     try {
       if (!batch?.payout_batch_id) return;
 
-      const scholars = getBatchScholars(batch);
-      const hasPending = scholars.some((s) => s.release_status === 'Pending');
-
-      if (hasPending) {
+      if (!isBatchFinished(batch)) {
         alert(
-          'This payout batch cannot be archived yet because some scholars are still pending.'
+          'This payout batch cannot be archived yet. All scholars must be marked Released, Absent, or Cancelled first.'
         );
         return;
       }
@@ -703,8 +845,6 @@ export default function PayoutManagement() {
       setArchivingBatchId(null);
     }
   };
-
-
 
   const handleRestoreBatch = async (batch) => {
     try {
@@ -735,7 +875,7 @@ export default function PayoutManagement() {
   };
 
   const renderStatusBadge = (status) => {
-    const value = status || 'Pending';
+    const value = normalizeReleaseStatus(status);
 
     const styles = {
       Released: {
@@ -759,8 +899,8 @@ export default function PayoutManagement() {
         icon: <CircleSlash className="mr-1 h-3 w-3" />,
       },
       Cancelled: {
-        bg: C.redSoft,
-        color: C.red,
+        bg: C.slateSoft,
+        color: C.slate,
         icon: <XCircle className="mr-1 h-3 w-3" />,
       },
     };
@@ -769,7 +909,7 @@ export default function PayoutManagement() {
 
     return (
       <Badge
-        className="inline-flex items-center text-[10px]"
+        className="inline-flex items-center rounded-full border-none text-[10px]"
         style={{ background: current.bg, color: current.color }}
       >
         {current.icon}
@@ -778,12 +918,54 @@ export default function PayoutManagement() {
     );
   };
 
+  const getStatusActions = (status) => {
+    const value = normalizeReleaseStatus(status);
+
+    if (value === 'Released') {
+      return [];
+    }
+
+    if (value === 'On Hold') {
+      return [
+        { label: 'Release', status: 'Released', tone: 'green' },
+        { label: 'Mark Absent', status: 'Absent', tone: 'red' },
+      ];
+    }
+
+    if (value === 'Absent') {
+      return [
+        { label: 'Release', status: 'Released', tone: 'green' },
+        { label: 'Put On Hold', status: 'On Hold', tone: 'blue' },
+      ];
+    }
+
+    if (value === 'Cancelled') {
+      return [];
+    }
+
+    return [
+      { label: 'Release', status: 'Released', tone: 'green' },
+      { label: 'Absent', status: 'Absent', tone: 'red' },
+      { label: 'On Hold', status: 'On Hold', tone: 'blue' },
+    ];
+  };
+
+  const getActionButtonClass = (tone) => {
+    const map = {
+      green: 'border-green-200 text-green-700 hover:bg-green-50',
+      red: 'border-red-200 text-red-700 hover:bg-red-50',
+      blue: 'border-blue-200 text-blue-700 hover:bg-blue-50',
+      amber: 'border-orange-200 text-orange-700 hover:bg-orange-50',
+      slate: 'border-slate-200 text-slate-700 hover:bg-slate-50',
+    };
+
+    return map[tone] || 'border-stone-200 text-stone-700 hover:bg-stone-50';
+  };
+
   const renderBatchCard = (b) => {
-    const scholars = b.scholars || [];
-    const released = scholars.filter((s) => s.release_status === 'Released').length;
-    const absent = scholars.filter((s) => s.release_status === 'Absent').length;
-    const onHold = scholars.filter((s) => s.release_status === 'On Hold').length;
+    const counts = getPayoutCounts(b);
     const finished = isBatchFinished(b);
+    const manageable = hasManageablePayoutEntries(b);
 
     return (
       <Card
@@ -810,7 +992,7 @@ export default function PayoutManagement() {
 
               <div className="flex flex-col items-end gap-2">
                 <Badge
-                  className="text-[10px]"
+                  className="rounded-full border-none text-[10px]"
                   style={{
                     background: b.payment_mode === 'Cash' ? C.greenSoft : C.blueSoft,
                     color: b.payment_mode === 'Cash' ? C.green : C.blue,
@@ -821,26 +1003,39 @@ export default function PayoutManagement() {
 
                 {b.is_archived ? (
                   <Badge
-                    className="text-[10px]"
+                    className="rounded-full border-none text-[10px]"
                     style={{ background: C.slateSoft, color: C.slate }}
                   >
                     Archived
                   </Badge>
                 ) : finished ? (
                   <Badge
-                    className="text-[10px]"
+                    className="rounded-full border-none text-[10px]"
+                    style={{ background: C.greenSoft, color: C.green }}
+                  >
+                    Completed
+                  </Badge>
+                ) : manageable ? (
+                  <Badge
+                    className="rounded-full border-none text-[10px]"
                     style={{ background: C.orangeSoft, color: C.orange }}
                   >
-                    Ready to Archive
+                    Needs Update
                   </Badge>
                 ) : null}
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <SmallMetric label="Released" value={released} />
-              <SmallMetric label="Absent" value={absent} />
-              <SmallMetric label="On Hold" value={onHold} />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <SmallMetric label="Released" value={counts.released} />
+              <SmallMetric label="Pending" value={counts.pending} />
+              <SmallMetric label="Absent" value={counts.absent} />
+              <SmallMetric label="On Hold" value={counts.onHold} />
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-600">
+              <span>Total scholars</span>
+              <span className="font-semibold text-stone-900">{counts.total}</span>
             </div>
 
             <div className="flex items-center justify-between border-t border-stone-100 pt-3">
@@ -892,22 +1087,49 @@ export default function PayoutManagement() {
         style={{ borderColor: C.line }}
       >
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
+          <div className="inline-flex w-full flex-wrap rounded-xl bg-stone-100 p-1 sm:w-auto">
             <button
               type="button"
               onClick={() => setActiveSection('batches')}
-              className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'batches'
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'batches'
                 ? 'bg-white text-stone-900 shadow-sm'
                 : 'text-stone-600'
                 }`}
             >
-              Batches
+              Active
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSection('status')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'status'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
+                }`}
+            >
+              Status Manager
+              {statusManagerBatches.length ? (
+                <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {statusManagerBatches.length}
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSection('completed')}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'completed'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600'
+                }`}
+            >
+              Completed
             </button>
 
             <button
               type="button"
               onClick={() => setActiveSection('archived')}
-              className={`rounded-lg px-4 py-2 text-sm ${activeSection === 'archived'
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${activeSection === 'archived'
                 ? 'bg-white text-stone-900 shadow-sm'
                 : 'text-stone-600'
                 }`}
@@ -942,45 +1164,40 @@ export default function PayoutManagement() {
         </div>
       </section>
 
-      {pageData.length === 0 ? (
-        <Card className="border-stone-200 shadow-none">
-          <CardContent className="px-6 py-12 text-center text-sm text-stone-400">
-            {activeSection === 'archived'
-              ? 'No archived payout batches found.'
-              : 'No payout batches found.'}
-          </CardContent>
-        </Card>
-      ) : (
-        <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {pageData.map(renderBatchCard)}
-        </section>
-      )}
+      <section
+        className="overflow-hidden rounded-2xl border bg-white"
+        style={{ borderColor: C.line }}
+      >
+        <div className="border-b border-stone-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-stone-800">
+            {sectionMeta.title}
+          </h2>
+          <p className="mt-1 text-xs text-stone-500">
+            {sectionMeta.subtitle}
+          </p>
+        </div>
 
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-          className="rounded-xl border-stone-200"
-        >
-          Previous
-        </Button>
+        <CardContent className="p-4">
+          {pageData.length === 0 ? (
+            <div className="py-16 text-center text-sm text-stone-400">
+              {sectionMeta.empty}
+            </div>
+          ) : (
+            <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+              {pageData.map(renderBatchCard)}
+            </section>
+          )}
+        </CardContent>
+      </section>
 
-        <p className="text-sm text-stone-500">
-          Page {page} of {totalPages}
-        </p>
-
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= totalPages}
-          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-          className="rounded-xl border-stone-200"
-        >
-          Next
-        </Button>
-      </div>
+      <PaginationFooter
+        total={filteredDisplayedBatches.length}
+        page={page}
+        totalPages={totalPages}
+        pageSize={PAGE_SIZE}
+        onPrev={() => setPage((prev) => Math.max(1, prev - 1))}
+        onNext={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+      />
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -1279,7 +1496,7 @@ export default function PayoutManagement() {
 
       {selectedBatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="max-h-[92vh] w-full max-w-5xl overflow-auto rounded-2xl border bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl border bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
               <div>
                 <h2 className="text-xl font-semibold text-stone-900">
@@ -1337,6 +1554,22 @@ export default function PayoutManagement() {
             </div>
 
             <div className="space-y-4 p-6">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                {(() => {
+                  const counts = getPayoutCounts(selectedBatch);
+
+                  return (
+                    <>
+                      <SmallMetric label="Released" value={counts.released} />
+                      <SmallMetric label="Pending" value={counts.pending} />
+                      <SmallMetric label="Absent" value={counts.absent} />
+                      <SmallMetric label="On Hold" value={counts.onHold} />
+                      <SmallMetric label="Cancelled" value={counts.cancelled} />
+                    </>
+                  );
+                })()}
+              </div>
+
               {filteredSelectedBatchScholars.length === 0 ? (
                 <Card className="border-stone-200 shadow-none">
                   <CardContent className="p-6 text-sm text-stone-400">
@@ -1344,91 +1577,78 @@ export default function PayoutManagement() {
                   </CardContent>
                 </Card>
               ) : (
-                filteredSelectedBatchScholars.map((entry) => (
-                  <Card
-                    key={entry.payout_entry_id}
-                    className="border-stone-200 shadow-none"
-                  >
-                    <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-semibold text-stone-900">
-                            {entry.student_name}
-                          </h3>
-                          {renderStatusBadge(entry.release_status)}
+                filteredSelectedBatchScholars.map((entry) => {
+                  const entryId = getEntryId(entry);
+                  const status = normalizeReleaseStatus(entry.release_status);
+                  const actions = getStatusActions(status);
+                  const isWorking = String(workingEntryId) === String(entryId);
+                  const isLocked = selectedBatch?.is_archived === true;
+
+                  return (
+                    <Card
+                      key={entryId || entry.scholar_id || entry.student_id}
+                      className="border-stone-200 shadow-none"
+                    >
+                      <CardContent className="flex flex-col gap-4 p-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold text-stone-900">
+                              {entry.student_name}
+                            </h3>
+                            {renderStatusBadge(status)}
+                          </div>
+
+                          <p className="mt-1 text-xs text-stone-500">
+                            {entry.pdm_id || '—'} • {formatMoney(entry.amount_received)}
+                          </p>
+
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {entry.payment_mode ? (
+                              <Badge variant="outline">{entry.payment_mode}</Badge>
+                            ) : null}
+                            {entry.check_number ? (
+                              <Badge variant="outline">
+                                Check #{entry.check_number}
+                              </Badge>
+                            ) : null}
+                          </div>
                         </div>
 
-                        <p className="mt-1 text-xs text-stone-500">
-                          {entry.pdm_id || '—'} • {formatMoney(entry.amount_received)}
-                        </p>
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {entry.payment_mode ? (
-                            <Badge variant="outline">{entry.payment_mode}</Badge>
-                          ) : null}
-                          {entry.check_number ? (
-                            <Badge variant="outline">
-                              Check #{entry.check_number}
-                            </Badge>
-                          ) : null}
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {status === 'Released' ? (
+                            <span className="text-xs font-medium text-stone-500">
+                              Status already marked as Released
+                            </span>
+                          ) : status === 'Cancelled' ? (
+                            <span className="text-xs font-medium text-stone-500">
+                              Status already marked as Cancelled
+                            </span>
+                          ) : isLocked ? (
+                            <span className="text-xs font-medium text-stone-500">
+                              Archived batch cannot be edited
+                            </span>
+                          ) : (
+                            actions.map((action) => (
+                              <Button
+                                key={`${entryId}-${action.status}`}
+                                size="sm"
+                                variant="outline"
+                                className={`h-8 rounded-lg text-xs ${getActionButtonClass(action.tone)}`}
+                                disabled={isWorking}
+                                onClick={() => handleStatusUpdate(entry, action.status)}
+                              >
+                                {isWorking ? (
+                                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                ) : null}
+                                {action.label}
+                              </Button>
+                            ))
+                          )}
                         </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {entry.release_status === 'Pending' ? (
-                          <>
-                            <Button
-                              size="sm"
-                              style={{ background: C.green }}
-                              className="rounded-lg text-white"
-                              disabled={
-                                workingEntryId === entry.payout_entry_id ||
-                                selectedBatch?.is_archived
-                              }
-                              onClick={() => handleStatusUpdate(entry, 'Released')}
-                            >
-                              {workingEntryId === entry.payout_entry_id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                'Released'
-                              )}
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-lg border-red-200 text-red-700 hover:bg-red-50"
-                              disabled={
-                                workingEntryId === entry.payout_entry_id ||
-                                selectedBatch?.is_archived
-                              }
-                              onClick={() => handleStatusUpdate(entry, 'Absent')}
-                            >
-                              Absent
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50"
-                              disabled={
-                                workingEntryId === entry.payout_entry_id ||
-                                selectedBatch?.is_archived
-                              }
-                              onClick={() => handleStatusUpdate(entry, 'On Hold')}
-                            >
-                              On Hold
-                            </Button>
-                          </>
-                        ) : (
-                          <span className="text-xs font-medium text-stone-500">
-                            Status already marked as {entry.release_status}
-                          </span>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>

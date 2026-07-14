@@ -6,6 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Search,
+  ChevronLeft,
+  ChevronRight,
   RefreshCw,
   Loader2,
   CheckCircle2,
@@ -27,6 +29,7 @@ const C = {
   blue: '#1E3A8A',
   blueSoft: '#EFF6FF',
   bg: '#faf7f2',
+  line: '#e7e5e4',
 };
 
 function StatusChip({ children, tone = 'default' }) {
@@ -42,7 +45,7 @@ function StatusChip({ children, tone = 'default' }) {
 
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold"
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold whitespace-nowrap"
       style={{ background: s.bg, color: s.color }}
     >
       {children}
@@ -131,7 +134,7 @@ function EmptyState({ viewMode, hasFilters, onReset }) {
             : 'Scholars with pending return-of-obligation clearance will appear here.'}
       </p>
 
-      {hasFilters && (
+      {hasFilters ? (
         <Button
           onClick={onReset}
           variant="outline"
@@ -140,7 +143,7 @@ function EmptyState({ viewMode, hasFilters, onReset }) {
         >
           Reset Filters
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -326,7 +329,7 @@ function ClearConfirmModal({
         </div>
 
         <CardContent className="space-y-4 p-5">
-          <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+          <div className="rounded-xl border border-stone-200 bg-white px-3 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">
               Scholar
             </p>
@@ -356,12 +359,12 @@ function ClearConfirmModal({
             </div>
           </div>
 
-          {error && (
+          {error ? (
             <div className="flex gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
-          )}
+          ) : null}
 
           <div className="flex justify-end gap-3 border-t border-stone-100 pt-4">
             <Button
@@ -480,12 +483,9 @@ export default function ROAdmin() {
 
       const query = buildScholarQuery();
 
-      const res = await fetch(
-        buildApiUrl(`/api/ro/scholars?${query}`),
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await fetch(buildApiUrl(`/api/ro/scholars?${query}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       const data = await res.json().catch(() => ({}));
 
@@ -661,7 +661,7 @@ export default function ROAdmin() {
   }
 
   return (
-    <div className="space-y-4 py-2" style={{ background: C.bg }}>
+    <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
       <FilterModal
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
@@ -685,124 +685,112 @@ export default function ROAdmin() {
         onConfirm={handleConfirmClear}
       />
 
-      <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
-        <div className="flex flex-col gap-4 border-b border-stone-100 bg-white px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-stone-900">
-              Return of Obligation Clearance
-            </h2>
-            <p className="mt-0.5 text-xs text-stone-500">
-              Manage pending and cleared return-of-obligation records for active scholars.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={() => setFilterOpen(true)}
-              variant="outline"
-              size="sm"
-              className="h-10 rounded-xl border-stone-200 bg-white text-xs font-semibold text-stone-700"
-            >
-              <Filter className="mr-1.5 h-3.5 w-3.5" />
-              Filter
-              {activeFilterCount > 0 && (
-                <span
-                  className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white"
-                  style={{ background: C.brownMid }}
-                >
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
-
-            <Button
-              onClick={() => loadScholars()}
-              variant="outline"
-              size="sm"
-              className="h-10 rounded-xl border-stone-200 bg-white text-xs font-semibold text-stone-700"
-              disabled={filterLoading}
-            >
-              {filterLoading ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 border-b border-stone-100 bg-stone-50/40 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex w-full rounded-xl border border-stone-200 bg-white p-1 lg:w-auto">
-            <button
-              type="button"
-              onClick={() => setViewMode('pending')}
-              className={`flex-1 rounded-lg px-4 py-2 text-xs font-bold transition lg:flex-none ${viewMode === 'pending'
-                ? 'text-white'
-                : 'text-stone-500 hover:bg-stone-50 hover:text-stone-800'
-                }`}
-              style={{
-                background: viewMode === 'pending' ? C.brownMid : 'transparent',
-              }}
-            >
-              Pending RO
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewMode('cleared')}
-              className={`flex-1 rounded-lg px-4 py-2 text-xs font-bold transition lg:flex-none ${viewMode === 'cleared'
-                ? 'text-white'
-                : 'text-stone-500 hover:bg-stone-50 hover:text-stone-800'
-                }`}
-              style={{
-                background: viewMode === 'cleared' ? C.brownMid : 'transparent',
-              }}
-            >
-              Cleared Scholars
-            </button>
-          </div>
-
-          <div className="relative w-full lg:max-w-md">
+      <section
+        className="rounded-2xl border bg-white p-3 sm:p-4"
+        style={{ borderColor: C.line }}
+      >
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative w-full xl:max-w-xl">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
 
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search scholar name or PDM ID..."
-              className="h-10 rounded-xl border-stone-200 bg-white pl-9 text-sm"
+              className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm shadow-none focus-visible:ring-1"
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 lg:justify-end">
-            <p className="text-xs text-stone-500">
-              Showing{' '}
-              <span className="font-semibold text-stone-800">
-                {scholars.length}
-              </span>{' '}
-              {viewMode === 'cleared' ? 'cleared' : 'pending'} scholar
-              {scholars.length === 1 ? '' : 's'}
-            </p>
-
-            {hasFilters && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
               <button
                 type="button"
-                onClick={handleResetFilters}
-                className="text-xs font-semibold text-orange-800 hover:underline"
+                onClick={() => setViewMode('pending')}
+                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'pending'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-600'
+                  }`}
               >
-                Clear filters
+                Pending RO
               </button>
-            )}
+
+              <button
+                type="button"
+                onClick={() => setViewMode('cleared')}
+                className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === 'cleared'
+                    ? 'bg-white text-stone-900 shadow-sm'
+                    : 'text-stone-600'
+                  }`}
+              >
+                Cleared
+              </button>
+            </div>
+
+            <Button
+              onClick={() => setFilterOpen(true)}
+              variant="outline"
+              size="sm"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+              {activeFilterCount > 0 ? (
+                <span className="ml-2 rounded-full bg-stone-900 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </Button>
+
+            <Button
+              onClick={() => loadScholars()}
+              variant="outline"
+              size="sm"
+              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
+              disabled={filterLoading}
+            >
+              {filterLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Refresh
+            </Button>
+
+            {hasFilters ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResetFilters}
+                className="h-10 rounded-xl border-stone-200 bg-white px-3 text-xs text-stone-700"
+              >
+                Clear
+              </Button>
+            ) : null}
           </div>
         </div>
+      </section>
 
-        {error && (
+      <section
+        className="overflow-hidden rounded-2xl border bg-white"
+        style={{ borderColor: C.line }}
+      >
+        <div className="border-b border-stone-100 px-5 py-4">
+          <h2 className="text-sm font-semibold text-stone-800">
+            Return of Obligation Clearance
+          </h2>
+          <p className="mt-1 text-xs text-stone-500">
+            Manage pending and cleared return-of-obligation records for active scholars.
+          </p>
+        </div>
+
+        {error ? (
           <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-xs font-semibold text-red-600">
             {error}
           </div>
-        )}
+        ) : null}
 
-        <div className="overflow-x-auto">
+        <CardContent className="p-4">
           {scholars.length === 0 ? (
             <EmptyState
               viewMode={viewMode}
@@ -810,178 +798,210 @@ export default function ROAdmin() {
               onReset={handleResetFilters}
             />
           ) : (
-            <table className="min-w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-stone-200 bg-stone-50/70">
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Scholar
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    PDM ID
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Scholarship
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Opening
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Course
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Year
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Cleared Date
-                  </th>
-                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wide text-stone-500">
-                    Action
-                  </th>
-                </tr>
-              </thead>
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-stone-200 bg-stone-50/70">
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      Scholar
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      PDM ID
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      Scholarship
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      Opening
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      Course
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      Year
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      Status
+                    </th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
+                      Cleared Date
+                    </th>
+                    <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
 
-              <tbody className="divide-y divide-stone-100 bg-white">
-                {scholars.map((scholar) => {
-                  const studentId = scholar.student_id;
-                  const rowKey = `${studentId}-${scholar.application_id || scholar.opening_id || 'no-application'}`;
-                  const name = getScholarName(scholar);
-                  const cleared = isClearedScholar(scholar);
-                  const loadingThis = actionLoading === rowKey;
+                <tbody className="divide-y divide-stone-100 bg-white">
+                  {scholars.map((scholar) => {
+                    const studentId = scholar.student_id;
+                    const rowKey = `${studentId}-${scholar.application_id || scholar.opening_id || 'no-application'}`;
+                    const name = getScholarName(scholar);
+                    const cleared = isClearedScholar(scholar);
+                    const loadingThis = actionLoading === rowKey;
 
-                  return (
-                    <tr
-                      key={rowKey}
-                      className="transition-colors hover:bg-stone-50/70"
-                    >
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex items-start gap-3">
-                          <Avatar className="h-9 w-9 shrink-0 border border-stone-200 shadow-sm">
-                            <AvatarImage
-                              src={
-                                scholar.profile_photo_url ||
-                                scholar.avatarUrl ||
-                                scholar.avatar_url ||
-                                undefined
-                              }
-                              alt={name}
-                            />
-                            <AvatarFallback className="bg-blue-900 text-[10px] font-semibold text-white">
-                              {getInitials(name)}
-                            </AvatarFallback>
-                          </Avatar>
+                    return (
+                      <tr
+                        key={rowKey}
+                        className="transition-colors hover:bg-stone-50/70"
+                      >
+                        <td className="px-3 py-3 align-top">
+                          <div className="flex items-start gap-3">
+                            <Avatar className="h-8 w-8 shrink-0 rounded-full border border-stone-200 shadow-sm">
+                              <AvatarImage
+                                src={
+                                  scholar.profile_photo_url ||
+                                  scholar.avatarUrl ||
+                                  scholar.avatar_url ||
+                                  undefined
+                                }
+                                alt={name}
+                              />
+                              <AvatarFallback className="bg-blue-900 text-[10px] font-semibold text-white">
+                                {getInitials(name)}
+                              </AvatarFallback>
+                            </Avatar>
 
-                          <div className="min-w-0">
-                            <p className="max-w-[180px] truncate text-sm font-bold text-stone-900">
-                              {name}
-                            </p>
+                            <div className="min-w-0">
+                              <p className="max-w-[180px] truncate text-sm font-semibold text-stone-900">
+                                {name}
+                              </p>
 
-                            <p className="mt-0.5 text-[11px] text-stone-400">
-                              {scholar.is_active_scholar === false
-                                ? 'Inactive Scholar'
-                                : 'Active Scholar'}
-                            </p>
+                              <p className="mt-0.5 text-[11px] text-stone-400">
+                                {scholar.is_active_scholar === false
+                                  ? 'Inactive Scholar'
+                                  : 'Active Scholar'}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <p className="font-mono text-xs text-stone-700">
-                          {scholar.pdm_id ||
-                            scholar.student_number ||
-                            scholar.student_id ||
-                            'N/A'}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-4 align-top">
-                        <p className="max-w-[180px] text-xs font-semibold leading-5 text-stone-900">
-                          {scholar.program_name ||
-                            scholar.scholarship_program ||
-                            scholar.program ||
-                            'N/A'}
-                        </p>
-
-                        {scholar.benefactor_name && (
-                          <p className="mt-0.5 max-w-[180px] text-[11px] leading-4 text-stone-400">
-                            {scholar.benefactor_name}
+                        <td className="px-3 py-3 align-top">
+                          <p className="font-mono text-xs text-stone-700">
+                            {scholar.pdm_id ||
+                              scholar.student_number ||
+                              scholar.student_id ||
+                              'N/A'}
                           </p>
-                        )}
-                      </td>
+                        </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <p className="max-w-[200px] text-xs font-medium leading-5 text-stone-700">
-                          {scholar.opening_title ||
-                            scholar.opening_name ||
-                            scholar.batch_title ||
-                            'N/A'}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-4 align-top">
-                        <p className="max-w-[180px] text-xs font-semibold leading-5 text-stone-800">
-                          {scholar.course_code || 'N/A'}
-                        </p>
-
-                        {scholar.course_name && (
-                          <p className="mt-0.5 max-w-[200px] text-[11px] leading-4 text-stone-400">
-                            {scholar.course_name}
+                        <td className="px-3 py-3 align-top">
+                          <p className="max-w-[180px] text-xs font-semibold leading-5 text-stone-900">
+                            {scholar.program_name ||
+                              scholar.scholarship_program ||
+                              scholar.program ||
+                              'N/A'}
                           </p>
-                        )}
-                      </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <p className="text-xs font-medium text-stone-700">
-                          {formatYearLevel(scholar.year_level)}
-                        </p>
-                      </td>
+                          {scholar.benefactor_name ? (
+                            <p className="mt-0.5 max-w-[180px] text-[11px] leading-4 text-stone-400">
+                              {scholar.benefactor_name}
+                            </p>
+                          ) : null}
+                        </td>
 
-                      <td className="px-4 py-4 align-top">
-                        {cleared ? (
-                          <StatusChip tone="green">Cleared</StatusChip>
-                        ) : (
-                          <StatusChip tone="amber">Pending</StatusChip>
-                        )}
-                      </td>
+                        <td className="px-3 py-3 align-top">
+                          <p className="max-w-[200px] text-xs font-medium leading-5 text-stone-700">
+                            {scholar.opening_title ||
+                              scholar.opening_name ||
+                              scholar.batch_title ||
+                              'N/A'}
+                          </p>
+                        </td>
 
-                      <td className="px-4 py-4 align-top">
-                        <p className="text-xs font-medium text-stone-700">
-                          {cleared ? formatDate(scholar.cleared_at) : 'Not yet cleared'}
-                        </p>
-                      </td>
+                        <td className="px-3 py-3 align-top">
+                          <p className="max-w-[180px] text-xs font-semibold leading-5 text-stone-800">
+                            {scholar.course_code || 'N/A'}
+                          </p>
 
-                      <td className="px-4 py-4 text-right align-top">
-                        {viewMode === 'cleared' || cleared ? (
-                          <div className="inline-flex items-center gap-1.5 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs font-bold text-green-700">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            RO Cleared
-                          </div>
-                        ) : (
-                          <Button
-                            onClick={() => openClearModal(scholar)}
-                            disabled={loadingThis}
-                            className="h-9 rounded-xl border-none px-4 text-xs font-bold text-white"
-                            style={{ background: C.green }}
-                          >
-                            {loadingThis ? (
-                              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
-                            )}
-                            Clear
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          {scholar.course_name ? (
+                            <p className="mt-0.5 max-w-[200px] text-[11px] leading-4 text-stone-400">
+                              {scholar.course_name}
+                            </p>
+                          ) : null}
+                        </td>
+
+                        <td className="px-3 py-3 align-top">
+                          <p className="text-xs font-medium text-stone-700">
+                            {formatYearLevel(scholar.year_level)}
+                          </p>
+                        </td>
+
+                        <td className="px-3 py-3 align-top">
+                          {cleared ? (
+                            <StatusChip tone="green">Cleared</StatusChip>
+                          ) : (
+                            <StatusChip tone="amber">Pending</StatusChip>
+                          )}
+                        </td>
+
+                        <td className="px-3 py-3 align-top">
+                          <p className="text-xs font-medium text-stone-700">
+                            {cleared ? formatDate(scholar.cleared_at) : 'Not yet cleared'}
+                          </p>
+                        </td>
+
+                        <td className="px-3 py-3 text-right align-top">
+                          {viewMode === 'cleared' || cleared ? (
+                            <div className="inline-flex items-center gap-1.5 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs font-bold text-green-700">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              RO Cleared
+                            </div>
+                          ) : (
+                            <Button
+                              onClick={() => openClearModal(scholar)}
+                              disabled={loadingThis}
+                              className="h-8 rounded-lg border-none px-3 text-xs font-semibold text-white"
+                              style={{ background: C.green }}
+                            >
+                              {loadingThis ? (
+                                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+                              )}
+                              Clear
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
+        </CardContent>
+
+        <div className="flex items-center justify-between border-t border-stone-100 px-5 py-3">
+          <p className="text-xs text-stone-400">
+            Showing {scholars.length ? `1-${scholars.length}` : '0-0'} of {scholars.length}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled
+              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+
+            <span className="text-xs text-stone-500">Page 1 / 1</span>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled
+              className="h-8 w-8 rounded-full border-stone-200 text-stone-400 disabled:opacity-50"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
-      </Card>
+      </section>
     </div>
   );
 }

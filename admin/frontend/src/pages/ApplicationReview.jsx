@@ -623,6 +623,11 @@ function RegistryTable({
   title = 'Applicant Registry',
   subtitle = 'Current applicants and document status overview',
   mode = 'registry',
+  page = 1,
+  totalPages = 1,
+  totalItems = 0,
+  onPrev,
+  onNext,
 }) {
   const isReadinessMode = mode === 'readiness';
 
@@ -632,166 +637,204 @@ function RegistryTable({
       style={{ borderColor: C.line }}
     >
       <div className="border-b border-stone-100 px-5 py-4">
-        <h2 className="text-base font-semibold text-stone-900">{title}</h2>
-        <p className="mt-1 text-sm text-stone-500">{subtitle}</p>
+        <h2 className="text-sm font-semibold text-stone-800">{title}</h2>
+        <p className="mt-1 text-xs text-stone-500">{subtitle}</p>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px]">
-          <thead className="bg-stone-50">
-            <tr className="border-b border-stone-200">
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Applicant</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">PDM ID</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Scholarship</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Opening</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Submitted</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Requirements</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Endorsement</th>
-              {isReadinessMode ? (
-                <>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Slip</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">Ready Status</th>
-                </>
-              ) : null}
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">Action</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {rows.map((row) => {
-              const requirementsMeta = getReadinessMeta(
-                row.requirements_complete,
-                'Complete',
-                'Incomplete'
-              );
-              const endorsementMeta = getReadinessMeta(
-                row.endorsement_complete,
-                'Complete',
-                'Pending'
-              );
-              const readinessMeta = getScholarReadinessMeta(row);
-
-              return (
-                <tr
-                  key={row.application_id}
-                  className="border-b border-stone-100 transition hover:bg-stone-50"
-                >
-                  <td className="px-4 py-4 align-top">
-                    <div className="max-w-[220px]">
-                      <p className="text-sm font-semibold text-stone-900">
-                        {row.applicant_name}
-                      </p>
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4 align-top whitespace-nowrap text-sm text-stone-600">
-                    {row.pdm_id}
-                  </td>
-
-                  <td className="px-4 py-4 align-top text-sm font-medium text-stone-800">
-                    {row.program_name}
-                  </td>
-
-                  <td className="px-4 py-4 align-top text-sm text-stone-600">
-                    <div className="max-w-[220px]">{row.opening_title}</div>
-                    <p className="mt-1 text-xs text-stone-400">{row.academic_year}</p>
-                  </td>
-
-                  <td className="px-4 py-4 align-top whitespace-nowrap text-sm text-stone-500">
-                    {formatDate(row.submitted_at)}
-                  </td>
-
-                  <td className="px-4 py-4 align-top">
-                    <StatusPill meta={requirementsMeta} />
-                  </td>
-
-                  <td className="px-4 py-4 align-top">
-                    <StatusPill meta={endorsementMeta} />
-                  </td>
-
+      <CardContent className="p-4">
+        {rows.length === 0 ? (
+          <div className="py-16 text-center text-sm text-stone-400">
+            No applicants found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-stone-200 bg-stone-50/70">
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Applicant</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">PDM ID</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Scholarship</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Opening</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Submitted</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Requirements</th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Endorsement</th>
                   {isReadinessMode ? (
                     <>
-                      <td className="px-4 py-4 align-top">
-                        {row.endorsement_slip_id ? (
-                          <div className="space-y-2">
-                            <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
-                            <StatusPill
-                              meta={{
-                                label: row.endorsement_current_stage
-                                  ? row.endorsement_current_stage.replaceAll('_', ' ')
-                                  : 'Slip Available',
-                                bg: '#f5f5f4',
-                                color: '#57534e',
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-sm text-stone-400">No slip yet</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <StatusPill meta={readinessMeta} />
-                      </td>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Slip</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Ready Status</th>
                     </>
                   ) : null}
-
-                  <td className="px-4 py-4 align-top text-right">
-                    <div className="flex justify-end gap-2">
-                      {isReadinessMode && row.endorsement_slip_id ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
-                          onClick={() => navigate(`/admin/endorsements/${row.endorsement_slip_id}`)}
-                        >
-                          View Slip
-                        </Button>
-                      ) : null}
-                      {isReadinessMode && row.endorsement_slip_id ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
-                          onClick={() => onDownloadSlip(row)}
-                        >
-                          <Download className="mr-1.5 h-3.5 w-3.5" />
-                          PDF
-                        </Button>
-                      ) : null}
-                      {isReadinessMode ? (
-                        <Button
-                          size="sm"
-                          className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                          style={{ background: C.green }}
-                          onClick={() => onApproveScholar(row)}
-                          disabled={approvalLoadingId === row.application_id}
-                        >
-                          {approvalLoadingId === row.application_id ? (
-                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                          )}
-                          Finalize Scholar
-                        </Button>
-                      ) : null}
-                      <Button
-                        size="sm"
-                        className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                        style={{ background: C.brownMid }}
-                        onClick={() =>
-                          navigate(`/admin/applications/${row.application_id}/documents`)
-                        }
-                      >
-                        View Documents
-                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">Action</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+
+              <tbody className="divide-y divide-stone-100 bg-white">
+                {rows.map((row) => {
+                  const requirementsMeta = getReadinessMeta(
+                    row.requirements_complete,
+                    'Complete',
+                    'Incomplete'
+                  );
+                  const endorsementMeta = getReadinessMeta(
+                    row.endorsement_complete,
+                    'Complete',
+                    'Pending'
+                  );
+                  const readinessMeta = getScholarReadinessMeta(row);
+
+                  return (
+                    <tr
+                      key={row.application_id}
+                      className="transition-colors hover:bg-stone-50/70"
+                    >
+                      <td className="px-3 py-3 align-top">
+                        <div className="max-w-[220px]">
+                          <p className="text-sm font-semibold text-stone-900">
+                            {row.applicant_name}
+                          </p>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3 align-top whitespace-nowrap font-mono text-xs text-stone-700">
+                        {row.pdm_id}
+                      </td>
+
+                      <td className="px-3 py-3 align-top text-xs font-semibold leading-5 text-stone-900">
+                        <div className="max-w-[220px]">{row.program_name}</div>
+                      </td>
+
+                      <td className="px-3 py-3 align-top text-xs text-stone-600">
+                        <div className="max-w-[220px] font-medium text-stone-700">{row.opening_title}</div>
+                        <p className="mt-0.5 text-[11px] text-stone-400">{row.academic_year}</p>
+                      </td>
+
+                      <td className="px-3 py-3 align-top whitespace-nowrap text-xs font-medium text-stone-700">
+                        {formatDate(row.submitted_at)}
+                      </td>
+
+                      <td className="px-3 py-3 align-top">
+                        <StatusPill meta={requirementsMeta} />
+                      </td>
+
+                      <td className="px-3 py-3 align-top">
+                        <StatusPill meta={endorsementMeta} />
+                      </td>
+
+                      {isReadinessMode ? (
+                        <>
+                          <td className="px-3 py-3 align-top">
+                            {row.endorsement_slip_id ? (
+                              <div className="space-y-2">
+                                <p className="font-mono text-[11px] text-stone-600">{row.endorsement_slip_code}</p>
+                                <StatusPill
+                                  meta={{
+                                    label: row.endorsement_current_stage
+                                      ? row.endorsement_current_stage.replaceAll('_', ' ')
+                                      : 'Slip Available',
+                                    bg: '#f5f5f4',
+                                    color: '#57534e',
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-stone-400">No slip yet</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <StatusPill meta={readinessMeta} />
+                          </td>
+                        </>
+                      ) : null}
+
+                      <td className="px-3 py-3 align-top text-right">
+                        <div className="flex justify-end gap-2">
+                          {isReadinessMode && row.endorsement_slip_id ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                              onClick={() => navigate(`/admin/endorsements/${row.endorsement_slip_id}`)}
+                            >
+                              View Slip
+                            </Button>
+                          ) : null}
+                          {isReadinessMode && row.endorsement_slip_id ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
+                              onClick={() => onDownloadSlip(row)}
+                            >
+                              <Download className="mr-1.5 h-3.5 w-3.5" />
+                              PDF
+                            </Button>
+                          ) : null}
+                          {isReadinessMode ? (
+                            <Button
+                              size="sm"
+                              className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                              style={{ background: C.green }}
+                              onClick={() => onApproveScholar(row)}
+                              disabled={approvalLoadingId === row.application_id}
+                            >
+                              {approvalLoadingId === row.application_id ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                              )}
+                              Finalize Scholar
+                            </Button>
+                          ) : null}
+                          <Button
+                            size="sm"
+                            className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                            style={{ background: C.brownMid }}
+                            onClick={() =>
+                              navigate(`/admin/applications/${row.application_id}/documents`)
+                            }
+                          >
+                            View Documents
+                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+
+      <div className="flex items-center justify-between border-t border-stone-100 px-5 py-3">
+        <p className="text-xs text-stone-400">
+          Showing {totalItems === 0 ? '0-0' : `${(page - 1) * PAGE_SIZE + 1}-${Math.min(page * PAGE_SIZE, totalItems)}`} of {totalItems}
+        </p>
+
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={page <= 1}
+            onClick={onPrev}
+            className="h-8 w-8 rounded-full border-stone-200 text-stone-500 disabled:opacity-50"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+          <span className="text-xs text-stone-500">Page {page} / {totalPages}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={page >= totalPages}
+            onClick={onNext}
+            className="h-8 w-8 rounded-full border-stone-200 text-stone-500 disabled:opacity-50"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </section>
   );
@@ -1177,20 +1220,18 @@ export default function ApplicationReview() {
     <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
       {feedback ? (
         <div
-          className={`rounded-2xl border px-4 py-4 shadow-sm ${
-            feedback.tone === 'success'
-              ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
-              : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
-          }`}
+          className={`rounded-2xl border px-4 py-4 shadow-sm ${feedback.tone === 'success'
+            ? 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-900'
+            : 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-900'
+            }`}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <div
-                className={`rounded-2xl p-2 ${
-                  feedback.tone === 'success'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-red-100 text-red-700'
-                }`}
+                className={`rounded-2xl p-2 ${feedback.tone === 'success'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700'
+                  }`}
               >
                 <CheckCircle2 className="h-5 w-5" />
               </div>
@@ -1252,12 +1293,12 @@ export default function ApplicationReview() {
         )
       ) : viewType === 'action' ? (
         readinessRows.length === 0 ? (
-        <Card className="rounded-2xl border-stone-200 shadow-none">
-          <CardContent className="py-16 text-center text-sm text-stone-400">
-            No applicants are ready for final scholar handling yet. Once both requirements and endorsement are complete, they will move here automatically.
-          </CardContent>
-        </Card>
-      ) : (
+          <Card className="rounded-2xl border-stone-200 shadow-none">
+            <CardContent className="py-16 text-center text-sm text-stone-400">
+              No applicants are ready for final scholar handling yet. Once both requirements and endorsement are complete, they will move here automatically.
+            </CardContent>
+          </Card>
+        ) : (
           <>
             <ReadinessSummary rows={readinessRows} />
             <RegistryTable
@@ -1269,9 +1310,6 @@ export default function ApplicationReview() {
               title="Activation Readiness Queue"
               subtitle="Applicants who completed both requirements and endorsement and are ready for final scholar handling."
               mode="readiness"
-            />
-
-            <Pagination
               page={page}
               totalPages={readinessTotalPages}
               totalItems={readinessRows.length}
@@ -1297,9 +1335,6 @@ export default function ApplicationReview() {
             title="Applicant Registry"
             subtitle="Applicants still completing requirements or endorsement before moving to readiness."
             mode="registry"
-          />
-
-          <Pagination
             page={page}
             totalPages={tableTotalPages}
             totalItems={pendingRegistryRows.length}

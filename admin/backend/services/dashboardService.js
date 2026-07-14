@@ -8,12 +8,21 @@ function normalizeLower(value) {
     return normalizeText(value).toLowerCase();
 }
 
-function isArchived(row) {
-    return row?.is_archived === true || row?.scholar_is_archived === true;
+function isRecordArchived(row) {
+    return row?.is_archived === true;
+}
+
+function isScholarArchived(row) {
+    return row?.scholar_is_archived === true;
 }
 
 function isActiveScholar(row) {
     const scholarshipStatus = normalizeLower(row?.scholarship_status);
+
+    if (isRecordArchived(row)) return false;
+    if (isScholarArchived(row)) return false;
+    if (scholarshipStatus === 'removed') return false;
+
     return row?.is_active_scholar === true || scholarshipStatus === 'active';
 }
 
@@ -66,6 +75,7 @@ function getDateValue(row, keys = []) {
     for (const key of keys) {
         if (row?.[key]) return row[key];
     }
+
     return null;
 }
 
@@ -207,7 +217,7 @@ function groupOpeningStatus(openings) {
     };
 
     openings.forEach((row) => {
-        if (isArchived(row)) {
+        if (isRecordArchived(row)) {
             buckets.Archived += 1;
             return;
         }
@@ -268,33 +278,101 @@ function groupDocumentSummary(applications, ocrJobs) {
     ];
 }
 
-function buildScholarsByBenefactor(students, programs, benefactors) {
+function buildApplicationProgramMaps(applications) {
+    const applicationProgramMap = new Map();
+    const latestProgramByStudentMap = new Map();
+
+    const sortedApplications = [...applications]
+        .filter((application) => !isRecordArchived(application))
+        .sort((a, b) => {
+            const aDate = new Date(a.submission_date || a.created_at || 0).getTime();
+            const bDate = new Date(b.submission_date || b.created_at || 0).getTime();
+            return bDate - aDate;
+        });
+
+    sortedApplications.forEach((application) => {
+        if (application.application_id && application.program_id) {
+            applicationProgramMap.set(
+                String(application.application_id),
+                application.program_id
+            );
+        }
+
+        if (
+            application.student_id &&
+            application.program_id &&
+            !latestProgramByStudentMap.has(String(application.student_id))
+        ) {
+            latestProgramByStudentMap.set(
+                String(application.student_id),
+                application.program_id
+            );
+        }
+    });
+
+    return {
+        applicationProgramMap,
+        latestProgramByStudentMap,
+    };
+}
+
+function buildScholarsByBenefactor(students, programs, benefactors, applications = []) {
     const programMap = new Map();
     const benefactorMap = new Map();
     const countMap = new Map();
 
-    programs.forEach((program) => {
-        programMap.set(program.program_id, program);
-    });
+    const {
+        applicationProgramMap,
+        latestProgramByStudentMap,
+    } = buildApplicationProgramMaps(applications);
 
-    benefactors.forEach((benefactor) => {
-        benefactorMap.set(
-            benefactor.benefactor_id,
-            benefactor.benefactor_name || benefactor.name || 'Unnamed Benefactor'
-        );
-    });
+    programs
+        .filter((program) => !isRecordArchived(program))
+        .forEach((program) => {
+            programMap.set(String(program.program_id), program);
+        });
+
+    benefactors
+        .filter((benefactor) => !isRecordArchived(benefactor))
+        .forEach((benefactor) => {
+            benefactorMap.set(
+                String(benefactor.benefactor_id),
+                benefactor.benefactor_name || 'Unnamed Benefactor'
+            );
+        });
 
     students
-        .filter((student) => !isArchived(student))
+        .filter((student) => !isRecordArchived(student))
+        .filter((student) => !isScholarArchived(student))
         .filter(isActiveScholar)
         .forEach((student) => {
-            const programId = student.current_program_id || student.program_id;
-            const program = programMap.get(programId);
-            const benefactorId = program?.benefactor_id;
+            const programId =
+                student.current_program_id ||
+                applicationProgramMap.get(String(student.current_application_id || '')) ||
+                latestProgramByStudentMap.get(String(student.student_id || ''));
+
+            if (!programId) {
+                countMap.set('No Linked Program', (countMap.get('No Linked Program') || 0) + 1);
+                return;
+            }
+
+            const program = programMap.get(String(programId));
+
+            if (!program) {
+                countMap.set('Program Not Found', (countMap.get('Program Not Found') || 0) + 1);
+                return;
+            }
+
+            const benefactorId = program.benefactor_id;
+
+            if (!benefactorId) {
+                countMap.set('No Linked Benefactor', (countMap.get('No Linked Benefactor') || 0) + 1);
+                return;
+            }
 
             const benefactorName =
-                benefactorMap.get(benefactorId) ||
-                'Unassigned Benefactor';
+                benefactorMap.get(String(benefactorId)) ||
+                'Benefactor Not Found';
 
             countMap.set(benefactorName, (countMap.get(benefactorName) || 0) + 1);
         });
@@ -311,19 +389,19 @@ function buildRecentApplications(applications, students, openings, programs) {
     const programMap = new Map();
 
     students.forEach((student) => {
-        studentMap.set(student.student_id, student);
+        studentMap.set(String(student.student_id), student);
     });
 
     openings.forEach((opening) => {
-        openingMap.set(opening.opening_id, opening);
+        openingMap.set(String(opening.opening_id), opening);
     });
 
     programs.forEach((program) => {
-        programMap.set(program.program_id, program);
+        programMap.set(String(program.program_id), program);
     });
 
     return applications
-        .filter((row) => !isArchived(row))
+        .filter((row) => !isRecordArchived(row))
         .filter(isApplicationNeedingAction)
         .sort((a, b) => {
             const aDate = new Date(a.submission_date || a.created_at || 0).getTime();
@@ -332,21 +410,24 @@ function buildRecentApplications(applications, students, openings, programs) {
         })
         .slice(0, 8)
         .map((application) => {
-            const student = studentMap.get(application.student_id) || {};
-            const opening = openingMap.get(application.opening_id) || {};
+            const student = studentMap.get(String(application.student_id)) || {};
+            const opening = openingMap.get(String(application.opening_id)) || {};
+
             const program =
-                programMap.get(application.program_id) ||
-                programMap.get(opening.program_id) ||
+                programMap.get(String(application.program_id || '')) ||
+                programMap.get(String(opening.program_id || '')) ||
+                programMap.get(String(student.current_program_id || '')) ||
                 {};
+
+            const studentName = fullName(student);
 
             return {
                 application_id: application.application_id,
                 student_id: application.student_id,
-                student_name: fullName(student) || 'Unknown Student',
+                student_name: studentName || 'Unknown Student',
                 student_number:
                     student.pdm_id ||
                     student.registrar_student_number ||
-                    student.student_number ||
                     'N/A',
                 program_name: program.program_name || 'No Program',
                 opening_title: opening.opening_title || 'No Opening',
@@ -363,19 +444,24 @@ function buildSummaryCards({
     openings,
 }) {
     const now = new Date();
+
     const currentStart = new Date(now);
     currentStart.setDate(currentStart.getDate() - 30);
 
     const previousStart = new Date(now);
     previousStart.setDate(previousStart.getDate() - 60);
 
-    const activeApplications = applications.filter((row) => !isArchived(row));
-    const activeStudents = students.filter((row) => !isArchived(row));
+    const activeApplications = applications.filter((row) => !isRecordArchived(row));
+
+    const activeScholarStudents = students
+        .filter((student) => !isRecordArchived(student))
+        .filter((student) => !isScholarArchived(student))
+        .filter(isActiveScholar);
 
     const totalApplications = activeApplications.length;
     const pendingReview = countBy(activeApplications, isPendingReview);
     const verifiedDocuments = countBy(activeApplications, isVerifiedDocument);
-    const activeScholars = countBy(activeStudents, isActiveScholar);
+    const activeScholars = activeScholarStudents.length;
 
     const currentApps = countWithinDateRange(
         activeApplications,
@@ -397,7 +483,7 @@ function buildSummaryCards({
 
     const openOpenings = countBy(
         openings,
-        (row) => !isArchived(row) && normalizeLower(row.posting_status) === 'open'
+        (row) => !isRecordArchived(row) && normalizeLower(row.posting_status) === 'open'
     );
 
     return [
@@ -452,7 +538,7 @@ exports.getAdminDashboard = async () => {
         ),
         fetchRows(
             'students',
-            'student_id, pdm_id, registrar_student_number, student_number, first_name, middle_name, last_name, is_active_scholar, scholarship_status, current_program_id, program_id, is_archived, scholar_is_archived'
+            'student_id, pdm_id, registrar_student_number, first_name, middle_name, last_name, is_active_scholar, scholarship_status, current_program_id, current_application_id, is_archived, scholar_is_archived, ro_status'
         ),
         fetchRows(
             'program_openings',
@@ -464,7 +550,7 @@ exports.getAdminDashboard = async () => {
         ),
         fetchRows(
             'benefactors',
-            'benefactor_id, benefactor_name, name, is_archived'
+            'benefactor_id, benefactor_name, benefactor_type, is_archived'
         ),
         fetchRows(
             'ocr_jobs',
@@ -472,7 +558,7 @@ exports.getAdminDashboard = async () => {
         ),
     ]);
 
-    const activeApplications = applications.filter((row) => !isArchived(row));
+    const activeApplications = applications.filter((row) => !isRecordArchived(row));
 
     return {
         generatedAt: new Date().toISOString(),
@@ -484,7 +570,12 @@ exports.getAdminDashboard = async () => {
         applicationStatus: groupApplicationStatus(activeApplications),
         openingStatus: groupOpeningStatus(openings),
         documentSummary: groupDocumentSummary(activeApplications, ocrJobs),
-        scholarsByBenefactor: buildScholarsByBenefactor(students, programs, benefactors),
+        scholarsByBenefactor: buildScholarsByBenefactor(
+            students,
+            programs,
+            benefactors,
+            applications
+        ),
         recentApplications: buildRecentApplications(
             activeApplications,
             students,

@@ -49,6 +49,9 @@ class _FakeMessagingSocket implements MessagingSocket {
   }
 
   @override
+  void onDisconnect(void Function(dynamic) handler) {}
+
+  @override
   void on(String event, MessagingSocketHandler handler) {
     if (event == 'message:new') {
       _messageNewHandler = handler;
@@ -195,7 +198,6 @@ void main() {
     expect(parsed.senderId, 'user-2');
     expect(parsed.receiverId, 'user-1');
     expect(parsed.messageBody, 'Live update');
-    provider.dispose();
   });
 
   test('MessagingProvider handles inactive room messages and read receipts', () async {
@@ -233,6 +235,5 @@ void main() {
       provider.messages.singleWhere((message) => message.messageId == 'room-msg-1').isRead,
       isTrue,
     );
-    provider.dispose();
   });
 }

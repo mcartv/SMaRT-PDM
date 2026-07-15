@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
@@ -9,6 +11,14 @@ import 'package:smartpdm_mobileapp/shared/models/saved_application_print_model.d
 class _FakePrintableApplicationService extends PrintableApplicationService {
   Map<String, dynamic>? submissionPayload;
   String? applicationId;
+
+  @override
+  Future<File> generateFromSubmissionPayload(Map<String, dynamic> payload) async {
+    submissionPayload = payload;
+    return File(
+      '${Directory.systemTemp.path}/fake_printable_application.pdf',
+    )..writeAsStringSync('fake pdf');
+  }
 
   @override
   Future<void> generateOpenFromSubmissionPayload(
@@ -147,7 +157,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Download Printable PDF'));
+    await tester.tap(find.text('Export Application Form'));
     await tester.pump();
 
     expect(fakeService.submissionPayload, submissionPayload);

@@ -118,13 +118,12 @@ void main() {
       expect(data.fatherPresent, isTrue);
       expect(data.motherPresent, isFalse);
       expect(data.fatherFirstName, 'Pedro');
-      expect(data.fatherEducationalAttainment, 'College');
+      expect(data.fatherEducationalAttainment, 'Post-Graduate');
       expect(data.fatherCompanyNameAndAddress, 'Marilao Transport');
       expect(data.motherMobile, '09180000002');
       expect(data.currentCourse, 'BSIT');
       expect(data.currentYearLevel, '2');
       expect(data.currentSection, 'B');
-      expect(data.fatherEducationalAttainment, 'Post-Graduate');
       expect(data.gwa, '1.75');
       expect(data.scholarshipHistory, isTrue);
       expect(data.scholarshipElementary, isTrue);

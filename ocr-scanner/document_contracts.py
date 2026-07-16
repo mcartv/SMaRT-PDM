@@ -117,3 +117,29 @@ def build_extracted_fields(document_key: str, raw_text: str) -> Dict[str, Any]:
         "source_regions": list(contract.source_regions),
         "fields": {},
     }
+
+
+def build_birth_extracted_fields_from_ocr_result(
+    raw_text: str,
+    field_texts: Dict[str, str],
+    ocr_attempts: int = 0,
+    preprocessing_variant: str = "registered_whole_row_ocr",
+) -> Dict[str, Any]:
+    contract = get_contract("certificate_of_live_birth")
+    fields = {
+        name: {
+            "raw_text": value,
+            "review_required": True,
+        }
+        for name, value in field_texts.items()
+    }
+    return {
+        "document_type": "birth_certificate",
+        "review_required": True,
+        "contract_status": contract.status if contract else "missing",
+        "source_regions": list(contract.source_regions) if contract else [],
+        "raw_text": raw_text or "",
+        "ocr_attempts": int(ocr_attempts),
+        "preprocessing_variant": preprocessing_variant,
+        "fields": fields,
+    }

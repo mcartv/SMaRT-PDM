@@ -17,6 +17,11 @@ const IOT_OCR_API_KEY =
 const INTERNAL_NOTIFICATION_SECRET =
     (process.env.INTERNAL_NOTIFICATION_SECRET || '').trim();
 const IOT_OCR_TIMEOUT_MS = Number(process.env.IOT_OCR_TIMEOUT_MS || 15000);
+const BIRTH_STRUCTURED_FIELD_KEYS = Object.freeze([
+    'child_name',
+    'mother_maiden_name',
+    'father_name',
+]);
 
 const APPROVED_SCHOLAR_NOTIFICATION = Object.freeze({
     type: 'Application',
@@ -727,7 +732,255 @@ function normalizeOcrPayload(payload = {}) {
         ocr_confidence: confidence,
         raw_text: rawText,
         extracted_fields: extractedFields,
-        source_payload: payload,
+        source_payload:
+            payload?.source_payload && typeof payload.source_payload === 'object'
+                ? payload.source_payload
+                : payload,
+    };
+}
+
+function isRecord(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function sanitizeIssueCodes(value) {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .filter((code) => typeof code === 'string')
+        .map((code) => code.trim())
+        .filter(Boolean);
+}
+
+function sanitizeBirthStructuredFields(extractedFields = {}) {
+    if (!isRecord(extractedFields)) return {};
+
+    const sourceFields = isRecord(extractedFields.fields)
+        ? extractedFields.fields
+        : {};
+    const fields = {};
+
+    for (const fieldKey of BIRTH_STRUCTURED_FIELD_KEYS) {
+        if (!Object.prototype.hasOwnProperty.call(sourceFields, fieldKey)) continue;
+
+        const sourceField = sourceFields[fieldKey];
+        const normalizedField = isRecord(sourceField)
+            ? sourceField
+            : { raw_text: sourceField };
+        const field = {
+            raw_text:
+                typeof normalizedField.raw_text === 'string'
+                    ? normalizedField.raw_text
+                    : '',
+            review_required: normalizedField.review_required !== false,
+        };
+
+        if (typeof normalizedField.success === 'boolean') {
+            field.success = normalizedField.success;
+        }
+
+        fields[fieldKey] = field;
+    }
+
+    const ocrAttempts = Number(extractedFields.ocr_attempts);
+    const structured = {
+        document_type: 'birth_certificate',
+        fields,
+    };
+
+    if (Number.isFinite(ocrAttempts) && ocrAttempts >= 0) {
+        structured.ocr_attempts = Math.trunc(ocrAttempts);
+    }
+
+    if (
+        typeof extractedFields.preprocessing_variant === 'string' &&
+        extractedFields.preprocessing_variant.trim()
+    ) {
+        structured.preprocessing_variant = extractedFields.preprocessing_variant.trim();
+    }
+
+    if (typeof extractedFields.review_required === 'boolean') {
+        structured.review_required = extractedFields.review_required;
+    }
+
+    return structured;
+}
+
+function sanitizeGenericStructuredFields(extractedFields = {}) {
+    if (!isRecord(extractedFields)) return {};
+
+    try {
+        const cloned = JSON.parse(JSON.stringify(extractedFields));
+        return isRecord(cloned) ? cloned : {};
+    } catch {
+        return {};
+    }
+}
+
+function sanitizeStructuredOcrFields(documentKey, extractedFields = {}) {
+    const normalizedDocumentKey = normalizeDocumentType(documentKey);
+    const documentType = normalizeDocumentType(extractedFields?.document_type);
+    const isBirthCertificate =
+        normalizedDocumentKey === 'birth_certificate' ||
+        documentType === 'birth_certificate';
+
+    return isBirthCertificate
+        ? sanitizeBirthStructuredFields(extractedFields)
+        : sanitizeGenericStructuredFields(extractedFields);
+}
+
+function sanitizeOcrProcessingMetadata(sourcePayload = {}, structuredFields = {}) {
+    if (!isRecord(sourcePayload)) return {};
+
+    const metadata = {};
+    const statusKeys = [
+        'worker_status',
+        'registration_status',
+        'cropper_status',
+        'ocr_status',
+    ];
+    const issueKeys = [
+        'registration_issue_codes',
+        'cropper_issue_codes',
+        'ocr_issue_codes',
+    ];
+
+    for (const key of statusKeys) {
+        if (typeof sourcePayload[key] === 'string' && sourcePayload[key].trim()) {
+            metadata[key] = sourcePayload[key].trim();
+        }
+    }
+
+    for (const key of issueKeys) {
+        metadata[key] = sanitizeIssueCodes(sourcePayload[key]);
+    }
+
+    const actualFieldKeys = isRecord(structuredFields.fields)
+        ? Object.keys(structuredFields.fields)
+        : [];
+    const requestedFieldKeys = Array.isArray(sourcePayload.structured_field_keys)
+        ? sourcePayload.structured_field_keys.filter((key) => actualFieldKeys.includes(key))
+        : actualFieldKeys;
+
+    if (requestedFieldKeys.length > 0) {
+        metadata.structured_field_keys = [...new Set(requestedFieldKeys)].sort();
+    }
+
+    const ocrAttempts = Number(
+        sourcePayload.ocr_attempts ?? structuredFields.ocr_attempts
+    );
+    if (Number.isFinite(ocrAttempts) && ocrAttempts >= 0) {
+        metadata.ocr_attempts = Math.trunc(ocrAttempts);
+    }
+
+    const preprocessingVariant =
+        sourcePayload.preprocessing_variant ??
+        structuredFields.preprocessing_variant;
+    if (
+        typeof preprocessingVariant === 'string' &&
+        preprocessingVariant.trim()
+    ) {
+        metadata.preprocessing_variant = preprocessingVariant.trim();
+    }
+
+    return metadata;
+}
+
+function deriveOcrReviewRequired({
+    structuredFields = {},
+    sourcePayload = {},
+    existingReviewRequired = false,
+    hasNewOcrContext = true,
+} = {}) {
+    if (!hasNewOcrContext) return existingReviewRequired === true;
+
+    return (
+        structuredFields?.review_required === true ||
+        sourcePayload?.manual_review_required === true ||
+        sourcePayload?.worker_status === 'review_required'
+    );
+}
+
+function buildStructuredOcrPersistence({
+    documentKey,
+    extractedFields,
+    sourcePayload,
+    existingStructuredFields = {},
+    existingReviewRequired = false,
+    existingProcessingMetadata = {},
+} = {}) {
+    const hasStructuredInput = extractedFields !== null && extractedFields !== undefined;
+    const hasSourcePayload = sourcePayload !== null && sourcePayload !== undefined;
+    const structuredFields = hasStructuredInput
+        ? sanitizeStructuredOcrFields(documentKey, extractedFields)
+        : sanitizeGenericStructuredFields(existingStructuredFields);
+    const processingMetadata = hasSourcePayload
+        ? sanitizeOcrProcessingMetadata(sourcePayload, structuredFields)
+        : sanitizeGenericStructuredFields(existingProcessingMetadata);
+
+    return {
+        ocr_structured_fields: structuredFields,
+        ocr_review_required: deriveOcrReviewRequired({
+            structuredFields,
+            sourcePayload: hasSourcePayload ? sourcePayload : {},
+            existingReviewRequired,
+            hasNewOcrContext: hasStructuredInput || hasSourcePayload,
+        }),
+        ocr_processing_metadata: processingMetadata,
+    };
+}
+
+function buildOcrProjection(ocrRow = {}) {
+    return {
+        id: ocrRow.document_id || null,
+        document_key: normalizeDocumentType(
+            ocrRow.document_key || ocrRow.document_type || ''
+        ),
+        document_type: ocrRow.document_type || null,
+        file_url: ocrRow.file_url || null,
+        scanned_via_iot: !!ocrRow.scanned_via_iot,
+        iot_device_id: ocrRow.iot_device_id || null,
+        extracted_name: ocrRow.ocr_extracted_name || null,
+        extracted_gwa: ocrRow.ocr_extracted_gwa ?? null,
+        confidence: ocrRow.ocr_confidence ?? null,
+        raw_text: ocrRow.ocr_raw_text || '',
+        structured_fields: isRecord(ocrRow.ocr_structured_fields)
+            ? ocrRow.ocr_structured_fields
+            : {},
+        review_required: ocrRow.ocr_review_required === true,
+        processing_metadata: isRecord(ocrRow.ocr_processing_metadata)
+            ? ocrRow.ocr_processing_metadata
+            : {},
+        scanned_at: ocrRow.scanned_at || null,
+        updated_at: ocrRow.updated_at || null,
+    };
+}
+
+function buildOcrOnlyDocument({
+    documentKey,
+    ocr,
+    latestIotOcrRequest = null,
+} = {}) {
+    return {
+        id: documentKey,
+        document_key: documentKey,
+        name: DOCUMENT_TYPE_TO_NAME[documentKey] || ocr?.document_type || 'Document',
+        document_type: ocr?.document_type || null,
+        file_name: null,
+        file_path: null,
+        url: ocr?.file_url || null,
+        file_url: ocr?.file_url || null,
+        signed_url: null,
+        status: 'pending',
+        admin_comment: '',
+        notes: null,
+        ocr: ocr || {},
+        ocr_confidence: ocr?.confidence ?? null,
+        iot_ocr_request: latestIotOcrRequest,
+        ocr_job: latestIotOcrRequest,
+        uploaded_at: null,
+        submitted_at: null,
+        reviewed_at: null,
     };
 }
 
@@ -916,6 +1169,9 @@ async function buildApplicationDetails(applicationId) {
                 ocr_extracted_gwa,
                 ocr_confidence,
                 ocr_raw_text,
+                ocr_structured_fields,
+                ocr_review_required,
+                ocr_processing_metadata,
                 scanned_at,
                 updated_at
             `)
@@ -1006,23 +1262,7 @@ async function buildApplicationDetails(applicationId) {
                 ocrRow.document_key || ocrRow.document_type || ''
             );
 
-            return [
-                resolvedKey,
-                {
-                    id: ocrRow.document_id || null,
-                    document_key: resolvedKey,
-                    document_type: ocrRow.document_type || null,
-                    file_url: ocrRow.file_url || null,
-                    scanned_via_iot: !!ocrRow.scanned_via_iot,
-                    iot_device_id: ocrRow.iot_device_id || null,
-                    extracted_name: ocrRow.ocr_extracted_name || null,
-                    extracted_gwa: ocrRow.ocr_extracted_gwa ?? null,
-                    confidence: ocrRow.ocr_confidence ?? null,
-                    raw_text: ocrRow.ocr_raw_text || '',
-                    scanned_at: ocrRow.scanned_at || null,
-                    updated_at: ocrRow.updated_at || null,
-                },
-            ];
+            return [resolvedKey, buildOcrProjection(ocrRow)];
         })
     );
     const latestIotOcrRequestByKey = new Map();
@@ -1085,6 +1325,19 @@ async function buildApplicationDetails(applicationId) {
             };
         })
     );
+    const projectedDocumentKeys = new Set(
+        normalizedDocuments.map((document) => document.document_key)
+    );
+
+    for (const [documentKey, ocr] of ocrByKey) {
+        if (!documentKey || projectedDocumentKeys.has(documentKey)) continue;
+
+        normalizedDocuments.push(buildOcrOnlyDocument({
+            documentKey,
+            ocr,
+            latestIotOcrRequest: latestIotOcrRequestByKey.get(documentKey) || null,
+        }));
+    }
 
     normalizedDocuments.push({
         id: 'application_form',
@@ -1506,6 +1759,9 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
             ocr_extracted_gwa,
             ocr_confidence,
             ocr_raw_text,
+            ocr_structured_fields,
+            ocr_review_required,
+            ocr_processing_metadata,
             scanned_via_iot,
             iot_device_id,
             scanned_at,
@@ -1535,12 +1791,7 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
         student_name: studentName || 'Unknown Student',
         document_key: normalizedDocumentKey,
         document_type: documentTypeName,
-        ocr: {
-            extracted_name: ocrRow?.ocr_extracted_name || null,
-            extracted_gwa: ocrRow?.ocr_extracted_gwa ?? null,
-            confidence: ocrRow?.ocr_confidence ?? null,
-            raw_text: ocrRow?.ocr_raw_text || '',
-        },
+        ocr: buildOcrProjection(ocrRow || {}),
         ocr_confidence: ocrRow?.ocr_confidence ?? null,
         raw_text: ocrRow?.ocr_raw_text || '',
         scanned_via_iot: !!ocrRow?.scanned_via_iot,
@@ -1557,6 +1808,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     rawText,
     ocrConfidence = null,
     extractedFields = null,
+    sourcePayload = null,
     scannedViaIot = null,
     iotDeviceId = null,
     scannedAt = null,
@@ -1662,7 +1914,10 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
             scanned_at,
             ocr_extracted_name,
             ocr_extracted_gwa,
-            ocr_confidence
+            ocr_confidence,
+            ocr_structured_fields,
+            ocr_review_required,
+            ocr_processing_metadata
         `)
         .eq('linked_record_id', applicationId)
         .eq('student_id', applicationRow.student_id)
@@ -1676,6 +1931,14 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     }
 
     const existingRow = existingOcrRows?.[0] || null;
+    const structuredPersistence = buildStructuredOcrPersistence({
+        documentKey: normalizedDocumentKey,
+        extractedFields,
+        sourcePayload,
+        existingStructuredFields: existingRow?.ocr_structured_fields,
+        existingReviewRequired: existingRow?.ocr_review_required,
+        existingProcessingMetadata: existingRow?.ocr_processing_metadata,
+    });
     const payload = {
         student_id: applicationRow.student_id,
         linked_record_id: applicationId,
@@ -1705,6 +1968,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
                 ? normalizedConfidence
                 : existingRow?.ocr_confidence ?? null,
         ocr_raw_text: normalizedRawText,
+        ...structuredPersistence,
         scanned_at: scannedAt || existingRow?.scanned_at || now,
         updated_at: now,
     };
@@ -1747,12 +2011,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         student_name: studentName || 'Unknown Student',
         document_key: normalizedDocumentKey,
         document_type: documentTypeName,
-        ocr: {
-            extracted_name: result.ocr_extracted_name || null,
-            extracted_gwa: result.ocr_extracted_gwa ?? null,
-            confidence: result.ocr_confidence ?? null,
-            raw_text: result.ocr_raw_text || '',
-        },
+        ocr: buildOcrProjection(result),
         ocr_confidence: result.ocr_confidence ?? null,
         raw_text: result.ocr_raw_text || '',
     };
@@ -2501,6 +2760,12 @@ module.exports = {
     normalizeDocumentType,
     getDocumentTypeName: (documentKey) => DOCUMENT_TYPE_TO_NAME[documentKey] || null,
     normalizeOcrPayload,
+    sanitizeStructuredOcrFields,
+    sanitizeOcrProcessingMetadata,
+    deriveOcrReviewRequired,
+    buildStructuredOcrPersistence,
+    buildOcrProjection,
+    buildOcrOnlyDocument,
     resolveIotExtractedName,
     resolveStoredExtractedName,
 };

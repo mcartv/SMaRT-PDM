@@ -381,6 +381,7 @@ exports.completeRequest = async (input = {}) => {
                 rawText: normalizedPayload.raw_text,
                 ocrConfidence: normalizedPayload.ocr_confidence,
                 extractedFields: normalizedPayload.extracted_fields,
+                sourcePayload: normalizedPayload.source_payload,
                 scannedViaIot: true,
                 iotDeviceId: claimedBy || requestRow.claimed_by || null,
                 scannedAt: new Date().toISOString(),

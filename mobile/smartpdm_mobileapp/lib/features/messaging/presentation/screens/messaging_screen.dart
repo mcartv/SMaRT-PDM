@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
@@ -20,36 +25,152 @@ class MessagingScreen extends StatefulWidget {
 class _MessagingScreenState extends State<MessagingScreen> {
   final TextEditingController _messageController = TextEditingController();
 
+  MessagingProvider? _messagingProvider;
+  VoidCallback? _stopRealtimeListener;
+  Timer? _realtimeDebounce;
+  Timer? _liveRefreshTimer;
+
+  bool _isRefreshingThread = false;
+
+  bool get _isGroupChat =>
+      widget.roomId != null && widget.roomId!.trim().isNotEmpty;
+
+  String? get _normalizedRoomId {
+    final value = widget.roomId?.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+    return value;
+  }
+
   @override
   void initState() {
     super.initState();
+
     _messageController.addListener(_onTextChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (widget.roomId != null) {
-        context.read<MessagingProvider>().enterRoom(widget.roomId!);
-      } else {
-        context.read<MessagingProvider>().enterThread();
-      }
+
+      final provider = context.read<MessagingProvider>();
+      _messagingProvider = provider;
+
+      await _openCurrentThread();
+
+      if (!mounted) return;
+
+      _attachRealtimeListener();
+      _startLiveRefreshFallback();
     });
   }
 
   @override
   void dispose() {
+    _realtimeDebounce?.cancel();
+    _realtimeDebounce = null;
+
+    _liveRefreshTimer?.cancel();
+    _liveRefreshTimer = null;
+
+    _stopRealtimeListener?.call();
+    _stopRealtimeListener = null;
+
     _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
-    if (mounted) {
-      context.read<MessagingProvider>().leaveThread();
-    }
+
+    _messagingProvider?.leaveThread(notify: false);
+    _messagingProvider = null;
+
     super.dispose();
   }
 
   void _onTextChanged() {
-    setState(() {});
+    if (mounted) {
+      setState(() {});
+    }
   }
 
-  Future<void> _refreshThread() {
-    return context.read<MessagingProvider>().refresh();
+  void _attachRealtimeListener() {
+    _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
+      MobileRealtimeEvents.messageEvents,
+      (event) {
+        debugPrint('[MessagingScreen] realtime received: ${event.name}');
+
+        switch (event.name) {
+          case MobileRealtimeEvents.messageNew:
+          case MobileRealtimeEvents.messageCreated:
+          case MobileRealtimeEvents.messageUpdated:
+          case MobileRealtimeEvents.messageRead:
+          case MobileRealtimeEvents.messageUnread:
+            _scheduleThreadReload();
+            return;
+
+          default:
+            return;
+        }
+      },
+    );
+  }
+
+  void _scheduleThreadReload() {
+    _realtimeDebounce?.cancel();
+
+    _realtimeDebounce = Timer(const Duration(milliseconds: 150), () {
+      _reloadOpenThread();
+    });
+  }
+
+  void _startLiveRefreshFallback() {
+    _liveRefreshTimer?.cancel();
+
+    /*
+      Safety fallback:
+      Your socket is already receiving events, but the chat page has been
+      missing rebuilds. This keeps the open chat synced while the page is open.
+    */
+    _liveRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _reloadOpenThread();
+    });
+  }
+
+  Future<void> _openCurrentThread() async {
+    final provider = _messagingProvider;
+    if (provider == null) return;
+
+    if (_isGroupChat) {
+      await provider.enterRoom(_normalizedRoomId!);
+    } else {
+      await provider.enterThread();
+    }
+  }
+
+  Future<void> _reloadOpenThread() async {
+    if (!mounted) return;
+
+    final provider = _messagingProvider;
+    if (provider == null) return;
+
+    if (_isRefreshingThread) return;
+
+    _isRefreshingThread = true;
+
+    try {
+      debugPrint('[MessagingScreen] reload open thread');
+
+      if (_isGroupChat) {
+        await provider.enterRoom(_normalizedRoomId!);
+      } else {
+        await provider.enterThread();
+      }
+    } catch (error) {
+      debugPrint('[MessagingScreen] reload open thread error: $error');
+    } finally {
+      _isRefreshingThread = false;
+    }
+  }
+
+  Future<void> _refreshThread() async {
+    await _reloadOpenThread();
   }
 
   Future<void> _sendMessage() async {
@@ -58,13 +179,19 @@ class _MessagingScreenState extends State<MessagingScreen> {
     final messageText = _messageController.text.trim();
 
     try {
-      await context.read<MessagingProvider>().sendMessage(messageText);
+      final provider = _messagingProvider ?? context.read<MessagingProvider>();
+      await provider.sendMessage(messageText);
+
       _messageController.clear();
     } catch (_) {
       if (!mounted) return;
-      final message =
-          context.read<MessagingProvider>().errorMessage ?? 'Failed to send message.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+
+      final provider = _messagingProvider ?? context.read<MessagingProvider>();
+      final message = provider.errorMessage ?? 'Failed to send message.';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -73,6 +200,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
     final minute = local.minute.toString().padLeft(2, '0');
     final period = local.hour >= 12 ? 'PM' : 'AM';
+
     return '$hour:$minute $period';
   }
 
@@ -86,6 +214,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
     if (difference == 0) {
       return 'Today';
     }
+
     if (difference == 1) {
       return 'Yesterday';
     }
@@ -109,7 +238,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
   }
 
   Widget _buildConnectionChip(BuildContext context, bool isConnected) {
-    final color = isConnected ? const Color(0xFF1B8F4B) : const Color(0xFFB7791F);
+    final color = isConnected
+        ? const Color(0xFF1B8F4B)
+        : const Color(0xFFB7791F);
+
     final label = isConnected ? 'Live conversation' : 'Reconnecting';
 
     return Container(
@@ -142,7 +274,8 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
   Widget _buildThreadHeader(BuildContext context, MessagingProvider provider) {
     final title = widget.title ?? 'OSFA Support Admin';
-    final subtitle = widget.roomId != null
+
+    final subtitle = _isGroupChat
         ? 'Group conversation'
         : 'Direct support conversation';
 
@@ -151,9 +284,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Color(0x14000000)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0x14000000))),
       ),
       child: Row(
         children: [
@@ -173,9 +304,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.black54,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.black54),
                 ),
               ],
             ),
@@ -191,6 +322,13 @@ class _MessagingScreenState extends State<MessagingScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<MessagingProvider>();
     final messages = provider.messages;
+
+    debugPrint(
+      '[MessagingScreen] build: '
+      'messageCount=${messages.length}, '
+      'currentUserId=${provider.currentUserId}, '
+      'activeGroupId=${provider.activeGroupId}',
+    );
 
     return SmartPdmPageScaffold(
       appBar: AppBar(
@@ -219,128 +357,151 @@ class _MessagingScreenState extends State<MessagingScreen> {
             child: provider.isLoading && messages.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : provider.errorMessage != null && messages.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.wifi_off_rounded,
-                                size: 36,
-                                color: Colors.black45,
-                              ),
-                              const SizedBox(height: 14),
-                              Text(
-                                provider.errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 14),
-                              FilledButton(
-                                onPressed: _refreshThread,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: _messagingAccentColor,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Try again'),
-                              ),
-                            ],
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.wifi_off_rounded,
+                            size: 36,
+                            color: Colors.black45,
                           ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        color: _messagingAccentColor,
-                        onRefresh: _refreshThread,
-                        child: messages.isEmpty
-                            ? ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
-                                children: [
-                                  SizedBox(height: MediaQuery.of(context).size.height * 0.18),
-                                  Container(
-                                    width: 72,
-                                    height: 72,
-                                    margin: const EdgeInsets.only(bottom: 18),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF1C3),
-                                      borderRadius: BorderRadius.circular(26),
-                                    ),
-                                    child: const Icon(
-                                      Icons.chat_bubble_outline_rounded,
-                                      size: 34,
-                                      color: _messagingAccentColor,
-                                    ),
-                                  ),
-                                  Text(
-                                    'No messages yet',
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          const SizedBox(height: 14),
+                          Text(
+                            provider.errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton(
+                            onPressed: _refreshThread,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _messagingAccentColor,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Try again'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : RefreshIndicator(
+                    color: _messagingAccentColor,
+                    onRefresh: _refreshThread,
+                    child: messages.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            children: [
+                              SizedBox(
+                                height:
+                                    MediaQuery.of(context).size.height * 0.18,
+                              ),
+                              Container(
+                                width: 72,
+                                height: 72,
+                                margin: const EdgeInsets.only(bottom: 18),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF1C3),
+                                  borderRadius: BorderRadius.circular(26),
+                                ),
+                                child: const Icon(
+                                  Icons.chat_bubble_outline_rounded,
+                                  size: 34,
+                                  color: _messagingAccentColor,
+                                ),
+                              ),
+                              Text(
+                                'No messages yet',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
                                       fontWeight: FontWeight.w700,
                                       color: Colors.black87,
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Start the conversation here. New replies should appear automatically while this thread is open.',
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : ListView.builder(
-                                reverse: true,
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                                itemCount: messages.length,
-                                itemBuilder: (context, index) {
-                                  final message = messages[index];
-                                  final isMe = message.senderId == provider.currentUserId;
-                                  final previousMessage =
-                                      index + 1 < messages.length ? messages[index + 1] : null;
-                                  final showDateLabel = previousMessage == null ||
-                                      previousMessage.sentAt.year != message.sentAt.year ||
-                                      previousMessage.sentAt.month != message.sentAt.month ||
-                                      previousMessage.sentAt.day != message.sentAt.day;
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Start the conversation here. New replies should appear automatically while this thread is open.',
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: Colors.black54),
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
+                            reverse: true,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              final message = messages[index];
+                              final isMe =
+                                  message.senderId == provider.currentUserId;
 
-                                  return Column(
-                                    children: [
-                                      if (showDateLabel)
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius: BorderRadius.circular(999),
-                                              border: Border.all(
-                                                color: Colors.black.withOpacity(0.06),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              _formatMessageDate(message.sentAt),
-                                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                                color: Colors.black54,
-                                                fontWeight: FontWeight.w700,
-                                              ),
+                              final previousMessage =
+                                  index + 1 < messages.length
+                                  ? messages[index + 1]
+                                  : null;
+
+                              final showDateLabel =
+                                  previousMessage == null ||
+                                  previousMessage.sentAt.year !=
+                                      message.sentAt.year ||
+                                  previousMessage.sentAt.month !=
+                                      message.sentAt.month ||
+                                  previousMessage.sentAt.day !=
+                                      message.sentAt.day;
+
+                              return Column(
+                                children: [
+                                  if (showDateLabel)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.black.withOpacity(
+                                              0.06,
                                             ),
                                           ),
                                         ),
-                                      _buildMessageBubble(
-                                        message,
-                                        isMe: isMe,
-                                        timeLabel: _formatMessageTime(message.sentAt),
+                                        child: Text(
+                                          _formatMessageDate(message.sentAt),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelMedium
+                                              ?.copyWith(
+                                                color: Colors.black54,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
                                       ),
-                                    ],
-                                  );
-                                },
-                              ),
-                      ),
+                                    ),
+                                  _buildMessageBubble(
+                                    message,
+                                    isMe: isMe,
+                                    timeLabel: _formatMessageTime(
+                                      message.sentAt,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                  ),
           ),
           _buildMessageInput(),
         ],
@@ -356,7 +517,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe)
@@ -370,14 +533,18 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   : CircleAvatar(
                       radius: 16,
                       backgroundColor: Colors.grey.shade300,
-                      child: const Icon(Icons.person, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
             ),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (!isMe && widget.roomId != null && message.senderName != null)
+                if (!isMe && _isGroupChat && message.senderName != null)
                   Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 4),
                     child: Text(
@@ -390,14 +557,19 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   ),
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: isMe ? _messagingAccentColor : Colors.white,
                     borderRadius: BorderRadius.circular(20).copyWith(
                       bottomRight: isMe ? Radius.zero : null,
                       bottomLeft: !isMe ? Radius.zero : null,
                     ),
-                    border: isMe ? null : Border.all(color: Colors.black.withOpacity(0.06)),
+                    border: isMe
+                        ? null
+                        : Border.all(color: Colors.black.withOpacity(0.06)),
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0x10000000),
@@ -421,15 +593,18 @@ class _MessagingScreenState extends State<MessagingScreen> {
                         children: [
                           Text(
                             timeLabel,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: isMe ? Colors.white70 : Colors.black45,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: isMe ? Colors.white70 : Colors.black45,
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                           if (isMe) ...[
                             const SizedBox(width: 6),
                             Icon(
-                              message.isRead ? Icons.done_all_rounded : Icons.check_rounded,
+                              message.isRead
+                                  ? Icons.done_all_rounded
+                                  : Icons.check_rounded,
                               size: 14,
                               color: Colors.white70,
                             ),
@@ -455,7 +630,9 @@ class _MessagingScreenState extends State<MessagingScreen> {
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.black.withOpacity(0.06))),
+          border: Border(
+            top: BorderSide(color: Colors.black.withOpacity(0.06)),
+          ),
           boxShadow: const [
             BoxShadow(
               color: Color(0x08000000),
@@ -482,7 +659,10 @@ class _MessagingScreenState extends State<MessagingScreen> {
                   decoration: const InputDecoration(
                     hintText: 'Write a message...',
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ),

@@ -1,6 +1,7 @@
 import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
+import 'package:flutter/foundation.dart';
 
 class MessageThreadResult {
   final String counterpartyId;
@@ -35,10 +36,7 @@ class ChatRoom {
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
     return ChatRoom(
-      roomId:
-          json['roomId']?.toString() ??
-          json['room_id']?.toString() ??
-          '',
+      roomId: json['roomId']?.toString() ?? json['room_id']?.toString() ?? '',
       roomName:
           json['roomName']?.toString() ??
           json['room_name']?.toString() ??
@@ -168,13 +166,9 @@ class MessageService {
     try {
       final response = await _apiClient.getObject('/api/messages/unread-count');
       return (response['unreadCount'] as num?)?.toInt() ?? 0;
-    } catch (_) {
-      final conversations = await _fetchConversationList();
-      int total = 0;
-      for (final conversation in conversations) {
-        total += (conversation['unread_count'] as num?)?.toInt() ?? 0;
-      }
-      return total;
+    } catch (error) {
+      debugPrint('MESSAGE UNREAD COUNT ERROR: $error');
+      return 0;
     }
   }
 

@@ -1,100 +1,69 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
-import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'package:flutter/scheduler.dart';
+
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
-import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
-import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
-
-typedef MessagingSocketHandler = void Function(dynamic data);
-
-abstract class MessagingSocket {
-  bool get connected;
-  void connect();
-  void disconnect();
-  void dispose();
-  void onConnect(void Function(dynamic) handler);
-  void onDisconnect(void Function(dynamic) handler);
-  void on(String event, MessagingSocketHandler handler);
-}
-
-class _IoMessagingSocket implements MessagingSocket {
-  _IoMessagingSocket(this._socket);
-
-  final io.Socket _socket;
-
-  @override
-  bool get connected => _socket.connected;
-
-  @override
-  void connect() => _socket.connect();
-
-  @override
-  void disconnect() => _socket.disconnect();
-
-  @override
-  void dispose() => _socket.dispose();
-
-  @override
-  void onConnect(void Function(dynamic) handler) {
-    _socket.onConnect(handler);
-  }
-
-  @override
-  void onDisconnect(void Function(dynamic) handler) {
-    _socket.onDisconnect(handler);
-  }
-
-  @override
-  void on(String event, MessagingSocketHandler handler) {
-    _socket.on(event, handler);
-  }
-}
-
-typedef MessagingSocketFactory = MessagingSocket Function(String token);
+import 'package:smartpdm_mobileapp/features/messaging/data/services/message_service.dart';
+import 'package:smartpdm_mobileapp/shared/models/chat_message.dart';
 
 class MessagingProvider extends ChangeNotifier {
   MessagingProvider({
     MessageService? messageService,
     SessionService? sessionService,
-    MessagingSocketFactory? socketFactory,
   }) : _messageService = messageService ?? MessageService(),
-       _sessionService = sessionService ?? const SessionService(),
-       _socketFactory = socketFactory ?? _defaultSocketFactory;
+       _sessionService = sessionService ?? const SessionService();
 
   final MessageService _messageService;
   final SessionService _sessionService;
-  final MessagingSocketFactory _socketFactory;
 
   List<ChatMessage> _messages = [];
+  List<ChatRoom> _rooms = [];
+
   int _unreadCount = 0;
   int _privateUnreadCount = 0;
+
   bool _isLoading = false;
   bool _isInitialized = false;
   bool _isViewingThread = false;
+  bool _isRealtimeConnected = false;
+  bool _isDisposed = false;
+  bool _notifyQueued = false;
+
   String? _errorMessage;
   String _currentUserId = '';
   String _counterpartyId = '';
   String? _activeGroupId;
-  List<ChatRoom> _rooms = [];
-  MessagingSocket? _socket;
+
+  VoidCallback? _stopRealtimeListener;
+  Timer? _unreadDebounce;
 
   List<ChatMessage> get messages => _messages;
+  List<ChatRoom> get rooms => _rooms;
+
   int get unreadCount => _unreadCount;
   int get privateUnreadCount => _privateUnreadCount;
-  bool get isConnected => _socket?.connected == true;
+
+  bool get isConnected => _isRealtimeConnected;
   bool get isLoading => _isLoading;
+
   String? get errorMessage => _errorMessage;
   String get currentUserId => _currentUserId;
   String get counterpartyId => _counterpartyId;
   String? get activeGroupId => _activeGroupId;
-  List<ChatRoom> get rooms => _rooms;
+
   int groupUnreadCount(String roomId) {
-    if (roomId.isEmpty) {
+    final normalizedRoomId = roomId.trim();
+
+    if (normalizedRoomId.isEmpty) {
       return 0;
     }
 
     for (final room in _rooms) {
-      if (room.roomId == roomId) {
+      if (room.roomId == normalizedRoomId) {
         return room.unreadCount;
       }
     }
@@ -102,106 +71,166 @@ class MessagingProvider extends ChangeNotifier {
     return 0;
   }
 
-  Future<void> initializeChat() async {
-    if (_isInitialized) {
+  Future<void> reloadOpenThread({bool markAsRead = false}) async {
+    if (!_isViewingThread) {
       return;
     }
 
+    await _refreshThread(notify: true);
+
+    if (markAsRead) {
+      await markThreadRead();
+    }
+  }
+
+  Future<void> initializeChat() async {
     final session = await _sessionService.getCurrentUser();
+
     if (session.token.isEmpty || session.userId.isEmpty) {
+      debugPrint('[MessagingProvider] initialize skipped: empty session');
       return;
     }
+
+    final sameUser = _isInitialized && _currentUserId == session.userId;
 
     _currentUserId = session.userId;
     _isInitialized = true;
 
-    await _refreshThread(notify: false);
-    await refreshUnreadCount(notify: false);
-    await _connectSocket(session.token);
-    notifyListeners();
+    await MobileRealtimeService.instance.connectFromPrefs(
+      backendBaseUrl: AppConfig.apiBaseUrl,
+    );
+
+    _isRealtimeConnected = true;
+    _ensureRealtimeListener();
+
+    if (!sameUser) {
+      _messages = [];
+      _rooms = [];
+      _counterpartyId = '';
+      _activeGroupId = null;
+      _unreadCount = 0;
+      _privateUnreadCount = 0;
+
+      await _refreshThread(notify: false);
+      await fetchGroups(notify: false);
+      await refreshUnreadCount(notify: false);
+    }
+
+    _notify();
   }
 
   Future<void> enterThread() async {
     _isViewingThread = true;
+    _activeGroupId = null;
+
     await initializeChat();
     await _refreshThread();
     await markThreadRead();
-  }
-
-  void leaveThread() {
-    _isViewingThread = false;
-    _activeGroupId = null;
-    _messages = [];
-  }
-
-  Future<void> fetchGroups() async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      _rooms = await _messageService.fetchGroups();
-      _syncTotalUnreadCount();
-    } catch (e) {
-      _errorMessage = e.toString();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 
   Future<void> enterRoom(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+
+    if (normalizedRoomId.isEmpty) {
+      return;
+    }
+
     _isViewingThread = true;
-    _activeGroupId = roomId;
+    _activeGroupId = normalizedRoomId;
+
     await initializeChat();
     await _refreshThread();
     await markThreadRead();
+  }
+
+  void leaveThread({bool notify = true}) {
+    _isViewingThread = false;
+    _activeGroupId = null;
+    _messages = [];
+
+    if (notify) {
+      _notify();
+    }
   }
 
   Future<void> refresh() async {
     await initializeChat();
     await _refreshThread();
+    await fetchGroups(notify: false);
     await refreshUnreadCount();
-    await fetchGroups();
+  }
+
+  Future<void> fetchGroups({bool notify = true}) async {
+    if (notify) {
+      _isLoading = true;
+      _notify();
+    }
+
+    try {
+      _rooms = await _messageService.fetchGroups();
+      _syncTotalUnreadCount();
+      _errorMessage = null;
+    } catch (error) {
+      _errorMessage = error.toString();
+      debugPrint('[MessagingProvider] fetch groups error: $error');
+    } finally {
+      if (notify) {
+        _isLoading = false;
+        _notify();
+      }
+    }
   }
 
   Future<void> refreshUnreadCount({bool notify = true}) async {
     try {
       final totalUnread = await _messageService.fetchUnreadCount();
+
       final groupUnread = _rooms.fold<int>(
         0,
         (sum, room) => sum + room.unreadCount,
       );
+
       _privateUnreadCount = totalUnread - groupUnread;
+
       if (_privateUnreadCount < 0) {
         _privateUnreadCount = 0;
       }
+
       _syncTotalUnreadCount();
+
       if (notify) {
-        notifyListeners();
+        _notify();
       }
-    } catch (_) {
-      // Keep the current badge count if the refresh fails.
+    } catch (error) {
+      debugPrint('[MessagingProvider] unread count error: $error');
     }
   }
 
   Future<void> sendMessage(String text) async {
     final trimmed = text.trim();
+
     if (trimmed.isEmpty) {
       return;
     }
 
     try {
       ChatMessage message;
+
       if (_activeGroupId != null) {
-        message = await _messageService.sendRoomMessage(_activeGroupId!, trimmed);
+        message = await _messageService.sendRoomMessage(
+          _activeGroupId!,
+          trimmed,
+        );
       } else {
         message = await _messageService.sendThreadMessage(trimmed);
       }
+
       _errorMessage = null;
       _upsertMessage(message);
-      notifyListeners();
+      _notify();
     } catch (error) {
       _errorMessage = error.toString();
-      notifyListeners();
+      _notify();
       rethrow;
     }
   }
@@ -210,33 +239,40 @@ class MessagingProvider extends ChangeNotifier {
     try {
       if (_activeGroupId != null) {
         await _messageService.markRoomThreadRead(_activeGroupId!);
-        _markMessagesRead(_messages.map((e) => e.messageId).toList());
+
+        _markMessagesRead(
+          _messages.map((message) => message.messageId).toList(),
+        );
+
         _setGroupUnreadCount(_activeGroupId!, 0);
+
         await refreshUnreadCount(notify: false);
-        notifyListeners();
+        _notify();
         return;
       }
-      
+
       final result = await _messageService.markThreadRead(
         counterpartyId: _counterpartyId,
       );
+
       if (result.messageIds.isNotEmpty) {
         _markMessagesRead(result.messageIds);
-        _recalculateUnreadCount();
-        notifyListeners();
+        _recalculatePrivateUnreadCount();
+        _notify();
       } else {
         await refreshUnreadCount();
       }
-    } catch (_) {
-      // Keep local state unchanged if marking as read fails.
+    } catch (error) {
+      debugPrint('[MessagingProvider] mark read error: $error');
     }
   }
 
   Future<void> _refreshThread({bool notify = true}) async {
     _isLoading = true;
     _errorMessage = null;
+
     if (notify) {
-      notifyListeners();
+      _notify();
     }
 
     try {
@@ -248,169 +284,204 @@ class MessagingProvider extends ChangeNotifier {
         final result = await _messageService.fetchThread();
         _counterpartyId = result.counterpartyId;
         _messages = result.items.toList();
-        _recalculateUnreadCount();
+        _recalculatePrivateUnreadCount();
       }
-      _messages.sort((left, right) => right.sentAt.compareTo(left.sentAt));
+
+      _sortMessagesNewestFirst();
+      _errorMessage = null;
     } catch (error) {
       _errorMessage = error.toString();
+      debugPrint('[MessagingProvider] refresh thread error: $error');
     } finally {
       _isLoading = false;
+
       if (notify) {
-        notifyListeners();
+        _notify();
       }
     }
   }
 
-  Future<void> _connectSocket(String token) async {
-    if (_socket != null && _socket!.connected) {
+  void _ensureRealtimeListener() {
+    _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
+      MobileRealtimeEvents.messageEvents,
+      _handleRealtimeEvent,
+    );
+  }
+
+  Future<void> _handleRealtimeEvent(MobileRealtimeEvent event) async {
+    debugPrint('[MessagingProvider] realtime event: ${event.name}');
+
+    switch (event.name) {
+      case MobileRealtimeEvents.messageNew:
+      case MobileRealtimeEvents.messageCreated:
+      case MobileRealtimeEvents.messageUpdated:
+        _handleMessageRealtimeFast(event);
+        return;
+
+      case MobileRealtimeEvents.messageRead:
+        _handleMessageReadRealtime(event);
+        return;
+
+      case MobileRealtimeEvents.messageUnread:
+        _handleMessageUnreadRealtime(event);
+        return;
+
+      case MobileRealtimeEvents.messageThreadArchived:
+      case MobileRealtimeEvents.messageThreadRestored:
+      case MobileRealtimeEvents.roomCreated:
+      case MobileRealtimeEvents.roomMembersAdded:
+        await fetchGroups(notify: false);
+        _notify();
+        return;
+
+      default:
+        return;
+    }
+  }
+
+  void _handleMessageRealtimeFast(MobileRealtimeEvent event) {
+    final payload = event.payload;
+
+    if (payload.isEmpty) {
+      debugPrint('[MessagingProvider] realtime message ignored: empty payload');
       return;
     }
 
-    _socket = _socketFactory(token);
+    ChatMessage message;
 
-    _socket!.connect();
+    try {
+      message = ChatMessage.fromJson(payload);
+    } catch (error) {
+      debugPrint('[MessagingProvider] message parse error: $error');
+      return;
+    }
 
-    _socket!.onConnect((_) {
-      debugPrint('Messaging socket connected.');
-      notifyListeners();
-    });
+    final roomId = (message.roomId ?? '').trim();
+    final isGroupMessage = roomId.isNotEmpty;
 
-    _socket!.onDisconnect((_) {
-      debugPrint('Messaging socket disconnected.');
-      notifyListeners();
-    });
+    final senderId = message.senderId.trim();
+    final receiverId = (message.receiverId ?? '').trim();
 
-    void handleIncomingMessage(dynamic data) {
-      final payload = _castMap(data);
-      if (payload == null) {
-        return;
-      }
+    final isPrivateForCurrentUser =
+        !isGroupMessage &&
+        _currentUserId.trim().isNotEmpty &&
+        (senderId == _currentUserId || receiverId == _currentUserId);
 
-      final message = ChatMessage.fromJson(payload);
-      final roomId = message.roomId ?? '';
-      final isGroupMessage = roomId.isNotEmpty;
-      final isActiveGroupMessage =
-          isGroupMessage && _activeGroupId == roomId;
-      final isActivePrivateMessage =
-          !isGroupMessage &&
-          _activeGroupId == null &&
-          _counterpartyId.isNotEmpty &&
-          {
-            message.senderId,
-            message.receiverId,
-          }.contains(_currentUserId) &&
-          {
-            message.senderId,
-            message.receiverId,
-          }.contains(_counterpartyId);
+    final isActiveGroupMessage =
+        isGroupMessage && _activeGroupId != null && _activeGroupId == roomId;
 
-      if (isActiveGroupMessage || isActivePrivateMessage) {
-        _upsertMessage(message);
-        if (isActiveGroupMessage) {
-          _setGroupUnreadCount(roomId, 0);
-        } else {
-          _recalculateUnreadCount();
-        }
-        notifyListeners();
-      } else if (isGroupMessage) {
-        if (_incrementGroupUnreadCount(roomId)) {
-          notifyListeners();
-        } else {
-          fetchGroups();
-        }
+    debugPrint(
+      '[MessagingProvider] realtime message check: '
+      'messageId=${message.messageId}, '
+      'senderId=$senderId, '
+      'receiverId=$receiverId, '
+      'currentUserId=$_currentUserId, '
+      'counterpartyId=$_counterpartyId, '
+      'roomId=$roomId, '
+      'activeGroupId=$_activeGroupId, '
+      'isViewingThread=$_isViewingThread, '
+      'isPrivateForCurrentUser=$isPrivateForCurrentUser, '
+      'isActiveGroupMessage=$isActiveGroupMessage',
+    );
+
+    /*
+    IMPORTANT:
+    For direct/private messages, do not require _counterpartyId to match.
+    The direct mobile chat only has one OSFA thread anyway, and the backend
+    payload already tells us this message belongs to the current user.
+  */
+    if (isPrivateForCurrentUser) {
+      _upsertMessage(message);
+      _recalculatePrivateUnreadCount();
+
+      debugPrint(
+        '[MessagingProvider] private realtime message upserted: '
+        'count=${_messages.length}',
+      );
+
+      _notify();
+      return;
+    }
+
+    if (isActiveGroupMessage) {
+      _upsertMessage(message);
+      _setGroupUnreadCount(roomId, 0);
+
+      debugPrint(
+        '[MessagingProvider] group realtime message upserted: '
+        'count=${_messages.length}',
+      );
+
+      _notify();
+      return;
+    }
+
+    if (isGroupMessage) {
+      if (_incrementGroupUnreadCount(roomId)) {
+        _notify();
       } else {
-        refreshUnreadCount();
+        fetchGroups();
       }
 
-      final shouldAutoRead =
-          _isViewingThread &&
-          !isGroupMessage &&
-          message.senderId == _counterpartyId &&
-          message.receiverId == _currentUserId &&
-          !message.isRead;
-
-      if (shouldAutoRead) {
-        markThreadRead();
-      }
+      _scheduleUnreadRefresh();
+      return;
     }
 
-    _socket!.on('message:new', handleIncomingMessage);
-    _socket!.on('message:created', handleIncomingMessage);
+    debugPrint(
+      '[MessagingProvider] realtime message ignored: not for this user/thread',
+    );
+    _scheduleUnreadRefresh();
+  }
 
-    _socket!.on('message:read', (data) {
-      final payload = _castMap(data);
-      if (payload == null) {
-        return;
-      }
+  void _handleMessageReadRealtime(MobileRealtimeEvent event) {
+    final messageIds = _extractMessageIds(event.payload);
 
-      final messageIds = ((payload['messageIds'] as List<dynamic>?) ??
-              (payload['message_ids'] as List<dynamic>?) ??
-              const [])
-          .map((item) => item.toString())
-          .where((item) => item.isNotEmpty)
-          .toList();
-
-      if (messageIds.isEmpty) {
-        return;
-      }
-
-      if (_activeGroupId != null) {
-        final roomId =
-            payload['roomId']?.toString() ?? payload['room_id']?.toString() ?? '';
-        if (roomId == _activeGroupId) {
-          _markMessagesRead(messageIds);
-          _setGroupUnreadCount(roomId, 0);
-          notifyListeners();
-        }
-        return;
-      }
-
-      _markMessagesRead(messageIds);
-      _recalculateUnreadCount();
-      notifyListeners();
-    });
-
-    _socket!.on('message:unread', (data) {
-      final payload = _castMap(data);
-      if (payload == null) {
-        return;
-      }
-
-      final messageIds = ((payload['messageIds'] as List<dynamic>?) ??
-              (payload['message_ids'] as List<dynamic>?) ??
-              const [])
-          .map((item) => item.toString())
-          .where((item) => item.isNotEmpty)
-          .toList();
-
-      if (messageIds.isEmpty) {
-        return;
-      }
-
-      _messages = _messages.map((message) {
-        if (!messageIds.contains(message.messageId)) {
-          return message;
-        }
-
-        return message.copyWith(isRead: false);
-      }).toList();
-
-      _recalculateUnreadCount();
-      notifyListeners();
-    });
-
-    void refreshRoomsRealtime([dynamic _]) {
-      fetchGroups();
+    if (messageIds.isEmpty) {
+      return;
     }
 
-    _socket!.on('message:thread-archived', refreshRoomsRealtime);
-    _socket!.on('message:thread-restored', refreshRoomsRealtime);
-    _socket!.on('room:created', refreshRoomsRealtime);
-    _socket!.on('room:members-added', refreshRoomsRealtime);
-    _socket!.on('room:updated', refreshRoomsRealtime);
+    _markMessagesRead(messageIds);
+    _recalculatePrivateUnreadCount();
+    _notify();
+  }
+
+  void _handleMessageUnreadRealtime(MobileRealtimeEvent event) {
+    final messageIds = _extractMessageIds(event.payload);
+
+    if (messageIds.isEmpty) {
+      return;
+    }
+
+    final ids = messageIds.toSet();
+
+    _messages = _messages.map((message) {
+      if (!ids.contains(message.messageId)) {
+        return message;
+      }
+
+      return message.copyWith(isRead: false);
+    }).toList();
+
+    _recalculatePrivateUnreadCount();
+    _notify();
+  }
+
+  void _scheduleUnreadRefresh() {
+    _unreadDebounce?.cancel();
+
+    _unreadDebounce = Timer(const Duration(milliseconds: 250), () {
+      refreshUnreadCount();
+    });
   }
 
   void _upsertMessage(ChatMessage message) {
+    if (message.messageId.trim().isEmpty) {
+      debugPrint('[MessagingProvider] upsert skipped: empty messageId');
+      return;
+    }
+
+    final beforeCount = _messages.length;
+
     final existingIndex = _messages.indexWhere(
       (item) => item.messageId == message.messageId,
     );
@@ -421,11 +492,24 @@ class MessagingProvider extends ChangeNotifier {
       _messages.insert(0, message);
     }
 
+    _sortMessagesNewestFirst();
+
+    debugPrint(
+      '[MessagingProvider] upsert done: '
+      'before=$beforeCount, '
+      'after=${_messages.length}, '
+      'messageId=${message.messageId}, '
+      'body=${message.messageBody}',
+    );
+  }
+
+  void _sortMessagesNewestFirst() {
     _messages.sort((left, right) => right.sentAt.compareTo(left.sentAt));
   }
 
   void _markMessagesRead(List<String> messageIds) {
     final ids = messageIds.toSet();
+
     _messages = _messages.map((message) {
       if (!ids.contains(message.messageId)) {
         return message;
@@ -435,51 +519,62 @@ class MessagingProvider extends ChangeNotifier {
     }).toList();
   }
 
-  void _recalculateUnreadCount() {
+  void _recalculatePrivateUnreadCount() {
     _privateUnreadCount = _messages
         .where(
           (message) => message.receiverId == _currentUserId && !message.isRead,
         )
         .length;
+
     _syncTotalUnreadCount();
   }
 
   bool _incrementGroupUnreadCount(String roomId) {
-    if (roomId.isEmpty) {
+    final normalizedRoomId = roomId.trim();
+
+    if (normalizedRoomId.isEmpty) {
       return false;
     }
 
-    final index = _rooms.indexWhere((room) => room.roomId == roomId);
+    final index = _rooms.indexWhere((room) => room.roomId == normalizedRoomId);
+
     if (index < 0) {
       return false;
     }
 
     final room = _rooms[index];
+
     _rooms[index] = ChatRoom(
       roomId: room.roomId,
       roomName: room.roomName,
       unreadCount: room.unreadCount + 1,
     );
+
     _syncTotalUnreadCount();
     return true;
   }
 
   void _setGroupUnreadCount(String roomId, int count) {
-    if (roomId.isEmpty) {
+    final normalizedRoomId = roomId.trim();
+
+    if (normalizedRoomId.isEmpty) {
       return;
     }
 
-    final index = _rooms.indexWhere((room) => room.roomId == roomId);
+    final index = _rooms.indexWhere((room) => room.roomId == normalizedRoomId);
+
     if (index < 0) {
       return;
     }
 
     final room = _rooms[index];
+
     _rooms[index] = ChatRoom(
       roomId: room.roomId,
       roomName: room.roomName,
       unreadCount: count < 0 ? 0 : count,
     );
+
     _syncTotalUnreadCount();
   }
 
@@ -492,32 +587,55 @@ class MessagingProvider extends ChangeNotifier {
     _unreadCount = _privateUnreadCount + groupUnread;
   }
 
-  Map<String, dynamic>? _castMap(dynamic value) {
-    if (value is Map<String, dynamic>) {
-      return value;
+  List<String> _extractMessageIds(Map<String, dynamic> payload) {
+    final rawItems =
+        (payload['messageIds'] as List<dynamic>?) ??
+        (payload['message_ids'] as List<dynamic>?) ??
+        const [];
+
+    return rawItems
+        .map((item) => item.toString())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  void _notify() {
+    if (_isDisposed) {
+      return;
     }
 
-    if (value is Map) {
-      return value.map((key, mapValue) => MapEntry(key.toString(), mapValue));
+    final phase = SchedulerBinding.instance.schedulerPhase;
+
+    if (phase == SchedulerPhase.idle) {
+      notifyListeners();
+      return;
     }
 
-    return null;
+    if (_notifyQueued) {
+      return;
+    }
+
+    _notifyQueued = true;
+
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _notifyQueued = false;
+
+      if (!_isDisposed) {
+        notifyListeners();
+      }
+    });
   }
 
   @override
   void dispose() {
-    _socket?.disconnect();
-    _socket?.dispose();
+    _isDisposed = true;
+
+    _unreadDebounce?.cancel();
+    _unreadDebounce = null;
+
+    _stopRealtimeListener?.call();
+    _stopRealtimeListener = null;
+
     super.dispose();
-  }
-
-  static MessagingSocket _defaultSocketFactory(String token) {
-    final socket = io.io(AppConfig.apiBaseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-      'auth': {'token': token},
-    });
-
-    return _IoMessagingSocket(socket);
   }
 }

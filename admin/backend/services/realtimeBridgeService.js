@@ -152,6 +152,114 @@ function handleEndorsementSlipChange(io, payload) {
   });
 }
 
+async function fetchRoomMemberIds(supabase, roomId) {
+  if (!supabase || !roomId) return [];
+
+  const { data, error } = await supabase
+    .from('chat_room_members')
+    .select('user_id')
+    .eq('room_id', roomId);
+
+  if (error) {
+    console.error('[Realtime Bridge] room member fetch error:', error);
+    return [];
+  }
+
+  return (data || [])
+    .map((row) => row.user_id)
+    .filter(Boolean);
+}
+
+function buildMessagePayload(row = {}) {
+  return {
+    messageId: row.message_id,
+    message_id: row.message_id,
+
+    senderId: row.sender_id,
+    sender_id: row.sender_id,
+
+    receiverId: row.receiver_id,
+    receiver_id: row.receiver_id,
+
+    roomId: row.room_id,
+    room_id: row.room_id,
+
+    subject: row.subject || null,
+
+    messageBody: row.message_body || '',
+    message_body: row.message_body || '',
+
+    sentAt: row.sent_at,
+    sent_at: row.sent_at,
+
+    isRead: row.is_read === true,
+    is_read: row.is_read === true,
+
+    attachmentUrl: row.attachment_url || null,
+    attachment_url: row.attachment_url || null,
+  };
+}
+
+async function handleMessageChange(io, supabase, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+
+  const row = eventType === 'DELETE' ? old : next;
+  const messageId = row.message_id;
+
+  console.log('[Realtime Bridge] messages change:', {
+    eventType,
+    messageId,
+    senderId: row.sender_id,
+    receiverId: row.receiver_id,
+    roomId: row.room_id,
+  });
+
+  if (!messageId) {
+    console.warn('[Realtime Bridge] message change skipped: missing message_id');
+    return;
+  }
+
+  let eventName = 'message:updated';
+
+  if (eventType === 'INSERT') {
+    eventName = 'message:new';
+  }
+
+  if (eventType === 'UPDATE') {
+    eventName = row.is_read === true ? 'message:read' : 'message:updated';
+  }
+
+  if (eventType === 'DELETE') {
+    eventName = 'message:deleted';
+  }
+
+  const eventPayload = buildMessagePayload(row);
+
+  console.log('[Socket Emit Message]', eventName, eventPayload);
+
+  if (row.room_id) {
+    io.to(`group:${row.room_id}`).emit(eventName, eventPayload);
+
+    const memberIds = await fetchRoomMemberIds(supabase, row.room_id);
+
+    for (const memberId of memberIds) {
+      io.to(`user:${memberId}`).emit(eventName, eventPayload);
+    }
+
+    return;
+  }
+
+  if (row.sender_id) {
+    io.to(`user:${row.sender_id}`).emit(eventName, eventPayload);
+  }
+
+  if (row.receiver_id) {
+    io.to(`user:${row.receiver_id}`).emit(eventName, eventPayload);
+  }
+}
+
 function configureRealtimeBridge({ io, supabase }) {
   if (bridgeStarted) {
     return bridgeChannel;
@@ -186,6 +294,15 @@ function configureRealtimeBridge({ io, supabase }) {
       (payload) => {
         handleEndorsementSlipChange(io, payload);
       }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'messages',
+      },
+      (payload) => handleMessageChange(io, supabase, payload)
     );
 
   bridgeChannel.subscribe((status, error) => {

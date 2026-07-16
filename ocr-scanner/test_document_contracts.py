@@ -56,6 +56,19 @@ class DocumentContractsTest(unittest.TestCase):
                 self.assertEqual(payload["contract_status"], "pending_approval")
                 self.assertEqual(payload["fields"], {})
 
+    def test_indigency_contract_does_not_fabricate_structured_fields(self):
+        payload = build_extracted_fields(
+            "certificate_of_indigency",
+            "RAW OCR MUST REMAIN OUTSIDE STRUCTURED FIELDS",
+        )
+
+        self.assertEqual(payload["document_type"], "certificate_of_indigency")
+        self.assertTrue(payload["review_required"])
+        self.assertEqual(payload["contract_status"], "pending_approval")
+        self.assertEqual(payload["fields"], {})
+        self.assertNotIn("name", payload)
+        self.assertNotIn("extracted_name", payload)
+
     def test_mutating_one_result_does_not_affect_next_result(self):
         first = build_extracted_fields("certificate_of_live_birth", "sample text")
         first["source_regions"].append("MUTATED")

@@ -63,6 +63,13 @@ test('mismatched indigency scan keeps profile data separate from OCR text', () =
   assert.equal(mapped.applicationMetadata[0].value, 'Pedro Jose Fernandez Torres');
   assert.ok(mapped.applicationMetadata.every((item) => item.badge === 'Application'));
   assert.equal(buildRawOcrSnapshot(activeDoc), 'MS. VENICE EVE PELIMA');
+  assert.equal(activeDoc.status, 'pending');
+  assert.deepEqual(
+    [...REVIEW_ONLY_MESSAGES],
+    ['Structured extraction not implemented', 'Manual review required']
+  );
+  assert.ok(mapped.applicationMetadata.every((item) => item.badge === 'Application'));
+  assert.ok(mapped.extractedFields.every((item) => item.label !== 'Extracted Name'));
 });
 
 test('real extracted name appears only for an implemented contract', () => {
@@ -87,4 +94,34 @@ test('confidence formatting distinguishes ratios, percentages, and IoT placehold
   assert.equal(formatOcrConfidence(0.85, true), '85%');
   assert.equal(formatOcrConfidence(85, true), '85%');
   assert.equal(formatOcrConfidence(null, true), 'Unavailable');
+});
+
+test('grade-form review-only behavior remains unchanged', () => {
+  const activeDoc = {
+    id: 'student_grade_forms',
+    document_key: 'student_grade_forms',
+    status: 'pending',
+    ocr: {
+      raw_text: 'GRADE FORM RAW OCR',
+      confidence: 0.99,
+      scanned_via_iot: true,
+      structured_fields: {
+        document_type: 'student_grade_forms',
+        review_required: true,
+        contract_status: 'pending_approval',
+        fields: {},
+      },
+      review_required: true,
+    },
+  };
+
+  const mapped = buildExtractedData(activeDoc, {
+    student: { name: 'Application Profile Name' },
+  });
+
+  assert.equal(mapped.reviewOnly, true);
+  assert.equal(mapped.confidence, 'Unavailable');
+  assert.equal(mapped.extractedFields.length, 0);
+  assert.equal(buildRawOcrSnapshot(activeDoc), 'GRADE FORM RAW OCR');
+  assert.equal(activeDoc.status, 'pending');
 });

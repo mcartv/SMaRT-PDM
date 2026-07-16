@@ -12,8 +12,10 @@ const vite = await createServer({
 });
 
 const {
+  APPLICANT_IDENTITY_UNCONFIRMED,
   buildExtractedData,
   buildRawOcrSnapshot,
+  reviewBirthApplicantIdentity,
 } = await vite.ssrLoadModule('/src/pages/DocumentVerification.jsx');
 
 after(async () => {
@@ -134,4 +136,86 @@ test('legacy OCR rendering remains unchanged', () => {
   assert.equal(buildRawOcrSnapshot({
     ocr: { raw_text: 'LEGACY RAW OCR' },
   }), 'LEGACY RAW OCR');
+});
+
+test('clear child-name evidence does not show the identity warning', () => {
+  const review = reviewBirthApplicantIdentity({
+    applicantName: 'Orlando Kurt Villafuerte',
+    childNameRawText: 'VILLAFUERTE ORLANDO KURT',
+    ocrReviewRequired: true,
+  });
+
+  assert.equal(review.status, 'confirmed');
+  assert.equal(review.review_code, null);
+  assert.equal(review.warning, '');
+  assert.equal(review.manual_review_required, true);
+});
+
+test('unrelated child OCR returns a conservative unconfirmed warning', () => {
+  const review = reviewBirthApplicantIdentity({
+    applicantName: 'Orlando Kurt Villafuerte',
+    childNameRawText: 'VENICE EVE PELIMA',
+    ocrReviewRequired: true,
+  });
+
+  assert.equal(review.status, 'unconfirmed');
+  assert.equal(review.review_code, APPLICANT_IDENTITY_UNCONFIRMED);
+  assert.equal(review.manual_review_required, true);
+  assert.match(review.warning, /could not be confirmed/i);
+  assert.doesNotMatch(review.warning, /different person|belongs to/i);
+});
+
+test('empty, noisy, and partial child OCR remain unconfirmed', () => {
+  for (const childNameRawText of ['', '||| 1 1 ???', 'ORLANDO']) {
+    const review = reviewBirthApplicantIdentity({
+      applicantName: 'Orlando Kurt Villafuerte',
+      childNameRawText,
+    });
+
+    assert.equal(review.status, 'unconfirmed');
+    assert.equal(review.review_code, APPLICANT_IDENTITY_UNCONFIRMED);
+  }
+});
+
+test('mother and father OCR never affect applicant identity matching', () => {
+  const buildMapped = (motherRawText, fatherRawText) => buildExtractedData(
+    buildBirthDocument({
+      child_name: { raw_text: 'VENICE EVE PELIMA', review_required: true },
+      mother_maiden_name: { raw_text: motherRawText, review_required: true },
+      father_name: { raw_text: fatherRawText, review_required: true },
+    }),
+    { student: { name: 'Orlando Kurt Villafuerte' } }
+  );
+
+  const matchingParents = buildMapped(
+    'ORLANDO KURT VILLAFUERTE',
+    'ORLANDO KURT VILLAFUERTE'
+  );
+  const emptyParents = buildMapped('', '');
+
+  assert.deepEqual(matchingParents.identityReview, emptyParents.identityReview);
+  assert.equal(
+    matchingParents.identityReview.review_code,
+    APPLICANT_IDENTITY_UNCONFIRMED
+  );
+});
+
+test('identity mismatch keeps the requirement pending and OCR provisional', () => {
+  const activeDoc = buildBirthDocument({
+    child_name: { raw_text: 'VENICE EVE PELIMA', review_required: true },
+    mother_maiden_name: { raw_text: 'MOTHER OCR', review_required: true },
+    father_name: { raw_text: '', review_required: true },
+  });
+  const mapped = buildExtractedData(activeDoc, {
+    student: { name: 'Orlando Kurt Villafuerte' },
+  });
+
+  assert.equal(activeDoc.status, 'pending');
+  assert.equal(mapped.identityReview.status, 'unconfirmed');
+  assert.equal(mapped.manualReviewRequired, true);
+  assert.equal(mapped.extractedFields[0].value, 'VENICE EVE PELIMA');
+  assert.equal(mapped.extractedFields[2].value, 'Not extracted');
+  assert.ok(
+    mapped.extractedFields.every((field) => field.badge === 'Provisional OCR')
+  );
 });

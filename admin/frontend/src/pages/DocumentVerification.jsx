@@ -137,6 +137,8 @@ export const REVIEW_ONLY_MESSAGES = Object.freeze([
   'Structured extraction not implemented',
   'Manual review required',
 ]);
+// eslint-disable-next-line react-refresh/only-export-components
+export const APPLICANT_IDENTITY_UNCONFIRMED = 'APPLICANT_IDENTITY_UNCONFIRMED';
 
 const REJECTION_OPTIONS = [
   'Wrong document uploaded',
@@ -352,6 +354,13 @@ export function buildExtractedData(activeDoc, application) {
     ocr.review_required === true ||
     ocr.structured_fields?.review_required === true ||
     hasStructuredBirthFields;
+  const identityReview = hasStructuredBirthFields
+    ? reviewBirthApplicantIdentity({
+      applicantName: student.name,
+      childNameRawText: structuredFields.child_name?.raw_text,
+      ocrReviewRequired: manualReviewRequired,
+    })
+    : null;
 
   const applicationMetadata = [
     { label: 'Student Name', value: student.name || 'Unavailable', badge: 'Application' },
@@ -415,6 +424,7 @@ export function buildExtractedData(activeDoc, application) {
     confidence: formatOcrConfidence(confidence, scannedViaIot),
     reviewOnly,
     manualReviewRequired,
+    identityReview,
     documentValidation,
   };
 }
@@ -441,6 +451,48 @@ function normalizeOcrText(value = '') {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeIdentityText(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function reviewBirthApplicantIdentity({
+  applicantName,
+  childNameRawText,
+  ocrReviewRequired = true,
+} = {}) {
+  const applicantTokens = [
+    ...new Set(normalizeIdentityText(applicantName).split(' ').filter(Boolean)),
+  ];
+  const childTokens = new Set(
+    normalizeIdentityText(childNameRawText).split(' ').filter(Boolean)
+  );
+  const confirmed =
+    applicantTokens.length >= 2 &&
+    applicantTokens.every((token) => childTokens.has(token));
+
+  if (confirmed) {
+    return {
+      status: 'confirmed',
+      review_code: null,
+      warning: '',
+      manual_review_required: ocrReviewRequired === true,
+    };
+  }
+
+  return {
+    status: 'unconfirmed',
+    review_code: APPLICANT_IDENTITY_UNCONFIRMED,
+    warning:
+      'Applicant identity could not be confirmed from the scanned birth certificate. Review the document before verifying or rejecting it.',
+    manual_review_required: true,
+  };
 }
 
 function hasAnyMarker(normalizedText, markers = []) {
@@ -997,6 +1049,16 @@ function OCRPanel({
           {extractedData.manualReviewRequired ? (
             <div className="mb-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
               Manual review required. Structured OCR values are provisional.
+            </div>
+          ) : null}
+
+          {extractedData.identityReview?.status === 'unconfirmed' ? (
+            <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+              <p className="font-semibold">Applicant identity could not be confirmed</p>
+              <p className="mt-1">{extractedData.identityReview.warning}</p>
+              <p className="mt-1 font-mono text-[10px] text-red-600">
+                {extractedData.identityReview.review_code}
+              </p>
             </div>
           ) : null}
 

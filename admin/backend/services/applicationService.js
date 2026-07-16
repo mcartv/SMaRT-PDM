@@ -68,12 +68,30 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
         name: 'Application Form',
         aliases: ['application form', 'application'],
     },
+    {
+        id: 'birth_certificate',
+        name: 'Birth Certificate / PSA',
+        aliases: [
+            'birth certificate',
+            'birth certificate psa',
+            'psa birth certificate',
+            'certificate of live birth',
+            'certificate of live birth psa',
+            'psa',
+            'nso',
+            'civil registry',
+            'civil registrar',
+            'philippine statistics authority',
+            'national statistics office',
+        ],
+    },
 ];
 
 const DOCUMENT_TYPE_ALIASES = {
     cor: 'certificate_of_registration',
     certificate_of_registration: 'certificate_of_registration',
     registration: 'certificate_of_registration',
+    registration_form: 'certificate_of_registration',
 
     grade_card: 'student_grade_forms',
     grade_forms: 'student_grade_forms',
@@ -91,6 +109,14 @@ const DOCUMENT_TYPE_ALIASES = {
 
     application_form: 'application_form',
     application: 'application_form',
+
+    birth_certificate: 'birth_certificate',
+    birth_certificate_psa: 'birth_certificate',
+    psa_birth_certificate: 'birth_certificate',
+    certificate_of_live_birth: 'birth_certificate',
+    certificate_of_live_birth_psa: 'birth_certificate',
+    psa: 'birth_certificate',
+    nso: 'birth_certificate',
 };
 
 const DOCUMENT_TYPE_TO_NAME = {
@@ -99,6 +125,7 @@ const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_indigency: 'Certificate of Indigency',
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
+    birth_certificate: 'Birth Certificate / PSA',
 };
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([

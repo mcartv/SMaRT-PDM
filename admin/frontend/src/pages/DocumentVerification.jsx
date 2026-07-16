@@ -103,6 +103,29 @@ const REQUIRED_DOCUMENTS = [
   },
 ];
 
+const OPTIONAL_OCR_DOCUMENTS = [
+  {
+    id: 'birth_certificate',
+    name: 'Birth Certificate / PSA',
+    aliases: [
+      'birth certificate',
+      'birth_certificate',
+      'birth certificate psa',
+      'psa birth certificate',
+      'certificate of live birth',
+      'certificate of live birth psa',
+      'psa',
+      'nso',
+      'civil registry',
+      'civil registrar',
+      'philippine statistics authority',
+      'national statistics office',
+    ],
+  },
+];
+
+const OCR_DOCUMENTS = [...REQUIRED_DOCUMENTS, ...OPTIONAL_OCR_DOCUMENTS];
+
 // Transitional until document contract status is persisted with OCR snapshots.
 // eslint-disable-next-line react-refresh/only-export-components
 export const REVIEW_ONLY_DOCUMENT_KEYS = Object.freeze([
@@ -147,7 +170,7 @@ function findRequiredDocConfig(rawDoc = {}) {
     .filter(Boolean)
     .map(normalizeKey);
 
-  return REQUIRED_DOCUMENTS.find(
+  return OCR_DOCUMENTS.find(
     (cfg) =>
       cfg.aliases.some((alias) => candidates.includes(normalizeKey(alias))) ||
       candidates.includes(normalizeKey(cfg.id))
@@ -175,10 +198,11 @@ function normalizeRequiredDocuments(rawDocs = []) {
       file_path: rawDoc.file_path || '',
       submitted_at: rawDoc.submitted_at || rawDoc.uploaded_at || null,
       reviewed_at: rawDoc.reviewed_at || null,
+      is_optional_ocr_document: OPTIONAL_OCR_DOCUMENTS.some((doc) => doc.id === config.id),
     });
   });
 
-  return REQUIRED_DOCUMENTS.map((cfg) =>
+  return OCR_DOCUMENTS.map((cfg) =>
     mapped.get(cfg.id) || {
       id: cfg.id,
       document_key: cfg.id,
@@ -193,6 +217,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       file_path: '',
       submitted_at: null,
       reviewed_at: null,
+      is_optional_ocr_document: OPTIONAL_OCR_DOCUMENTS.some((doc) => doc.id === cfg.id),
     }
   );
 }
@@ -276,7 +301,6 @@ function groupEducationRecords(educationRecords = []) {
   });
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function formatOcrConfidence(confidence, scannedViaIot = false) {
   if (confidence === null || confidence === undefined || confidence === '') return 'Unavailable';
 
@@ -290,7 +314,6 @@ export function formatOcrConfidence(confidence, scannedViaIot = false) {
   return `${Number(percentage.toFixed(2))}%`;
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function buildExtractedData(activeDoc, application) {
   if (!activeDoc) {
     return {
@@ -298,6 +321,7 @@ export function buildExtractedData(activeDoc, application) {
       extractedFields: [],
       confidence: 'Unavailable',
       reviewOnly: false,
+      documentValidation: null,
     };
   }
 
@@ -307,6 +331,7 @@ export function buildExtractedData(activeDoc, application) {
   const reviewOnly = REVIEW_ONLY_DOCUMENT_KEYS.includes(documentKey);
   const scannedViaIot = ocr.scanned_via_iot === true || activeDoc.scanned_via_iot === true;
   const confidence = ocr.confidence ?? activeDoc.ocr_confidence ?? null;
+  const documentValidation = detectBirthCertificateOcr(activeDoc);
 
   const applicationMetadata = [
     { label: 'Student Name', value: student.name || 'Unavailable', badge: 'Application' },
@@ -316,6 +341,7 @@ export function buildExtractedData(activeDoc, application) {
   ];
 
   const extractedFields = [];
+
   if (!reviewOnly && typeof ocr.extracted_name === 'string' && ocr.extracted_name.trim()) {
     extractedFields.push({
       label: 'Extracted Name',
@@ -323,6 +349,7 @@ export function buildExtractedData(activeDoc, application) {
       badge: 'Extracted',
     });
   }
+
   if (!reviewOnly && ocr.extracted_gwa !== null && ocr.extracted_gwa !== undefined) {
     extractedFields.push({
       label: 'Extracted GWA',
@@ -331,11 +358,20 @@ export function buildExtractedData(activeDoc, application) {
     });
   }
 
+  if (activeDoc.id === 'birth_certificate') {
+    extractedFields.push({
+      label: 'Document Type Detection',
+      value: documentValidation.detectedLabel,
+      badge: documentValidation.confidenceLabel,
+    });
+  }
+
   return {
     applicationMetadata,
     extractedFields,
     confidence: formatOcrConfidence(confidence, scannedViaIot),
     reviewOnly,
+    documentValidation,
   };
 }
 
@@ -346,6 +382,167 @@ export function buildRawOcrSnapshot(activeDoc) {
   const ocr = activeDoc?.ocr || {};
   const rawText = String(ocr.raw_text || ocr.text || '').trim();
   return rawText || '(No OCR text yet)';
+}
+
+function normalizeOcrText(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasAnyMarker(normalizedText, markers = []) {
+  return markers.some((marker) => normalizedText.includes(normalizeOcrText(marker)));
+}
+
+function detectBirthCertificateOcr(activeDoc) {
+  const ocr = activeDoc?.ocr || {};
+  const rawText = String(ocr.raw_text || ocr.text || '').trim();
+  const normalizedText = normalizeOcrText(rawText);
+  const expectedBirthCertificate = activeDoc?.id === 'birth_certificate';
+
+  if (!rawText) {
+    return {
+      shouldShow: expectedBirthCertificate,
+      expectedBirthCertificate,
+      detectedBirthCertificate: false,
+      detectedLabel: 'No OCR text yet',
+      confidenceLabel: 'Unavailable',
+      tone: 'amber',
+      warning: expectedBirthCertificate
+        ? 'Run IoT OCR or paste OCR text to validate if this is a PSA/Birth Certificate.'
+        : '',
+      rows: [
+        { label: 'OCR Text', value: 'No OCR text yet', found: false },
+      ],
+    };
+  }
+
+  const certificateMarkers = [
+    'certificate of live birth',
+    'birth certificate',
+    'live birth',
+  ];
+
+  const psaMarkers = [
+    'philippine statistics authority',
+    'psa',
+    'national statistics office',
+    'nso',
+  ];
+
+  const civilRegistryMarkers = [
+    'office of the civil registrar',
+    'local civil registrar',
+    'civil registrar',
+    'civil registry',
+    'registry number',
+    'civil registry number',
+  ];
+
+  const childMarkers = [
+    'name of child',
+    'child',
+    'first name',
+    'middle name',
+    'last name',
+  ];
+
+  const birthDetailMarkers = [
+    'date of birth',
+    'date born',
+    'place of birth',
+    'sex',
+    'male',
+    'female',
+  ];
+
+  const parentMarkers = [
+    'mother',
+    'father',
+    'maiden name',
+    'parents',
+  ];
+
+  const hasCertificateMarker = hasAnyMarker(normalizedText, certificateMarkers);
+  const hasPsaMarker = hasAnyMarker(normalizedText, psaMarkers);
+  const hasCivilRegistryMarker = hasAnyMarker(normalizedText, civilRegistryMarkers);
+  const hasChildMarker = hasAnyMarker(normalizedText, childMarkers);
+  const hasBirthDetailMarker = hasAnyMarker(normalizedText, birthDetailMarkers);
+  const hasParentMarker = hasAnyMarker(normalizedText, parentMarkers);
+
+  const score = [
+    hasCertificateMarker,
+    hasPsaMarker,
+    hasCivilRegistryMarker,
+    hasChildMarker,
+    hasBirthDetailMarker,
+    hasParentMarker,
+  ].filter(Boolean).length;
+
+  const detectedBirthCertificate =
+    hasCertificateMarker ||
+    (hasPsaMarker && score >= 3) ||
+    (hasCivilRegistryMarker && score >= 3);
+
+  let confidenceLabel = 'Low';
+  if (score >= 5) confidenceLabel = 'High';
+  else if (score >= 3) confidenceLabel = 'Moderate';
+
+  let warning = '';
+
+  if (expectedBirthCertificate && detectedBirthCertificate) {
+    warning = 'OCR text contains PSA/Birth Certificate markers. Continue manual review before verifying.';
+  } else if (expectedBirthCertificate && !detectedBirthCertificate) {
+    warning = 'This OCR text does not strongly match a PSA/Birth Certificate. Reject if the uploaded document is wrong.';
+  } else if (!expectedBirthCertificate && detectedBirthCertificate) {
+    warning = `OCR text looks like a PSA/Birth Certificate, but the selected document is ${activeDoc?.name || 'another requirement'}. This may be a wrong upload.`;
+  }
+
+  return {
+    shouldShow: expectedBirthCertificate || detectedBirthCertificate,
+    expectedBirthCertificate,
+    detectedBirthCertificate,
+    detectedLabel: detectedBirthCertificate
+      ? 'Likely Birth Certificate / PSA'
+      : 'Birth Certificate / PSA not detected',
+    confidenceLabel,
+    tone: detectedBirthCertificate ? 'green' : 'red',
+    warning,
+    rows: [
+      {
+        label: 'Certificate Marker',
+        value: hasCertificateMarker ? 'Found' : 'Not found',
+        found: hasCertificateMarker,
+      },
+      {
+        label: 'PSA / NSO Marker',
+        value: hasPsaMarker ? 'Found' : 'Not found',
+        found: hasPsaMarker,
+      },
+      {
+        label: 'Civil Registry Marker',
+        value: hasCivilRegistryMarker ? 'Found' : 'Not found',
+        found: hasCivilRegistryMarker,
+      },
+      {
+        label: 'Child Name Marker',
+        value: hasChildMarker ? 'Found' : 'Not found',
+        found: hasChildMarker,
+      },
+      {
+        label: 'Birth Details Marker',
+        value: hasBirthDetailMarker ? 'Found' : 'Not found',
+        found: hasBirthDetailMarker,
+      },
+      {
+        label: 'Parent Details Marker',
+        value: hasParentMarker ? 'Found' : 'Not found',
+        found: hasParentMarker,
+      },
+    ],
+  };
 }
 
 function InfoRow({ label, value, mono, className = '' }) {
@@ -705,9 +902,7 @@ function OCRPanel({
                   </p>
                 </div>
 
-                <span
-                  className="text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700"
-                >
+                <span className="text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700">
                   {item.badge}
                 </span>
               </div>
@@ -753,6 +948,95 @@ function OCRPanel({
             <p className="text-xs text-stone-500">No structured fields extracted.</p>
           )}
         </div>
+
+        {extractedData?.documentValidation?.shouldShow ? (
+          <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-blue-700" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-stone-700">
+                  Birth Certificate / PSA Detection
+                </p>
+              </div>
+
+              <span
+                className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                style={{
+                  background:
+                    extractedData.documentValidation.tone === 'green'
+                      ? C.greenSoft
+                      : extractedData.documentValidation.tone === 'red'
+                        ? C.redSoft
+                        : C.orangeSoft,
+                  color:
+                    extractedData.documentValidation.tone === 'green'
+                      ? C.green
+                      : extractedData.documentValidation.tone === 'red'
+                        ? C.red
+                        : C.orange,
+                }}
+              >
+                {extractedData.documentValidation.confidenceLabel}
+              </span>
+            </div>
+
+            <div className="mb-3 rounded-lg border border-stone-200 bg-white px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-stone-400">
+                Detected Document Type
+              </p>
+              <p className="mt-0.5 text-sm font-semibold text-stone-800">
+                {extractedData.documentValidation.detectedLabel}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {extractedData.documentValidation.rows.map((row) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2"
+                >
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-stone-400">
+                      {row.label}
+                    </p>
+                    <p className="mt-0.5 text-sm font-medium text-stone-800">
+                      {row.value}
+                    </p>
+                  </div>
+
+                  <span
+                    className="rounded-full px-2 py-1 text-[10px] font-semibold"
+                    style={{
+                      background: row.found ? C.greenSoft : C.redSoft,
+                      color: row.found ? C.green : C.red,
+                    }}
+                  >
+                    {row.found ? 'Matched' : 'Missing'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {extractedData.documentValidation.warning ? (
+              <div
+                className="mt-3 rounded-lg border px-3 py-2 text-xs leading-relaxed"
+                style={{
+                  background: extractedData.documentValidation.detectedBirthCertificate
+                    ? C.greenSoft
+                    : C.redSoft,
+                  color: extractedData.documentValidation.detectedBirthCertificate
+                    ? C.green
+                    : C.red,
+                  borderColor: extractedData.documentValidation.detectedBirthCertificate
+                    ? '#bbf7d0'
+                    : '#fecaca',
+                }}
+              >
+                {extractedData.documentValidation.warning}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="rounded-lg border border-dashed border-stone-300 bg-stone-50 p-3">
           <div className="flex items-center gap-2 mb-2">

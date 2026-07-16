@@ -30,13 +30,19 @@ router.post(
 );
 
 // =========================
-// IoT OCR ROUTES (FINAL)
+// IoT OCR ROUTES
 // =========================
 
 router.post(
     '/:id/documents/:documentKey/iot-ocr',
     protect,
     applicationController.runApplicationDocumentIotOcr
+);
+
+router.get(
+    '/:id/documents/:documentKey/ocr-snapshot',
+    protect,
+    applicationController.getApplicationDocumentOcrSnapshot
 );
 
 router.post(

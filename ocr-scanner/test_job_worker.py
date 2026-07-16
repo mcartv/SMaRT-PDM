@@ -115,6 +115,145 @@ def _birth_ocr_result(status="review_required", success=True, texts=None, issues
 
 
 class JobWorkerTest(unittest.TestCase):
+    @patch("job_worker.extract_psa_birth_row_text")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    @patch("job_worker.build_extracted_fields")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_uses_legacy_raw_text_review_only_flow(
+        self,
+        mock_run,
+        mock_read_text_file,
+        mock_clear_tmp_files,
+        mock_build_extracted_fields,
+        mock_register,
+        mock_crop,
+        mock_birth_ocr,
+    ):
+        raw_text = "CERTIFICATE OCR TEXT"
+        extracted_fields = {
+            "document_type": "certificate_of_indigency",
+            "review_required": True,
+            "contract_status": "pending_approval",
+            "source_regions": ["Applicant name", "Address", "Issue date"],
+            "fields": {},
+        }
+        mock_run.return_value.returncode = 0
+        mock_read_text_file.side_effect = [raw_text, "CORRECTED METADATA ONLY"]
+        mock_build_extracted_fields.return_value = extracted_fields
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency",
+                "application_id": "app-indigency",
+                "student_id": "stud-indigency",
+                "student_name": "Application Profile Name",
+                "document_key": "certificate_of_indigency",
+                "document_type": "Certificate of Indigency",
+            }
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["raw_text"], raw_text)
+        self.assertEqual(payload["ocr_confidence"], 0.99)
+        self.assertIs(payload["extracted_fields"], extracted_fields)
+        self.assertTrue(payload["extracted_fields"]["review_required"])
+        self.assertEqual(
+            payload["extracted_fields"]["contract_status"],
+            "pending_approval",
+        )
+        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        self.assertEqual(
+            payload["source_payload"]["corrected_text"],
+            "CORRECTED METADATA ONLY",
+        )
+        self.assertEqual(
+            payload["source_payload"]["document_contract_status"],
+            "pending_approval",
+        )
+        self.assertNotIn("extracted_name", payload["extracted_fields"])
+        mock_clear_tmp_files.assert_called_once()
+        mock_build_extracted_fields.assert_called_once_with(
+            "certificate_of_indigency",
+            raw_text,
+        )
+        mock_register.assert_not_called()
+        mock_crop.assert_not_called()
+        mock_birth_ocr.assert_not_called()
+
+    @patch("job_worker.extract_psa_birth_row_text")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_cancellation_remains_cancelled(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_register,
+        mock_crop,
+        mock_birth_ocr,
+    ):
+        mock_run.return_value.returncode = 2
+        mock_read_text_file.side_effect = ["", ""]
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-cancel",
+                "document_key": "certificate_of_indigency",
+                "document_type": "Certificate of Indigency",
+            }
+        )
+
+        self.assertFalse(success)
+        self.assertEqual(payload["status"], "cancelled")
+        self.assertEqual(payload["raw_text"], "")
+        self.assertTrue(payload["source_payload"]["cancelled"])
+        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        mock_register.assert_not_called()
+        mock_crop.assert_not_called()
+        mock_birth_ocr.assert_not_called()
+
+    @patch("job_worker.extract_psa_birth_row_text")
+    @patch("job_worker.crop_psa_birth_name_rows")
+    @patch("job_worker.register_psa_birth_form")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_empty_ocr_remains_failed(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_register,
+        mock_crop,
+        mock_birth_ocr,
+    ):
+        mock_run.return_value.returncode = 0
+        mock_read_text_file.side_effect = ["", "CORRECTED TEXT MUST NOT SUCCEED"]
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-empty",
+                "document_key": "certificate_of_indigency",
+                "document_type": "Certificate of Indigency",
+            }
+        )
+
+        self.assertFalse(success)
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["raw_text"], "")
+        self.assertIsNone(payload["ocr_confidence"])
+        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        mock_register.assert_not_called()
+        mock_crop.assert_not_called()
+        mock_birth_ocr.assert_not_called()
+
     @patch("job_worker.build_extracted_fields")
     @patch("job_worker.clear_tmp_files")
     @patch("job_worker.read_text_file")

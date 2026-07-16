@@ -244,3 +244,47 @@ test('manual raw-text saves preserve an existing structured snapshot', () => {
     worker_status: 'review_required',
   });
 });
+
+test('indigency review-only contract persists without fabricated fields', () => {
+  const extractedFields = {
+    document_type: 'certificate_of_indigency',
+    review_required: true,
+    contract_status: 'pending_approval',
+    source_regions: ['Applicant name', 'Address', 'Issue date'],
+    fields: {},
+  };
+  const persistence = buildStructuredOcrPersistence({
+    documentKey: 'certificate_of_indigency',
+    extractedFields,
+    sourcePayload: {
+      mode: 'interactive_camera',
+      document_contract_status: 'pending_approval',
+    },
+  });
+
+  assert.deepEqual(persistence.ocr_structured_fields, extractedFields);
+  assert.equal(persistence.ocr_review_required, true);
+  assert.deepEqual(persistence.ocr_structured_fields.fields, {});
+
+  const ocr = buildOcrProjection({
+    document_id: 'indigency-ocr-id',
+    document_key: 'certificate_of_indigency',
+    document_type: 'Certificate of Indigency',
+    scanned_via_iot: true,
+    ocr_extracted_name: null,
+    ocr_confidence: 0.99,
+    ocr_raw_text: 'INDIGENCY RAW OCR',
+    ...persistence,
+  });
+  const document = buildOcrOnlyDocument({
+    documentKey: 'certificate_of_indigency',
+    ocr,
+  });
+
+  assert.equal(ocr.raw_text, 'INDIGENCY RAW OCR');
+  assert.equal(ocr.extracted_name, null);
+  assert.equal(ocr.review_required, true);
+  assert.equal(document.status, 'pending');
+  assert.equal(document.url, null);
+  assert.equal(document.file_url, null);
+});

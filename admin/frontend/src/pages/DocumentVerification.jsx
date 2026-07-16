@@ -231,12 +231,24 @@ function isDocumentAvailable(document) {
   return document.id === 'application_form' ? true : !!document.url;
 }
 
+function getStructuredOcrFields(document) {
+  const structuredFields = document?.ocr?.structured_fields;
+  return structuredFields?.fields && typeof structuredFields.fields === 'object'
+    ? structuredFields.fields
+    : {};
+}
+
+function hasStructuredOcrFields(document) {
+  return Object.keys(getStructuredOcrFields(document)).length > 0;
+}
+
 function hasDocumentOcrResult(document) {
   if (!document) return false;
 
   return !!(
     document?.ocr?.raw_text ||
     document?.ocr?.text ||
+    hasStructuredOcrFields(document) ||
     document?.ocr_confidence !== null && document?.ocr_confidence !== undefined ||
     document?.ocr?.confidence !== null && document?.ocr?.confidence !== undefined
   );
@@ -332,6 +344,14 @@ export function buildExtractedData(activeDoc, application) {
   const scannedViaIot = ocr.scanned_via_iot === true || activeDoc.scanned_via_iot === true;
   const confidence = ocr.confidence ?? activeDoc.ocr_confidence ?? null;
   const documentValidation = detectBirthCertificateOcr(activeDoc);
+  const structuredFields = getStructuredOcrFields(activeDoc);
+  const hasStructuredBirthFields =
+    activeDoc.id === 'birth_certificate' &&
+    Object.keys(structuredFields).length > 0;
+  const manualReviewRequired =
+    ocr.review_required === true ||
+    ocr.structured_fields?.review_required === true ||
+    hasStructuredBirthFields;
 
   const applicationMetadata = [
     { label: 'Student Name', value: student.name || 'Unavailable', badge: 'Application' },
@@ -342,7 +362,30 @@ export function buildExtractedData(activeDoc, application) {
 
   const extractedFields = [];
 
-  if (!reviewOnly && typeof ocr.extracted_name === 'string' && ocr.extracted_name.trim()) {
+  if (hasStructuredBirthFields) {
+    const birthFieldDefinitions = [
+      ['child_name', 'Child Name'],
+      ['mother_maiden_name', 'Mother’s Maiden Name'],
+      ['father_name', 'Father Name'],
+    ];
+
+    birthFieldDefinitions.forEach(([fieldKey, label]) => {
+      const field = structuredFields[fieldKey];
+      const rawText =
+        field && typeof field === 'object'
+          ? field.raw_text
+          : field;
+
+      extractedFields.push({
+        label,
+        value:
+          typeof rawText === 'string' && rawText.trim()
+            ? rawText.trim()
+            : 'Not extracted',
+        badge: 'Provisional OCR',
+      });
+    });
+  } else if (!reviewOnly && typeof ocr.extracted_name === 'string' && ocr.extracted_name.trim()) {
     extractedFields.push({
       label: 'Extracted Name',
       value: ocr.extracted_name.trim(),
@@ -358,7 +401,7 @@ export function buildExtractedData(activeDoc, application) {
     });
   }
 
-  if (activeDoc.id === 'birth_certificate') {
+  if (activeDoc.id === 'birth_certificate' && !hasStructuredBirthFields) {
     extractedFields.push({
       label: 'Document Type Detection',
       value: documentValidation.detectedLabel,
@@ -371,6 +414,7 @@ export function buildExtractedData(activeDoc, application) {
     extractedFields,
     confidence: formatOcrConfidence(confidence, scannedViaIot),
     reviewOnly,
+    manualReviewRequired,
     documentValidation,
   };
 }
@@ -381,6 +425,13 @@ export function buildRawOcrSnapshot(activeDoc) {
 
   const ocr = activeDoc?.ocr || {};
   const rawText = String(ocr.raw_text || ocr.text || '').trim();
+  if (
+    !rawText &&
+    activeDoc.id === 'birth_certificate' &&
+    hasStructuredOcrFields(activeDoc)
+  ) {
+    return 'Structured row OCR completed.\nNo combined raw OCR snapshot was supplied.';
+  }
   return rawText || '(No OCR text yet)';
 }
 
@@ -401,12 +452,35 @@ function detectBirthCertificateOcr(activeDoc) {
   const rawText = String(ocr.raw_text || ocr.text || '').trim();
   const normalizedText = normalizeOcrText(rawText);
   const expectedBirthCertificate = activeDoc?.id === 'birth_certificate';
+  const structuredFields = getStructuredOcrFields(activeDoc);
+  const structuredFieldCount = Object.keys(structuredFields).length;
+
+  if (expectedBirthCertificate && structuredFieldCount > 0) {
+    return {
+      shouldShow: true,
+      expectedBirthCertificate: true,
+      detectedBirthCertificate: true,
+      structuredResult: true,
+      panelTitle: 'Birth Certificate OCR Processing',
+      detectedLabel: 'Structured row OCR completed',
+      confidenceLabel: 'Manual Review',
+      tone: 'amber',
+      warning: 'All extracted birth fields are provisional and require administrator review.',
+      rows: [
+        { label: 'Document processing', value: 'Completed', found: true },
+        { label: 'Review state', value: 'Manual review required', found: true },
+        { label: 'Extracted fields', value: String(structuredFieldCount), found: true },
+      ],
+    };
+  }
 
   if (!rawText) {
     return {
       shouldShow: expectedBirthCertificate,
       expectedBirthCertificate,
       detectedBirthCertificate: false,
+      structuredResult: false,
+      panelTitle: 'Birth Certificate / PSA Detection',
       detectedLabel: 'No OCR text yet',
       confidenceLabel: 'Unavailable',
       tone: 'amber',
@@ -504,6 +578,8 @@ function detectBirthCertificateOcr(activeDoc) {
     shouldShow: expectedBirthCertificate || detectedBirthCertificate,
     expectedBirthCertificate,
     detectedBirthCertificate,
+    structuredResult: false,
+    panelTitle: 'Birth Certificate / PSA Detection',
     detectedLabel: detectedBirthCertificate
       ? 'Likely Birth Certificate / PSA'
       : 'Birth Certificate / PSA not detected',
@@ -918,6 +994,12 @@ function OCRPanel({
             </p>
           </div>
 
+          {extractedData.manualReviewRequired ? (
+            <div className="mb-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+              Manual review required. Structured OCR values are provisional.
+            </div>
+          ) : null}
+
           {extractedData.reviewOnly ? (
             <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 space-y-1">
               <p className="font-medium">{REVIEW_ONLY_MESSAGES[0]}</p>
@@ -938,7 +1020,13 @@ function OCRPanel({
                       {item.value}
                     </p>
                   </div>
-                  <span className="text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap bg-green-50 text-green-700">
+                  <span
+                    className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${
+                      item.badge === 'Provisional OCR'
+                        ? 'bg-orange-50 text-orange-700'
+                        : 'bg-green-50 text-green-700'
+                    }`}
+                  >
                     {item.badge}
                   </span>
                 </div>
@@ -955,7 +1043,7 @@ function OCRPanel({
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-blue-700" />
                 <p className="text-xs font-semibold uppercase tracking-wide text-stone-700">
-                  Birth Certificate / PSA Detection
+                  {extractedData.documentValidation.panelTitle || 'Birth Certificate / PSA Detection'}
                 </p>
               </div>
 
@@ -982,7 +1070,9 @@ function OCRPanel({
 
             <div className="mb-3 rounded-lg border border-stone-200 bg-white px-3 py-2">
               <p className="text-[11px] uppercase tracking-wide text-stone-400">
-                Detected Document Type
+                {extractedData.documentValidation.structuredResult
+                  ? 'Processing Result'
+                  : 'Detected Document Type'}
               </p>
               <p className="mt-0.5 text-sm font-semibold text-stone-800">
                 {extractedData.documentValidation.detectedLabel}
@@ -1011,7 +1101,11 @@ function OCRPanel({
                       color: row.found ? C.green : C.red,
                     }}
                   >
-                    {row.found ? 'Matched' : 'Missing'}
+                    {extractedData.documentValidation.structuredResult
+                      ? 'Available'
+                      : row.found
+                        ? 'Matched'
+                        : 'Missing'}
                   </span>
                 </div>
               ))}
@@ -1021,15 +1115,24 @@ function OCRPanel({
               <div
                 className="mt-3 rounded-lg border px-3 py-2 text-xs leading-relaxed"
                 style={{
-                  background: extractedData.documentValidation.detectedBirthCertificate
-                    ? C.greenSoft
-                    : C.redSoft,
-                  color: extractedData.documentValidation.detectedBirthCertificate
-                    ? C.green
-                    : C.red,
-                  borderColor: extractedData.documentValidation.detectedBirthCertificate
-                    ? '#bbf7d0'
-                    : '#fecaca',
+                  background:
+                    extractedData.documentValidation.tone === 'amber'
+                      ? C.orangeSoft
+                      : extractedData.documentValidation.detectedBirthCertificate
+                        ? C.greenSoft
+                        : C.redSoft,
+                  color:
+                    extractedData.documentValidation.tone === 'amber'
+                      ? C.orange
+                      : extractedData.documentValidation.detectedBirthCertificate
+                        ? C.green
+                        : C.red,
+                  borderColor:
+                    extractedData.documentValidation.tone === 'amber'
+                      ? '#fed7aa'
+                      : extractedData.documentValidation.detectedBirthCertificate
+                        ? '#bbf7d0'
+                        : '#fecaca',
                 }}
               >
                 {extractedData.documentValidation.warning}

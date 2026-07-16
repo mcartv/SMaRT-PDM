@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 
@@ -19,6 +20,8 @@ class StepEssay extends StatefulWidget {
 }
 
 class _StepEssayState extends State<StepEssay> {
+  static const ApplicationSubmissionValidator _validator =
+      ApplicationSubmissionValidator();
   late final TextEditingController describeYourselfController;
   late final TextEditingController aimsAndAmbitionController;
 
@@ -44,15 +47,16 @@ class _StepEssayState extends State<StepEssay> {
     });
   }
 
-  String? _requiredEssayError(String value, String label) {
-    if (!widget.showErrors) return null;
-    return value.trim().isEmpty ? '$label is required.' : null;
-  }
-
   int _wordCount(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return 0;
     return trimmed.split(RegExp(r'\s+')).length;
+  }
+
+  String? _essayError(String field) {
+    if (!widget.showErrors) return null;
+    return _validator.validateEssayProgression(widget.data).issueForField(field)
+        ?.message;
   }
 
   Widget _essayCard({
@@ -61,6 +65,7 @@ class _StepEssayState extends State<StepEssay> {
     required TextEditingController controller,
     required String hint,
     required String errorLabel,
+    required String field,
   }) {
     final count = _wordCount(controller.text);
     return IntakeCard(
@@ -117,7 +122,7 @@ class _StepEssayState extends State<StepEssay> {
             maxLines: 7,
             decoration: intakeInputDecoration(
               hint: hint,
-              errorText: _requiredEssayError(controller.text, errorLabel),
+              errorText: _essayError(field),
             ),
           ),
         ],
@@ -147,6 +152,7 @@ class _StepEssayState extends State<StepEssay> {
           controller: describeYourselfController,
           hint: 'Start writing here...',
           errorLabel: 'Describe yourself essay',
+          field: 'describeYourselfEssay',
         ),
         _essayCard(
           number: 2,
@@ -155,6 +161,7 @@ class _StepEssayState extends State<StepEssay> {
           controller: aimsAndAmbitionController,
           hint: 'Start writing here...',
           errorLabel: 'Aims and ambition essay',
+          field: 'aimsAndAmbitionEssay',
         ),
         const IntakeInfoCard(
           title: 'Tips for a strong essay',

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/widgets/intake_form_ui.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_data.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -28,6 +29,8 @@ class _StepSubmitState extends State<StepSubmit> {
   static final Uri _privacyUri = Uri.parse(
     'https://smart-pdm.vercel.app/privacy',
   );
+  static const ApplicationSubmissionValidator _validator =
+      ApplicationSubmissionValidator();
 
   late bool certRead;
   late bool agreeTerms;
@@ -47,8 +50,6 @@ class _StepSubmitState extends State<StepSubmit> {
       );
     }
   }
-
-  bool _empty(String value) => value.trim().isEmpty;
 
   String _clean(String value) {
     final text = value.trim();
@@ -78,50 +79,13 @@ class _StepSubmitState extends State<StepSubmit> {
     return parts.isEmpty ? '-' : parts.join(', ');
   }
 
-  String _familyAddress() {
-    final text = widget.data.parentGuardianAddress.trim();
-    return text.isEmpty ? '-' : text;
-  }
-
-  String _education(String value) => _clean(value);
-
-  String _yesNo(bool value) => value ? 'Yes' : 'No';
-
-  String _parentNativeDetails() {
-    final status = widget.data.parentNativeStatus.trim();
-    if (status.isEmpty) return '-';
-    if (status == 'No') {
-      final origin = widget.data.parentPreviousTownProvince.trim();
-      return origin.isEmpty ? status : '$status, from $origin';
-    }
-    final years = widget.data.parentMarilaoResidencyDuration.trim();
-    return years.isEmpty ? status : '$status, resident for $years';
-  }
-
-  List<String> _missingFields() {
-    final missing = <String>[];
-    if (_empty(widget.data.firstName)) missing.add('First name');
-    if (_empty(widget.data.lastName)) missing.add('Last name');
-    if (_empty(widget.data.dateOfBirth)) missing.add('Date of birth');
-    if (_empty(widget.data.age)) missing.add('Age');
-    if (_empty(widget.data.sex)) missing.add('Sex');
-    if (_empty(widget.data.mobileNumber)) missing.add('Mobile number');
-    if (_empty(widget.data.email)) missing.add('Email address');
-    if (_empty(widget.data.currentCourse)) missing.add('Course');
-    if (_empty(widget.data.currentYearLevel)) missing.add('Year level');
-    if (_empty(widget.data.studentNumber)) missing.add('Student number');
-    if (_empty(widget.data.describeYourselfEssay)) {
-      missing.add('Describe yourself essay');
-    }
-    if (_empty(widget.data.aimsAndAmbitionEssay)) {
-      missing.add('Aims and ambition essay');
-    }
-    return missing;
+  ApplicationSubmissionValidationResult _reviewValidation() {
+    return _validator.validateReviewReadiness(widget.data);
   }
 
   Widget _warningBox() {
-    final missing = _missingFields();
-    if (missing.isEmpty) {
+    final validation = _reviewValidation();
+    if (validation.isValid) {
       return IntakeInfoCard(
         title: 'Ready to submit',
         message:
@@ -144,11 +108,11 @@ class _StepSubmitState extends State<StepSubmit> {
             ),
           ),
           const SizedBox(height: 10),
-          ...missing.map(
-            (field) => Padding(
+          ...validation.repairActions.map(
+            (action) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
-                '• $field',
+                '- $action',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Colors.redAccent,
                   fontWeight: FontWeight.w600,

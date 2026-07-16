@@ -12,6 +12,7 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_essa
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_family_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_personal_intake.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_submit_intake.dart';
+import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
@@ -46,6 +47,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   bool _isAutosaving = false;
   bool _hasDraftLoaded = false;
   String? _autosaveError;
+  final ApplicationSubmissionValidator _submissionValidator =
+      const ApplicationSubmissionValidator();
 
   static const _stepLabels = [
     'Personal',
@@ -224,56 +227,15 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       return;
     }
 
-    if (!_data.agree) {
-      setState(() => _showValidationErrors = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please complete the required certification and legal agreement checkboxes.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (!_data.certificationRead) {
-      setState(() => _showValidationErrors = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please confirm the certification statement.'),
-        ),
-      );
-      return;
-    }
-
-    final missingAccountFields = <String>[];
-    if (_data.userId.trim().isEmpty) {
-      missingAccountFields.add('user ID');
-    }
-    if (_data.accountStudentId.trim().isEmpty) {
-      missingAccountFields.add('student ID');
-    }
-    if (_data.email.trim().isEmpty) {
-      missingAccountFields.add('email');
-    }
-
-    if (missingAccountFields.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Missing required account details: ${missingAccountFields.join(', ')}. Please log in again.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    final validationError = _validateCurrentForm();
-    if (validationError != null) {
+    final validationResult =
+        _submissionValidator.validateSubmissionPreflight(_data);
+    if (!validationResult.isValid) {
       setState(() => _showValidationErrors = true);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(validationError)));
+      ).showSnackBar(
+        SnackBar(content: Text(validationResult.firstMessage ?? 'Review the form before submitting.')),
+      );
       return;
     }
 
@@ -463,14 +425,9 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     }
 
     String? validateEssay() {
-      if (_data.describeYourselfEssay.trim().isEmpty) {
-        return 'Describe yourself essay is required.';
-      }
-      if (_data.aimsAndAmbitionEssay.trim().isEmpty) {
-        return 'Aims and ambition essay is required.';
-      }
-
-      return null;
+      return _submissionValidator
+          .validateEssayProgression(_data)
+          .firstMessage;
     }
 
     String? validateFamily() {
@@ -507,10 +464,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
       case 3:
         return validateEssay();
       case 4:
-        return validatePersonalAndContact() ??
-            validateFamily() ??
-            validateAcademic() ??
-            validateEssay();
+        return _submissionValidator.validateSubmissionPreflight(_data).firstMessage;
       default:
         return null;
     }
@@ -802,6 +756,11 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   }
 
   Widget _buildFooter(NewScholarProvider provider) {
+    final submissionReady =
+        _submissionValidator.validateSubmissionPreflight(_data).isValid;
+    final submitEnabled =
+        _hasSelectedOpening && submissionReady && !provider.isLoading;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       decoration: const BoxDecoration(
@@ -830,9 +789,24 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : GoldButton(
-                    label: 'Submit Application',
-                    onTap: _submitApplication,
+                : ElevatedButton(
+                    onPressed: submitEnabled ? _submitApplication : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.darkBrown,
+                      disabledBackgroundColor: const Color(0xFFF0D8A0),
+                      disabledForegroundColor: AppColors.darkBrown
+                          .withValues(alpha: 0.6),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Submit Application',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
                   ),
           ),
         ],

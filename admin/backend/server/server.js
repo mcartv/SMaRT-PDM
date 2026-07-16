@@ -63,7 +63,7 @@ app.set('trust proxy', 1);
 
 const allowedOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_URL || '')
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
 const configuredOriginSuffixes = (process.env.FRONTEND_ORIGIN_SUFFIXES || '')
@@ -82,8 +82,13 @@ if (!allowedOrigins.length) {
   allowedOrigins.push(
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
     'http://localhost:3000',
-    'http://127.0.0.1:3000'
+    'http://127.0.0.1:3000',
+    'http://192.168.100.9:5173',
+    'http://192.168.100.9:5174',
+    'http://192.168.100.9:3000'
   );
 }
 
@@ -95,18 +100,31 @@ const allowedHeaders = [
   'X-Audit-Access-Token',
 ];
 
+function normalizeOrigin(origin) {
+  return String(origin || '').trim().replace(/\/+$/, '');
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
+
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (allowedOrigins.includes(normalizedOrigin)) return true;
 
   try {
-    const parsed = new URL(origin);
+    const parsed = new URL(normalizedOrigin);
     const protocol = parsed.protocol;
     const hostname = parsed.hostname.toLowerCase();
 
     if (
       (protocol === 'http:' || protocol === 'https:') &&
-      (hostname === 'localhost' || hostname === '127.0.0.1')
+      (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        hostname.startsWith('172.')
+      )
     ) {
       return true;
     }
@@ -162,14 +180,15 @@ app.use((req, res, next) => {
 // BODY PARSERS
 // =========================
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // =========================
 // SERVE STATIC FILES (React Frontend)
 // =========================
 
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+
 console.log('Frontend build path:', frontendBuildPath);
 console.log('Index.html exists:', fs.existsSync(path.join(frontendBuildPath, 'index.html')));
 console.log('Assets directory exists:', fs.existsSync(path.join(frontendBuildPath, 'assets')));
@@ -181,7 +200,22 @@ app.use(express.static(frontendBuildPath));
 // =========================
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({
+    status: 'ok',
+    socket: 'enabled',
+    time: new Date().toISOString(),
+  });
+});
+
+app.get('/api/socket-health', (req, res) => {
+  const io = req.app.get('io');
+
+  res.json({
+    status: 'ok',
+    socket: Boolean(io),
+    connectedClients: io?.engine?.clientsCount || 0,
+    time: new Date().toISOString(),
+  });
 });
 
 app.get('/', (req, res) => {
@@ -221,20 +255,26 @@ app.use('/api/ro-settings', roSettingRoutes);
 app.use('/api/theme-settings', themeSettingRoutes);
 app.use('/api/general-settings', generalSettingRoutes);
 
-app.use('/api/pi/iot-ocr', piIotOcrRoutes);
 app.use('/api/pi', piRoutes);
 
 // =========================
 // SPA CATCH-ALL
 // =========================
 
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  console.log('API route not found:', req.method, req.originalUrl);
+
+  return res.status(404).json({
+    message: `Route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
 app.use((req, res) => {
   console.log('Catch-all request:', req.method, req.path, req.headers.accept);
-
-  if (req.path.startsWith('/api/')) {
-    console.log('API route not found:', req.path);
-    return res.status(404).json({ message: 'API endpoint not found' });
-  }
 
   if (path.extname(req.path)) {
     console.log('Static asset not found:', req.path);
@@ -242,6 +282,14 @@ app.use((req, res) => {
   }
 
   const indexPath = path.join(frontendBuildPath, 'index.html');
+
+  if (!fs.existsSync(indexPath)) {
+    return res.status(404).json({
+      message: 'Frontend build not found',
+      path: indexPath,
+    });
+  }
+
   console.log('Serving index.html for:', req.path);
 
   res.sendFile(indexPath, (err) => {
@@ -263,20 +311,142 @@ app.use((err, req, res, next) => {
   console.error('GLOBAL ERROR:', err);
 
   if (!res.headersSent) {
-    res.status(err.status || 500).json({
+    return res.status(err.status || 500).json({
       message: err.message || 'Internal Server Error',
     });
-  } else {
-    next(err);
   }
+
+  return next(err);
 });
 
-// 404 handler must be LAST
-app.use((req, res) => {
-  res.status(404).json({
-    message: `Route not found: ${req.method} ${req.originalUrl}`,
+// =========================
+// SOCKET HELPERS
+// =========================
+
+function decodeJwtPayloadUnsafe(token) {
+  try {
+    if (!token) return {};
+
+    const parts = String(token).split('.');
+    if (parts.length < 2) return {};
+
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = Buffer.from(base64, 'base64').toString('utf8');
+
+    return JSON.parse(json) || {};
+  } catch {
+    return {};
+  }
+}
+
+function verifyOrDecodeToken(token) {
+  const rawToken = String(token || '').replace(/^Bearer\s+/i, '').trim();
+
+  if (!rawToken) return {};
+
+  try {
+    if (process.env.JWT_SECRET) {
+      return jwt.verify(rawToken, process.env.JWT_SECRET) || {};
+    }
+  } catch (error) {
+    console.warn('[Socket] JWT verify failed, falling back to decode:', error.message);
+  }
+
+  return decodeJwtPayloadUnsafe(rawToken);
+}
+
+function extractUserIdFromPayload(payload = {}) {
+  if (typeof payload === 'string') {
+    return payload.trim();
+  }
+
+  return (
+    payload.userId ||
+    payload.user_id ||
+    payload.id ||
+    payload.sub ||
+    ''
+  )
+    .toString()
+    .trim();
+}
+
+function extractTokenFromSocket(socket) {
+  const auth = socket.handshake?.auth || {};
+  const query = socket.handshake?.query || {};
+  const headers = socket.handshake?.headers || {};
+
+  return (
+    auth.token ||
+    query.token ||
+    headers.authorization ||
+    headers.Authorization ||
+    ''
+  );
+}
+
+function extractUserIdFromSocket(socket) {
+  const auth = socket.handshake?.auth || {};
+  const query = socket.handshake?.query || {};
+
+  const directUserId =
+    auth.userId ||
+    auth.user_id ||
+    query.userId ||
+    query.user_id ||
+    '';
+
+  if (directUserId) {
+    return directUserId.toString().trim();
+  }
+
+  const token = extractTokenFromSocket(socket);
+  const decoded = verifyOrDecodeToken(token);
+
+  return extractUserIdFromPayload(decoded);
+}
+
+function joinSocketToUserRoom(socket, rawUserId) {
+  const userId = String(rawUserId || '').trim();
+
+  if (!userId) {
+    console.warn(`[Socket] Cannot join user room for socket ${socket.id}: missing userId`);
+    return false;
+  }
+
+  const roomName = `user:${userId}`;
+
+  socket.join(roomName);
+  socket.data.userId = userId;
+
+  console.log(`[Socket] Socket ${socket.id} joined ${roomName}`);
+
+  socket.emit('socket:joined', {
+    userId,
+    user_id: userId,
+    room: roomName,
+    joined_at: new Date().toISOString(),
   });
-});
+
+  return true;
+}
+
+function handleJoinPayload(socket, payload = {}) {
+  let userId = '';
+
+  if (typeof payload === 'string') {
+    userId = payload;
+  } else if (payload && typeof payload === 'object') {
+    userId = extractUserIdFromPayload(payload);
+
+    if (!userId && payload.token) {
+      const decoded = verifyOrDecodeToken(payload.token);
+      userId = extractUserIdFromPayload(decoded);
+    }
+  }
+
+  return joinSocketToUserRoom(socket, userId);
+}
 
 // =========================
 // SERVER START WITH SOCKET.IO
@@ -293,12 +463,15 @@ const io = socketIO(server, {
         return callback(null, true);
       }
 
+      console.error(`Socket CORS blocked for origin: ${origin}`);
       return callback(new Error(`Socket CORS blocked for origin: ${origin}`));
     },
     credentials: true,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   },
   transports: ['websocket', 'polling'],
+  pingTimeout: 30000,
+  pingInterval: 25000,
 });
 
 app.set('io', io);
@@ -311,38 +484,48 @@ configureRealtimeBridge({
 io.on('connection', (socket) => {
   console.log(`[Socket] User connected: ${socket.id}`);
 
+  const handshakeUserId = extractUserIdFromSocket(socket);
+
+  if (handshakeUserId) {
+    joinSocketToUserRoom(socket, handshakeUserId);
+  } else {
+    console.warn(`[Socket] ${socket.id} connected without userId in handshake`);
+  }
+
   socket.on('user-join', (payload) => {
-    let userId = null;
-
-    if (typeof payload === 'string') {
-      userId = payload;
-    } else if (payload && typeof payload === 'object' && payload.token) {
-      try {
-        const decoded = jwt.verify(payload.token, process.env.JWT_SECRET);
-        userId = decoded.userId || decoded.user_id || decoded.sub || null;
-      } catch (error) {
-        console.error('[Socket] Failed to decode join token:', error.message);
-      }
-    } else if (payload && typeof payload === 'object') {
-      userId = payload.userId || payload.user_id || null;
-    }
-
-    userId = userId?.toString().trim();
-
-    if (!userId) {
-      return;
-    }
-
-    socket.join(`user:${userId}`);
-    console.log(`[Socket] User ${userId} joined their room`);
+    handleJoinPayload(socket, payload);
   });
 
-  socket.on('disconnect', () => {
-    console.log(`[Socket] User disconnected: ${socket.id}`);
+  socket.on('join:user', (payload) => {
+    handleJoinPayload(socket, payload);
+  });
+
+  socket.on('joinUser', (payload) => {
+    handleJoinPayload(socket, payload);
+  });
+
+  socket.on('join-user', (payload) => {
+    handleJoinPayload(socket, payload);
+  });
+
+  socket.on('joinUserRoom', (payload) => {
+    handleJoinPayload(socket, payload);
+  });
+
+  socket.on('authenticate', (payload) => {
+    handleJoinPayload(socket, payload);
+  });
+
+  socket.on('register', (payload) => {
+    handleJoinPayload(socket, payload);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket] User disconnected: ${socket.id}`, reason);
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`WebSocket enabled at ws://localhost:${PORT}`);
   console.log('Allowed origins:', allowedOrigins);

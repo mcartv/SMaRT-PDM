@@ -1,3 +1,4 @@
+const db = require('../config/db');
 const messageService = require('../services/messageService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
@@ -94,6 +95,340 @@ async function getRoomMemberUserIds(roomId) {
     return [];
   }
 }
+
+async function getPrimarySupportAdminId(currentUserId) {
+  const latestThreadResult = await db.query(
+    `
+    SELECT
+      CASE
+        WHEN m.sender_id = $1 THEN m.receiver_id
+        ELSE m.sender_id
+      END AS admin_user_id
+    FROM messages m
+    JOIN users u
+      ON u.user_id = CASE
+        WHEN m.sender_id = $1 THEN m.receiver_id
+        ELSE m.sender_id
+      END
+    WHERE m.room_id IS NULL
+      AND (m.sender_id = $1 OR m.receiver_id = $1)
+      AND LOWER(COALESCE(u.role, '')) = 'admin'
+    ORDER BY m.sent_at DESC, m.message_id DESC
+    LIMIT 1;
+    `,
+    [currentUserId]
+  );
+
+  if (latestThreadResult.rows[0]?.admin_user_id) {
+    return latestThreadResult.rows[0].admin_user_id;
+  }
+
+  const fallbackAdminResult = await db.query(
+    `
+    SELECT u.user_id
+    FROM users u
+    LEFT JOIN admin_profiles ap
+      ON ap.user_id = u.user_id
+    WHERE LOWER(COALESCE(u.role, '')) = 'admin'
+    ORDER BY
+      CASE WHEN ap.admin_id IS NULL THEN 1 ELSE 0 END,
+      u.created_at ASC NULLS LAST,
+      u.user_id ASC
+    LIMIT 1;
+    `
+  );
+
+  return fallbackAdminResult.rows[0]?.user_id || null;
+}
+
+function buildLegacyMessagePayload(message) {
+  return {
+    message_id: message.message_id,
+    sender_id: message.sender_id,
+    receiver_id: message.receiver_id || null,
+    room_id: message.room_id || null,
+    subject: message.subject || null,
+    message_body: message.message_body,
+    attachment_url: message.attachment_url || null,
+    sent_at: message.sent_at,
+    is_read: message.is_read,
+    sender_name: message.sender_name || '',
+    sender_profile_photo_url: message.sender_profile_photo_url || null,
+    sender_avatar_url: message.sender_avatar_url || null,
+    created_at: new Date().toISOString(),
+  };
+}
+
+/*
+  GET /api/messages/unread-count
+
+  Flutter compatibility endpoint.
+*/
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const privateResult = await db.query(
+      `
+      SELECT COUNT(*)::int AS unread_count
+      FROM messages m
+      LEFT JOIN message_read_states mrs
+        ON mrs.message_id = m.message_id
+       AND mrs.user_id = $1
+      WHERE m.room_id IS NULL
+        AND m.receiver_id = $1
+        AND m.sender_id <> $1
+        AND COALESCE(mrs.is_read, m.is_read, false) = false;
+      `,
+      [currentUserId]
+    );
+
+    const roomResult = await db.query(
+      `
+      SELECT COUNT(*)::int AS unread_count
+      FROM messages m
+      JOIN chat_room_members crm
+        ON crm.room_id = m.room_id
+       AND crm.user_id = $1
+      LEFT JOIN message_read_states mrs
+        ON mrs.message_id = m.message_id
+       AND mrs.user_id = $1
+      WHERE m.room_id IS NOT NULL
+        AND m.sender_id <> $1
+        AND COALESCE(mrs.is_read, false) = false;
+      `,
+      [currentUserId]
+    );
+
+    const privateUnreadCount = Number(privateResult.rows[0]?.unread_count || 0);
+    const roomUnreadCount = Number(roomResult.rows[0]?.unread_count || 0);
+    const unreadCount = privateUnreadCount + roomUnreadCount;
+
+    return res.json({
+      unreadCount,
+      count: unreadCount,
+      privateUnreadCount,
+      roomUnreadCount,
+    });
+  } catch (err) {
+    console.error('GET MESSAGE UNREAD COUNT ERROR:', err.message);
+
+    return res.status(500).json({
+      message: 'Failed to load unread message count',
+      error: err.message,
+    });
+  }
+};
+
+/*
+  GET /api/messages/thread
+
+  Flutter compatibility endpoint.
+  Loads the direct support thread between the current mobile user and admin.
+*/
+exports.getThread = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const requestedCounterpartyId =
+      req.query?.counterpartyId ||
+      req.query?.receiverId ||
+      req.query?.adminId ||
+      '';
+
+    const counterpartyId =
+      String(requestedCounterpartyId || '').trim() ||
+      (await getPrimarySupportAdminId(currentUserId));
+
+    if (!counterpartyId) {
+      return res.json({
+        items: [],
+        messages: [],
+        counterpartyId: null,
+      });
+    }
+
+    const items = await messageService.fetchConversationMessages(
+      currentUserId,
+      counterpartyId
+    );
+
+    return res.json({
+      items,
+      messages: items,
+      counterpartyId,
+    });
+  } catch (err) {
+    console.error('GET MOBILE MESSAGE THREAD ERROR:', err.message);
+
+    return res.status(500).json({
+      message: 'Failed to load message thread',
+      error: err.message,
+    });
+  }
+};
+
+/*
+  POST /api/messages/thread
+
+  Flutter compatibility endpoint.
+  Sends a direct support message from mobile user to admin.
+*/
+exports.sendThreadMessage = async (req, res) => {
+  try {
+    const senderId = getCurrentUserId(req);
+
+    if (!senderId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const {
+      receiverId,
+      counterpartyId,
+      adminId,
+      subject,
+      messageBody,
+      message_body,
+      attachmentUrl,
+      attachment_url,
+    } = req.body || {};
+
+    const cleanMessageBody = String(messageBody || message_body || '').trim();
+
+    if (!cleanMessageBody) {
+      return res.status(400).json({ message: 'Message body is required' });
+    }
+
+    const targetAdminId =
+      String(receiverId || counterpartyId || adminId || '').trim() ||
+      (await getPrimarySupportAdminId(senderId));
+
+    if (!targetAdminId) {
+      return res.status(404).json({
+        message: 'No admin account is available for this support thread.',
+      });
+    }
+
+    const message = await messageService.sendMessage({
+      senderId,
+      receiverId: targetAdminId,
+      subject: subject || null,
+      messageBody: cleanMessageBody,
+      attachmentUrl: attachmentUrl || attachment_url || null,
+    });
+
+    const io = req.app.get('io');
+    const payload = buildLegacyMessagePayload(message);
+
+    socketEvents.messageCreated(io, payload, {
+      targetUserIds: uniqueIds(senderId, targetAdminId),
+    });
+
+    await logMessageAudit({
+      req,
+      actionTaken: 'SEND_MOBILE_THREAD_MESSAGE',
+      entityType: 'message',
+      entityId: message.message_id,
+      description: 'Sent a mobile support thread message.',
+      metadata: {
+        message_id: message.message_id,
+        sender_id: senderId,
+        receiver_id: targetAdminId,
+        message_length: cleanMessageBody.length,
+      },
+    });
+
+    return res.status(201).json(message);
+  } catch (err) {
+    console.error('SEND MOBILE THREAD MESSAGE ERROR:', err.message);
+
+    return res.status(500).json({
+      message: 'Failed to send message',
+      error: err.message,
+    });
+  }
+};
+
+/*
+  PATCH /api/messages/thread/read
+
+  Flutter compatibility endpoint.
+  Marks the current mobile user's direct support thread as read.
+*/
+exports.markThreadRead = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const requestedCounterpartyId =
+      req.body?.counterpartyId ||
+      req.body?.receiverId ||
+      req.body?.adminId ||
+      req.query?.counterpartyId ||
+      req.query?.receiverId ||
+      req.query?.adminId ||
+      '';
+
+    const counterpartyId =
+      String(requestedCounterpartyId || '').trim() ||
+      (await getPrimarySupportAdminId(currentUserId));
+
+    if (!counterpartyId) {
+      return res.json({
+        messageIds: [],
+        isRead: true,
+        unreadCount: 0,
+      });
+    }
+
+    const messageIds = await messageService.markConversationRead(
+      currentUserId,
+      counterpartyId
+    );
+
+    const io = req.app.get('io');
+
+    if (messageIds.length) {
+      socketEvents.messageRead(
+        io,
+        {
+          reader_id: currentUserId,
+          counterparty_id: counterpartyId,
+          room_id: null,
+          message_ids: messageIds,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          targetUserIds: uniqueIds(currentUserId, counterpartyId),
+        }
+      );
+    }
+
+    return res.json({
+      messageIds,
+      isRead: true,
+      unreadCount: 0,
+    });
+  } catch (err) {
+    console.error('MARK MOBILE THREAD READ ERROR:', err.message);
+
+    return res.status(500).json({
+      message: 'Failed to mark thread as read',
+      error: err.message,
+    });
+  }
+};
 
 exports.getConversations = async (req, res) => {
   try {

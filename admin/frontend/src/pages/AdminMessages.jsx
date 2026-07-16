@@ -1381,6 +1381,112 @@ export default function AdminMessages() {
     [token]
   )
 
+  const markConversationRead = useCallback(
+    async (counterpartyId) => {
+      const normalizedCounterpartyId = counterpartyId?.toString?.().trim() || ''
+
+      if (!normalizedCounterpartyId) {
+        return { messageIds: [], isRead: true, unreadCount: 0 }
+      }
+
+      try {
+        const response = await fetch(
+          `${MESSAGING_API_BASE}/api/messages/conversations/${normalizedCounterpartyId}/read`,
+          {
+            method: 'PATCH',
+            headers: buildMessagingHeaders(token, { json: true }),
+          }
+        )
+
+        const payload = await parseApiResponse(response, 'Failed to mark conversation as read.')
+
+        const messageIds = (payload.messageIds || payload.message_ids || [])
+          .map((messageId) => messageId?.toString?.() || '')
+          .filter(Boolean)
+
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === normalizedCounterpartyId
+              ? {
+                ...conversation,
+                unreadCount: 0,
+              }
+              : conversation
+          )
+        )
+
+        if (
+          activeType === 'private' &&
+          (activeConversationRef.current || activeConversationId) === normalizedCounterpartyId &&
+          messageIds.length
+        ) {
+          setMessages((current) => markMessagesRead(current, messageIds))
+        }
+
+        setError('')
+        return payload
+      } catch (err) {
+        console.error('MARK CONVERSATION READ ERROR:', err)
+        setError(err.message || 'Failed to mark conversation as read.')
+        throw err
+      }
+    },
+    [token, activeType, activeConversationId]
+  )
+
+  const markRoomMessagesRead = useCallback(
+    async (roomId) => {
+      const normalizedRoomId = roomId?.toString?.().trim() || ''
+
+      if (!normalizedRoomId) {
+        return { messageIds: [], isRead: true, unreadCount: 0 }
+      }
+
+      try {
+        const response = await fetch(
+          `${MESSAGING_API_BASE}/api/messages/rooms/${normalizedRoomId}/read`,
+          {
+            method: 'PATCH',
+            headers: buildMessagingHeaders(token, { json: true }),
+          }
+        )
+
+        const payload = await parseApiResponse(response, 'Failed to mark room messages as read.')
+
+        const messageIds = (payload.messageIds || payload.message_ids || [])
+          .map((messageId) => messageId?.toString?.() || '')
+          .filter(Boolean)
+
+        setRooms((current) =>
+          current.map((room) =>
+            room.id === normalizedRoomId
+              ? {
+                ...room,
+                unreadCount: 0,
+              }
+              : room
+          )
+        )
+
+        if (
+          activeType === 'group' &&
+          (activeRoomRef.current || activeRoomId) === normalizedRoomId &&
+          messageIds.length
+        ) {
+          setMessages((current) => markMessagesRead(current, messageIds))
+        }
+
+        setError('')
+        return payload
+      } catch (err) {
+        console.error('MARK ROOM READ ERROR:', err)
+        setError(err.message || 'Failed to mark room messages as read.')
+        throw err
+      }
+    },
+    [token, activeType, activeRoomId]
+  )
+
   const toggleThreadReadState = useCallback(
     async (item) => {
       if (!item?.id || item.isSearchResult) return
@@ -1814,136 +1920,403 @@ export default function AdminMessages() {
     }
   }, [filteredItems, selectedItem, searchTerm])
 
-  useSocketEvent('message:created', async (data) => {
-    const senderId = data?.sender_id?.toString?.() || ''
-    const receiverId = data?.receiver_id?.toString?.() || ''
-    const roomId = data?.room_id?.toString?.() || ''
+  const handleIncomingMessageRealtime = useCallback(
+    async (rawPayload = {}, eventName = 'message:created') => {
+      const message = normalizeMessage(rawPayload)
 
-    // This updates the floating circle badge even when the message modal is closed.
-    await Promise.all([fetchConversations(), fetchRooms()])
+      const messageId = message.messageId || ''
+      const senderId = message.senderId || ''
+      const receiverId = message.receiverId || ''
+      const roomId = message.roomId || ''
 
-    // If modal is closed, stop here.
-    // Badge is already updated by fetchConversations/fetchRooms.
-    if (!isOpen) return
+      const activeConversation =
+        activeConversationRef.current || activeConversationId || ''
 
-    // If modal is open and the active group received the message,
-    // reload the visible group thread.
-    if (roomId && activeType === 'group' && activeRoomId === roomId) {
-      await fetchRoomMessages(activeRoomId)
-      return
-    }
+      const activeRoom = activeRoomRef.current || activeRoomId || ''
 
-    // If modal is open and the active private chat received the message,
-    // reload the visible private thread.
-    const isActivePrivateThread =
-      activeType === 'private' &&
-      activeConversationId &&
-      [senderId, receiverId].includes(currentUserId) &&
-      [senderId, receiverId].includes(activeConversationId)
+      console.log('[Admin Messaging Realtime]', eventName, {
+        messageId,
+        senderId,
+        receiverId,
+        roomId,
+        currentUserId,
+        activeType,
+        activeConversation,
+        activeRoom,
+        isOpen,
+      })
 
-    if (isActivePrivateThread) {
-      await fetchConversationMessages(activeConversationId)
-    }
-  }, [
-    isOpen,
-    activeType,
-    activeRoomId,
-    activeConversationId,
-    currentUserId,
-    fetchConversations,
-    fetchRooms,
-    fetchConversationMessages,
-    fetchRoomMessages,
-  ])
+      if (!messageId) {
+        await Promise.all([
+          fetchConversations(activeConversation),
+          fetchRooms(activeRoom),
+        ])
+        return
+      }
 
-  useSocketEvent('message:read', async (data) => {
-    const messageIds = (data?.message_ids || data?.messageIds || [])
-      .map((item) => item?.toString?.() || '')
-      .filter(Boolean)
+      const isPrivateMessage = !roomId
 
-    if (messageIds.length) {
-      setMessages((current) => markMessagesRead(current, messageIds))
-    }
+      const isPrivateForCurrentAdmin =
+        isPrivateMessage &&
+        currentUserId &&
+        (senderId === currentUserId || receiverId === currentUserId)
 
-    await Promise.all([fetchConversations(), fetchRooms()])
-  }, [
-    fetchConversations,
-    fetchRooms,
-  ])
+      const privateCounterpartyId =
+        senderId === currentUserId ? receiverId : senderId
 
-  useSocketEvent('message:unread', async (data) => {
-    const messageIds = (data?.message_ids || data?.messageIds || [])
-      .map((item) => item?.toString?.() || '')
-      .filter(Boolean)
+      const isActivePrivateThread =
+        isOpen &&
+        activeType === 'private' &&
+        activeConversation &&
+        isPrivateForCurrentAdmin &&
+        privateCounterpartyId === activeConversation
 
-    if (messageIds.length) {
-      setMessages((current) => markMessagesUnread(current, messageIds))
-    }
+      const isActiveGroupThread =
+        isOpen &&
+        activeType === 'group' &&
+        roomId &&
+        activeRoom &&
+        roomId === activeRoom
 
-    await Promise.all([fetchConversations(), fetchRooms()])
-  }, [
-    fetchConversations,
-    fetchRooms,
-  ])
+      /*
+        1. Put the new message directly into the open chat.
+        This is the realtime part. Do not wait for fetch.
+      */
+      if (isActivePrivateThread || isActiveGroupThread) {
+        setMessages((current) => upsertMessage(current, message))
+      }
 
-  useSocketEvent('message:thread-archived', async () => {
-    if (!isOpen && !archivedOpen) return
+      /*
+        2. Update the private conversation preview/sidebar.
+      */
+      if (isPrivateForCurrentAdmin && privateCounterpartyId) {
+        setConversations((current) => {
+          let found = false
 
-    await Promise.all([fetchConversations(), fetchRooms()])
+          const next = current.map((item) => {
+            if (item.id !== privateCounterpartyId) {
+              return item
+            }
 
-    if (archivedOpen) {
-      await fetchArchivedThreads()
-    }
-  }, [
-    isOpen,
-    archivedOpen,
-    fetchConversations,
-    fetchRooms,
-    fetchArchivedThreads,
-  ])
+            found = true
 
-  useSocketEvent('message:thread-restored', async () => {
-    if (!isOpen && !archivedOpen) return
+            return {
+              ...item,
+              lastMessage: message.messageBody,
+              lastSentAt: message.sentAt,
+              unreadCount:
+                isActivePrivateThread || senderId === currentUserId
+                  ? 0
+                  : Number(item.unreadCount || 0) + 1,
+            }
+          })
 
-    await Promise.all([fetchConversations(), fetchRooms()])
+          if (!found) {
+            next.unshift({
+              id: privateCounterpartyId,
+              type: 'private',
+              name:
+                senderId === currentUserId
+                  ? 'Scholar'
+                  : message.senderName || 'New Conversation',
+              studentNumber: '',
+              lastMessage: message.messageBody,
+              lastSentAt: message.sentAt,
+              createdAt: message.sentAt,
+              avatarUrl: message.senderAvatarUrl || '',
+              unreadCount:
+                isActivePrivateThread || senderId === currentUserId ? 0 : 1,
+            })
+          }
 
-    if (archivedOpen) {
-      await fetchArchivedThreads()
-    }
-  }, [
-    isOpen,
-    archivedOpen,
-    fetchConversations,
-    fetchRooms,
-    fetchArchivedThreads,
-  ])
+          return sortItems(next)
+        })
+      }
 
-  useSocketEvent('room:created', async (data) => {
-    if (!isOpen) return
-    await fetchRooms(data?.room_id || activeRoomId)
-  }, [
-    isOpen,
-    activeRoomId,
-    fetchRooms,
-  ])
+      /*
+        3. Update group preview/sidebar.
+      */
+      if (roomId) {
+        setRooms((current) =>
+          sortItems(
+            current.map((item) =>
+              item.id === roomId
+                ? {
+                  ...item,
+                  lastMessage: message.messageBody,
+                  lastSentAt: message.sentAt,
+                  unreadCount:
+                    isActiveGroupThread || senderId === currentUserId
+                      ? 0
+                      : Number(item.unreadCount || 0) + 1,
+                }
+                : item
+            )
+          )
+        )
+      }
 
-  useSocketEvent('room:members-added', async (data) => {
-    if (!isOpen) return
+      /*
+        4. Silently sync lists with backend after UI updates.
+      */
+      Promise.all([
+        fetchConversations(activeConversation),
+        fetchRooms(activeRoom),
+      ]).catch((error) => {
+        console.error('[Admin Messaging Realtime] silent sync error:', error)
+      })
 
-    await fetchRooms(activeRoomId)
+      /*
+        5. If the active thread received an incoming message, mark it read.
+      */
+      if (isActivePrivateThread && senderId !== currentUserId) {
+        markConversationRead(activeConversation).catch((error) => {
+          console.error('[Admin Messaging Realtime] private read error:', error)
+        })
+      }
 
-    const roomId = data?.room_id?.toString?.() || ''
+      if (isActiveGroupThread && senderId !== currentUserId) {
+        markRoomMessagesRead(activeRoom).catch((error) => {
+          console.error('[Admin Messaging Realtime] room read error:', error)
+        })
+      }
+    },
+    [
+      activeType,
+      activeConversationId,
+      activeRoomId,
+      currentUserId,
+      isOpen,
+      fetchConversations,
+      fetchRooms,
+      markConversationRead,
+      markRoomMessagesRead,
+    ]
+  )
 
-    if (activeType === 'group' && activeRoomId === roomId) {
-      await fetchRoomMessages(activeRoomId)
-    }
-  }, [
-    isOpen,
-    activeType,
-    activeRoomId,
-    fetchRooms,
-    fetchRoomMessages,
-  ])
+  useSocketEvent(
+    'message:new',
+    (data) => {
+      handleIncomingMessageRealtime(data, 'message:new')
+    },
+    [handleIncomingMessageRealtime]
+  )
+
+  useSocketEvent(
+    'message:created',
+    (data) => {
+      handleIncomingMessageRealtime(data, 'message:created')
+    },
+    [handleIncomingMessageRealtime]
+  )
+
+  useSocketEvent(
+    'message:read',
+    async (data) => {
+      const messageIds = (data?.message_ids || data?.messageIds || [])
+        .map((item) => item?.toString?.() || '')
+        .filter(Boolean)
+
+      if (messageIds.length) {
+        setMessages((current) => markMessagesRead(current, messageIds))
+      }
+
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+    },
+    [
+      activeConversationId,
+      activeRoomId,
+      fetchConversations,
+      fetchRooms,
+    ]
+  )
+
+  useSocketEvent(
+    'message:unread',
+    async (data) => {
+      const messageIds = (data?.message_ids || data?.messageIds || [])
+        .map((item) => item?.toString?.() || '')
+        .filter(Boolean)
+
+      if (messageIds.length) {
+        setMessages((current) => markMessagesUnread(current, messageIds))
+      }
+
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+    },
+    [
+      activeConversationId,
+      activeRoomId,
+      fetchConversations,
+      fetchRooms,
+    ]
+  )
+
+  useSocketEvent(
+    'conversation:updated',
+    async () => {
+      await fetchConversations(
+        activeConversationRef.current || activeConversationId
+      )
+    },
+    [
+      activeConversationId,
+      fetchConversations,
+    ]
+  )
+
+  useSocketEvent(
+    'message:thread-archived',
+    async () => {
+      if (!isOpen && !archivedOpen) return
+
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+
+      if (archivedOpen) {
+        await fetchArchivedThreads()
+      }
+    },
+    [
+      isOpen,
+      archivedOpen,
+      activeConversationId,
+      activeRoomId,
+      fetchConversations,
+      fetchRooms,
+      fetchArchivedThreads,
+    ]
+  )
+
+  useSocketEvent(
+    'message:thread-restored',
+    async () => {
+      if (!isOpen && !archivedOpen) return
+
+      await Promise.all([
+        fetchConversations(activeConversationRef.current || activeConversationId),
+        fetchRooms(activeRoomRef.current || activeRoomId),
+      ])
+
+      if (archivedOpen) {
+        await fetchArchivedThreads()
+      }
+    },
+    [
+      isOpen,
+      archivedOpen,
+      activeConversationId,
+      activeRoomId,
+      fetchConversations,
+      fetchRooms,
+      fetchArchivedThreads,
+    ]
+  )
+
+  useSocketEvent(
+    'room:created',
+    async (data) => {
+      const roomId = data?.room_id?.toString?.() || ''
+
+      await fetchRooms(roomId || activeRoomRef.current || activeRoomId)
+    },
+    [
+      activeRoomId,
+      fetchRooms,
+    ]
+  )
+
+  useSocketEvent(
+    'room:members-added',
+    async (data) => {
+      const roomId = data?.room_id?.toString?.() || ''
+
+      await fetchRooms(activeRoomRef.current || activeRoomId)
+
+      if (
+        isOpen &&
+        activeType === 'group' &&
+        roomId &&
+        (activeRoomRef.current === roomId || activeRoomId === roomId)
+      ) {
+        await fetchRoomMessages(roomId)
+      }
+    },
+    [
+      isOpen,
+      activeType,
+      activeRoomId,
+      fetchRooms,
+      fetchRoomMessages,
+    ]
+  )
+
+  useSocketEvent(
+    'room:updated',
+    async (data) => {
+      const roomId = data?.room_id?.toString?.() || ''
+
+      await fetchRooms(activeRoomRef.current || activeRoomId)
+
+      if (
+        isOpen &&
+        activeType === 'group' &&
+        roomId &&
+        (activeRoomRef.current === roomId || activeRoomId === roomId)
+      ) {
+        await fetchRoomMessages(roomId)
+      }
+    },
+    [
+      isOpen,
+      activeType,
+      activeRoomId,
+      fetchRooms,
+      fetchRoomMessages,
+    ]
+  )
+
+  useSocketEvent(
+    'room:archived',
+    async () => {
+      await fetchRooms(activeRoomRef.current || activeRoomId)
+
+      if (archivedOpen) {
+        await fetchArchivedThreads()
+      }
+    },
+    [
+      activeRoomId,
+      archivedOpen,
+      fetchRooms,
+      fetchArchivedThreads,
+    ]
+  )
+
+  useSocketEvent(
+    'room:restored',
+    async () => {
+      await fetchRooms(activeRoomRef.current || activeRoomId)
+
+      if (archivedOpen) {
+        await fetchArchivedThreads()
+      }
+    },
+    [
+      activeRoomId,
+      archivedOpen,
+      fetchRooms,
+      fetchArchivedThreads,
+    ]
+  )
 
   return (
     <>

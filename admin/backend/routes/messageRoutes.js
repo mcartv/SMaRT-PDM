@@ -4,6 +4,19 @@ const router = express.Router();
 const messageController = require('../controllers/messageController');
 const { protect } = require('../middleware/authMiddleware');
 
+/*
+  MOBILE LEGACY / COMPATIBILITY ROUTES
+  The Flutter app still calls these:
+  GET   /api/messages/unread-count
+  GET   /api/messages/thread
+  POST  /api/messages/thread
+  PATCH /api/messages/thread/read
+*/
+router.get('/unread-count', protect, messageController.getUnreadCount);
+router.get('/thread', protect, messageController.getThread);
+router.post('/thread', protect, messageController.sendThreadMessage);
+router.patch('/thread/read', protect, messageController.markThreadRead);
+
 // ARCHIVED THREADS
 router.get('/archived', protect, messageController.getArchivedThreads);
 

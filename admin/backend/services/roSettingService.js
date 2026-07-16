@@ -20,63 +20,90 @@ function normalizeRequiredHours(value) {
     return parsed;
 }
 
-async function getSettings() {
-    const { data, error } = await supabase
-        .from('ro_settings')
-        .select(`
-      setting_id,
-      academic_year_id,
-      period_id,
-      required_hours,
-      is_active,
-      allow_carry_over,
-      remarks,
-      created_at,
-      updated_at,
-      academic_years (
-        academic_year_id,
-        label,
-        start_year,
-        end_year
-      ),
-      academic_period (
-        period_id,
-        term
-      )
-    `)
-        .order('created_at', { ascending: false });
+function hasValue(value) {
+    return value !== undefined && value !== null;
+}
 
-    if (error) throw error;
-
+function getSettingPayload(setting = {}) {
     return {
-        items: data || [],
+        setting_id: setting.setting_id || null,
+        academic_year_id: setting.academic_year_id || null,
+        period_id: setting.period_id || null,
+        required_hours: Number(setting.required_hours || 20),
+        is_active: setting.is_active === true,
+        allow_carry_over: setting.allow_carry_over !== false,
+        remarks: setting.remarks || null,
+        created_at: setting.created_at || null,
+        updated_at: setting.updated_at || null,
+        academic_years: setting.academic_years || null,
+        academic_period: setting.academic_period || null,
     };
 }
 
-async function getActiveSetting() {
+async function fetchSettingById(settingId) {
+    if (!settingId) {
+        throw createHttpError(400, 'settingId is required.');
+    }
+
     const { data, error } = await supabase
         .from('ro_settings')
         .select(`
-      setting_id,
-      academic_year_id,
-      period_id,
-      required_hours,
-      is_active,
-      allow_carry_over,
-      remarks,
-      created_at,
-      updated_at,
-      academic_years (
-        academic_year_id,
-        label,
-        start_year,
-        end_year
-      ),
-      academic_period (
-        period_id,
-        term
-      )
-    `)
+            setting_id,
+            academic_year_id,
+            period_id,
+            required_hours,
+            is_active,
+            allow_carry_over,
+            remarks,
+            created_at,
+            updated_at,
+            academic_years (
+                academic_year_id,
+                label,
+                start_year,
+                end_year
+            ),
+            academic_period (
+                period_id,
+                term
+            )
+        `)
+        .eq('setting_id', settingId)
+        .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+        throw createHttpError(404, 'RO setting not found.');
+    }
+
+    return data;
+}
+
+async function fetchActiveSettingRow() {
+    const { data, error } = await supabase
+        .from('ro_settings')
+        .select(`
+            setting_id,
+            academic_year_id,
+            period_id,
+            required_hours,
+            is_active,
+            allow_carry_over,
+            remarks,
+            created_at,
+            updated_at,
+            academic_years (
+                academic_year_id,
+                label,
+                start_year,
+                end_year
+            ),
+            academic_period (
+                period_id,
+                term
+            )
+        `)
         .eq('is_active', true)
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -84,21 +111,117 @@ async function getActiveSetting() {
 
     if (error) throw error;
 
+    return data;
+}
+
+async function deactivateAllSettings() {
+    const { error } = await supabase
+        .from('ro_settings')
+        .update({ is_active: false })
+        .eq('is_active', true);
+
+    if (error) throw error;
+}
+
+async function applySettingToPendingRoRecords(setting) {
+    if (!setting?.setting_id) {
+        throw createHttpError(400, 'RO setting is required.');
+    }
+
+    const { data, error } = await supabase
+        .from('return_of_obligations')
+        .update({
+            setting_id: setting.setting_id,
+            required_hours: Number(setting.required_hours || 0),
+            updated_at: new Date().toISOString(),
+        })
+        .eq('ro_status', 'Pending')
+        .select(`
+            ro_id,
+            student_id,
+            application_id,
+            opening_id,
+            program_id,
+            setting_id,
+            required_hours,
+            submitted_hours,
+            submitted_progress,
+            validated_hours,
+            ro_progress,
+            progress_status,
+            ro_status,
+            updated_at
+        `);
+
+    if (error) throw error;
+
     return {
-        setting: data || {
-            setting_id: null,
-            academic_year_id: null,
-            period_id: null,
-            required_hours: 20,
-            is_active: true,
-            allow_carry_over: true,
-            remarks: 'Default RO setting',
-        },
+        setting: getSettingPayload(setting),
+        updated_count: Array.isArray(data) ? data.length : 0,
+        updated_rows: Array.isArray(data) ? data : [],
+    };
+}
+
+async function getSettings() {
+    const { data, error } = await supabase
+        .from('ro_settings')
+        .select(`
+            setting_id,
+            academic_year_id,
+            period_id,
+            required_hours,
+            is_active,
+            allow_carry_over,
+            remarks,
+            created_at,
+            updated_at,
+            academic_years (
+                academic_year_id,
+                label,
+                start_year,
+                end_year
+            ),
+            academic_period (
+                period_id,
+                term
+            )
+        `)
+        .order('is_active', { ascending: false })
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return {
+        items: Array.isArray(data) ? data.map(getSettingPayload) : [],
+    };
+}
+
+async function getActiveSetting() {
+    const setting = await fetchActiveSettingRow();
+
+    return {
+        setting: setting
+            ? getSettingPayload(setting)
+            : {
+                setting_id: null,
+                academic_year_id: null,
+                period_id: null,
+                required_hours: 20,
+                is_active: true,
+                allow_carry_over: true,
+                remarks: 'Default RO setting',
+                created_at: null,
+                updated_at: null,
+                academic_years: null,
+                academic_period: null,
+            },
     };
 }
 
 async function createSetting(body = {}) {
-    const requiredHours = normalizeRequiredHours(body.required_hours ?? body.requiredHours ?? 20);
+    const requiredHours = normalizeRequiredHours(
+        body.required_hours ?? body.requiredHours ?? 20
+    );
 
     const payload = {
         academic_year_id: safeText(body.academic_year_id || body.academicYearId) || null,
@@ -110,23 +233,39 @@ async function createSetting(body = {}) {
     };
 
     if (payload.is_active) {
-        await supabase
-            .from('ro_settings')
-            .update({ is_active: false })
-            .eq('is_active', true);
+        await deactivateAllSettings();
     }
 
     const { data, error } = await supabase
         .from('ro_settings')
         .insert(payload)
-        .select('*')
+        .select(`
+            setting_id,
+            academic_year_id,
+            period_id,
+            required_hours,
+            is_active,
+            allow_carry_over,
+            remarks,
+            created_at,
+            updated_at
+        `)
         .single();
 
     if (error) throw error;
 
+    let applied = null;
+
+    if (data.is_active) {
+        applied = await applySettingToPendingRoRecords(data);
+    }
+
     return {
-        message: 'RO setting created successfully.',
-        setting: data,
+        message: data.is_active
+            ? 'RO setting created, activated, and applied to pending RO records.'
+            : 'RO setting created successfully.',
+        setting: getSettingPayload(data),
+        applied_to_pending: applied,
     };
 }
 
@@ -136,6 +275,8 @@ async function updateSetting(settingId, body = {}) {
     }
 
     const updatePayload = {};
+    const requiredHoursWasProvided =
+        body.required_hours !== undefined || body.requiredHours !== undefined;
 
     if (body.academic_year_id !== undefined || body.academicYearId !== undefined) {
         updatePayload.academic_year_id =
@@ -146,7 +287,7 @@ async function updateSetting(settingId, body = {}) {
         updatePayload.period_id = safeText(body.period_id || body.periodId) || null;
     }
 
-    if (body.required_hours !== undefined || body.requiredHours !== undefined) {
+    if (requiredHoursWasProvided) {
         updatePayload.required_hours = normalizeRequiredHours(
             body.required_hours ?? body.requiredHours
         );
@@ -161,22 +302,57 @@ async function updateSetting(settingId, body = {}) {
         updatePayload.remarks = safeText(body.remarks) || null;
     }
 
-    const { data, error } = await supabase
-        .from('ro_settings')
-        .update(updatePayload)
-        .eq('setting_id', settingId)
-        .select('*')
-        .maybeSingle();
+    let data;
 
-    if (error) throw error;
+    if (Object.keys(updatePayload).length > 0) {
+        const response = await supabase
+            .from('ro_settings')
+            .update(updatePayload)
+            .eq('setting_id', settingId)
+            .select(`
+                setting_id,
+                academic_year_id,
+                period_id,
+                required_hours,
+                is_active,
+                allow_carry_over,
+                remarks,
+                created_at,
+                updated_at
+            `)
+            .maybeSingle();
+
+        if (response.error) throw response.error;
+
+        data = response.data;
+    } else {
+        data = await fetchSettingById(settingId);
+    }
 
     if (!data) {
         throw createHttpError(404, 'RO setting not found.');
     }
 
+    const shouldApplyToPending =
+        data.is_active === true &&
+        (
+            requiredHoursWasProvided ||
+            body.apply_to_pending === true ||
+            body.applyToPending === true
+        );
+
+    let applied = null;
+
+    if (shouldApplyToPending) {
+        applied = await applySettingToPendingRoRecords(data);
+    }
+
     return {
-        message: 'RO setting updated successfully.',
-        setting: data,
+        message: shouldApplyToPending
+            ? 'RO setting updated and applied to pending RO records.'
+            : 'RO setting updated successfully.',
+        setting: getSettingPayload(data),
+        applied_to_pending: applied,
     };
 }
 
@@ -185,37 +361,51 @@ async function activateSetting(settingId) {
         throw createHttpError(400, 'settingId is required.');
     }
 
-    const { data: existing, error: existingError } = await supabase
-        .from('ro_settings')
-        .select('setting_id')
-        .eq('setting_id', settingId)
-        .maybeSingle();
+    const existing = await fetchSettingById(settingId);
 
-    if (existingError) throw existingError;
-
-    if (!existing) {
-        throw createHttpError(404, 'RO setting not found.');
-    }
-
-    const { error: deactivateError } = await supabase
-        .from('ro_settings')
-        .update({ is_active: false })
-        .eq('is_active', true);
-
-    if (deactivateError) throw deactivateError;
+    await deactivateAllSettings();
 
     const { data, error } = await supabase
         .from('ro_settings')
         .update({ is_active: true })
         .eq('setting_id', settingId)
-        .select('*')
+        .select(`
+            setting_id,
+            academic_year_id,
+            period_id,
+            required_hours,
+            is_active,
+            allow_carry_over,
+            remarks,
+            created_at,
+            updated_at
+        `)
         .single();
 
     if (error) throw error;
 
+    const applied = await applySettingToPendingRoRecords(data);
+
     return {
-        message: 'RO setting activated successfully.',
-        setting: data,
+        message: 'RO setting activated and applied to pending RO records.',
+        previous_setting: getSettingPayload(existing),
+        setting: getSettingPayload(data),
+        applied_to_pending: applied,
+    };
+}
+
+async function applyActiveSettingToPending() {
+    const setting = await fetchActiveSettingRow();
+
+    if (!setting) {
+        throw createHttpError(404, 'No active RO setting found.');
+    }
+
+    const applied = await applySettingToPendingRoRecords(setting);
+
+    return {
+        message: 'Active RO setting applied to pending RO records.',
+        ...applied,
     };
 }
 
@@ -328,8 +518,9 @@ module.exports = {
     createSetting,
     updateSetting,
     activateSetting,
+    applyActiveSettingToPending,
     getDepartments,
     createDepartment,
     updateDepartment,
-    toggleDepartment
+    toggleDepartment,
 };

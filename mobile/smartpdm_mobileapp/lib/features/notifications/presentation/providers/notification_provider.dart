@@ -1,11 +1,12 @@
-import 'package:socket_io_client/socket_io_client.dart' as io;
-import 'package:smartpdm_mobileapp/core/config/app_config.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/data/services/notification_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
-import 'package:flutter/widgets.dart';
 
 class NotificationProvider extends ChangeNotifier {
   NotificationProvider({
@@ -26,11 +27,17 @@ class NotificationProvider extends ChangeNotifier {
 
   List<AppNotification> _notifications = [];
   AppNotification? _latestPendingOpeningUpdate;
+
   bool _isLoading = false;
-  String? _errorMessage;
-  int _unreadCount = 0;
   bool _isInitialized = false;
   bool _hasScholarAccess = false;
+  bool _isRealtimeRefreshing = false;
+  bool _hasQueuedRealtimeRefresh = false;
+
+  String? _errorMessage;
+  String _initializedUserId = '';
+
+  int _unreadCount = 0;
   int _scholarAccessRevision = 0;
   int _applicationRevision = 0;
   int _announcementRevision = 0;
@@ -40,22 +47,30 @@ class NotificationProvider extends ChangeNotifier {
   int _scholarRevision = 0;
   int _ticketRevision = 0;
   int _roRevision = 0;
-  String _initializedUserId = '';
-  io.Socket? _socket;
+
+  VoidCallback? _stopRealtimeListener;
 
   List<AppNotification> get notifications => _notifications;
+
   List<AppNotification> get officeUpdatesItems => _composeOfficeUpdates();
+
   List<AppNotification> get generalNotificationItems =>
       _notifications.where((item) => !item.isOfficeUpdate).toList();
+
   List<AppNotification> get homeOfficeUpdatesItems =>
       officeUpdatesItems.take(2).toList();
+
   bool get isLoading => _isLoading;
+  bool get hasScholarAccess => _hasScholarAccess;
+
   String? get errorMessage => _errorMessage;
+
   int get unreadCount => _unreadCount;
+
   int get unreadPayoutCount => _notifications
       .where((item) => item.isPayoutNotification && !item.isRead)
       .length;
-  bool get hasScholarAccess => _hasScholarAccess;
+
   int get scholarAccessRevision => _scholarAccessRevision;
   int get applicationRevision => _applicationRevision;
   int get announcementRevision => _announcementRevision;
@@ -75,43 +90,51 @@ class NotificationProvider extends ChangeNotifier {
     }
 
     if (_isInitialized && _initializedUserId == session.userId) {
+      _ensureRealtimeListener();
       return;
     }
 
     _resetRuntimeState(notify: false);
+
     _isInitialized = true;
     _initializedUserId = session.userId;
     _hasScholarAccess = session.hasScholarAccess;
+
     notifyListeners();
 
     await refresh();
     await _refreshScholarAccessFromProfile();
     await _notificationService.registerStoredDeviceToken();
-    await _connectSocket();
+
+    _ensureRealtimeListener();
   }
 
-  Future<void> refresh() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  Future<void> refresh({bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       final result = await _notificationService.fetchNotifications();
       _notifications = result.items;
-      try {
-        _latestPendingOpeningUpdate = await _programOpeningService
-            .fetchLatestOpeningOfficeUpdate();
-      } catch (_) {
-        _latestPendingOpeningUpdate = null;
-      }
+
+      await _refreshLatestOpeningUpdate();
+
       if (_notifications.any(_isScholarApprovalNotification)) {
         await _applyScholarAccess(true);
       }
-      _unreadCount = _notifications.where((item) => !item.isRead).length;
+
+      _recalculateUnreadCount();
+      _errorMessage = null;
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = error.toString().replaceFirst('Exception: ', '');
     } finally {
-      _isLoading = false;
+      if (!silent) {
+        _isLoading = false;
+      }
+
       notifyListeners();
     }
   }
@@ -121,22 +144,24 @@ class NotificationProvider extends ChangeNotifier {
       _unreadCount = await _notificationService.fetchUnreadCount();
       notifyListeners();
     } catch (_) {
-      // Keep the existing badge if the count refresh fails.
+      // Keep current badge count when count refresh fails.
     }
   }
 
   Future<void> markAsRead(String notificationId) async {
     try {
       final updated = await _notificationService.markAsRead(notificationId);
+
       _notifications = _notifications.map((notification) {
         return notification.notificationId == notificationId
             ? updated
             : notification;
       }).toList();
+
       _recalculateUnreadCount();
       notifyListeners();
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = error.toString().replaceFirst('Exception: ', '');
       notifyListeners();
     }
   }
@@ -150,11 +175,10 @@ class NotificationProvider extends ChangeNotifier {
 
       await _notificationService.markAllAsRead();
 
-      final updatedList = _notifications
+      _notifications = _notifications
           .map((item) => item.copyWith(isRead: true))
           .toList(growable: false);
 
-      _notifications = updatedList;
       _unreadCount = 0;
       _errorMessage = null;
     } catch (error) {
@@ -182,13 +206,14 @@ class NotificationProvider extends ChangeNotifier {
         if (notification.isPayoutNotification) {
           return notification.copyWith(isRead: true);
         }
+
         return notification;
       }).toList();
 
       _recalculateUnreadCount();
       notifyListeners();
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = error.toString().replaceFirst('Exception: ', '');
       notifyListeners();
     }
   }
@@ -196,47 +221,227 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> deleteNotification(String notificationId) async {
     try {
       await _notificationService.deleteNotification(notificationId);
+
       _notifications = _notifications
           .where(
             (notification) => notification.notificationId != notificationId,
           )
           .toList();
+
       _recalculateUnreadCount();
       notifyListeners();
     } catch (error) {
-      _errorMessage = error.toString();
+      _errorMessage = error.toString().replaceFirst('Exception: ', '');
       notifyListeners();
     }
   }
 
-  Future<void> _connectSocket() async {
-    final session = await _sessionService.getCurrentUser();
-    if (session.token.isEmpty) {
+  void _ensureRealtimeListener() {
+    _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
+      MobileRealtimeEvents.notificationProviderEvents,
+      _handleRealtimeEvent,
+    );
+  }
+
+  Future<void> _handleRealtimeEvent(MobileRealtimeEvent event) async {
+    debugPrint('[NotificationProvider] realtime event: ${event.name}');
+
+    switch (event.name) {
+      case MobileRealtimeEvents.notificationNew:
+      case MobileRealtimeEvents.notificationCreated:
+        await _upsertNotificationFromEvent(event);
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.notificationUpdated:
+        await _updateNotificationFromEvent(event);
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.notificationDeleted:
+      case MobileRealtimeEvents.notificationArchived:
+        _removeNotificationFromEvent(event);
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.notificationRestored:
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.notificationReadAll:
+        _markLocalNotificationsRead();
+        return;
+
+      case MobileRealtimeEvents.announcementCreated:
+      case MobileRealtimeEvents.announcementUpdated:
+      case MobileRealtimeEvents.announcementPublished:
+      case MobileRealtimeEvents.announcementRestored:
+      case MobileRealtimeEvents.announcementRefresh:
+        _announcementRevision += 1;
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.announcementArchived:
+      case MobileRealtimeEvents.announcementDeleted:
+        _announcementRevision += 1;
+        _removeOfficeUpdateByReference(
+          referenceId: event.referenceId,
+          referenceType: 'announcement',
+        );
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.openingCreated:
+      case MobileRealtimeEvents.openingUpdated:
+      case MobileRealtimeEvents.openingClosed:
+      case MobileRealtimeEvents.openingRestored:
+        _openingRevision += 1;
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.openingArchived:
+        _openingRevision += 1;
+        _removeOfficeUpdateByReference(
+          referenceId: event.referenceId,
+          referenceType: 'opening',
+        );
+        _removeOfficeUpdateByReference(
+          referenceId: event.referenceId,
+          referenceType: 'program_opening',
+        );
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.applicationCreated:
+      case MobileRealtimeEvents.applicationUpdated:
+      case MobileRealtimeEvents.applicationRejected:
+      case MobileRealtimeEvents.applicationDisqualified:
+      case MobileRealtimeEvents.applicationDocumentUploaded:
+      case MobileRealtimeEvents.applicationDocumentReviewed:
+      case MobileRealtimeEvents.applicationOcrQueued:
+      case MobileRealtimeEvents.applicationOcrSnapshotSaved:
+      case MobileRealtimeEvents.endorsementUpdated:
+        _applicationRevision += 1;
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.applicationApproved:
+        _applicationRevision += 1;
+        await _refreshScholarAccessFromProfile();
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.renewalCreated:
+      case MobileRealtimeEvents.renewalUpdated:
+      case MobileRealtimeEvents.renewalRejected:
+        _renewalRevision += 1;
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.renewalApproved:
+        _renewalRevision += 1;
+        _scholarRevision += 1;
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.scholarCreated:
+      case MobileRealtimeEvents.scholarUpdated:
+      case MobileRealtimeEvents.scholarArchived:
+      case MobileRealtimeEvents.scholarRestored:
+        _scholarRevision += 1;
+        await _refreshScholarAccessFromProfile();
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.roCreated:
+      case MobileRealtimeEvents.roUpdated:
+      case MobileRealtimeEvents.roCleared:
+      case MobileRealtimeEvents.roProgressUpdated:
+      case MobileRealtimeEvents.roTimeIn:
+      case MobileRealtimeEvents.roTimeOut:
+      case MobileRealtimeEvents.roLogCreated:
+      case MobileRealtimeEvents.roLogUpdated:
+      case MobileRealtimeEvents.roSettingsUpdated:
+        _roRevision += 1;
+        notifyListeners();
+        return;
+
+      case MobileRealtimeEvents.payoutCreated:
+      case MobileRealtimeEvents.payoutUpdated:
+      case MobileRealtimeEvents.payoutDeleted:
+      case MobileRealtimeEvents.payoutArchived:
+      case MobileRealtimeEvents.payoutRestored:
+      case MobileRealtimeEvents.scholarReleased:
+        _payoutRevision += 1;
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.ticketCreated:
+      case MobileRealtimeEvents.ticketUpdated:
+      case MobileRealtimeEvents.ticketResolved:
+      case MobileRealtimeEvents.ticketArchived:
+      case MobileRealtimeEvents.ticketRestored:
+        _ticketRevision += 1;
+        notifyListeners();
+        return;
+
+      default:
+        return;
+    }
+  }
+
+  Future<void> _refreshOfficeUpdatesFromRealtime() async {
+    if (_isRealtimeRefreshing) {
+      _hasQueuedRealtimeRefresh = true;
       return;
     }
 
-    if (_socket != null && _socket!.connected) {
-      return;
+    _isRealtimeRefreshing = true;
+
+    try {
+      debugPrint(
+        '[NotificationProvider] refreshing office updates from realtime',
+      );
+
+      final result = await _notificationService.fetchNotifications();
+      _notifications = result.items;
+
+      await _refreshLatestOpeningUpdate();
+
+      if (_notifications.any(_isScholarApprovalNotification)) {
+        await _applyScholarAccess(true);
+      }
+
+      _recalculateUnreadCount();
+      _errorMessage = null;
+
+      notifyListeners();
+    } catch (error) {
+      debugPrint('OFFICE UPDATES REALTIME REFRESH ERROR: $error');
+    } finally {
+      _isRealtimeRefreshing = false;
     }
 
-    _socket?.disconnect();
-    _socket?.dispose();
-    _socket = io.io(AppConfig.apiBaseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-      'auth': {'token': session.token},
-    });
+    if (_hasQueuedRealtimeRefresh) {
+      _hasQueuedRealtimeRefresh = false;
+      await _refreshOfficeUpdatesFromRealtime();
+    }
+  }
 
-    _socket!.connect();
+  Future<void> _refreshLatestOpeningUpdate() async {
+    try {
+      _latestPendingOpeningUpdate = await _programOpeningService
+          .fetchLatestOpeningOfficeUpdate();
+    } catch (_) {
+      _latestPendingOpeningUpdate = null;
+    }
+  }
 
-    _socket!.onConnect((_) {
-      debugPrint('Notification socket connected.');
-    });
+  Future<void> _upsertNotificationFromEvent(MobileRealtimeEvent event) async {
+    final payload = event.payload;
+    if (payload.isEmpty) return;
 
-    _socket!.on('notification:new', (data) async {
-      final payload = _castMap(data);
-      if (payload == null) return;
-
+    try {
       final notification = AppNotification.fromJson(payload);
 
       if (_isScholarApprovalNotification(notification)) {
@@ -261,15 +466,21 @@ class NotificationProvider extends ChangeNotifier {
           (item) => item.notificationId != notification.notificationId,
         ),
       ];
+
       _recalculateUnreadCount();
       notifyListeners();
-    });
+    } catch (error) {
+      debugPrint('UPSERT REALTIME NOTIFICATION ERROR: $error');
+    }
+  }
 
-    _socket!.on('notification:updated', (data) {
-      final payload = _castMap(data);
-      if (payload == null) return;
+  Future<void> _updateNotificationFromEvent(MobileRealtimeEvent event) async {
+    final payload = event.payload;
+    if (payload.isEmpty) return;
 
+    try {
       final updated = AppNotification.fromJson(payload);
+
       if (updated.isAnnouncementNotification) {
         _announcementRevision += 1;
       }
@@ -287,147 +498,66 @@ class NotificationProvider extends ChangeNotifier {
             ? updated
             : notification;
       }).toList();
+
       _recalculateUnreadCount();
       notifyListeners();
-    });
+    } catch (error) {
+      debugPrint('UPDATE REALTIME NOTIFICATION ERROR: $error');
+    }
+  }
 
-    _socket!.on('notification:deleted', (data) {
-      final payload = _castMap(data);
-      final notificationId = payload?['notificationId']?.toString();
-      if (notificationId == null || notificationId.isEmpty) {
-        return;
-      }
+  void _removeNotificationFromEvent(MobileRealtimeEvent event) {
+    final notificationId =
+        event.payload['notificationId']?.toString() ??
+        event.payload['notification_id']?.toString() ??
+        event.referenceId;
 
-      _notifications = _notifications
-          .where(
-            (notification) => notification.notificationId != notificationId,
-          )
-          .toList();
-      _recalculateUnreadCount();
-      notifyListeners();
-    });
+    if (notificationId.trim().isEmpty) return;
 
-    _socket!.on('announcement:created', (_) {
-      _announcementRevision += 1;
-      notifyListeners();
-    });
+    _notifications = _notifications
+        .where((notification) => notification.notificationId != notificationId)
+        .toList();
 
-    _socket!.on('announcement:updated', (_) {
-      _announcementRevision += 1;
-      notifyListeners();
-    });
+    _recalculateUnreadCount();
+    notifyListeners();
+  }
 
-    _socket!.on('announcement:deleted', (_) {
-      _announcementRevision += 1;
-      notifyListeners();
-    });
+  void _markLocalNotificationsRead() {
+    _notifications = _notifications
+        .map((item) => item.copyWith(isRead: true))
+        .toList(growable: false);
 
-    _socket!.on('opening:created', (_) {
-      _openingRevision += 1;
-      notifyListeners();
-    });
+    _unreadCount = 0;
+    notifyListeners();
+  }
 
-    _socket!.on('opening:updated', (_) {
-      _openingRevision += 1;
-      notifyListeners();
-    });
+  void _removeOfficeUpdateByReference({
+    required String referenceId,
+    required String referenceType,
+  }) {
+    final targetReferenceId = referenceId.trim();
+    final targetReferenceType = referenceType.trim().toLowerCase();
 
-    _socket!.on('opening:closed', (_) {
-      _openingRevision += 1;
-      notifyListeners();
-    });
+    if (targetReferenceId.isEmpty) return;
 
-    _socket!.on('payout:created', (_) {
-      _payoutRevision += 1;
-      notifyListeners();
-    });
+    _notifications = _notifications.where((notification) {
+      final itemReferenceId = (notification.referenceId ?? '').trim();
+      final itemReferenceType = (notification.referenceType ?? '')
+          .trim()
+          .toLowerCase();
+      final itemType = notification.type.trim().toLowerCase();
 
-    _socket!.on('payout:updated', (_) {
-      _payoutRevision += 1;
-      notifyListeners();
-    });
+      final sameReferenceId = itemReferenceId == targetReferenceId;
+      final sameReferenceType =
+          itemReferenceType == targetReferenceType ||
+          itemType == targetReferenceType ||
+          itemType.contains(targetReferenceType);
 
-    _socket!.on('payout:deleted', (_) {
-      _payoutRevision += 1;
-      notifyListeners();
-    });
+      return !(sameReferenceId && sameReferenceType);
+    }).toList();
 
-    _socket!.on('scholar:released', (_) {
-      _payoutRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('application:updated', (_) {
-      _applicationRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('application-document:uploaded', (_) {
-      _applicationRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('application-document:reviewed', (_) {
-      _applicationRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('endorsement:updated', (_) {
-      _applicationRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('application:approved', (_) async {
-      _applicationRevision += 1;
-      await _refreshScholarAccessFromProfile();
-      notifyListeners();
-    });
-
-    _socket!.on('application:rejected', (_) {
-      _applicationRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('renewal:updated', (_) {
-      _renewalRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('renewal:approved', (_) {
-      _renewalRevision += 1;
-      _scholarRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('scholar:updated', (_) {
-      _scholarRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('scholar:created', (_) {
-      _scholarRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('ticket:created', (_) {
-      _ticketRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('ticket:updated', (_) {
-      _ticketRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('ticket:resolved', (_) {
-      _ticketRevision += 1;
-      notifyListeners();
-    });
-
-    _socket!.on('ro:updated', (_) {
-      _roRevision += 1;
-      notifyListeners();
-    });
+    _recalculateUnreadCount();
+    notifyListeners();
   }
 
   Future<void> _refreshScholarAccessFromProfile() async {
@@ -436,7 +566,7 @@ class NotificationProvider extends ChangeNotifier {
       await _applyScholarAccess(profile['has_scholar_access'] == true);
       notifyListeners();
     } catch (_) {
-      // Keep the cached scholar access state if the profile refresh fails.
+      // Keep cached scholar access when profile refresh fails.
     }
   }
 
@@ -448,6 +578,7 @@ class NotificationProvider extends ChangeNotifier {
 
     _hasScholarAccess = nextValue;
     _scholarAccessRevision += 1;
+
     await _sessionService.saveScholarAccess(hasScholarAccess: nextValue);
   }
 
@@ -460,18 +591,6 @@ class NotificationProvider extends ChangeNotifier {
     return normalizedReference == 'scholar' &&
         (normalizedType == 'scholar approved' ||
             normalizedTitle == 'scholarship approved');
-  }
-
-  Map<String, dynamic>? _castMap(dynamic value) {
-    if (value is Map<String, dynamic>) {
-      return value;
-    }
-
-    if (value is Map) {
-      return value.map((key, mapValue) => MapEntry(key.toString(), mapValue));
-    }
-
-    return null;
   }
 
   void _recalculateUnreadCount() {
@@ -488,6 +607,7 @@ class NotificationProvider extends ChangeNotifier {
     }
 
     final latestReferenceId = _latestPendingOpeningUpdate!.referenceId;
+
     final deduped = officeUpdates.where((item) {
       if (!item.isOpeningUpdate) {
         return true;
@@ -504,16 +624,22 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   void _resetRuntimeState({bool notify = true}) {
-    _socket?.disconnect();
-    _socket?.dispose();
-    _socket = null;
+    _stopRealtimeListener?.call();
+    _stopRealtimeListener = null;
+
     _notifications = [];
     _latestPendingOpeningUpdate = null;
+
     _isLoading = false;
-    _errorMessage = null;
-    _unreadCount = 0;
     _isInitialized = false;
     _hasScholarAccess = false;
+    _isRealtimeRefreshing = false;
+    _hasQueuedRealtimeRefresh = false;
+
+    _errorMessage = null;
+    _initializedUserId = '';
+
+    _unreadCount = 0;
     _scholarAccessRevision = 0;
     _applicationRevision = 0;
     _announcementRevision = 0;
@@ -523,7 +649,6 @@ class NotificationProvider extends ChangeNotifier {
     _scholarRevision = 0;
     _ticketRevision = 0;
     _roRevision = 0;
-    _initializedUserId = '';
 
     if (notify) {
       notifyListeners();
@@ -532,8 +657,8 @@ class NotificationProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _socket?.disconnect();
-    _socket?.dispose();
+    _stopRealtimeListener?.call();
+    _stopRealtimeListener = null;
     super.dispose();
   }
 }

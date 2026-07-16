@@ -7,6 +7,10 @@ const router = express.Router();
 router.get('/', protect, roSettingController.getSettings);
 router.get('/active', protect, roSettingController.getActiveSetting);
 
+// Manual apply active setting to existing pending RO records.
+// This must be before /:settingId.
+router.patch('/active/apply-to-pending', protect, roSettingController.applyActiveSettingToPending);
+
 // RO departments — MUST be before /:settingId
 router.get('/departments', protect, roSettingController.getDepartments);
 router.post('/departments', protect, roSettingController.createDepartment);

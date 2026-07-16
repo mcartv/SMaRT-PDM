@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +6,8 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/controllers/applicant_home_controller.dart';
@@ -336,9 +336,19 @@ class _LegacyDashboardContentState extends State<_LegacyDashboardContent> {
   bool _isLoadingStatus = true;
   String? _statusError;
   NotificationProvider? _notificationProvider;
+
+  VoidCallback? _stopDashboardRealtimeListener;
+  bool _isDashboardRealtimeLoading = false;
+
   int _lastScholarAccessRevision = 0;
   int _lastApplicationRevision = 0;
-  Timer? _pollingTimer;
+  int _lastAnnouncementRevision = 0;
+  int _lastOpeningRevision = 0;
+  int _lastPayoutRevision = 0;
+  int _lastRenewalRevision = 0;
+  int _lastScholarRevision = 0;
+  int _lastTicketRevision = 0;
+  int _lastRoRevision = 0;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
@@ -365,42 +375,90 @@ class _LegacyDashboardContentState extends State<_LegacyDashboardContent> {
   @override
   void initState() {
     super.initState();
+
     _loadDashboardData();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (!mounted) return;
-      _loadDashboardData();
-    });
+
+    _stopDashboardRealtimeListener = MobileRealtimeService.instance.listenTo(
+      {
+        ...MobileRealtimeEvents.dashboardEvents,
+        ...MobileRealtimeEvents.officeUpdateEvents,
+        ...MobileRealtimeEvents.notificationEvents,
+      },
+      (event) async {
+        debugPrint('[Dashboard] realtime event: ${event.name}');
+        await _refreshDashboardFromRealtime();
+      },
+    );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
     final provider = context.read<NotificationProvider>();
+
     if (_notificationProvider == provider) {
       return;
     }
 
     _notificationProvider?.removeListener(_handleRealtimeUpdates);
     _notificationProvider = provider;
+    _captureProviderRevisions(provider);
+    _notificationProvider?.addListener(_handleRealtimeUpdates);
+  }
+
+  void _captureProviderRevisions(NotificationProvider provider) {
     _lastScholarAccessRevision = provider.scholarAccessRevision;
     _lastApplicationRevision = provider.applicationRevision;
-    _notificationProvider?.addListener(_handleRealtimeUpdates);
+    _lastAnnouncementRevision = provider.announcementRevision;
+    _lastOpeningRevision = provider.openingRevision;
+    _lastPayoutRevision = provider.payoutRevision;
+    _lastRenewalRevision = provider.renewalRevision;
+    _lastScholarRevision = provider.scholarRevision;
+    _lastTicketRevision = provider.ticketRevision;
+    _lastRoRevision = provider.roRevision;
   }
 
   void _handleRealtimeUpdates() {
     final provider = _notificationProvider;
     if (provider == null) return;
 
-    if (provider.scholarAccessRevision == _lastScholarAccessRevision &&
-        provider.applicationRevision == _lastApplicationRevision) {
-      return;
-    }
+    final hasChanges =
+        provider.scholarAccessRevision != _lastScholarAccessRevision ||
+        provider.applicationRevision != _lastApplicationRevision ||
+        provider.announcementRevision != _lastAnnouncementRevision ||
+        provider.openingRevision != _lastOpeningRevision ||
+        provider.payoutRevision != _lastPayoutRevision ||
+        provider.renewalRevision != _lastRenewalRevision ||
+        provider.scholarRevision != _lastScholarRevision ||
+        provider.ticketRevision != _lastTicketRevision ||
+        provider.roRevision != _lastRoRevision;
 
-    _lastScholarAccessRevision = provider.scholarAccessRevision;
-    _lastApplicationRevision = provider.applicationRevision;
+    if (!hasChanges) return;
 
-    if (mounted) {
-      _loadDashboardData();
+    _captureProviderRevisions(provider);
+    _refreshDashboardFromRealtime();
+  }
+
+  Future<void> _refreshDashboardFromRealtime() async {
+    if (_isDashboardRealtimeLoading) return;
+
+    _isDashboardRealtimeLoading = true;
+
+    try {
+      if (!mounted) return;
+
+      final notificationProvider = context.read<NotificationProvider>();
+
+      await notificationProvider.refresh(silent: true);
+
+      if (!mounted) return;
+
+      await _loadDashboardData();
+    } catch (error) {
+      debugPrint('DASHBOARD REALTIME REFRESH ERROR: $error');
+    } finally {
+      _isDashboardRealtimeLoading = false;
     }
   }
 
@@ -1768,7 +1826,8 @@ class _LegacyDashboardContentState extends State<_LegacyDashboardContent> {
 
   @override
   void dispose() {
-    _pollingTimer?.cancel();
+    _stopDashboardRealtimeListener?.call();
+    _stopDashboardRealtimeListener = null;
     _notificationProvider?.removeListener(_handleRealtimeUpdates);
     _searchController.dispose();
     super.dispose();

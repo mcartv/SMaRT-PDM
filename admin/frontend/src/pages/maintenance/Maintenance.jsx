@@ -11,6 +11,7 @@ import {
   CalendarRange,
   UsersRound,
   Palette,
+  Clock3,
 } from 'lucide-react';
 
 import GeneralPanel from './GeneralPanel';
@@ -24,6 +25,7 @@ import AcademicYearPanel from './AcademicYearPanel';
 import AccountsPanel from './AccountsPanel';
 import ThemePanel from './ThemePanel';
 import LandingThemePanel from './LandingThemePanel';
+import ROSettingsPanel from './ROSettingsPanel';
 import usePortalTheme from '@/hooks/usePortalTheme';
 
 const TABS = [
@@ -34,6 +36,7 @@ const TABS = [
   { key: 'programs', label: 'Programs', icon: GraduationCap },
   { key: 'academic-years', label: 'Academic Years', icon: CalendarRange },
   { key: 'courses', label: 'Courses', icon: BookOpen },
+  { key: 'ro-settings', label: 'RO Settings', icon: Clock3 },
   { key: 'registry', label: 'Student Registry', icon: Database },
   { key: 'system', label: 'System', icon: Cpu },
   { key: 'audit', label: 'Audit', icon: ClipboardList },
@@ -42,7 +45,7 @@ const TABS = [
 function TopNav({ tabs, active, onChange, accentColor }) {
   return (
     <div className="sticky top-0 z-20 border-b border-stone-200 bg-white">
-      <div className="flex items-center gap-6 px-4 overflow-x-auto">
+      <div className="flex items-center gap-6 overflow-x-auto px-4">
         {tabs.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.key;
@@ -50,9 +53,9 @@ function TopNav({ tabs, active, onChange, accentColor }) {
           return (
             <button
               key={item.key}
+              type="button"
               onClick={() => onChange(item.key)}
-              className={`relative flex items-center gap-2 py-3 text-sm font-medium whitespace-nowrap transition
-                ${isActive
+              className={`relative flex items-center gap-2 whitespace-nowrap py-3 text-sm font-medium transition ${isActive
                   ? 'text-stone-900'
                   : 'text-stone-400 hover:text-stone-700'
                 }`}
@@ -60,9 +63,12 @@ function TopNav({ tabs, active, onChange, accentColor }) {
               <Icon size={14} />
               {item.label}
 
-              {isActive && (
-                <span className="absolute bottom-0 left-0 h-[2px] w-full" style={{ background: accentColor }} />
-              )}
+              {isActive ? (
+                <span
+                  className="absolute bottom-0 left-0 h-[2px] w-full"
+                  style={{ background: accentColor }}
+                />
+              ) : null}
             </button>
           );
         })}
@@ -80,8 +86,10 @@ export default function Maintenance() {
     switch (tab) {
       case 'general':
         return <GeneralPanel />;
+
       case 'accounts':
         return <AccountsPanel />;
+
       case 'theme':
         return (
           <div className="space-y-5">
@@ -97,23 +105,22 @@ export default function Maintenance() {
                 <button
                   type="button"
                   onClick={() => setThemeView('landing')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    themeView === 'landing'
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${themeView === 'landing'
                       ? 'text-white shadow-sm'
                       : 'text-stone-600 hover:text-stone-900'
-                  }`}
+                    }`}
                   style={themeView === 'landing' ? { background: theme.base } : undefined}
                 >
                   Landing Page
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setThemeView('admin')}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    themeView === 'admin'
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${themeView === 'admin'
                       ? 'text-white shadow-sm'
                       : 'text-stone-600 hover:text-stone-900'
-                  }`}
+                    }`}
                   style={themeView === 'admin' ? { background: theme.base } : undefined}
                 >
                   Admin Theme
@@ -134,20 +141,31 @@ export default function Maintenance() {
             )}
           </div>
         );
+
       case 'benefactors':
         return <BenefactorsPanel />;
+
       case 'programs':
         return <ProgramsPanel />;
+
       case 'academic-years':
         return <AcademicYearPanel />;
+
       case 'courses':
         return <CoursesPanel />;
+
+      case 'ro-settings':
+        return <ROSettingsPanel />;
+
       case 'registry':
         return <StudentRegistryPanel />;
+
       case 'system':
         return <SystemPanel />;
+
       case 'audit':
         return <AuditPanel />;
+
       default:
         return <GeneralPanel />;
     }
@@ -163,22 +181,23 @@ export default function Maintenance() {
         minHeight: 'calc(100dvh - 120px)',
       }}
     >
-      {/* TOP NAV ONLY */}
-      <TopNav tabs={TABS} active={tab} onChange={setTab} accentColor={theme.base} />
+      <TopNav
+        tabs={TABS}
+        active={tab}
+        onChange={setTab}
+        accentColor={theme.base}
+      />
 
-      {/* CONTENT */}
       <div className="flex-1 p-4">
-        <Card className="border-stone-200 shadow-none flex flex-col overflow-hidden rounded-2xl h-full">
-
+        <Card className="flex h-full flex-col overflow-hidden rounded-2xl border-stone-200 shadow-none">
           <div
             className={`flex-1 overflow-auto ${isRegistry
-              ? 'p-3 max-h-[calc(100vh-140px)]'
-              : 'p-5 max-h-[calc(100vh-140px)]'
+                ? 'max-h-[calc(100vh-140px)] p-3'
+                : 'max-h-[calc(100vh-140px)] p-5'
               }`}
           >
             {renderActiveTab()}
           </div>
-
         </Card>
       </div>
     </div>

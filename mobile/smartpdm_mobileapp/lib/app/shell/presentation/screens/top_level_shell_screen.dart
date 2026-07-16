@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/core/config/app_config.dart';
+import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
-import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/payout_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
@@ -28,6 +31,7 @@ class TopLevelShellScreen extends StatefulWidget {
 class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   late final PageController _pageController;
   late int _currentIndex;
+
   bool _isVerifiedScholar = false;
   bool _isRevertingLockedSwipe = false;
 
@@ -40,18 +44,29 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   void initState() {
     super.initState();
+
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+
     _loadScholarState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+
+      await MobileRealtimeService.instance.connectFromPrefs(
+        backendBaseUrl: AppConfig.apiBaseUrl,
+      );
+
+      if (!mounted) return;
+
       context.read<NotificationProvider>().initialize();
-      context.read<MessagingProvider>().initializeChat();
+      // context.read<MessagingProvider>().initializeChat();
     });
   }
 
   Future<void> _loadScholarState() async {
     final prefs = await SharedPreferences.getInstance();
+
     if (!mounted) return;
 
     setState(() {
@@ -62,6 +77,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   void didUpdateWidget(covariant TopLevelShellScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (widget.initialIndex != oldWidget.initialIndex) {
       switchToIndex(widget.initialIndex, animated: false);
     }
@@ -71,6 +87,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     if (!mounted) return;
 
     final targetIndex = index.clamp(0, _pages.length - 1);
+
     if (targetIndex == _currentIndex) return;
 
     setState(() {
@@ -94,12 +111,15 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
 
     if (index == 1 && !hasScholarAccess) {
       _isRevertingLockedSwipe = true;
+
       ScholarAccessService.showLockedMessage(context);
+
       await _pageController.animateToPage(
         _currentIndex,
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
       );
+
       _isRevertingLockedSwipe = false;
       return;
     }
@@ -121,14 +141,21 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
     final messagingProvider = context.watch<MessagingProvider>();
+
     final hasScholarAccess =
         notificationProvider.hasScholarAccess || _isVerifiedScholar;
 
+    final shouldShowMessagingFab = _currentIndex != 0;
+
     return Scaffold(
-      floatingActionButton: _MessagingFab(
-        unreadCount: messagingProvider.unreadCount,
-        onPressed: () => Navigator.of(context).pushNamed(AppRoutes.messaging),
-      ),
+      floatingActionButton: shouldShowMessagingFab
+          ? _MessagingFab(
+              unreadCount: messagingProvider.unreadCount,
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(AppRoutes.messaging),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: SmartPdmBottomNav(
         selectedIndex: _currentIndex,
         isVerifiedScholar: hasScholarAccess,
@@ -154,13 +181,17 @@ class _MessagingFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final fabBackgroundColor = isDark
         ? AppColors.gold
         : const Color(0xFFF4E1B8);
+
     final fabForegroundColor = isDark ? AppColors.darkBrown : AppColors.brown;
+
     final fabBorderColor = isDark
         ? AppColors.gold.withOpacity(0.2)
         : AppColors.gold.withOpacity(0.55);
+
     final badgeBorderColor = isDark
         ? Colors.black.withOpacity(0.35)
         : Colors.white.withOpacity(0.9);
@@ -209,9 +240,9 @@ class _MessagingFab extends StatelessWidget {
                 unreadCount > 99 ? '99+' : '$unreadCount',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-color: Colors.white,
-                  fontWeight: FontWeight.w700
-),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),

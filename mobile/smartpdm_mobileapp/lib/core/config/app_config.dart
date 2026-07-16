@@ -3,23 +3,24 @@ import 'package:flutter/foundation.dart';
 class AppConfig {
   AppConfig._();
 
-  // Use deployed backend in release, local LAN backend in debug.
+  // Release = deployed backend
   static const String _defaultReleaseBaseUrl =
       'https://smart-pdm-3tbv.onrender.com';
-  static const String _defaultDebugBaseUrl = 'https://smart-pdm-3tbv.onrender.com';
 
+  // Debug = local backend for Flutter Web development
+  static const String _defaultDebugBaseUrl = 'http://192.168.100.9:5000/';
 
   static String get apiBaseUrl {
     const configuredValue = String.fromEnvironment('API_BASE_URL');
     final normalizedValue = configuredValue.trim();
 
-    if (normalizedValue.isEmpty) {
-      return kReleaseMode ? _defaultReleaseBaseUrl : _defaultDebugBaseUrl;
-    }
-
-    return normalizedValue.endsWith('/')
-        ? normalizedValue.substring(0, normalizedValue.length - 1)
+    final selectedValue = normalizedValue.isEmpty
+        ? (kReleaseMode ? _defaultReleaseBaseUrl : _defaultDebugBaseUrl)
         : normalizedValue;
+
+    return selectedValue.endsWith('/')
+        ? selectedValue.substring(0, selectedValue.length - 1)
+        : selectedValue;
   }
 
   static const String _recaptchaAndroidSiteKey = String.fromEnvironment(

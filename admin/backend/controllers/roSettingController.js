@@ -6,7 +6,15 @@ function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
-async function writeRoSettingAudit(req, actionTaken, description, entityType, entityId, result, changes = {}) {
+async function writeRoSettingAudit(
+    req,
+    actionTaken,
+    description,
+    entityType,
+    entityId,
+    result,
+    changes = {}
+) {
     try {
         if (typeof auditLogService?.logAudit !== 'function') return;
 
@@ -28,8 +36,28 @@ async function writeRoSettingAudit(req, actionTaken, description, entityType, en
     }
 }
 
+function emitRoSettingUpdate(req, payload = {}) {
+    try {
+        const io = req.app.get('io');
+
+        const eventPayload = {
+            updated_at: new Date().toISOString(),
+            ...payload,
+        };
+
+        if (socketEvents?.roUpdated) {
+            socketEvents.roUpdated(io, eventPayload);
+        } else if (io) {
+            io.emit('ro:updated', eventPayload);
+        }
+    } catch (error) {
+        console.error('RO SETTINGS SOCKET ERROR:', error.message);
+    }
+}
+
 function getSafeStatusCode(error) {
     const parsed = Number.parseInt(error?.statusCode, 10);
+
     return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
         ? parsed
         : 500;
@@ -38,9 +66,11 @@ function getSafeStatusCode(error) {
 async function getSettings(req, res) {
     try {
         const result = await roSettingService.getSettings();
+
         return res.status(200).json(result);
     } catch (error) {
         console.error('GET RO SETTINGS ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to load RO settings.',
         });
@@ -50,9 +80,11 @@ async function getSettings(req, res) {
 async function getActiveSetting(req, res) {
     try {
         const result = await roSettingService.getActiveSetting();
+
         return res.status(200).json(result);
     } catch (error) {
         console.error('GET ACTIVE RO SETTING ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to load active RO setting.',
         });
@@ -62,17 +94,27 @@ async function getActiveSetting(req, res) {
 async function createSetting(req, res) {
     try {
         const result = await roSettingService.createSetting(req.body || {});
-        const io = req.app.get('io');
-        socketEvents.roUpdated(io, {
-            updated_at: new Date().toISOString(),
+
+        emitRoSettingUpdate(req, {
             source: 'ro_setting',
             action: 'create',
             data: result,
         });
-        await writeRoSettingAudit(req, 'CREATE_RO_SETTING', 'Created RO setting.', 'ro_setting', result?.setting_id || result?.id || null, result, req.body || {});
+
+        await writeRoSettingAudit(
+            req,
+            'CREATE_RO_SETTING',
+            'Created RO setting.',
+            'ro_setting',
+            result?.setting?.setting_id || null,
+            result,
+            req.body || {}
+        );
+
         return res.status(201).json(result);
     } catch (error) {
         console.error('CREATE RO SETTING ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to create RO setting.',
         });
@@ -85,18 +127,28 @@ async function updateSetting(req, res) {
             req.params.settingId,
             req.body || {}
         );
-        const io = req.app.get('io');
-        socketEvents.roUpdated(io, {
-            updated_at: new Date().toISOString(),
+
+        emitRoSettingUpdate(req, {
             source: 'ro_setting',
             action: 'update',
             setting_id: req.params.settingId,
             data: result,
         });
-        await writeRoSettingAudit(req, 'UPDATE_RO_SETTING', 'Updated RO setting.', 'ro_setting', req.params.settingId, result, req.body || {});
+
+        await writeRoSettingAudit(
+            req,
+            'UPDATE_RO_SETTING',
+            'Updated RO setting.',
+            'ro_setting',
+            req.params.settingId,
+            result,
+            req.body || {}
+        );
+
         return res.status(200).json(result);
     } catch (error) {
         console.error('UPDATE RO SETTING ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to update RO setting.',
         });
@@ -106,20 +158,60 @@ async function updateSetting(req, res) {
 async function activateSetting(req, res) {
     try {
         const result = await roSettingService.activateSetting(req.params.settingId);
-        const io = req.app.get('io');
-        socketEvents.roUpdated(io, {
-            updated_at: new Date().toISOString(),
+
+        emitRoSettingUpdate(req, {
             source: 'ro_setting',
             action: 'activate',
             setting_id: req.params.settingId,
             data: result,
         });
-        await writeRoSettingAudit(req, 'ACTIVATE_RO_SETTING', 'Activated RO setting.', 'ro_setting', req.params.settingId, result, {});
+
+        await writeRoSettingAudit(
+            req,
+            'ACTIVATE_RO_SETTING',
+            'Activated RO setting and applied it to pending RO records.',
+            'ro_setting',
+            req.params.settingId,
+            result,
+            {}
+        );
+
         return res.status(200).json(result);
     } catch (error) {
         console.error('ACTIVATE RO SETTING ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to activate RO setting.',
+        });
+    }
+}
+
+async function applyActiveSettingToPending(req, res) {
+    try {
+        const result = await roSettingService.applyActiveSettingToPending();
+
+        emitRoSettingUpdate(req, {
+            source: 'ro_setting',
+            action: 'apply_active_to_pending',
+            data: result,
+        });
+
+        await writeRoSettingAudit(
+            req,
+            'APPLY_ACTIVE_RO_SETTING_TO_PENDING',
+            'Applied the active RO setting to pending RO records.',
+            'ro_setting',
+            result?.setting?.setting_id || null,
+            result,
+            {}
+        );
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('APPLY ACTIVE RO SETTING ERROR:', error);
+
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to apply active RO setting.',
         });
     }
 }
@@ -127,9 +219,11 @@ async function activateSetting(req, res) {
 async function getDepartments(req, res) {
     try {
         const result = await roSettingService.getDepartments();
+
         return res.status(200).json(result);
     } catch (error) {
         console.error('GET RO DEPARTMENTS ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to load RO departments.',
         });
@@ -139,17 +233,27 @@ async function getDepartments(req, res) {
 async function createDepartment(req, res) {
     try {
         const result = await roSettingService.createDepartment(req.body || {});
-        const io = req.app.get('io');
-        socketEvents.roUpdated(io, {
-            updated_at: new Date().toISOString(),
+
+        emitRoSettingUpdate(req, {
             source: 'ro_department',
             action: 'create',
             data: result,
         });
-        await writeRoSettingAudit(req, 'CREATE_RO_SETTING', 'Created RO setting.', 'ro_setting', result?.setting_id || result?.id || null, result, req.body || {});
+
+        await writeRoSettingAudit(
+            req,
+            'CREATE_RO_DEPARTMENT',
+            'Created RO department.',
+            'ro_department',
+            result?.department?.department_id || null,
+            result,
+            req.body || {}
+        );
+
         return res.status(201).json(result);
     } catch (error) {
         console.error('CREATE RO DEPARTMENT ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to create RO department.',
         });
@@ -162,18 +266,28 @@ async function updateDepartment(req, res) {
             req.params.departmentId,
             req.body || {}
         );
-        const io = req.app.get('io');
-        socketEvents.roUpdated(io, {
-            updated_at: new Date().toISOString(),
+
+        emitRoSettingUpdate(req, {
             source: 'ro_department',
             action: 'update',
             department_id: req.params.departmentId,
             data: result,
         });
-        await writeRoSettingAudit(req, 'UPDATE_RO_DEPARTMENT', 'Updated RO department.', 'ro_department', req.params.departmentId, result, req.body || {});
+
+        await writeRoSettingAudit(
+            req,
+            'UPDATE_RO_DEPARTMENT',
+            'Updated RO department.',
+            'ro_department',
+            req.params.departmentId,
+            result,
+            req.body || {}
+        );
+
         return res.status(200).json(result);
     } catch (error) {
         console.error('UPDATE RO DEPARTMENT ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to update RO department.',
         });
@@ -183,18 +297,28 @@ async function updateDepartment(req, res) {
 async function toggleDepartment(req, res) {
     try {
         const result = await roSettingService.toggleDepartment(req.params.departmentId);
-        const io = req.app.get('io');
-        socketEvents.roUpdated(io, {
-            updated_at: new Date().toISOString(),
+
+        emitRoSettingUpdate(req, {
             source: 'ro_department',
             action: 'toggle',
             department_id: req.params.departmentId,
             data: result,
         });
-        await writeRoSettingAudit(req, 'TOGGLE_RO_DEPARTMENT', 'Toggled RO department active/archive state.', 'ro_department', req.params.departmentId, result, {});
+
+        await writeRoSettingAudit(
+            req,
+            'TOGGLE_RO_DEPARTMENT',
+            'Toggled RO department active/archive state.',
+            'ro_department',
+            req.params.departmentId,
+            result,
+            {}
+        );
+
         return res.status(200).json(result);
     } catch (error) {
         console.error('TOGGLE RO DEPARTMENT ERROR:', error);
+
         return res.status(getSafeStatusCode(error)).json({
             error: error.message || 'Failed to update RO department status.',
         });
@@ -207,8 +331,9 @@ module.exports = {
     createSetting,
     updateSetting,
     activateSetting,
+    applyActiveSettingToPending,
     getDepartments,
     createDepartment,
     updateDepartment,
-    toggleDepartment
+    toggleDepartment,
 };

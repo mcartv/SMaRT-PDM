@@ -111,6 +111,17 @@ class ApiClient:
             "error_message": error_message,
         }
 
+        transport_status = payload["status"]
+        if (
+            transport_status == "review_required"
+            and isinstance(payload["source_payload"], dict)
+            and payload["source_payload"].get("mode") == "birth_certificate_pipeline"
+            and payload["source_payload"].get("manual_review_required") is True
+        ):
+            transport_status = "completed"
+            payload["source_payload"] = dict(payload["source_payload"], worker_status="review_required")
+            payload["status"] = transport_status
+
         try:
             response = requests.post(
                 url,

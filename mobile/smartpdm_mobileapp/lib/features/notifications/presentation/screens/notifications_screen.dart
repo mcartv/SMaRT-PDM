@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,7 +25,9 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   _NotificationFilter _selectedFilter = _NotificationFilter.all;
+
   VoidCallback? _stopRealtimeListener;
+  Timer? _realtimeRefreshDebounce;
   bool _isRefreshingFromRealtime = false;
 
   @override
@@ -38,12 +42,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       _stopRealtimeListener ??= MobileRealtimeService.instance.listenTo(
         MobileRealtimeEvents.notificationProviderEvents,
-        (event) async {
+        (event) {
           debugPrint('[NotificationsScreen] realtime event: ${event.name}');
-          await _refreshFromRealtime();
+          _scheduleRealtimeRefresh();
         },
       );
     });
+  }
+
+  void _scheduleRealtimeRefresh() {
+    _realtimeRefreshDebounce?.cancel();
+
+    _realtimeRefreshDebounce = Timer(
+      const Duration(milliseconds: 450),
+      () async {
+        await _refreshFromRealtime();
+      },
+    );
   }
 
   Future<void> _refreshFromRealtime() async {
@@ -63,19 +78,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   void dispose() {
+    _realtimeRefreshDebounce?.cancel();
+    _realtimeRefreshDebounce = null;
+
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
+
     super.dispose();
+  }
+
+  bool _isRoNotification(AppNotification item) {
+    final type = item.type.toLowerCase();
+    final title = item.title.toLowerCase();
+    final message = item.message.toLowerCase();
+    final referenceType = (item.referenceType ?? '').toLowerCase();
+
+    return type.contains('ro') ||
+        type.contains('obligation') ||
+        type.contains('return of obligation') ||
+        referenceType.contains('return_of_obligation') ||
+        referenceType.contains('ro') ||
+        title.contains('return') ||
+        title.contains('obligation') ||
+        message.contains('return of obligation');
   }
 
   List<AppNotification> _filteredItems(NotificationProvider provider) {
     final items = [...provider.notifications];
 
-    items.sort((a, b) {
-      final aDate = a.createdAt;
-      final bDate = b.createdAt;
-      return bDate.compareTo(aDate);
-    });
+    items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     switch (_selectedFilter) {
       case _NotificationFilter.all:
@@ -91,18 +122,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return items.where((item) => item.isPayoutNotification).toList();
 
       case _NotificationFilter.ro:
-        return items.where((item) {
-          final type = item.type.toLowerCase();
-          final title = item.title.toLowerCase();
-          final referenceType = (item.referenceType ?? '').toLowerCase();
-
-          return type.contains('ro') ||
-              type.contains('obligation') ||
-              referenceType.contains('return_of_obligation') ||
-              referenceType.contains('ro') ||
-              title.contains('return') ||
-              title.contains('obligation');
-        }).toList();
+        return items.where(_isRoNotification).toList();
     }
   }
 
@@ -153,9 +173,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       return Icons.assignment_turned_in_rounded;
     }
 
-    if (type.contains('ro') ||
-        title.contains('return') ||
-        title.contains('obligation')) {
+    if (_isRoNotification(notification)) {
       return Icons.timer_rounded;
     }
 
@@ -182,6 +200,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         title.contains('required') ||
         title.contains('missing')) {
       return const Color(0xFFD97706);
+    }
+
+    if (_isRoNotification(notification)) {
+      return AppColors.gold;
     }
 
     return AppColors.gold;
@@ -239,6 +261,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final type = notification.type.toLowerCase();
     final title = notification.title.toLowerCase();
 
+    if (_isRoNotification(notification)) {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.roAssignment,
+        arguments: {'roId': notification.referenceId},
+      );
+      return;
+    }
+
     if (notification.isOfficeUpdate ||
         referenceType.contains('announcement') ||
         referenceType.contains('opening') ||
@@ -272,123 +303,126 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       Navigator.pushNamed(context, AppRoutes.status);
       return;
     }
-
-    if (type.contains('ro') ||
-        type.contains('obligation') ||
-        referenceType.contains('return_of_obligation') ||
-        referenceType.contains('ro') ||
-        title.contains('return') ||
-        title.contains('obligation')) {
-      Navigator.pushNamed(
-        context,
-        AppRoutes.roAssignment,
-        arguments: {'roId': notification.referenceId},
-      );
-      return;
-    }
   }
 
   Future<void> _markAllAsRead(NotificationProvider provider) async {
     await provider.markAllAsRead();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('All notifications marked as read.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _deleteNotification(
     NotificationProvider provider,
     AppNotification notification,
   ) async {
-    await provider.deleteNotification(notification.notificationId);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete notification?'),
+          content: const Text(
+            'This will remove the notification from your list.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await provider.deleteNotification(notification.notificationId);
+      await provider.refresh(silent: true);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notification deleted.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete notification: $error'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  int _countForFilter(
+    NotificationProvider provider,
+    _NotificationFilter filter,
+  ) {
+    switch (filter) {
+      case _NotificationFilter.all:
+        return provider.notifications.length;
+
+      case _NotificationFilter.unread:
+        return provider.notifications.where((item) => !item.isRead).length;
+
+      case _NotificationFilter.officeUpdates:
+        return provider.notifications
+            .where((item) => item.isOfficeUpdate)
+            .length;
+
+      case _NotificationFilter.payouts:
+        return provider.notifications
+            .where((item) => item.isPayoutNotification)
+            .length;
+
+      case _NotificationFilter.ro:
+        return provider.notifications.where(_isRoNotification).length;
+    }
   }
 
   Widget _buildFilterChips(NotificationProvider provider) {
-    final counts = <_NotificationFilter, int>{
-      _NotificationFilter.all: provider.notifications.length,
-      _NotificationFilter.unread: provider.notifications
-          .where((item) => !item.isRead)
-          .length,
-      _NotificationFilter.officeUpdates: provider.notifications
-          .where((item) => item.isOfficeUpdate)
-          .length,
-      _NotificationFilter.payouts: provider.notifications
-          .where((item) => item.isPayoutNotification)
-          .length,
-      _NotificationFilter.ro: provider.notifications.where((item) {
-        final type = item.type.toLowerCase();
-        final title = item.title.toLowerCase();
-        final referenceType = (item.referenceType ?? '').toLowerCase();
-
-        return type.contains('ro') ||
-            type.contains('obligation') ||
-            referenceType.contains('return_of_obligation') ||
-            referenceType.contains('ro') ||
-            title.contains('return') ||
-            title.contains('obligation');
-      }).length,
-    };
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: Row(
-        children: _NotificationFilter.values.map((filter) {
+    return SizedBox(
+      height: 56,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+        itemCount: _NotificationFilter.values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final filter = _NotificationFilter.values[index];
           final selected = _selectedFilter == filter;
-          final count = counts[filter] ?? 0;
+          final count = _countForFilter(provider, filter);
 
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              selected: selected,
-              label: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_filterLabel(filter)),
-                  if (count > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? Colors.white.withOpacity(0.85)
-                            : AppColors.gold.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: selected
-                              ? AppColors.darkBrown
-                              : AppColors.brown,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              selectedColor: AppColors.gold.withOpacity(0.28),
-              backgroundColor: Colors.white,
-              side: BorderSide(
-                color: selected
-                    ? AppColors.gold.withOpacity(0.65)
-                    : const Color(0xFFE8E2D8),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-              ),
-              labelStyle: TextStyle(
-                color: selected ? AppColors.darkBrown : const Color(0xFF625B52),
-                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                fontSize: 12,
-              ),
-              onSelected: (_) {
-                setState(() => _selectedFilter = filter);
-              },
-            ),
+          return _FilterButton(
+            label: _filterLabel(filter),
+            count: count,
+            selected: selected,
+            onTap: () {
+              setState(() => _selectedFilter = filter);
+            },
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -402,57 +436,70 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ? 'Please wait while your latest notifications are being loaded.'
         : 'New announcements, payouts, application updates, and office notices will appear here.';
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              height: 72,
-              width: 72,
-              decoration: BoxDecoration(
-                color: AppColors.gold.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: provider.isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(22),
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    )
-                  : Icon(
-                      Icons.notifications_none_rounded,
-                      color: AppColors.gold,
-                      size: 34,
+    return RefreshIndicator(
+      onRefresh: () => provider.refresh(),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.62,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: 72,
+                      width: 72,
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: provider.isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(22),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                          : Icon(
+                              Icons.notifications_none_rounded,
+                              color: AppColors.gold,
+                              size: 34,
+                            ),
                     ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: AppColors.black,
+                    const SizedBox(height: 16),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF8A8378),
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    OutlinedButton.icon(
+                      onPressed: () => provider.refresh(),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Refresh'),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF8A8378),
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 18),
-            OutlinedButton.icon(
-              onPressed: () => provider.refresh(),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Refresh'),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -472,7 +519,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         onTap: () => _openNotification(notification),
         borderRadius: BorderRadius.circular(18),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+          padding: const EdgeInsets.fromLTRB(14, 14, 4, 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -768,6 +815,101 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = selected
+        ? AppColors.gold.withOpacity(0.75)
+        : const Color(0xFFE8E2D8);
+
+    final backgroundColor = selected
+        ? AppColors.gold.withOpacity(0.26)
+        : Colors.white;
+
+    final textColor = selected ? AppColors.darkBrown : const Color(0xFF625B52);
+
+    return Material(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          height: 38,
+          constraints: const BoxConstraints(minWidth: 64, maxWidth: 132),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected) ...[
+                Icon(Icons.check_rounded, size: 15, color: textColor),
+                const SizedBox(width: 5),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withOpacity(0.9)
+                        : AppColors.gold.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: selected ? AppColors.darkBrown : AppColors.brown,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MetaChip extends StatelessWidget {
   const _MetaChip({required this.label, required this.color});
 
@@ -786,6 +928,8 @@ class _MetaChip extends StatelessWidget {
       ),
       child: Text(
         normalized.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w900,

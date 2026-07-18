@@ -15,10 +15,6 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function minutesToHoursFloor(minutes) {
-  return Math.floor(toNumber(minutes) / 60);
-}
-
 function percentFromMinutes(doneMinutes, requiredMinutes) {
   const done = toNumber(doneMinutes);
   const required = toNumber(requiredMinutes);
@@ -30,6 +26,7 @@ function percentFromMinutes(doneMinutes, requiredMinutes) {
 
 function extractAvatarStoragePath(value) {
   const rawValue = normalizeValue(value);
+
   if (!rawValue) return null;
 
   if (!/^https?:\/\//i.test(rawValue)) {
@@ -44,6 +41,7 @@ function extractAvatarStoragePath(value) {
 
   for (const marker of markers) {
     const markerIndex = rawValue.indexOf(marker);
+
     if (markerIndex >= 0) {
       return rawValue.slice(markerIndex + marker.length).split('?')[0];
     }
@@ -54,9 +52,11 @@ function extractAvatarStoragePath(value) {
 
 async function resolveAvatarUrl(value) {
   const rawValue = normalizeValue(value);
+
   if (!rawValue) return null;
 
   const storagePath = extractAvatarStoragePath(rawValue);
+
   if (!storagePath) return rawValue;
 
   const { data, error } = await supabase.storage
@@ -113,8 +113,6 @@ async function getActiveSetting() {
     .from('ro_settings')
     .select(`
       setting_id,
-      academic_year_id,
-      period_id,
       required_hours,
       is_active,
       allow_carry_over,
@@ -148,35 +146,37 @@ async function getActiveSetting() {
   );
 }
 
+const RO_SELECT = `
+  ro_id,
+  student_id,
+  application_id,
+  opening_id,
+  program_id,
+  ro_status,
+  cleared_at,
+  cleared_by,
+  remarks,
+  created_at,
+  updated_at,
+  setting_id,
+  required_hours,
+  progress_status,
+  submitted_minutes,
+  validated_minutes,
+  assigned_area,
+  assignment_status,
+  assignment_acknowledged_at,
+  conflict_reason,
+  assigned_by,
+  assigned_at,
+  submitted_progress,
+  ro_progress
+`;
+
 async function getRoRowsForStudent(studentId) {
   const { data, error } = await supabase
     .from('return_of_obligations')
-    .select(`
-      ro_id,
-      student_id,
-      application_id,
-      opening_id,
-      program_id,
-      ro_status,
-      cleared_at,
-      cleared_by,
-      remarks,
-      created_at,
-      updated_at,
-      setting_id,
-      required_hours,
-      submitted_hours,
-      validated_hours,
-      progress_status,
-      progress_notes,
-      validation_remarks,
-      submitted_at,
-      validated_at,
-      submitted_progress,
-      ro_progress,
-      submitted_minutes,
-      validated_minutes
-    `)
+    .select(RO_SELECT)
     .eq('student_id', studentId)
     .order('created_at', { ascending: false });
 
@@ -188,32 +188,7 @@ async function getRoRowsForStudent(studentId) {
 async function getRoRowForStudent(studentId, roId) {
   const { data, error } = await supabase
     .from('return_of_obligations')
-    .select(`
-      ro_id,
-      student_id,
-      application_id,
-      opening_id,
-      program_id,
-      ro_status,
-      cleared_at,
-      cleared_by,
-      remarks,
-      created_at,
-      updated_at,
-      setting_id,
-      required_hours,
-      submitted_hours,
-      validated_hours,
-      progress_status,
-      progress_notes,
-      validation_remarks,
-      submitted_at,
-      validated_at,
-      submitted_progress,
-      ro_progress,
-      submitted_minutes,
-      validated_minutes
-    `)
+    .select(RO_SELECT)
     .eq('ro_id', roId)
     .eq('student_id', studentId)
     .maybeSingle();
@@ -345,16 +320,8 @@ async function mapRO(row = {}, student = {}, setting = {}, programMap, openingMa
   );
 
   const requiredMinutes = requiredHours * 60;
-
-  const submittedMinutes =
-    toNumber(row.submitted_minutes) > 0
-      ? toNumber(row.submitted_minutes)
-      : toNumber(row.submitted_hours) * 60;
-
-  const validatedMinutes =
-    toNumber(row.validated_minutes) > 0
-      ? toNumber(row.validated_minutes)
-      : toNumber(row.validated_hours) * 60;
+  const submittedMinutes = toNumber(row.submitted_minutes);
+  const validatedMinutes = toNumber(row.validated_minutes);
 
   const logs = await getLogsForRo(row.ro_id, student.student_id);
 
@@ -362,15 +329,15 @@ async function mapRO(row = {}, student = {}, setting = {}, programMap, openingMa
     (item) => item.log_status === 'Timed In' && !item.time_out_at
   );
 
-  const submittedProgress = percentFromMinutes(
-    submittedMinutes,
-    requiredMinutes
-  );
+  const submittedProgress =
+    row.submitted_progress != null
+      ? toNumber(row.submitted_progress)
+      : percentFromMinutes(submittedMinutes, requiredMinutes);
 
-  const validatedProgress = percentFromMinutes(
-    validatedMinutes,
-    requiredMinutes
-  );
+  const validatedProgress =
+    row.ro_progress != null
+      ? toNumber(row.ro_progress)
+      : percentFromMinutes(validatedMinutes, requiredMinutes);
 
   const title =
     opening.opening_title?.toString() ||
@@ -390,8 +357,6 @@ async function mapRO(row = {}, student = {}, setting = {}, programMap, openingMa
     openingTitle: opening.opening_title?.toString() || '',
 
     requiredHours,
-    submittedHours: toNumber(row.submitted_hours),
-    validatedHours: toNumber(row.validated_hours),
     requiredMinutes,
     submittedMinutes,
     validatedMinutes,
@@ -401,17 +366,22 @@ async function mapRO(row = {}, student = {}, setting = {}, programMap, openingMa
     status: row.ro_status?.toString() || 'Pending',
     roStatus: row.ro_status?.toString() || 'Pending',
     progressStatus: row.progress_status?.toString() || 'Not Started',
-    progressNotes: row.progress_notes?.toString() || '',
-    validationRemarks: row.validation_remarks?.toString() || '',
+
+    assignedArea: row.assigned_area?.toString() || '',
+    assignmentStatus: row.assignment_status?.toString() || 'Assigned',
+    assignmentAcknowledgedAt:
+      row.assignment_acknowledged_at?.toString() || '',
+    conflictReason: row.conflict_reason?.toString() || '',
+
     remarks: row.remarks?.toString() || '',
 
     clearedAt: row.cleared_at?.toString() || '',
-    submittedAt: row.submitted_at?.toString() || '',
-    validatedAt: row.validated_at?.toString() || '',
     createdAt: row.created_at?.toString() || '',
     updatedAt: row.updated_at?.toString() || '',
 
-    isCleared: row.ro_status === 'Cleared',
+    isCleared:
+      row.ro_status === 'Cleared' || row.assignment_status === 'Cleared',
+
     hasActiveSession: Boolean(activeLog),
 
     activeLog: activeLog ? await mapLog(activeLog) : null,
@@ -435,7 +405,10 @@ async function syncRoTotals(roId) {
     .maybeSingle();
 
   if (roError) throw roError;
-  if (!ro) throw createHttpError(404, 'RO assignment not found.');
+
+  if (!ro) {
+    throw createHttpError(404, 'RO assignment not found.');
+  }
 
   const { data: logs, error: logsError } = await supabase
     .from('ro_time_logs')
@@ -464,30 +437,37 @@ async function syncRoTotals(roId) {
   const requiredMinutes = toNumber(ro.required_hours) * 60;
 
   let progressStatus = 'Not Started';
+  let assignmentStatus = null;
 
   if (ro.ro_status === 'Cleared') {
     progressStatus = 'Cleared';
+    assignmentStatus = 'Cleared';
   } else if (submittedMinutes <= 0) {
     progressStatus = 'Not Started';
   } else if (requiredMinutes > 0 && submittedMinutes >= requiredMinutes) {
     progressStatus = 'For Validation';
+    assignmentStatus = 'For Validation';
   } else {
     progressStatus = 'In Progress';
+    assignmentStatus = 'In Progress';
   }
 
   const now = new Date().toISOString();
 
+  const updatePayload = {
+    submitted_minutes: submittedMinutes,
+    validated_minutes: validatedMinutes,
+    progress_status: progressStatus,
+    updated_at: now,
+  };
+
+  if (assignmentStatus) {
+    updatePayload.assignment_status = assignmentStatus;
+  }
+
   const { error: updateError } = await supabase
     .from('return_of_obligations')
-    .update({
-      submitted_minutes: submittedMinutes,
-      submitted_hours: minutesToHoursFloor(submittedMinutes),
-      validated_minutes: validatedMinutes,
-      validated_hours: minutesToHoursFloor(validatedMinutes),
-      progress_status: progressStatus,
-      submitted_at: submittedMinutes > 0 ? now : null,
-      updated_at: now,
-    })
+    .update(updatePayload)
     .eq('ro_id', roId);
 
   if (updateError) throw updateError;
@@ -509,6 +489,7 @@ async function getMyAssignments(userId) {
       isApprovedScholar: false,
       message: 'Return of Obligation is only available for approved scholars.',
       setting,
+      student,
       items: [],
     };
   }
@@ -526,12 +507,14 @@ async function getMyAssignments(userId) {
     shouldShowModule: true,
     isApprovedScholar: true,
     setting,
+    student,
     items,
   };
 }
 
 async function getOwnedRoOrThrow(userId, roId) {
   const student = await getStudentByUserId(userId);
+
   ensureApprovedScholar(student);
 
   const ro = await getRoRowForStudent(student.student_id, roId);
@@ -546,11 +529,119 @@ async function getOwnedRoOrThrow(userId, roId) {
   };
 }
 
+async function acknowledgeMyRo(userId, roId) {
+  const { student, ro } = await getOwnedRoOrThrow(userId, roId);
+
+  if (ro.ro_status === 'Cleared' || ro.assignment_status === 'Cleared') {
+    throw createHttpError(400, 'This RO assignment is already cleared.');
+  }
+
+  if (ro.assignment_status === 'Conflict Reported') {
+    throw createHttpError(
+      400,
+      'This RO assignment has a reported concern and cannot be acknowledged yet.'
+    );
+  }
+
+  if (ro.assignment_status !== 'Assigned') {
+    throw createHttpError(
+      400,
+      'This RO assignment has already been acknowledged.'
+    );
+  }
+
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('return_of_obligations')
+    .update({
+      assignment_status: 'Acknowledged',
+      assignment_acknowledged_at: now,
+      progress_status: 'Not Started',
+      conflict_reason: null,
+      updated_at: now,
+    })
+    .eq('ro_id', ro.ro_id)
+    .eq('student_id', student.student_id);
+
+  if (error) throw error;
+
+  const result = await getMyAssignments(userId);
+
+  return {
+    ...result,
+    message: 'RO assignment acknowledged.',
+    realtime: {
+      action: 'acknowledge',
+      ro_id: ro.ro_id,
+      student_id: student.student_id,
+    },
+  };
+}
+
+async function reportMyRoConflict(userId, roId, body = {}) {
+  const { student, ro } = await getOwnedRoOrThrow(userId, roId);
+
+  if (ro.ro_status === 'Cleared' || ro.assignment_status === 'Cleared') {
+    throw createHttpError(400, 'This RO assignment is already cleared.');
+  }
+
+  const reason = normalizeValue(body.reason || body.conflictReason);
+
+  if (!reason) {
+    throw createHttpError(400, 'Please provide a reason for the concern.');
+  }
+
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('return_of_obligations')
+    .update({
+      assignment_status: 'Conflict Reported',
+      conflict_reason: reason,
+      progress_status: 'Revision Needed',
+      updated_at: now,
+    })
+    .eq('ro_id', ro.ro_id)
+    .eq('student_id', student.student_id);
+
+  if (error) throw error;
+
+  const result = await getMyAssignments(userId);
+
+  return {
+    ...result,
+    message: 'RO concern submitted.',
+    realtime: {
+      action: 'conflict',
+      ro_id: ro.ro_id,
+      student_id: student.student_id,
+    },
+  };
+}
+
 async function timeInMyRo(userId, roId, body = {}) {
   const { student, ro } = await getOwnedRoOrThrow(userId, roId);
 
-  if (ro.ro_status === 'Cleared') {
+  if (ro.ro_status === 'Cleared' || ro.assignment_status === 'Cleared') {
     throw createHttpError(400, 'This Return of Obligation is already cleared.');
+  }
+
+  if (ro.assignment_status === 'Conflict Reported') {
+    throw createHttpError(
+      400,
+      'This RO assignment has a reported concern and cannot be started yet.'
+    );
+  }
+
+  if (
+    ro.assignment_status !== 'Acknowledged' &&
+    ro.assignment_status !== 'In Progress'
+  ) {
+    throw createHttpError(
+      400,
+      'Please acknowledge your RO assignment before timing in.'
+    );
   }
 
   const activeLog = await getActiveLogByStudent(student.student_id);
@@ -583,13 +674,12 @@ async function timeInMyRo(userId, roId, body = {}) {
   const { error: updateError } = await supabase
     .from('return_of_obligations')
     .update({
-      progress_status:
-        ro.progress_status === 'Not Started'
-          ? 'In Progress'
-          : ro.progress_status,
+      assignment_status: 'In Progress',
+      progress_status: 'In Progress',
       updated_at: now,
     })
-    .eq('ro_id', ro.ro_id);
+    .eq('ro_id', ro.ro_id)
+    .eq('student_id', student.student_id);
 
   if (updateError) throw updateError;
 
@@ -609,7 +699,7 @@ async function timeInMyRo(userId, roId, body = {}) {
 async function timeOutMyRo(userId, roId, body = {}) {
   const { student, ro } = await getOwnedRoOrThrow(userId, roId);
 
-  if (ro.ro_status === 'Cleared') {
+  if (ro.ro_status === 'Cleared' || ro.assignment_status === 'Cleared') {
     throw createHttpError(400, 'This Return of Obligation is already cleared.');
   }
 
@@ -623,13 +713,14 @@ async function timeOutMyRo(userId, roId, body = {}) {
   const timeIn = new Date(activeLog.time_in_at);
   const diffMs = now.getTime() - timeIn.getTime();
 
-  const durationMinutes = Math.max(1, Math.floor(diffMs / 60000));
+  const durationMinutes = Math.max(1, Math.ceil(diffMs / 60000));
   const note = normalizeValue(body.studentNote || body.student_note);
 
   const updatePayload = {
     time_out_at: now.toISOString(),
     duration_minutes: durationMinutes,
     log_status: 'Timed Out',
+    validation_status: 'Pending Validation',
     updated_at: now.toISOString(),
   };
 
@@ -664,21 +755,30 @@ async function timeOutMyRo(userId, roId, body = {}) {
 async function submitMyCompletion(userId, roId, body = {}, file = null) {
   const { student, ro } = await getOwnedRoOrThrow(userId, roId);
 
-  if (ro.ro_status === 'Cleared') {
+  if (ro.ro_status === 'Cleared' || ro.assignment_status === 'Cleared') {
     throw createHttpError(400, 'This Return of Obligation is already cleared.');
   }
 
   const now = new Date().toISOString();
-  const progressNotes = normalizeValue(body.progress_notes || body.progressNotes);
+  const remarks = normalizeValue(
+    body.remarks ||
+    body.progressNotes ||
+    body.progress_notes
+  );
+
+  const updatePayload = {
+    progress_status: 'For Validation',
+    assignment_status: 'For Validation',
+    updated_at: now,
+  };
+
+  if (remarks) {
+    updatePayload.remarks = remarks;
+  }
 
   const { error } = await supabase
     .from('return_of_obligations')
-    .update({
-      progress_status: 'For Validation',
-      progress_notes: progressNotes || ro.progress_notes || null,
-      submitted_at: now,
-      updated_at: now,
-    })
+    .update(updatePayload)
     .eq('ro_id', ro.ro_id)
     .eq('student_id', student.student_id);
 
@@ -701,6 +801,8 @@ async function submitMyCompletion(userId, roId, body = {}, file = null) {
 
 module.exports = {
   getMyAssignments,
+  acknowledgeMyRo,
+  reportMyRoConflict,
   timeInMyRo,
   timeOutMyRo,
   submitMyCompletion,

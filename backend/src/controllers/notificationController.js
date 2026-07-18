@@ -1,128 +1,169 @@
 const notificationService = require('../services/notificationService');
 
-function getRequestUserId(req) {
-    return req.user?.user_id || req.user?.userId || req.user?.id || null;
+function getUserId(req) {
+    return req.user?.userId || req.user?.user_id || req.user?.id || null;
+}
+
+function createHttpError(statusCode, message) {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
 }
 
 function getSafeStatusCode(error) {
-    const parsed = Number.parseInt(error?.statusCode, 10);
-    return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
-        ? parsed
-        : 500;
+    const statusCode = Number(error?.statusCode || error?.status || 500);
+
+    if (statusCode < 400 || statusCode > 599) return 500;
+
+    return statusCode;
 }
 
-async function getMyNotifications(req, res) {
+exports.listMyNotifications = async (req, res) => {
     try {
-        const userId = getRequestUserId(req);
-        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+        const userId = getUserId(req);
 
-        const result = await notificationService.getMyNotifications(userId, req.query || {});
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error('GET NOTIFICATIONS ERROR:', error);
-        return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to load notifications.',
-        });
-    }
-}
+        if (!userId) {
+            throw createHttpError(401, 'Authentication required.');
+        }
 
-async function getUnreadCount(req, res) {
-    try {
-        const userId = getRequestUserId(req);
-        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
-
-        const result = await notificationService.getUnreadCount(userId);
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error('GET UNREAD COUNT ERROR:', error);
-        return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to load unread count.',
-        });
-    }
-}
-
-async function markAsRead(req, res) {
-    try {
-        const userId = getRequestUserId(req);
-        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
-
-        const result = await notificationService.markAsRead(userId, req.params.notificationId);
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error('MARK NOTIFICATION READ ERROR:', error);
-        return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to mark notification as read.',
-        });
-    }
-}
-
-async function markAllAsRead(req, res) {
-    try {
-        const userId = getRequestUserId(req);
-        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
-
-        const result = await notificationService.markAllAsRead(userId);
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error('MARK ALL READ ERROR:', error);
-        return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to mark all notifications as read.',
-        });
-    }
-}
-
-async function deleteNotification(req, res) {
-    try {
-        const userId = getRequestUserId(req);
-        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
-
-        const result = await notificationService.deleteNotification(
+        const data = await notificationService.getMyNotifications(
             userId,
-            req.params.notificationId
+            req.query || {}
         );
 
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error('DELETE NOTIFICATION ERROR:', error);
-        return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to delete notification.',
+        return res.status(200).json(data);
+    } catch (err) {
+        console.error('LIST NOTIFICATIONS ERROR:', err);
+
+        return res.status(getSafeStatusCode(err)).json({
+            error: err.message || 'Failed to load notifications.',
         });
     }
-}
+};
 
-async function registerDeviceToken(req, res) {
+exports.getUnreadCount = async (req, res) => {
     try {
-        const userId = getRequestUserId(req);
-        if (!userId) return res.status(401).json({ error: 'Authentication required.' });
+        const userId = getUserId(req);
 
-        const result = await notificationService.registerDeviceToken(userId, req.body || {});
-        return res.status(200).json(result);
-    } catch (error) {
-        console.error('REGISTER DEVICE TOKEN ERROR:', error);
-        return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to register device token.',
+        if (!userId) {
+            throw createHttpError(401, 'Authentication required.');
+        }
+
+        const data = await notificationService.getUnreadCount(userId);
+
+        return res.status(200).json(data);
+    } catch (err) {
+        console.error('GET NOTIFICATION COUNT ERROR:', err);
+
+        return res.status(getSafeStatusCode(err)).json({
+            error: err.message || 'Failed to load notification count.',
         });
     }
-}
+};
 
-async function createInternalUserNotification(req, res) {
+exports.markNotificationRead = async (req, res) => {
     try {
-        const result = await notificationService.createInternalUserNotification(req);
-        return res.status(201).json(result);
-    } catch (error) {
-        console.error('INTERNAL USER NOTIFICATION ERROR:', error);
-        return res.status(getSafeStatusCode(error)).json({
-            error: error.message || 'Failed to create internal notification.',
+        const userId = getUserId(req);
+
+        if (!userId) {
+            throw createHttpError(401, 'Authentication required.');
+        }
+
+        const notificationId = req.params.notificationId || req.params.id;
+
+        const data = await notificationService.markAsRead(
+            userId,
+            notificationId
+        );
+
+        return res.status(200).json(data);
+    } catch (err) {
+        console.error('MARK NOTIFICATION READ ERROR:', err);
+
+        return res.status(getSafeStatusCode(err)).json({
+            error: err.message || 'Failed to mark notification as read.',
         });
     }
-}
+};
 
-module.exports = {
-    getMyNotifications,
-    getUnreadCount,
-    markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    registerDeviceToken,
-    createInternalUserNotification,
+exports.markAllNotificationsRead = async (req, res) => {
+    try {
+        const userId = getUserId(req);
+
+        if (!userId) {
+            throw createHttpError(401, 'Authentication required.');
+        }
+
+        const data = await notificationService.markAllAsRead(userId);
+
+        return res.status(200).json(data);
+    } catch (err) {
+        console.error('MARK ALL NOTIFICATIONS READ ERROR:', err);
+
+        return res.status(getSafeStatusCode(err)).json({
+            error: err.message || 'Failed to mark all notifications as read.',
+        });
+    }
+};
+
+exports.deleteNotification = async (req, res) => {
+    try {
+        const userId = getUserId(req);
+
+        if (!userId) {
+            throw createHttpError(401, 'Authentication required.');
+        }
+
+        const notificationId = req.params.notificationId || req.params.id;
+
+        const data = await notificationService.deleteNotification(
+            userId,
+            notificationId
+        );
+
+        return res.status(200).json(data);
+    } catch (err) {
+        console.error('DELETE NOTIFICATION ERROR:', err);
+
+        return res.status(getSafeStatusCode(err)).json({
+            error: err.message || 'Failed to delete notification.',
+        });
+    }
+};
+
+exports.registerDeviceToken = async (req, res) => {
+    try {
+        const userId = getUserId(req);
+
+        if (!userId) {
+            throw createHttpError(401, 'Authentication required.');
+        }
+
+        const data = await notificationService.registerDeviceToken(
+            userId,
+            req.body || {}
+        );
+
+        return res.status(200).json(data);
+    } catch (err) {
+        console.error('REGISTER DEVICE TOKEN ERROR:', err);
+
+        return res.status(getSafeStatusCode(err)).json({
+            error: err.message || 'Failed to register device token.',
+        });
+    }
+};
+
+exports.createInternalUserNotification = async (req, res) => {
+    try {
+        const data = await notificationService.createInternalUserNotification(req);
+
+        return res.status(201).json(data);
+    } catch (err) {
+        console.error('CREATE INTERNAL NOTIFICATION ERROR:', err);
+
+        return res.status(getSafeStatusCode(err)).json({
+            error: err.message || 'Failed to create notification.',
+        });
+    }
 };

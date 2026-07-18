@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:smartpdm_mobileapp/shared/widgets/notification_bell_button.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
@@ -65,31 +66,7 @@ class DashboardScreen extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         backgroundColor: isDark ? const Color(0xFF17110B) : Colors.white,
         foregroundColor: isDark ? Colors.white : textColor,
-        actions: [
-          Consumer<NotificationProvider>(
-            builder: (context, provider, _) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Badge(
-                  isLabelVisible: provider.unreadCount > 0,
-                  alignment: const AlignmentDirectional(8, -8),
-                  smallSize: 10,
-                  backgroundColor: AppColors.gold,
-                  child: IconButton(
-                    tooltip: 'Notifications',
-                    icon: const Icon(
-                      Icons.notifications_none_rounded,
-                      size: 28,
-                    ),
-                    onPressed: () {
-                      Navigator.pushNamed(context, AppRoutes.notifications);
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        actions: const [NotificationBellButton()],
       ),
       selectedIndex: 0,
       showDrawer: false,
@@ -380,12 +357,34 @@ class _LegacyDashboardContentState extends State<_LegacyDashboardContent> {
 
     _stopDashboardRealtimeListener = MobileRealtimeService.instance.listenTo(
       {
-        ...MobileRealtimeEvents.dashboardEvents,
-        ...MobileRealtimeEvents.officeUpdateEvents,
-        ...MobileRealtimeEvents.notificationEvents,
+        MobileRealtimeEvents.announcementCreated,
+        MobileRealtimeEvents.announcementUpdated,
+        MobileRealtimeEvents.announcementPublished,
+        MobileRealtimeEvents.announcementArchived,
+        MobileRealtimeEvents.announcementRestored,
+        MobileRealtimeEvents.announcementDeleted,
+        MobileRealtimeEvents.announcementRefresh,
+
+        MobileRealtimeEvents.openingCreated,
+        MobileRealtimeEvents.openingUpdated,
+        MobileRealtimeEvents.openingClosed,
+        MobileRealtimeEvents.openingArchived,
+        MobileRealtimeEvents.openingRestored,
+
+        MobileRealtimeEvents.applicationCreated,
+        MobileRealtimeEvents.applicationUpdated,
+        MobileRealtimeEvents.applicationApproved,
+        MobileRealtimeEvents.applicationRejected,
+        MobileRealtimeEvents.applicationDisqualified,
+        MobileRealtimeEvents.applicationDocumentUploaded,
+        MobileRealtimeEvents.applicationDocumentReviewed,
+
+        MobileRealtimeEvents.payoutCreated,
+        MobileRealtimeEvents.payoutUpdated,
+        MobileRealtimeEvents.scholarReleased,
       },
       (event) async {
-        debugPrint('[Dashboard] realtime event: ${event.name}');
+        debugPrint('[Dashboard] realtime dashboard event: ${event.name}');
         await _refreshDashboardFromRealtime();
       },
     );

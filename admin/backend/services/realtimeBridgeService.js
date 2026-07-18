@@ -1,13 +1,69 @@
 let bridgeStarted = false;
 let bridgeChannel = null;
 
+function safeText(value) {
+  return value === null || value === undefined ? '' : String(value).trim();
+}
+
 function normalizeValue(value) {
-  return value == null ? '' : String(value).trim();
+  return safeText(value);
+}
+
+function normalizeId(value) {
+  return safeText(value);
+}
+
+function uniqueIds(...values) {
+  return [
+    ...new Set(
+      values
+        .flat()
+        .map((value) => normalizeId(value))
+        .filter(Boolean)
+    ),
+  ];
 }
 
 function emitPublic(io, eventName, payload) {
   if (!io) return;
-  io.emit(eventName, payload);
+
+  const finalPayload = {
+    ...payload,
+    emitted_at: new Date().toISOString(),
+  };
+
+  console.log('[Realtime Bridge] public emit:', eventName, finalPayload);
+  io.emit(eventName, finalPayload);
+}
+
+function emitToUser(io, userId, eventName, payload) {
+  if (!io) return;
+
+  const normalizedUserId = normalizeId(userId);
+
+  if (!normalizedUserId) return;
+
+  const finalPayload = {
+    ...payload,
+    emitted_at: new Date().toISOString(),
+  };
+
+  console.log('[Realtime Bridge] user emit:', {
+    userId: normalizedUserId,
+    room: `user:${normalizedUserId}`,
+    eventName,
+    messageId: finalPayload.message_id || finalPayload.messageId || null,
+  });
+
+  io.to(`user:${normalizedUserId}`).emit(eventName, finalPayload);
+}
+
+function emitToUsers(io, userIds = [], eventName, payload) {
+  const targetUserIds = uniqueIds(userIds);
+
+  for (const userId of targetUserIds) {
+    emitToUser(io, userId, eventName, payload);
+  }
 }
 
 function buildApplicationPayload(row = {}) {
@@ -57,8 +113,8 @@ function buildEndorsementPayload(row = {}) {
   };
 }
 
-function handleApplicationChange(io, payload) {
-  const eventType = payload.eventType;
+function handleApplicationChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
   const previousRow = payload.old || {};
   const application = buildApplicationPayload(
@@ -92,8 +148,8 @@ function handleApplicationChange(io, payload) {
   }
 }
 
-function handleApplicationDocumentChange(io, payload) {
-  const eventType = payload.eventType;
+function handleApplicationDocumentChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
   const previousRow = payload.old || {};
   const document = buildApplicationDocumentPayload(
@@ -125,8 +181,8 @@ function handleApplicationDocumentChange(io, payload) {
   });
 }
 
-function handleEndorsementSlipChange(io, payload) {
-  const eventType = payload.eventType;
+function handleEndorsementSlipChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
   const nextRow = payload.new || {};
   const previousRow = payload.old || {};
   const endorsement = buildEndorsementPayload(
@@ -161,7 +217,7 @@ async function fetchRoomMemberIds(supabase, roomId) {
     .eq('room_id', roomId);
 
   if (error) {
-    console.error('[Realtime Bridge] room member fetch error:', error);
+    console.error('[Realtime Bridge] room member fetch error:', error.message);
     return [];
   }
 
@@ -170,7 +226,71 @@ async function fetchRoomMemberIds(supabase, roomId) {
     .filter(Boolean);
 }
 
-function buildMessagePayload(row = {}) {
+async function fetchUserSummary(supabase, userId) {
+  if (!supabase || !userId) return null;
+
+  const { data, error } = await supabase
+    .from('users')
+    .select(`
+      user_id,
+      role,
+      email,
+      students (
+        student_id,
+        pdm_id,
+        first_name,
+        middle_name,
+        last_name,
+        profile_photo_url
+      ),
+      admin_profiles (
+        admin_id,
+        first_name,
+        last_name
+      )
+    `)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Realtime Bridge] user summary fetch error:', error.message);
+    return null;
+  }
+
+  if (!data) return null;
+
+  const student = Array.isArray(data.students) ? data.students[0] : data.students;
+  const adminProfile = Array.isArray(data.admin_profiles)
+    ? data.admin_profiles[0]
+    : data.admin_profiles;
+
+  const displayName = student
+    ? [student.first_name, student.middle_name, student.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    : adminProfile
+      ? [adminProfile.first_name, adminProfile.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      : data.email || 'Unknown User';
+
+  return {
+    user_id: data.user_id,
+    role: data.role || '',
+    email: data.email || '',
+    display_name: displayName || 'Unknown User',
+    student_number: student?.pdm_id || '',
+    profile_photo_url: student?.profile_photo_url || null,
+  };
+}
+
+async function buildMessagePayload(supabase, row = {}) {
+  const senderSummary = await fetchUserSummary(supabase, row.sender_id);
+
   return {
     messageId: row.message_id,
     message_id: row.message_id,
@@ -178,11 +298,11 @@ function buildMessagePayload(row = {}) {
     senderId: row.sender_id,
     sender_id: row.sender_id,
 
-    receiverId: row.receiver_id,
-    receiver_id: row.receiver_id,
+    receiverId: row.receiver_id || null,
+    receiver_id: row.receiver_id || null,
 
-    roomId: row.room_id,
-    room_id: row.room_id,
+    roomId: row.room_id || null,
+    room_id: row.room_id || null,
 
     subject: row.subject || null,
 
@@ -197,6 +317,17 @@ function buildMessagePayload(row = {}) {
 
     attachmentUrl: row.attachment_url || null,
     attachment_url: row.attachment_url || null,
+
+    senderName: senderSummary?.display_name || '',
+    sender_name: senderSummary?.display_name || '',
+
+    senderProfilePhotoUrl: senderSummary?.profile_photo_url || null,
+    sender_profile_photo_url: senderSummary?.profile_photo_url || null,
+
+    senderAvatarUrl: senderSummary?.profile_photo_url || null,
+    sender_avatar_url: senderSummary?.profile_photo_url || null,
+
+    created_at: new Date().toISOString(),
   };
 }
 
@@ -221,42 +352,70 @@ async function handleMessageChange(io, supabase, payload = {}) {
     return;
   }
 
-  let eventName = 'message:updated';
+  const eventPayload = await buildMessagePayload(supabase, row);
 
-  if (eventType === 'INSERT') {
-    eventName = 'message:new';
-  }
-
-  if (eventType === 'UPDATE') {
-    eventName = row.is_read === true ? 'message:read' : 'message:updated';
-  }
-
-  if (eventType === 'DELETE') {
-    eventName = 'message:deleted';
-  }
-
-  const eventPayload = buildMessagePayload(row);
-
-  console.log('[Socket Emit Message]', eventName, eventPayload);
+  let targetUserIds = [];
 
   if (row.room_id) {
-    io.to(`group:${row.room_id}`).emit(eventName, eventPayload);
-
     const memberIds = await fetchRoomMemberIds(supabase, row.room_id);
+    targetUserIds = uniqueIds(memberIds, row.sender_id);
+  } else {
+    targetUserIds = uniqueIds(row.sender_id, row.receiver_id);
+  }
 
-    for (const memberId of memberIds) {
-      io.to(`user:${memberId}`).emit(eventName, eventPayload);
-    }
-
+  if (!targetUserIds.length) {
+    console.warn('[Realtime Bridge] message emit skipped: no target users');
     return;
   }
 
-  if (row.sender_id) {
-    io.to(`user:${row.sender_id}`).emit(eventName, eventPayload);
+  if (eventType === 'INSERT') {
+    /*
+      Emit both names because the frontend currently listens to both:
+      - message:new
+      - message:created
+    */
+    console.log('[Realtime Bridge] emitting message INSERT:', {
+      messageId,
+      targetUserIds,
+    });
+
+    emitToUsers(io, targetUserIds, 'message:new', eventPayload);
+    emitToUsers(io, targetUserIds, 'message:created', eventPayload);
+    return;
   }
 
-  if (row.receiver_id) {
-    io.to(`user:${row.receiver_id}`).emit(eventName, eventPayload);
+  if (eventType === 'UPDATE') {
+    if (row.is_read === true) {
+      console.log('[Realtime Bridge] emitting message READ:', {
+        messageId,
+        targetUserIds,
+      });
+
+      emitToUsers(io, targetUserIds, 'message:read', {
+        ...eventPayload,
+        message_ids: [messageId],
+        messageIds: [messageId],
+        updated_at: new Date().toISOString(),
+      });
+      return;
+    }
+
+    console.log('[Realtime Bridge] emitting message UPDATE:', {
+      messageId,
+      targetUserIds,
+    });
+
+    emitToUsers(io, targetUserIds, 'message:updated', eventPayload);
+    return;
+  }
+
+  if (eventType === 'DELETE') {
+    console.log('[Realtime Bridge] emitting message DELETE:', {
+      messageId,
+      targetUserIds,
+    });
+
+    emitToUsers(io, targetUserIds, 'message:deleted', eventPayload);
   }
 }
 
@@ -272,8 +431,40 @@ function configureRealtimeBridge({ io, supabase }) {
 
   bridgeStarted = true;
 
+  console.log('[Realtime Bridge Boot Check]', {
+    bridgeStarted,
+    hasIo: Boolean(io),
+    hasSupabase: Boolean(supabase),
+    hasChannel: Boolean(supabase?.channel),
+  });
+
+  supabase
+    .from('messages')
+    .select('message_id, sender_id, receiver_id, room_id, sent_at')
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .then(({ data, error }) => {
+      console.log('[Realtime Bridge DB Check]', {
+        error: error?.message || null,
+        latestMessage: data?.[0] || null,
+      });
+    });
+    
   bridgeChannel = supabase
     .channel('admin-realtime-bridge')
+    // test listener
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'messages' },
+      (payload) => {
+        console.log('[TEST REALTIME] messages payload received:', {
+          eventType: payload.eventType,
+          new: payload.new,
+          old: payload.old,
+        });
+      }
+    )
+
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'applications' },
@@ -297,22 +488,23 @@ function configureRealtimeBridge({ io, supabase }) {
     )
     .on(
       'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'messages',
-      },
-      (payload) => handleMessageChange(io, supabase, payload)
-    );
+      { event: '*', schema: 'public', table: 'messages' },
+      async (payload) => {
+        try {
+          await handleMessageChange(io, supabase, payload);
+        } catch (error) {
+          console.error('[Realtime Bridge] message handler error:', error);
+        }
+      }
+    )
+    .subscribe((status, error) => {
+      if (error) {
+        console.error('ADMIN REALTIME BRIDGE SUBSCRIBE ERROR:', error);
+        return;
+      }
 
-  bridgeChannel.subscribe((status, error) => {
-    if (error) {
-      console.error('ADMIN REALTIME BRIDGE SUBSCRIBE ERROR:', error);
-      return;
-    }
-
-    console.log('Admin realtime bridge status:', status);
-  });
+      console.log('Admin realtime bridge status:', status);
+    });
 
   return bridgeChannel;
 }

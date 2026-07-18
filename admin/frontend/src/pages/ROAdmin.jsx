@@ -18,9 +18,6 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  LayoutGrid,
-  MapPin,
-  MessageSquareText,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -65,7 +62,7 @@ function StatusChip({ children, tone = 'default' }) {
 
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold whitespace-nowrap"
+      className="inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold"
       style={{ background: s.bg, color: s.color }}
     >
       {children}
@@ -195,8 +192,84 @@ function formatMinutes(value) {
   return `${hours}h ${mins}m`;
 }
 
+function formatHoursCompact(minutes) {
+  const safeMinutes = Math.max(0, Number(minutes || 0));
+  const hours = safeMinutes / 60;
+
+  if (Number.isInteger(hours)) return String(hours);
+
+  return hours.toFixed(1).replace(/\.0$/, '');
+}
+
 function clampPercent(value) {
   return Math.min(100, Math.max(0, Number(value || 0)));
+}
+
+function compactProgressText({
+  requiredMinutes,
+  submittedMinutes,
+  validatedMinutes,
+  submittedProgress,
+  validatedProgress,
+  isCleared,
+}) {
+  const required = Math.max(0, Number(requiredMinutes || 0));
+  const validated = Math.max(0, Number(validatedMinutes || 0));
+  const submitted = Math.max(0, Number(submittedMinutes || 0));
+
+  const percent = isCleared
+    ? 100
+    : Math.max(Number(validatedProgress || 0), Number(submittedProgress || 0));
+
+  const usedMinutes = isCleared ? required : validated > 0 ? validated : submitted;
+
+  return `${clampPercent(percent)}% (${formatHoursCompact(usedMinutes)}/${formatHoursCompact(required)}hrs)`;
+}
+
+function getRoMetrics(scholar) {
+  const requiredMinutes =
+    scholar.requiredMinutes ||
+    scholar.required_minutes ||
+    Number(scholar.required_hours || scholar.requiredHours || 0) * 60 ||
+    0;
+
+  const submittedMinutes =
+    scholar.submittedMinutes || scholar.submitted_minutes || 0;
+
+  const validatedMinutes =
+    scholar.validatedMinutes || scholar.validated_minutes || 0;
+
+  const submittedProgress =
+    scholar.submittedProgress || scholar.submitted_progress || 0;
+
+  const validatedProgress =
+    scholar.validatedProgress || scholar.ro_progress || 0;
+
+  const pendingLogCount =
+    scholar.pendingLogCount || scholar.pending_log_count || 0;
+
+  const isCleared =
+    scholar.is_cleared || normalizeStatus(scholar.ro_status) === 'cleared';
+
+  const progressSummary = compactProgressText({
+    requiredMinutes,
+    submittedMinutes,
+    validatedMinutes,
+    submittedProgress,
+    validatedProgress,
+    isCleared,
+  });
+
+  return {
+    requiredMinutes,
+    submittedMinutes,
+    validatedMinutes,
+    submittedProgress,
+    validatedProgress,
+    pendingLogCount,
+    isCleared,
+    progressSummary,
+  };
 }
 
 function ProgressLine({ label, value, caption, color }) {
@@ -205,8 +278,8 @@ function ProgressLine({ label, value, caption, color }) {
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-3">
-        <p className="text-[11px] font-bold text-stone-700">{label}</p>
-        <p className="text-[11px] font-black" style={{ color }}>
+        <p className="text-xs font-bold text-stone-700">{label}</p>
+        <p className="text-xs font-black" style={{ color }}>
           {percent}%
         </p>
       </div>
@@ -235,7 +308,7 @@ function EmptyState({ onAssignMode }) {
       </h3>
 
       <p className="mt-1 max-w-md text-xs leading-6 text-stone-500">
-        Try changing the search/filter, or check the unassigned tab to assign RO notices to approved scholars.
+        Try changing the filters or check unassigned scholars.
       </p>
 
       <Button
@@ -244,7 +317,7 @@ function EmptyState({ onAssignMode }) {
         size="sm"
         className="mt-4 rounded-lg border-stone-200 text-xs"
       >
-        Show Unassigned Scholars
+        Show Unassigned
       </Button>
     </div>
   );
@@ -271,14 +344,9 @@ function FilterModal({
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div>
-            <h3 className="text-sm font-semibold text-stone-900">
-              Filter RO Scholars
-            </h3>
-            <p className="mt-0.5 text-xs text-stone-500">
-              Refine the list by course, year level, or scholarship batch.
-            </p>
-          </div>
+          <h3 className="text-sm font-semibold text-stone-900">
+            Filter RO Scholars
+          </h3>
 
           <button
             type="button"
@@ -367,7 +435,7 @@ function FilterModal({
               onClick={onReset}
               className="rounded-xl border-stone-200 text-xs"
             >
-              Reset Filters
+              Reset
             </Button>
 
             <Button
@@ -376,7 +444,7 @@ function FilterModal({
               className="rounded-xl border-none px-5 text-xs font-bold text-white"
               style={{ background: C.brownMid }}
             >
-              Apply Filters
+              Apply
             </Button>
           </div>
         </CardContent>
@@ -432,14 +500,9 @@ function AssignModal({
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div>
-            <h3 className="text-sm font-semibold text-stone-900">
-              Assign Return of Obligation
-            </h3>
-            <p className="mt-1 text-xs text-stone-500">
-              This creates a direct RO notice for the selected scholar.
-            </p>
-          </div>
+          <h3 className="text-sm font-semibold text-stone-900">
+            Assign RO
+          </h3>
 
           <button
             type="button"
@@ -453,11 +516,8 @@ function AssignModal({
 
         <CardContent className="space-y-4 p-5">
           <div className="rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-3">
-            <p className="text-xs font-black text-stone-900">{name}</p>
-            <p className="mt-0.5 font-mono text-[11px] text-stone-400">
-              {scholar.pdm_id || scholar.student_id}
-            </p>
-            <p className="mt-1 text-[11px] font-semibold text-stone-500">
+            <p className="text-sm font-black text-stone-900">{name}</p>
+            <p className="mt-0.5 text-xs text-stone-500">
               {scholar.program_name || 'Scholarship Program'}
             </p>
           </div>
@@ -465,7 +525,7 @@ function AssignModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Assigned Area / Department
+                Department
               </span>
 
               <select
@@ -473,10 +533,10 @@ function AssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select RO department</option>
+                <option value="">Select department</option>
 
                 {assignedArea && !currentDepartmentExists ? (
-                  <option value={assignedArea}>{assignedArea} (current)</option>
+                  <option value={assignedArea}>{assignedArea}</option>
                 ) : null}
 
                 {departments.map((department) => (
@@ -488,10 +548,6 @@ function AssignModal({
                   </option>
                 ))}
               </select>
-
-              <p className="mt-1 text-[11px] text-stone-400">
-                Manage this list in Maintenance → RO Settings.
-              </p>
             </label>
 
             <label className="block">
@@ -507,22 +563,18 @@ function AssignModal({
                 disabled
                 className="rounded-xl border-stone-200 bg-stone-100 text-stone-500"
               />
-
-              <p className="mt-1 text-[11px] text-stone-400">
-                Locked from the active RO setting.
-              </p>
             </label>
 
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Remarks <span className="font-medium normal-case text-stone-400">(optional)</span>
+                Remarks
               </span>
 
               <textarea
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 rows={3}
-                placeholder="Optional note for this RO assignment."
+                placeholder="Optional remarks"
                 className="w-full resize-none rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               />
             </label>
@@ -558,7 +610,7 @@ function AssignModal({
               ) : (
                 <Send className="mr-2 h-3.5 w-3.5" />
               )}
-              Send Assignment Notice
+              Save
             </Button>
           </div>
         </CardContent>
@@ -595,15 +647,9 @@ function BatchAssignModal({
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div>
-            <h3 className="text-sm font-semibold text-stone-900">
-              Batch Assign Return of Obligation
-            </h3>
-            <p className="mt-1 text-xs text-stone-500">
-              This will send RO assignment notices to {selectedCount} selected scholar
-              {selectedCount > 1 ? 's' : ''}.
-            </p>
-          </div>
+          <h3 className="text-sm font-semibold text-stone-900">
+            Batch Assign RO
+          </h3>
 
           <button
             type="button"
@@ -616,10 +662,16 @@ function BatchAssignModal({
         </div>
 
         <CardContent className="space-y-4 p-5">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+            <p className="text-sm font-black text-stone-900">
+              {selectedCount} selected scholar{selectedCount > 1 ? 's' : ''}
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Assigned Area / Department
+                Department
               </span>
 
               <select
@@ -627,7 +679,8 @@ function BatchAssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select RO department</option>
+                <option value="">Select department</option>
+
                 {departments.map((department) => (
                   <option
                     key={department.department_id}
@@ -651,22 +704,18 @@ function BatchAssignModal({
                 disabled
                 className="rounded-xl border-stone-200 bg-stone-100 text-stone-500"
               />
-
-              <p className="mt-1 text-[11px] text-stone-400">
-                Locked from the active RO setting.
-              </p>
             </label>
 
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Remarks <span className="font-medium normal-case text-stone-400">(optional)</span>
+                Remarks
               </span>
 
               <textarea
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 rows={3}
-                placeholder="Optional note for this batch assignment."
+                placeholder="Optional remarks"
                 className="w-full resize-none rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               />
             </label>
@@ -702,7 +751,7 @@ function BatchAssignModal({
               ) : (
                 <Send className="mr-2 h-3.5 w-3.5" />
               )}
-              Send Batch Notice
+              Send
             </Button>
           </div>
         </CardContent>
@@ -711,14 +760,7 @@ function BatchAssignModal({
   );
 }
 
-function LogsModal({
-  open,
-  scholar,
-  loading,
-  error,
-  onClose,
-  onValidate,
-}) {
+function LogsModal({ open, scholar, loading, error, onClose, onValidate }) {
   if (!open || !scholar) return null;
 
   const logs = Array.isArray(scholar.logs) ? scholar.logs : [];
@@ -730,11 +772,9 @@ function LogsModal({
       <Card className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <div>
-            <h3 className="text-sm font-semibold text-stone-900">
-              RO Time Logs
-            </h3>
+            <h3 className="text-sm font-semibold text-stone-900">RO Logs</h3>
             <p className="mt-1 text-xs text-stone-500">
-              {getScholarName(scholar)} · {scholar.pdm_id || 'No PDM ID'}
+              {getScholarName(scholar)}
             </p>
           </div>
 
@@ -752,10 +792,7 @@ function LogsModal({
           {logs.length === 0 ? (
             <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-8 text-center">
               <p className="text-sm font-semibold text-stone-700">
-                No time logs yet
-              </p>
-              <p className="mt-1 text-xs text-stone-400">
-                The scholar’s time-in/time-out records will appear here.
+                No logs yet
               </p>
             </div>
           ) : (
@@ -885,255 +922,230 @@ function LogsModal({
   );
 }
 
-function ScholarCard({
-  scholar,
-  loading,
-  onAssign,
-  onLogs,
-  onClear,
-}) {
-  const name = getScholarName(scholar);
-  const assignmentStatus = scholar.assignment_status || scholar.assignmentStatus || 'Unassigned';
-  const progressStatus = scholar.progress_status || scholar.progressStatus || 'Not Started';
-  const requiredMinutes = scholar.requiredMinutes || scholar.required_minutes || 0;
-  const submittedMinutes = scholar.submittedMinutes || scholar.submitted_minutes || 0;
-  const validatedMinutes = scholar.validatedMinutes || scholar.validated_minutes || 0;
-  const submittedProgress = scholar.submittedProgress || scholar.submitted_progress || 0;
-  const validatedProgress = scholar.validatedProgress || scholar.ro_progress || 0;
-  const pendingLogCount = scholar.pendingLogCount || scholar.pending_log_count || 0;
-  const isCleared = scholar.is_cleared || normalizeStatus(scholar.ro_status) === 'cleared';
-
-  return (
-    <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <Avatar className="h-11 w-11 shrink-0 rounded-full border border-stone-200 shadow-sm">
-            <AvatarImage
-              src={
-                scholar.profile_photo_url ||
-                scholar.avatarUrl ||
-                scholar.avatar_url ||
-                undefined
-              }
-              alt={name}
-            />
-            <AvatarFallback className="bg-blue-900 text-xs font-semibold text-white">
-              {getInitials(name)}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black text-stone-900">
-                  {name}
-                </p>
-                <p className="mt-0.5 font-mono text-[11px] text-stone-400">
-                  {scholar.pdm_id || scholar.student_id || 'No Student ID'}
-                </p>
-              </div>
-
-              <StatusChip tone={getAssignmentTone(assignmentStatus)}>
-                {assignmentStatus}
-              </StatusChip>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-stone-500 sm:grid-cols-2">
-              <p>
-                <span className="font-bold text-stone-700">Course:</span>{' '}
-                {scholar.course_code || 'N/A'}
-              </p>
-              <p>
-                <span className="font-bold text-stone-700">Year:</span>{' '}
-                {formatYearLevel(scholar.year_level)}
-              </p>
-              <p className="sm:col-span-2">
-                <span className="font-bold text-stone-700">Program:</span>{' '}
-                {scholar.program_name || 'N/A'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-stone-100 bg-stone-50/70 p-3">
-          <div className="flex items-start gap-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-stone-400" />
-            <div>
-              <p className="text-xs font-black text-stone-800">
-                {scholar.assigned_area || scholar.assignedArea || 'No assigned area'}
-              </p>
-              <p className="mt-0.5 text-[11px] text-stone-500">
-                RO assignment department
-              </p>
-            </div>
-          </div>
-
-          {scholar.remarks ? (
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-white px-3 py-2">
-              <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0 text-stone-400" />
-              <p className="text-xs leading-5 text-stone-600">
-                {scholar.remarks}
-              </p>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <ProgressLine
-            label="Submitted"
-            value={submittedProgress}
-            color={C.amber}
-            caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
-          />
-
-          <ProgressLine
-            label="Validated"
-            value={validatedProgress}
-            color={C.green}
-            caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
-          />
-
-          <div className="flex flex-wrap gap-2">
-            <StatusChip tone={getAssignmentTone(progressStatus)}>
-              {progressStatus}
-            </StatusChip>
-
-            {pendingLogCount > 0 ? (
-              <StatusChip tone="blue">
-                {pendingLogCount} log{pendingLogCount > 1 ? 's' : ''} for validation
-              </StatusChip>
-            ) : null}
-          </div>
-        </div>
-
-        {scholar.conflict_reason || scholar.conflictReason ? (
-          <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2">
-            <p className="text-[11px] font-black uppercase tracking-wide text-red-500">
-              Conflict Reported
-            </p>
-            <p className="mt-1 text-xs leading-5 text-red-600">
-              {scholar.conflict_reason || scholar.conflictReason}
-            </p>
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button
-            onClick={onAssign}
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            className="rounded-xl border-stone-200 text-xs"
-          >
-            <Send className="mr-2 h-3.5 w-3.5" />
-            Edit Notice
-          </Button>
-
-          <Button
-            onClick={onLogs}
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            className="rounded-xl border-stone-200 text-xs"
-          >
-            <Eye className="mr-2 h-3.5 w-3.5" />
-            Check Logs
-          </Button>
-
-          {!isCleared ? (
-            <Button
-              onClick={onClear}
-              size="sm"
-              disabled={loading}
-              className="rounded-xl border-none text-xs text-white"
-              style={{ background: C.green }}
-            >
-              <ShieldCheck className="mr-2 h-3.5 w-3.5" />
-              Mark Cleared
-            </Button>
-          ) : (
-            <div className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs font-bold text-green-700">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              RO Cleared
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AssignedCardsWindow({
+function RoDetailsModal({
   open,
-  scholars,
+  scholar,
   loading,
   onClose,
   onAssign,
   onLogs,
   onClear,
 }) {
-  if (!open) return null;
+  if (!open || !scholar) return null;
 
-  const assigned = scholars.filter((scholar) => !!scholar.ro_id);
+  const name = getScholarName(scholar);
+  const hasAssignment = !!scholar.ro_id;
+
+  const assignmentStatus =
+    scholar.assignment_status || scholar.assignmentStatus || 'Unassigned';
+
+  const progressStatus =
+    scholar.progress_status || scholar.progressStatus || 'Not Started';
+
+  const {
+    requiredMinutes,
+    submittedMinutes,
+    validatedMinutes,
+    submittedProgress,
+    validatedProgress,
+    pendingLogCount,
+    isCleared,
+    progressSummary,
+  } = getRoMetrics(scholar);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={onClose} />
+      <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
-      <Card className="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
+      <Card className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
           <div>
             <h3 className="text-sm font-semibold text-stone-900">
-              Assigned RO Scholars
+              RO Details
             </h3>
-            <p className="mt-1 text-xs text-stone-500">
-              Card view for scholars who already have an RO assignment notice.
-            </p>
+            <p className="mt-1 text-xs text-stone-500">{name}</p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+            disabled={loading}
+            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <CardContent className="flex-1 overflow-y-auto p-4">
-          {loading ? (
-            <div className="flex min-h-[300px] items-center justify-center">
-              <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-            </div>
-          ) : assigned.length === 0 ? (
-            <div className="flex min-h-[300px] flex-col items-center justify-center text-center">
-              <ClipboardCheck className="h-8 w-8 text-stone-300" />
-              <p className="mt-3 text-sm font-semibold text-stone-700">
-                No assigned RO cards found
-              </p>
-              <p className="mt-1 text-xs text-stone-400">
-                Scholars with RO assignment notices will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {assigned.map((scholar) => {
-                const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'assigned'}`;
+        <CardContent className="flex-1 space-y-4 overflow-y-auto p-5">
+          <div className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <Avatar className="h-12 w-12 shrink-0 rounded-full border border-stone-200 shadow-sm">
+              <AvatarImage
+                src={
+                  scholar.profile_photo_url ||
+                  scholar.avatarUrl ||
+                  scholar.avatar_url ||
+                  undefined
+                }
+                alt={name}
+              />
+              <AvatarFallback className="bg-blue-900 text-xs font-semibold text-white">
+                {getInitials(name)}
+              </AvatarFallback>
+            </Avatar>
 
-                return (
-                  <ScholarCard
-                    key={key}
-                    scholar={scholar}
-                    loading={loading}
-                    onAssign={() => onAssign(scholar)}
-                    onLogs={() => onLogs(scholar)}
-                    onClear={() => onClear(scholar)}
-                  />
-                );
-              })}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black text-stone-900">{name}</p>
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    {scholar.pdm_id || 'No PDM ID'}
+                  </p>
+                </div>
+
+                <StatusChip tone={isCleared ? 'green' : getAssignmentTone(assignmentStatus)}>
+                  {isCleared ? 'Cleared' : assignmentStatus}
+                </StatusChip>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-stone-600 sm:grid-cols-2">
+                <p>
+                  <span className="font-bold text-stone-800">Program:</span>{' '}
+                  {scholar.program_name || 'N/A'}
+                </p>
+
+                <p>
+                  <span className="font-bold text-stone-800">Course:</span>{' '}
+                  {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
+                </p>
+              </div>
             </div>
-          )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                Department
+              </p>
+              <p className="mt-1 text-sm font-black text-stone-900">
+                {scholar.assigned_area || scholar.assignedArea || 'N/A'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                Progress
+              </p>
+              <p className="mt-1 text-sm font-black text-stone-900">
+                {hasAssignment ? progressSummary : 'N/A'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                Logs
+              </p>
+              <p className="mt-1 text-sm font-black text-stone-900">
+                {pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending'}
+              </p>
+            </div>
+          </div>
+
+          {scholar.remarks ? (
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                Remarks
+              </p>
+              <p className="mt-2 text-sm leading-6 text-stone-700">
+                {scholar.remarks}
+              </p>
+            </div>
+          ) : null}
+
+          {hasAssignment ? (
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                    Hours
+                  </p>
+                  <p className="mt-1 text-sm font-black text-stone-900">
+                    {progressSummary}
+                  </p>
+                </div>
+
+                <StatusChip tone={isCleared ? 'green' : getAssignmentTone(progressStatus)}>
+                  {isCleared ? 'Cleared' : progressStatus}
+                </StatusChip>
+              </div>
+
+              <div className="space-y-4">
+                <ProgressLine
+                  label="Submitted"
+                  value={submittedProgress}
+                  color={C.amber}
+                  caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
+                />
+
+                <ProgressLine
+                  label="Validated"
+                  value={validatedProgress}
+                  color={C.green}
+                  caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {scholar.conflict_reason || scholar.conflictReason ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+              <p className="text-[11px] font-black uppercase tracking-wide text-red-500">
+                Conflict Reported
+              </p>
+              <p className="mt-1 text-xs leading-5 text-red-600">
+                {scholar.conflict_reason || scholar.conflictReason}
+              </p>
+            </div>
+          ) : null}
         </CardContent>
+
+        <div className="flex flex-col gap-2 border-t border-stone-100 bg-stone-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onAssign}
+            disabled={loading}
+            className="h-9 rounded-xl border-stone-200 text-xs"
+          >
+            <Send className="mr-2 h-3.5 w-3.5" />
+            {hasAssignment ? 'Edit' : 'Assign'}
+          </Button>
+
+          {hasAssignment ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onLogs}
+              disabled={loading}
+              className="h-9 rounded-xl border-stone-200 text-xs"
+            >
+              <Eye className="mr-2 h-3.5 w-3.5" />
+              Logs
+            </Button>
+          ) : null}
+
+          {hasAssignment && !isCleared ? (
+            <Button
+              type="button"
+              onClick={onClear}
+              disabled={loading}
+              className="h-9 rounded-xl border-none text-xs text-white"
+              style={{ background: C.green }}
+            >
+              <ShieldCheck className="mr-2 h-3.5 w-3.5" />
+              Mark Cleared
+            </Button>
+          ) : null}
+        </div>
       </Card>
     </div>
   );
@@ -1143,7 +1155,6 @@ export default function ROAdmin() {
   const token = sessionStorage.getItem('adminToken');
 
   const [scholars, setScholars] = useState([]);
-  const [assignedCards, setAssignedCards] = useState([]);
   const [courses, setCourses] = useState([]);
   const [openings, setOpenings] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -1161,15 +1172,16 @@ export default function ROAdmin() {
 
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
-  const [assignedLoading, setAssignedLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
 
   const [filterOpen, setFilterOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [logsModalOpen, setLogsModalOpen] = useState(false);
-  const [assignedWindowOpen, setAssignedWindowOpen] = useState(false);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+
   const [selectedScholar, setSelectedScholar] = useState(null);
+  const [detailsScholar, setDetailsScholar] = useState(null);
   const [actionError, setActionError] = useState('');
 
   const authHeaders = useMemo(
@@ -1238,20 +1250,21 @@ export default function ROAdmin() {
 
   const loadFilterData = async () => {
     try {
-      const [coursesRes, openingsRes, departmentsRes, activeSettingRes] = await Promise.all([
-        fetch(buildApiUrl('/api/courses'), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(buildApiUrl('/api/program-openings'), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(buildApiUrl('/api/ro-settings/departments'), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(buildApiUrl('/api/ro-settings/active'), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
+      const [coursesRes, openingsRes, departmentsRes, activeSettingRes] =
+        await Promise.all([
+          fetch(buildApiUrl('/api/courses'), {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(buildApiUrl('/api/program-openings'), {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(buildApiUrl('/api/ro-settings/departments'), {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(buildApiUrl('/api/ro-settings/active'), {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
       const coursesData = await coursesRes.json().catch(() => []);
       const openingsData = await openingsRes.json().catch(() => []);
@@ -1315,6 +1328,11 @@ export default function ROAdmin() {
         const validIds = new Set(rows.map((row) => String(row.student_id)));
         return current.filter((id) => validIds.has(String(id)));
       });
+
+      setDetailsScholar((current) => {
+        if (!current?.student_id) return current;
+        return rows.find((row) => row.student_id === current.student_id) || current;
+      });
     } catch (err) {
       console.error('LOAD RO SCHOLARS ERROR:', err);
       setError(err.message || 'Failed to load RO scholars');
@@ -1326,37 +1344,8 @@ export default function ROAdmin() {
     }
   };
 
-  const loadAssignedCards = async () => {
-    try {
-      setAssignedLoading(true);
-
-      const query = buildScholarQuery();
-
-      const res = await fetch(buildApiUrl(`/api/ro/scholars?${query}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to load assigned RO cards');
-      }
-
-      setAssignedCards(parseScholarRows(data).filter((item) => !!item.ro_id));
-    } catch (err) {
-      console.error('LOAD ASSIGNED RO CARDS ERROR:', err);
-      setAssignedCards([]);
-    } finally {
-      setAssignedLoading(false);
-    }
-  };
-
   const refreshAll = async () => {
     await Promise.all([loadFilterData(), loadScholars()]);
-
-    if (assignedWindowOpen) {
-      await loadAssignedCards();
-    }
   };
 
   useEffect(() => {
@@ -1368,10 +1357,6 @@ export default function ROAdmin() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       loadScholars();
-
-      if (assignedWindowOpen) {
-        loadAssignedCards();
-      }
     }, 350);
 
     return () => clearTimeout(timeout);
@@ -1383,7 +1368,7 @@ export default function ROAdmin() {
     () => {
       refreshAll();
     },
-    [search, courseId, yearLevel, openingId, assignedWindowOpen]
+    [search, courseId, yearLevel, openingId]
   );
 
   useSocketEvent(
@@ -1391,7 +1376,7 @@ export default function ROAdmin() {
     () => {
       refreshAll();
     },
-    [search, courseId, yearLevel, openingId, assignedWindowOpen]
+    [search, courseId, yearLevel, openingId]
   );
 
   const handleResetFilters = () => {
@@ -1454,9 +1439,34 @@ export default function ROAdmin() {
     setLogsModalOpen(false);
   };
 
-  const openAssignedWindow = async () => {
-    setAssignedWindowOpen(true);
-    await loadAssignedCards();
+  const openDetailsModal = (scholar) => {
+    setDetailsScholar(scholar);
+    setActionError('');
+    setDetailsModalOpen(true);
+  };
+
+  const closeDetailsModal = () => {
+    if (actionLoading) return;
+
+    setDetailsScholar(null);
+    setActionError('');
+    setDetailsModalOpen(false);
+  };
+
+  const openAssignFromDetails = () => {
+    if (!detailsScholar) return;
+
+    setSelectedScholar(detailsScholar);
+    setActionError('');
+    setAssignModalOpen(true);
+  };
+
+  const openLogsFromDetails = () => {
+    if (!detailsScholar) return;
+
+    setSelectedScholar(detailsScholar);
+    setActionError('');
+    setLogsModalOpen(true);
   };
 
   const handleAssign = async (payload) => {
@@ -1692,14 +1702,16 @@ export default function ROAdmin() {
         onValidate={handleValidateLog}
       />
 
-      <AssignedCardsWindow
-        open={assignedWindowOpen}
-        scholars={assignedCards}
-        loading={assignedLoading || actionLoading}
-        onClose={() => setAssignedWindowOpen(false)}
-        onAssign={openAssignModal}
-        onLogs={openLogsModal}
-        onClear={handleClear}
+      <RoDetailsModal
+        open={detailsModalOpen}
+        scholar={detailsScholar}
+        loading={actionLoading}
+        onClose={closeDetailsModal}
+        onAssign={openAssignFromDetails}
+        onLogs={openLogsFromDetails}
+        onClear={() => {
+          if (detailsScholar) handleClear(detailsScholar);
+        }}
       />
 
       <section
@@ -1733,16 +1745,6 @@ export default function ROAdmin() {
                 Batch Assign ({selectedIds.length})
               </Button>
             ) : null}
-
-            <Button
-              onClick={openAssignedWindow}
-              variant="outline"
-              size="sm"
-              className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
-            >
-              <LayoutGrid className="mr-2 h-4 w-4" />
-              Assigned Cards
-            </Button>
 
             <Button
               onClick={() => setFilterOpen(true)}
@@ -1795,8 +1797,8 @@ export default function ROAdmin() {
               type="button"
               onClick={() => setViewMode(tab.value)}
               className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold transition ${viewMode === tab.value
-                  ? 'text-white shadow-sm'
-                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                ? 'text-white shadow-sm'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                 }`}
               style={viewMode === tab.value ? { background: C.brownMid } : undefined}
             >
@@ -1842,19 +1844,11 @@ export default function ROAdmin() {
                     </th>
 
                     <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      Course / Year
-                    </th>
-
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
                       Assignment
                     </th>
 
                     <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
                       Progress
-                    </th>
-
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">
-                      Logs
                     </th>
 
                     <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">
@@ -1872,20 +1866,17 @@ export default function ROAdmin() {
                       scholar.assignment_status || scholar.assignmentStatus || 'Unassigned';
                     const progressStatus =
                       scholar.progress_status || scholar.progressStatus || 'Not Started';
-                    const requiredMinutes =
-                      scholar.requiredMinutes || scholar.required_minutes || 0;
-                    const submittedMinutes =
-                      scholar.submittedMinutes || scholar.submitted_minutes || 0;
-                    const validatedMinutes =
-                      scholar.validatedMinutes || scholar.validated_minutes || 0;
-                    const submittedProgress =
-                      scholar.submittedProgress || scholar.submitted_progress || 0;
-                    const validatedProgress =
-                      scholar.validatedProgress || scholar.ro_progress || 0;
-                    const pendingLogCount =
-                      scholar.pendingLogCount || scholar.pending_log_count || 0;
-                    const isCleared =
-                      scholar.is_cleared || normalizeStatus(scholar.ro_status) === 'cleared';
+
+                    const {
+                      requiredMinutes,
+                      submittedMinutes,
+                      validatedMinutes,
+                      submittedProgress,
+                      validatedProgress,
+                      pendingLogCount,
+                      isCleared,
+                    } = getRoMetrics(scholar);
+
                     const selectable = isBatchSelectable(scholar);
                     const selected = selectedIds.includes(String(scholar.student_id));
 
@@ -1921,110 +1912,60 @@ export default function ROAdmin() {
                             </Avatar>
 
                             <div className="min-w-0">
-                              <p className="max-w-[190px] truncate text-sm font-semibold text-stone-900">
+                              <p className="max-w-[210px] truncate text-sm font-semibold text-stone-900">
                                 {name}
                               </p>
-                              <p className="mt-0.5 font-mono text-[11px] text-stone-400">
-                                {scholar.pdm_id || scholar.student_id || 'No PDM ID'}
+                              <p className="mt-0.5 text-[11px] text-stone-400">
+                                {scholar.pdm_id || 'No PDM ID'}
                               </p>
                             </div>
                           </div>
                         </td>
 
                         <td className="px-3 py-3 align-top">
-                          <p className="max-w-[210px] text-xs font-semibold leading-5 text-stone-900">
+                          <p className="max-w-[240px] text-xs font-semibold leading-5 text-stone-900">
                             {scholar.program_name || 'N/A'}
                           </p>
-                          {scholar.opening_title ? (
-                            <p className="mt-0.5 max-w-[210px] text-[11px] leading-4 text-stone-400">
-                              {scholar.opening_title}
-                            </p>
-                          ) : null}
-                        </td>
-
-                        <td className="px-3 py-3 align-top">
-                          <p className="text-xs font-semibold text-stone-800">
-                            {scholar.course_code || 'N/A'}
-                          </p>
                           <p className="mt-0.5 text-[11px] text-stone-400">
-                            {formatYearLevel(scholar.year_level)}
+                            {scholar.course_code || 'N/A'} · {formatYearLevel(scholar.year_level)}
                           </p>
-                        </td>
-
-                        <td className="px-3 py-3 align-top">
-                          <div className="space-y-1.5">
-                            <StatusChip tone={getAssignmentTone(assignmentStatus)}>
-                              {assignmentStatus}
-                            </StatusChip>
-
-                            {hasAssignment ? (
-                              <>
-                                <p className="max-w-[220px] text-xs font-bold text-stone-800">
-                                  {scholar.assigned_area || scholar.assignedArea || 'No area'}
-                                </p>
-
-                                {scholar.remarks ? (
-                                  <p className="max-w-[220px] text-[11px] leading-4 text-stone-400">
-                                    {scholar.remarks}
-                                  </p>
-                                ) : null}
-                              </>
-                            ) : (
-                              <p className="text-[11px] font-semibold text-amber-600">
-                                No RO notice sent yet
-                              </p>
-                            )}
-                          </div>
                         </td>
 
                         <td className="px-3 py-3 align-top">
                           {hasAssignment ? (
-                            <div className="min-w-[190px] space-y-2">
-                              <ProgressLine
-                                label="Submitted"
-                                value={submittedProgress}
-                                color={C.amber}
-                                caption={`${formatMinutes(submittedMinutes)} / ${formatMinutes(requiredMinutes)}`}
-                              />
-
-                              <ProgressLine
-                                label="Validated"
-                                value={validatedProgress}
-                                color={C.green}
-                                caption={`${formatMinutes(validatedMinutes)} / ${formatMinutes(requiredMinutes)}`}
-                              />
-
-                              <StatusChip tone={getAssignmentTone(progressStatus)}>
-                                {progressStatus}
-                              </StatusChip>
-                            </div>
+                            <p className="max-w-[220px] text-xs font-bold text-stone-900">
+                              {scholar.assigned_area || scholar.assignedArea || 'No assigned area'}
+                            </p>
                           ) : (
-                            <p className="text-xs text-stone-400">N/A</p>
+                            <p className="text-xs font-semibold text-stone-400">
+                              Not assigned
+                            </p>
                           )}
                         </td>
 
                         <td className="px-3 py-3 align-top">
                           {hasAssignment ? (
-                            <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-xs font-black text-stone-900">
+                                {compactProgressText({
+                                  requiredMinutes,
+                                  submittedMinutes,
+                                  validatedMinutes,
+                                  submittedProgress,
+                                  validatedProgress,
+                                  isCleared,
+                                })}
+                              </p>
+
+                              <StatusChip tone={isCleared ? 'green' : getAssignmentTone(progressStatus)}>
+                                {isCleared ? 'Cleared' : progressStatus}
+                              </StatusChip>
+
                               {pendingLogCount > 0 ? (
                                 <StatusChip tone="blue">
                                   {pendingLogCount} pending
                                 </StatusChip>
-                              ) : (
-                                <StatusChip tone="default">No pending logs</StatusChip>
-                              )}
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openLogsModal(scholar)}
-                                disabled={actionLoading}
-                                className="h-8 rounded-lg border-stone-200 px-2 text-xs"
-                              >
-                                <Eye className="mr-1.5 h-3.5 w-3.5" />
-                                Check
-                              </Button>
+                              ) : null}
                             </div>
                           ) : (
                             <p className="text-xs text-stone-400">N/A</p>
@@ -2032,38 +1973,30 @@ export default function ROAdmin() {
                         </td>
 
                         <td className="px-3 py-3 text-right align-top">
-                          <div className="flex flex-col items-end gap-2">
-                            <Button
-                              onClick={() => openAssignModal(scholar)}
-                              variant="outline"
-                              size="sm"
-                              disabled={actionLoading}
-                              className="h-8 rounded-lg border-stone-200 px-3 text-xs"
-                            >
-                              <Send className="mr-1.5 h-3.5 w-3.5" />
-                              {hasAssignment ? 'Edit' : 'Assign'}
-                            </Button>
-
-                            {hasAssignment && !isCleared ? (
-                              <Button
-                                onClick={() => handleClear(scholar)}
-                                size="sm"
-                                disabled={actionLoading}
-                                className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                                style={{ background: C.green }}
-                              >
-                                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                                Clear
-                              </Button>
-                            ) : null}
-
-                            {isCleared ? (
-                              <div className="inline-flex items-center gap-1.5 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs font-bold text-green-700">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Cleared
-                              </div>
-                            ) : null}
-                          </div>
+                          <Button
+                            type="button"
+                            onClick={() =>
+                              hasAssignment
+                                ? openDetailsModal(scholar)
+                                : openAssignModal(scholar)
+                            }
+                            variant="outline"
+                            size="sm"
+                            disabled={actionLoading}
+                            className="h-8 rounded-lg border-stone-200 px-3 text-xs"
+                          >
+                            {hasAssignment ? (
+                              <>
+                                <Eye className="mr-1.5 h-3.5 w-3.5" />
+                                View
+                              </>
+                            ) : (
+                              <>
+                                <Send className="mr-1.5 h-3.5 w-3.5" />
+                                Assign
+                              </>
+                            )}
+                          </Button>
                         </td>
                       </tr>
                     );

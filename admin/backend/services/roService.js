@@ -34,10 +34,6 @@ function isClearedStatus(status) {
     return normalizeText(status) === 'cleared';
 }
 
-function minutesToHoursFloor(minutes) {
-    return Math.floor(toNumber(minutes) / 60);
-}
-
 function percentFromMinutes(doneMinutes, requiredMinutes) {
     const done = toNumber(doneMinutes);
     const required = toNumber(requiredMinutes);
@@ -49,6 +45,7 @@ function percentFromMinutes(doneMinutes, requiredMinutes) {
 
 function extractAvatarStoragePath(value) {
     const rawValue = String(value || '').trim();
+
     if (!rawValue) return null;
 
     if (!/^https?:\/\//i.test(rawValue)) {
@@ -63,6 +60,7 @@ function extractAvatarStoragePath(value) {
 
     for (const marker of markers) {
         const markerIndex = rawValue.indexOf(marker);
+
         if (markerIndex >= 0) {
             return rawValue.slice(markerIndex + marker.length).split('?')[0];
         }
@@ -73,9 +71,11 @@ function extractAvatarStoragePath(value) {
 
 async function resolveAvatarUrl(value) {
     const rawValue = String(value || '').trim();
+
     if (!rawValue) return null;
 
     const storagePath = extractAvatarStoragePath(rawValue);
+
     if (!storagePath) return rawValue;
 
     const { data, error } = await supabase.storage
@@ -111,20 +111,28 @@ async function getApprovedApplicationForStudent(studentId, payload = {}) {
         .order('submission_date', { ascending: false })
         .limit(1);
 
-    if (payload.applicationId) {
-        query = query.eq('application_id', payload.applicationId);
+    if (payload.applicationId || payload.application_id) {
+        query = query.eq(
+            'application_id',
+            payload.applicationId || payload.application_id
+        );
     }
 
-    if (payload.openingId) {
-        query = query.eq('opening_id', payload.openingId);
+    if (payload.openingId || payload.opening_id) {
+        query = query.eq('opening_id', payload.openingId || payload.opening_id);
     }
 
     const { data, error } = await query.maybeSingle();
 
-    if (error) throw createHttpError(500, error.message);
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
 
     if (!data) {
-        throw createHttpError(404, 'Approved scholarship application not found for this student.');
+        throw createHttpError(
+            404,
+            'Approved scholarship application not found for this student.'
+        );
     }
 
     return data;
@@ -138,7 +146,9 @@ async function getROByApplication(studentId, applicationId) {
         .eq('application_id', applicationId)
         .maybeSingle();
 
-    if (error) throw createHttpError(500, error.message);
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
 
     return data || null;
 }
@@ -170,7 +180,9 @@ async function getLogsForROIds(roIds) {
         .in('ro_id', ids)
         .order('time_in_at', { ascending: false });
 
-    if (error) throw createHttpError(500, error.message);
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
 
     const map = new Map();
 
@@ -187,32 +199,46 @@ function serializeLog(log = {}) {
     return {
         log_id: log.log_id,
         logId: log.log_id,
+
         ro_id: log.ro_id,
         roId: log.ro_id,
+
         student_id: log.student_id,
         studentId: log.student_id,
+
         time_in_at: log.time_in_at,
         timeInAt: log.time_in_at,
+
         time_out_at: log.time_out_at,
         timeOutAt: log.time_out_at,
+
         duration_minutes: toNumber(log.duration_minutes),
         durationMinutes: toNumber(log.duration_minutes),
+
         log_status: log.log_status || 'Timed In',
         logStatus: log.log_status || 'Timed In',
+
         student_note: log.student_note || '',
         studentNote: log.student_note || '',
+
         validated_minutes: toNumber(log.validated_minutes),
         validatedMinutes: toNumber(log.validated_minutes),
+
         validation_status: log.validation_status || 'Pending Validation',
         validationStatus: log.validation_status || 'Pending Validation',
+
         validation_remarks: log.validation_remarks || '',
         validationRemarks: log.validation_remarks || '',
+
         validated_by: log.validated_by || null,
         validatedBy: log.validated_by || null,
+
         validated_at: log.validated_at || null,
         validatedAt: log.validated_at || null,
+
         created_at: log.created_at || null,
         createdAt: log.created_at || null,
+
         updated_at: log.updated_at || null,
         updatedAt: log.updated_at || null,
     };
@@ -225,18 +251,29 @@ async function syncRoTotals(roId, user = {}) {
         .eq('ro_id', roId)
         .maybeSingle();
 
-    if (roError) throw createHttpError(500, roError.message);
-    if (!ro) throw createHttpError(404, 'RO record not found.');
+    if (roError) {
+        throw createHttpError(500, roError.message);
+    }
+
+    if (!ro) {
+        throw createHttpError(404, 'RO record not found.');
+    }
 
     const { data: logs, error: logsError } = await supabase
         .from('ro_time_logs')
         .select('duration_minutes, validated_minutes, log_status, validation_status')
         .eq('ro_id', roId);
 
-    if (logsError) throw createHttpError(500, logsError.message);
+    if (logsError) {
+        throw createHttpError(500, logsError.message);
+    }
 
     const submittedMinutes = (logs || [])
-        .filter((log) => log.log_status === 'Timed Out' && log.validation_status !== 'Rejected')
+        .filter(
+            (log) =>
+                log.log_status === 'Timed Out' &&
+                log.validation_status !== 'Rejected'
+        )
         .reduce((sum, log) => sum + toNumber(log.duration_minutes), 0);
 
     const validatedMinutes = (logs || [])
@@ -249,33 +286,36 @@ async function syncRoTotals(roId, user = {}) {
     const adminUserId = getUserId(user);
 
     let progressStatus = 'Not Started';
+    let assignmentStatus = null;
 
     if (shouldClear || ro.ro_status === 'Cleared') {
         progressStatus = 'Cleared';
+        assignmentStatus = 'Cleared';
     } else if (submittedMinutes <= 0) {
         progressStatus = 'Not Started';
     } else if (requiredMinutes > 0 && submittedMinutes >= requiredMinutes) {
         progressStatus = 'For Validation';
+        assignmentStatus = 'For Validation';
     } else {
         progressStatus = 'In Progress';
+        assignmentStatus = 'In Progress';
     }
 
     const updatePayload = {
         submitted_minutes: submittedMinutes,
-        submitted_hours: minutesToHoursFloor(submittedMinutes),
         validated_minutes: validatedMinutes,
-        validated_hours: minutesToHoursFloor(validatedMinutes),
         progress_status: progressStatus,
-        assignment_status: progressStatus === 'Cleared' ? 'Cleared' : progressStatus,
         updated_at: now,
     };
 
-    if (submittedMinutes > 0) {
-        updatePayload.submitted_at = now;
+    if (assignmentStatus) {
+        updatePayload.assignment_status = assignmentStatus;
     }
 
     if (shouldClear) {
         updatePayload.ro_status = 'Cleared';
+        updatePayload.assignment_status = 'Cleared';
+        updatePayload.progress_status = 'Cleared';
         updatePayload.cleared_at = now;
         updatePayload.cleared_by = adminUserId || null;
     }
@@ -287,7 +327,9 @@ async function syncRoTotals(roId, user = {}) {
         .select()
         .single();
 
-    if (error) throw createHttpError(500, error.message);
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
 
     return data;
 }
@@ -324,13 +366,13 @@ async function getStudentForRoNotice(studentId) {
     const { data, error } = await supabase
         .from('students')
         .select(`
-            student_id,
-            user_id,
-            pdm_id,
-            first_name,
-            middle_name,
-            last_name
-        `)
+      student_id,
+      user_id,
+      pdm_id,
+      first_name,
+      middle_name,
+      last_name
+    `)
         .eq('student_id', studentId)
         .maybeSingle();
 
@@ -349,16 +391,17 @@ async function sendRoAssignmentNotification({
     student,
     roId,
     assignedArea,
-    assignedTask,
 }) {
     try {
-        if (!student?.user_id || typeof notificationService?.createUserNotification !== 'function') {
+        if (
+            !student?.user_id ||
+            typeof notificationService?.createUserNotification !== 'function'
+        ) {
             return null;
         }
 
         const message = [
             `You have been assigned a Return of Obligation task at ${assignedArea}.`,
-            assignedTask ? `Task: ${assignedTask}` : null,
             'Please open the RO module to view and acknowledge your assignment.',
         ]
             .filter(Boolean)
@@ -393,8 +436,13 @@ exports.getSummary = async () => {
                 .eq('validation_status', 'Pending Validation'),
         ]);
 
-    if (roError) throw createHttpError(500, roError.message);
-    if (logError) throw createHttpError(500, logError.message);
+    if (roError) {
+        throw createHttpError(500, roError.message);
+    }
+
+    if (logError) {
+        throw createHttpError(500, logError.message);
+    }
 
     const summary = {
         assigned: 0,
@@ -411,12 +459,19 @@ exports.getSummary = async () => {
         const assignmentStatus = row.assignment_status || 'Assigned';
         const progressStatus = row.progress_status || '';
 
-        if (row.ro_status === 'Cleared' || assignmentStatus === 'Cleared') summary.cleared += 1;
-        else if (assignmentStatus === 'Conflict Reported') summary.conflict += 1;
-        else if (assignmentStatus === 'Acknowledged') summary.acknowledged += 1;
-        else if (assignmentStatus === 'Assigned') summary.assigned += 1;
-        else if (progressStatus === 'For Validation') summary.forValidation += 1;
-        else if (progressStatus === 'In Progress') summary.inProgress += 1;
+        if (row.ro_status === 'Cleared' || assignmentStatus === 'Cleared') {
+            summary.cleared += 1;
+        } else if (assignmentStatus === 'Conflict Reported') {
+            summary.conflict += 1;
+        } else if (assignmentStatus === 'Acknowledged') {
+            summary.acknowledged += 1;
+        } else if (assignmentStatus === 'Assigned') {
+            summary.assigned += 1;
+        } else if (progressStatus === 'For Validation') {
+            summary.forValidation += 1;
+        } else if (progressStatus === 'In Progress') {
+            summary.inProgress += 1;
+        }
     }
 
     return summary;
@@ -448,15 +503,22 @@ exports.getROScholars = async (filters = {}) => {
         applicationQuery = applicationQuery.eq('opening_id', openingId);
     }
 
-    const { data: applications, error: applicationError } = await applicationQuery;
+    const { data: applications, error: applicationError } =
+        await applicationQuery;
 
-    if (applicationError) throw createHttpError(500, applicationError.message);
+    if (applicationError) {
+        throw createHttpError(500, applicationError.message);
+    }
 
     const approvedApplications = applications || [];
 
     if (!approvedApplications.length) return [];
 
-    const studentIds = [...new Set(approvedApplications.map((app) => app.student_id).filter(Boolean))];
+    const studentIds = [
+        ...new Set(
+            approvedApplications.map((app) => app.student_id).filter(Boolean)
+        ),
+    ];
 
     let studentQuery = supabase
         .from('students')
@@ -484,101 +546,157 @@ exports.getROScholars = async (filters = {}) => {
 
     const { data: students, error: studentError } = await studentQuery;
 
-    if (studentError) throw createHttpError(500, studentError.message);
+    if (studentError) {
+        throw createHttpError(500, studentError.message);
+    }
 
     const filteredStudents = students || [];
 
     if (!filteredStudents.length) return [];
 
-    const studentMap = new Map(filteredStudents.map((student) => [student.student_id, student]));
-    const finalApplications = approvedApplications.filter((app) => studentMap.has(app.student_id));
+    const studentMap = new Map(
+        filteredStudents.map((student) => [student.student_id, student])
+    );
+
+    const finalApplications = approvedApplications.filter((app) =>
+        studentMap.has(app.student_id)
+    );
 
     if (!finalApplications.length) return [];
 
-    const courseIds = [...new Set(filteredStudents.map((s) => s.course_id).filter(Boolean))];
-    const programIds = [...new Set(finalApplications.map((a) => a.program_id).filter(Boolean))];
-    const openingIds = [...new Set(finalApplications.map((a) => a.opening_id).filter(Boolean))];
-    const applicationIds = [...new Set(finalApplications.map((a) => a.application_id).filter(Boolean))];
+    const courseIds = [
+        ...new Set(filteredStudents.map((s) => s.course_id).filter(Boolean)),
+    ];
 
-    const [courseResult, programResult, openingResult, roResult] = await Promise.all([
-        courseIds.length
-            ? supabase.from('academic_course').select('course_id, course_code, course_name').in('course_id', courseIds)
-            : Promise.resolve({ data: [], error: null }),
+    const programIds = [
+        ...new Set(finalApplications.map((a) => a.program_id).filter(Boolean)),
+    ];
 
-        programIds.length
-            ? supabase.from('scholarship_program').select('program_id, program_name, benefactor_id').in('program_id', programIds)
-            : Promise.resolve({ data: [], error: null }),
+    const openingIds = [
+        ...new Set(finalApplications.map((a) => a.opening_id).filter(Boolean)),
+    ];
 
-        openingIds.length
-            ? supabase.from('program_openings').select('opening_id, opening_title, posting_status').in('opening_id', openingIds)
-            : Promise.resolve({ data: [], error: null }),
+    const applicationIds = [
+        ...new Set(
+            finalApplications.map((a) => a.application_id).filter(Boolean)
+        ),
+    ];
 
-        applicationIds.length
-            ? supabase
-                .from('return_of_obligations')
-                .select(`
-            ro_id,
-            student_id,
-            application_id,
-            opening_id,
-            program_id,
-            ro_status,
-            cleared_at,
-            cleared_by,
-            remarks,
-            created_at,
-            updated_at,
-            setting_id,
-            required_hours,
-            submitted_hours,
-            validated_hours,
-            progress_status,
-            progress_notes,
-            validation_remarks,
-            submitted_at,
-            validated_at,
-            submitted_progress,
-            ro_progress,
-            submitted_minutes,
-            validated_minutes,
-            assigned_area,
-            assigned_task,
-            assigned_location,
-            assigned_schedule,
-            assignment_status,
-            assignment_acknowledged_at,
-            conflict_reason,
-            assigned_by,
-            assigned_at
-          `)
-                .in('application_id', applicationIds)
-            : Promise.resolve({ data: [], error: null }),
-    ]);
+    const [courseResult, programResult, openingResult, roResult] =
+        await Promise.all([
+            courseIds.length
+                ? supabase
+                    .from('academic_course')
+                    .select('course_id, course_code, course_name')
+                    .in('course_id', courseIds)
+                : Promise.resolve({ data: [], error: null }),
 
-    if (courseResult.error) throw createHttpError(500, courseResult.error.message);
-    if (programResult.error) throw createHttpError(500, programResult.error.message);
-    if (openingResult.error) throw createHttpError(500, openingResult.error.message);
-    if (roResult.error) throw createHttpError(500, roResult.error.message);
+            programIds.length
+                ? supabase
+                    .from('scholarship_program')
+                    .select('program_id, program_name, benefactor_id')
+                    .in('program_id', programIds)
+                : Promise.resolve({ data: [], error: null }),
+
+            openingIds.length
+                ? supabase
+                    .from('program_openings')
+                    .select('opening_id, opening_title, posting_status')
+                    .in('opening_id', openingIds)
+                : Promise.resolve({ data: [], error: null }),
+
+            applicationIds.length
+                ? supabase
+                    .from('return_of_obligations')
+                    .select(`
+              ro_id,
+              student_id,
+              application_id,
+              opening_id,
+              program_id,
+              ro_status,
+              cleared_at,
+              cleared_by,
+              remarks,
+              created_at,
+              updated_at,
+              setting_id,
+              required_hours,
+              progress_status,
+              submitted_progress,
+              ro_progress,
+              submitted_minutes,
+              validated_minutes,
+              assigned_area,
+              assignment_status,
+              assignment_acknowledged_at,
+              conflict_reason,
+              assigned_by,
+              assigned_at
+            `)
+                    .in('application_id', applicationIds)
+                : Promise.resolve({ data: [], error: null }),
+        ]);
+
+    if (courseResult.error) {
+        throw createHttpError(500, courseResult.error.message);
+    }
+
+    if (programResult.error) {
+        throw createHttpError(500, programResult.error.message);
+    }
+
+    if (openingResult.error) {
+        throw createHttpError(500, openingResult.error.message);
+    }
+
+    if (roResult.error) {
+        throw createHttpError(500, roResult.error.message);
+    }
 
     const programs = programResult.data || [];
-    const benefactorIds = [...new Set(programs.map((program) => program.benefactor_id).filter(Boolean))];
+
+    const benefactorIds = [
+        ...new Set(programs.map((program) => program.benefactor_id).filter(Boolean)),
+    ];
 
     const { data: benefactors, error: benefactorError } = benefactorIds.length
-        ? await supabase.from('benefactors').select('benefactor_id, benefactor_name').in('benefactor_id', benefactorIds)
+        ? await supabase
+            .from('benefactors')
+            .select('benefactor_id, benefactor_name')
+            .in('benefactor_id', benefactorIds)
         : { data: [], error: null };
 
-    if (benefactorError) throw createHttpError(500, benefactorError.message);
+    if (benefactorError) {
+        throw createHttpError(500, benefactorError.message);
+    }
 
-    const courseMap = new Map((courseResult.data || []).map((course) => [course.course_id, course]));
-    const programMap = new Map(programs.map((program) => [program.program_id, program]));
-    const benefactorMap = new Map((benefactors || []).map((benefactor) => [benefactor.benefactor_id, benefactor]));
-    const openingMap = new Map((openingResult.data || []).map((opening) => [opening.opening_id, opening]));
+    const courseMap = new Map(
+        (courseResult.data || []).map((course) => [course.course_id, course])
+    );
+
+    const programMap = new Map(
+        programs.map((program) => [program.program_id, program])
+    );
+
+    const benefactorMap = new Map(
+        (benefactors || []).map((benefactor) => [
+            benefactor.benefactor_id,
+            benefactor,
+        ])
+    );
+
+    const openingMap = new Map(
+        (openingResult.data || []).map((opening) => [opening.opening_id, opening])
+    );
 
     const roRows = roResult.data || [];
     const roByApplication = new Map();
 
     for (const ro of roRows) {
-        if (ro.application_id) roByApplication.set(ro.application_id, ro);
+        if (ro.application_id) {
+            roByApplication.set(ro.application_id, ro);
+        }
     }
 
     const logsByRo = await getLogsForROIds(roRows.map((row) => row.ro_id));
@@ -588,6 +706,7 @@ exports.getROScholars = async (filters = {}) => {
     const rows = await Promise.all(
         finalApplications.map(async (app) => {
             const student = studentMap.get(app.student_id);
+
             if (!student) return null;
 
             const course = courseMap.get(student.course_id) || {};
@@ -598,26 +717,34 @@ exports.getROScholars = async (filters = {}) => {
             const logs = ro?.ro_id ? logsByRo.get(ro.ro_id) || [] : [];
 
             const serializedLogs = logs.map(serializeLog);
-            const pendingLogs = serializedLogs.filter((log) => log.validationStatus === 'Pending Validation');
-            const activeLog = serializedLogs.find((log) => log.logStatus === 'Timed In' && !log.timeOutAt);
+            const pendingLogs = serializedLogs.filter(
+                (log) => log.validationStatus === 'Pending Validation'
+            );
+            const activeLog = serializedLogs.find(
+                (log) => log.logStatus === 'Timed In' && !log.timeOutAt
+            );
 
             const name = fullName(student) || 'Unknown Scholar';
             const cleared = !!ro && isClearedStatus(ro.ro_status);
 
             const requiredHours = toNumber(ro?.required_hours);
             const requiredMinutes = requiredHours * 60;
-            const submittedMinutes =
-                toNumber(ro?.submitted_minutes) > 0
-                    ? toNumber(ro?.submitted_minutes)
-                    : toNumber(ro?.submitted_hours) * 60;
-            const validatedMinutes =
-                toNumber(ro?.validated_minutes) > 0
-                    ? toNumber(ro?.validated_minutes)
-                    : toNumber(ro?.validated_hours) * 60;
+            const submittedMinutes = toNumber(ro?.submitted_minutes);
+            const validatedMinutes = toNumber(ro?.validated_minutes);
 
             const assignmentStatus = cleared
                 ? 'Cleared'
                 : ro?.assignment_status || 'Unassigned';
+
+            const submittedProgress = percentFromMinutes(
+                submittedMinutes,
+                requiredMinutes
+            );
+
+            const validatedProgress = percentFromMinutes(
+                validatedMinutes,
+                requiredMinutes
+            );
 
             return {
                 student_id: student.student_id,
@@ -656,32 +783,34 @@ exports.getROScholars = async (filters = {}) => {
                 requiredHours,
                 required_minutes: requiredMinutes,
                 requiredMinutes,
+
                 submitted_minutes: submittedMinutes,
                 submittedMinutes,
+
                 validated_minutes: validatedMinutes,
                 validatedMinutes,
-                submitted_progress: percentFromMinutes(submittedMinutes, requiredMinutes),
-                submittedProgress: percentFromMinutes(submittedMinutes, requiredMinutes),
-                ro_progress: percentFromMinutes(validatedMinutes, requiredMinutes),
-                validatedProgress: percentFromMinutes(validatedMinutes, requiredMinutes),
+
+                submitted_progress: submittedProgress,
+                submittedProgress,
+
+                ro_progress: validatedProgress,
+                validatedProgress,
 
                 progress_status: cleared ? 'Cleared' : ro?.progress_status || 'Not Started',
                 progressStatus: cleared ? 'Cleared' : ro?.progress_status || 'Not Started',
 
                 assigned_area: ro?.assigned_area || '',
                 assignedArea: ro?.assigned_area || '',
-                assigned_task: ro?.assigned_task || '',
-                assignedTask: ro?.assigned_task || '',
-                assigned_location: ro?.assigned_location || '',
-                assignedLocation: ro?.assigned_location || '',
-                assigned_schedule: ro?.assigned_schedule || '',
-                assignedSchedule: ro?.assigned_schedule || '',
+
                 assignment_status: assignmentStatus,
                 assignmentStatus,
+
                 assignment_acknowledged_at: ro?.assignment_acknowledged_at || null,
                 assignmentAcknowledgedAt: ro?.assignment_acknowledged_at || null,
+
                 conflict_reason: ro?.conflict_reason || '',
                 conflictReason: ro?.conflict_reason || '',
+
                 assigned_at: ro?.assigned_at || null,
                 assignedAt: ro?.assigned_at || null,
 
@@ -707,7 +836,6 @@ exports.getROScholars = async (filters = {}) => {
                     row.opening_title,
                     row.benefactor_name,
                     row.assigned_area,
-                    row.assigned_task,
                     row.assignment_status,
                 ]
                     .filter(Boolean)
@@ -729,8 +857,15 @@ exports.getROScholars = async (filters = {}) => {
             if (status === 'assigned') return assignmentStatus === 'assigned';
             if (status === 'acknowledged') return assignmentStatus === 'acknowledged';
             if (status === 'conflict') return assignmentStatus === 'conflict reported';
-            if (status === 'in_progress') return progressStatus === 'in progress' || assignmentStatus === 'in progress';
-            if (status === 'for_validation') return progressStatus === 'for validation' || row.pending_log_count > 0;
+            if (status === 'in_progress') {
+                return (
+                    progressStatus === 'in progress' ||
+                    assignmentStatus === 'in progress'
+                );
+            }
+            if (status === 'for_validation') {
+                return progressStatus === 'for validation' || row.pending_log_count > 0;
+            }
 
             return true;
         });
@@ -785,16 +920,13 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
     const assignmentPayload = {
         student_id: studentId,
         application_id: application.application_id,
-        opening_id: application.opening_id || payload.openingId || null,
-        program_id: application.program_id || payload.programId || null,
+        opening_id: application.opening_id || payload.openingId || payload.opening_id || null,
+        program_id: application.program_id || payload.programId || payload.program_id || null,
 
         ro_status: 'Pending',
         required_hours: requiredHours,
 
         assigned_area: assignedDepartmentName,
-        assigned_task: null,
-        assigned_location: null,
-        assigned_schedule: null,
         remarks: cleanText(payload.remarks) || null,
 
         assignment_status: 'Assigned',
@@ -842,7 +974,6 @@ exports.assignScholarRO = async (studentId, payload = {}, user = {}) => {
         student,
         roId: assignment.ro_id,
         assignedArea: assignedDepartmentName,
-        assignedTask: null,
     });
 
     return {
@@ -861,10 +992,15 @@ exports.batchAssignScholarsRO = async (payload = {}, user = {}) => {
         throw createHttpError(400, 'At least one scholar must be selected.');
     }
 
-    const studentIds = [...new Set(rawStudentIds.map((id) => String(id).trim()).filter(Boolean))];
+    const studentIds = [
+        ...new Set(rawStudentIds.map((id) => String(id).trim()).filter(Boolean)),
+    ];
 
     if (studentIds.length > 100) {
-        throw createHttpError(400, 'Batch assignment is limited to 100 scholars at a time.');
+        throw createHttpError(
+            400,
+            'Batch assignment is limited to 100 scholars at a time.'
+        );
     }
 
     const assignedArea = payload.assignedArea || payload.assigned_area;
@@ -916,10 +1052,15 @@ exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
         throw createHttpError(400, 'Time log ID is required.');
     }
 
-    const validationStatus = cleanText(payload.validationStatus || payload.validation_status);
+    const validationStatus = cleanText(
+        payload.validationStatus || payload.validation_status
+    );
 
     if (!['Approved', 'Rejected'].includes(validationStatus)) {
-        throw createHttpError(400, 'Validation status must be Approved or Rejected.');
+        throw createHttpError(
+            400,
+            'Validation status must be Approved or Rejected.'
+        );
     }
 
     const { data: existingLog, error: existingError } = await supabase
@@ -928,10 +1069,16 @@ exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
         .eq('log_id', logId)
         .maybeSingle();
 
-    if (existingError) throw createHttpError(500, existingError.message);
-    if (!existingLog) throw createHttpError(404, 'Time log not found.');
+    if (existingError) {
+        throw createHttpError(500, existingError.message);
+    }
+
+    if (!existingLog) {
+        throw createHttpError(404, 'Time log not found.');
+    }
 
     const durationMinutes = toNumber(existingLog.duration_minutes);
+
     const requestedValidatedMinutes = toNumber(
         payload.validatedMinutes ?? payload.validated_minutes ?? durationMinutes
     );
@@ -949,7 +1096,12 @@ exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
         .update({
             validation_status: validationStatus,
             validated_minutes: validatedMinutes,
-            validation_remarks: cleanText(payload.remarks || payload.validationRemarks || payload.validation_remarks) || null,
+            validation_remarks:
+                cleanText(
+                    payload.remarks ||
+                    payload.validationRemarks ||
+                    payload.validation_remarks
+                ) || null,
             validated_by: adminUserId,
             validated_at: now,
             updated_at: now,
@@ -958,7 +1110,9 @@ exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
         .select()
         .single();
 
-    if (updateError) throw createHttpError(500, updateError.message);
+    if (updateError) {
+        throw createHttpError(500, updateError.message);
+    }
 
     const ro = await syncRoTotals(existingLog.ro_id, user);
 
@@ -979,8 +1133,8 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
     const updatePayload = {
         student_id: studentId,
         application_id: application.application_id,
-        opening_id: application.opening_id || payload.openingId || null,
-        program_id: application.program_id || payload.programId || null,
+        opening_id: application.opening_id || payload.openingId || payload.opening_id || null,
+        program_id: application.program_id || payload.programId || payload.program_id || null,
         ro_status: 'Cleared',
         progress_status: 'Cleared',
         assignment_status: 'Cleared',
@@ -998,7 +1152,9 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
             .select()
             .single();
 
-        if (error) throw createHttpError(500, error.message);
+        if (error) {
+            throw createHttpError(500, error.message);
+        }
 
         return {
             message: 'Student RO marked as cleared.',
@@ -1006,17 +1162,25 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
         };
     }
 
+    const activeRoSetting = await getActiveRoSettingForAssignments();
+
     const { data, error } = await supabase
         .from('return_of_obligations')
         .insert({
             ...updatePayload,
-            required_hours: Math.max(0, toNumber(payload.requiredHours ?? payload.required_hours ?? 20)),
+            required_hours: Math.max(
+                0,
+                toNumber(activeRoSetting?.required_hours ?? 20)
+            ),
+            setting_id: activeRoSetting?.setting_id || null,
             created_at: now,
         })
         .select()
         .single();
 
-    if (error) throw createHttpError(500, error.message);
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
 
     return {
         message: 'Student RO marked as cleared.',

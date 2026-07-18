@@ -8,7 +8,13 @@ class MobileRealtimeEvents {
   static const notificationDeleted = 'notification:deleted';
   static const notificationArchived = 'notification:archived';
   static const notificationRestored = 'notification:restored';
+  static const notificationRead = 'notification:read';
   static const notificationReadAll = 'notification:read-all';
+
+  // Notification compatibility aliases
+  static const notificationsUpdated = 'notifications:updated';
+  static const notificationCreatedLegacy = 'notificationCreated';
+  static const notificationUpdatedLegacy = 'notificationUpdated';
 
   // Announcements
   static const announcementCreated = 'announcement:created';
@@ -64,7 +70,11 @@ class MobileRealtimeEvents {
 
   // Return of Obligation
   static const roCreated = 'ro:created';
+  static const roAssigned = 'ro:assigned';
+  static const roAcknowledged = 'ro:acknowledged';
+  static const roConflictReported = 'ro:conflict-reported';
   static const roUpdated = 'ro:updated';
+  static const roUpdatedLegacy = 'roUpdated';
   static const roCleared = 'ro:cleared';
   static const roProgressUpdated = 'ro:progress-updated';
   static const roTimeIn = 'ro:time-in';
@@ -106,7 +116,13 @@ class MobileRealtimeEvents {
     notificationDeleted,
     notificationArchived,
     notificationRestored,
+    notificationRead,
     notificationReadAll,
+
+    // Compatibility aliases
+    notificationsUpdated,
+    notificationCreatedLegacy,
+    notificationUpdatedLegacy,
   };
 
   static final Set<String> officeUpdateEvents = <String>{
@@ -151,7 +167,11 @@ class MobileRealtimeEvents {
 
   static final Set<String> roEvents = <String>{
     roCreated,
+    roAssigned,
+    roAcknowledged,
+    roConflictReported,
     roUpdated,
+    roUpdatedLegacy,
     roCleared,
     roProgressUpdated,
     roTimeIn,

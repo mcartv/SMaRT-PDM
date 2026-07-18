@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_events.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -25,7 +26,7 @@ class NotificationProvider extends ChangeNotifier {
   final ProfileService _profileService;
   final SessionService _sessionService;
 
-  List<AppNotification> _notifications = [];
+  List<AppNotification> _notifications = <AppNotification>[];
   AppNotification? _latestPendingOpeningUpdate;
 
   bool _isLoading = false;
@@ -33,6 +34,22 @@ class NotificationProvider extends ChangeNotifier {
   bool _hasScholarAccess = false;
   bool _isRealtimeRefreshing = false;
   bool _hasQueuedRealtimeRefresh = false;
+  bool _isRoRealtimeNotification(MobileRealtimeEvent event) {
+    final payload = event.payload;
+
+    final type = payload['type']?.toString().toLowerCase() ?? '';
+    final title = payload['title']?.toString().toLowerCase() ?? '';
+
+    final referenceType =
+        payload['reference_type']?.toString().toLowerCase() ??
+        payload['referenceType']?.toString().toLowerCase() ??
+        '';
+
+    return type.contains('ro') ||
+        type.contains('return of obligation') ||
+        title.contains('return of obligation') ||
+        referenceType == 'return_of_obligation';
+  }
 
   String? _errorMessage;
   String _initializedUserId = '';
@@ -50,7 +67,9 @@ class NotificationProvider extends ChangeNotifier {
 
   VoidCallback? _stopRealtimeListener;
 
-  List<AppNotification> get notifications => _notifications;
+  List<AppNotification> get notifications => List.unmodifiable(_notifications);
+
+  List<AppNotification> get items => notifications;
 
   List<AppNotification> get officeUpdatesItems => _composeOfficeUpdates();
 
@@ -60,10 +79,18 @@ class NotificationProvider extends ChangeNotifier {
   List<AppNotification> get homeOfficeUpdatesItems =>
       officeUpdatesItems.take(2).toList();
 
+  List<AppNotification> get roItems =>
+      _notifications.where((item) => item.isRoNotification).toList();
+
   bool get isLoading => _isLoading;
+
   bool get hasScholarAccess => _hasScholarAccess;
 
   String? get errorMessage => _errorMessage;
+
+  String? get error => _errorMessage;
+
+  bool get hasError => _errorMessage != null;
 
   int get unreadCount => _unreadCount;
 
@@ -91,6 +118,7 @@ class NotificationProvider extends ChangeNotifier {
 
     if (_isInitialized && _initializedUserId == session.userId) {
       _ensureRealtimeListener();
+      await refreshUnreadCount();
       return;
     }
 
@@ -126,10 +154,11 @@ class NotificationProvider extends ChangeNotifier {
         await _applyScholarAccess(true);
       }
 
-      _recalculateUnreadCount();
+      await _refreshUnreadCountFromServerOrLocal();
       _errorMessage = null;
     } catch (error) {
       _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _recalculateUnreadCount();
     } finally {
       if (!silent) {
         _isLoading = false;
@@ -140,25 +169,23 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   Future<void> refreshUnreadCount() async {
-    try {
-      _unreadCount = await _notificationService.fetchUnreadCount();
-      notifyListeners();
-    } catch (_) {
-      // Keep current badge count when count refresh fails.
-    }
+    await _refreshUnreadCountFromServerOrLocal();
+    notifyListeners();
   }
 
   Future<void> markAsRead(String notificationId) async {
     try {
       final updated = await _notificationService.markAsRead(notificationId);
 
-      _notifications = _notifications.map((notification) {
-        return notification.notificationId == notificationId
-            ? updated
-            : notification;
-      }).toList();
+      _notifications = _notifications
+          .map((notification) {
+            return notification.notificationId == notificationId
+                ? updated
+                : notification;
+          })
+          .toList(growable: false);
 
-      _recalculateUnreadCount();
+      await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
       _errorMessage = error.toString().replaceFirst('Exception: ', '');
@@ -202,15 +229,17 @@ class NotificationProvider extends ChangeNotifier {
         await _notificationService.markAsRead(notification.notificationId);
       }
 
-      _notifications = _notifications.map((notification) {
-        if (notification.isPayoutNotification) {
-          return notification.copyWith(isRead: true);
-        }
+      _notifications = _notifications
+          .map((notification) {
+            if (notification.isPayoutNotification) {
+              return notification.copyWith(isRead: true);
+            }
 
-        return notification;
-      }).toList();
+            return notification;
+          })
+          .toList(growable: false);
 
-      _recalculateUnreadCount();
+      await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
       _errorMessage = error.toString().replaceFirst('Exception: ', '');
@@ -226,9 +255,9 @@ class NotificationProvider extends ChangeNotifier {
           .where(
             (notification) => notification.notificationId != notificationId,
           )
-          .toList();
+          .toList(growable: false);
 
-      _recalculateUnreadCount();
+      await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
       _errorMessage = error.toString().replaceFirst('Exception: ', '');
@@ -249,11 +278,35 @@ class NotificationProvider extends ChangeNotifier {
     switch (event.name) {
       case MobileRealtimeEvents.notificationNew:
       case MobileRealtimeEvents.notificationCreated:
+      case MobileRealtimeEvents.notificationCreatedLegacy:
         await _upsertNotificationFromEvent(event);
+
+        if (_isRoRealtimeNotification(event)) {
+          _roRevision += 1;
+          notifyListeners();
+          return;
+        }
+
         await _refreshOfficeUpdatesFromRealtime();
         return;
 
       case MobileRealtimeEvents.notificationUpdated:
+      case MobileRealtimeEvents.notificationsUpdated:
+      case MobileRealtimeEvents.notificationUpdatedLegacy:
+        await _updateNotificationFromEvent(event);
+
+        if (_isRoRealtimeNotification(event)) {
+          _roRevision += 1;
+          notifyListeners();
+          return;
+        }
+
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.notificationUpdated:
+      case MobileRealtimeEvents.notificationsUpdated:
+      case MobileRealtimeEvents.notificationUpdatedLegacy:
         await _updateNotificationFromEvent(event);
         await _refreshOfficeUpdatesFromRealtime();
         return;
@@ -266,6 +319,11 @@ class NotificationProvider extends ChangeNotifier {
 
       case MobileRealtimeEvents.notificationRestored:
         await _refreshOfficeUpdatesFromRealtime();
+        return;
+
+      case MobileRealtimeEvents.notificationRead:
+        await _updateNotificationFromEvent(event);
+        await refreshUnreadCount();
         return;
 
       case MobileRealtimeEvents.notificationReadAll:
@@ -354,7 +412,11 @@ class NotificationProvider extends ChangeNotifier {
         return;
 
       case MobileRealtimeEvents.roCreated:
+      case MobileRealtimeEvents.roAssigned:
+      case MobileRealtimeEvents.roAcknowledged:
+      case MobileRealtimeEvents.roConflictReported:
       case MobileRealtimeEvents.roUpdated:
+      case MobileRealtimeEvents.roUpdatedLegacy:
       case MobileRealtimeEvents.roCleared:
       case MobileRealtimeEvents.roProgressUpdated:
       case MobileRealtimeEvents.roTimeIn:
@@ -400,7 +462,7 @@ class NotificationProvider extends ChangeNotifier {
 
     try {
       debugPrint(
-        '[NotificationProvider] refreshing office updates from realtime',
+        '[NotificationProvider] refreshing notifications from realtime',
       );
 
       final result = await _notificationService.fetchNotifications();
@@ -412,12 +474,12 @@ class NotificationProvider extends ChangeNotifier {
         await _applyScholarAccess(true);
       }
 
-      _recalculateUnreadCount();
+      await _refreshUnreadCountFromServerOrLocal();
       _errorMessage = null;
 
       notifyListeners();
     } catch (error) {
-      debugPrint('OFFICE UPDATES REALTIME REFRESH ERROR: $error');
+      debugPrint('NOTIFICATION REALTIME REFRESH ERROR: $error');
     } finally {
       _isRealtimeRefreshing = false;
     }
@@ -425,6 +487,14 @@ class NotificationProvider extends ChangeNotifier {
     if (_hasQueuedRealtimeRefresh) {
       _hasQueuedRealtimeRefresh = false;
       await _refreshOfficeUpdatesFromRealtime();
+    }
+  }
+
+  Future<void> _refreshUnreadCountFromServerOrLocal() async {
+    try {
+      _unreadCount = await _notificationService.fetchUnreadCount();
+    } catch (_) {
+      _recalculateUnreadCount();
     }
   }
 
@@ -444,6 +514,11 @@ class NotificationProvider extends ChangeNotifier {
     try {
       final notification = AppNotification.fromJson(payload);
 
+      if (notification.notificationId.trim().isEmpty) {
+        await _refreshOfficeUpdatesFromRealtime();
+        return;
+      }
+
       if (_isScholarApprovalNotification(notification)) {
         await _applyScholarAccess(true);
       }
@@ -460,14 +535,18 @@ class NotificationProvider extends ChangeNotifier {
         _payoutRevision += 1;
       }
 
-      _notifications = [
+      if (notification.isRoNotification) {
+        _roRevision += 1;
+      }
+
+      _notifications = <AppNotification>[
         notification,
         ..._notifications.where(
           (item) => item.notificationId != notification.notificationId,
         ),
       ];
 
-      _recalculateUnreadCount();
+      await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
       debugPrint('UPSERT REALTIME NOTIFICATION ERROR: $error');
@@ -481,6 +560,12 @@ class NotificationProvider extends ChangeNotifier {
     try {
       final updated = AppNotification.fromJson(payload);
 
+      if (updated.notificationId.trim().isEmpty) {
+        await _refreshUnreadCountFromServerOrLocal();
+        notifyListeners();
+        return;
+      }
+
       if (updated.isAnnouncementNotification) {
         _announcementRevision += 1;
       }
@@ -493,13 +578,28 @@ class NotificationProvider extends ChangeNotifier {
         _payoutRevision += 1;
       }
 
-      _notifications = _notifications.map((notification) {
-        return notification.notificationId == updated.notificationId
-            ? updated
-            : notification;
-      }).toList();
+      if (updated.isRoNotification) {
+        _roRevision += 1;
+      }
 
-      _recalculateUnreadCount();
+      var found = false;
+
+      _notifications = _notifications
+          .map((notification) {
+            if (notification.notificationId == updated.notificationId) {
+              found = true;
+              return updated;
+            }
+
+            return notification;
+          })
+          .toList(growable: false);
+
+      if (!found && updated.notificationId.trim().isNotEmpty) {
+        _notifications = <AppNotification>[updated, ..._notifications];
+      }
+
+      await _refreshUnreadCountFromServerOrLocal();
       notifyListeners();
     } catch (error) {
       debugPrint('UPDATE REALTIME NOTIFICATION ERROR: $error');
@@ -516,7 +616,7 @@ class NotificationProvider extends ChangeNotifier {
 
     _notifications = _notifications
         .where((notification) => notification.notificationId != notificationId)
-        .toList();
+        .toList(growable: false);
 
     _recalculateUnreadCount();
     notifyListeners();
@@ -540,21 +640,23 @@ class NotificationProvider extends ChangeNotifier {
 
     if (targetReferenceId.isEmpty) return;
 
-    _notifications = _notifications.where((notification) {
-      final itemReferenceId = (notification.referenceId ?? '').trim();
-      final itemReferenceType = (notification.referenceType ?? '')
-          .trim()
-          .toLowerCase();
-      final itemType = notification.type.trim().toLowerCase();
+    _notifications = _notifications
+        .where((notification) {
+          final itemReferenceId = (notification.referenceId ?? '').trim();
+          final itemReferenceType = (notification.referenceType ?? '')
+              .trim()
+              .toLowerCase();
+          final itemType = notification.type.trim().toLowerCase();
 
-      final sameReferenceId = itemReferenceId == targetReferenceId;
-      final sameReferenceType =
-          itemReferenceType == targetReferenceType ||
-          itemType == targetReferenceType ||
-          itemType.contains(targetReferenceType);
+          final sameReferenceId = itemReferenceId == targetReferenceId;
+          final sameReferenceType =
+              itemReferenceType == targetReferenceType ||
+              itemType == targetReferenceType ||
+              itemType.contains(targetReferenceType);
 
-      return !(sameReferenceId && sameReferenceType);
-    }).toList();
+          return !(sameReferenceId && sameReferenceType);
+        })
+        .toList(growable: false);
 
     _recalculateUnreadCount();
     notifyListeners();
@@ -600,7 +702,7 @@ class NotificationProvider extends ChangeNotifier {
   List<AppNotification> _composeOfficeUpdates() {
     final officeUpdates = _notifications
         .where((item) => item.isOfficeUpdate)
-        .toList();
+        .toList(growable: false);
 
     if (_latestPendingOpeningUpdate == null) {
       return officeUpdates;
@@ -608,26 +710,28 @@ class NotificationProvider extends ChangeNotifier {
 
     final latestReferenceId = _latestPendingOpeningUpdate!.referenceId;
 
-    final deduped = officeUpdates.where((item) {
-      if (!item.isOpeningUpdate) {
-        return true;
-      }
+    final deduped = officeUpdates
+        .where((item) {
+          if (!item.isOpeningUpdate) {
+            return true;
+          }
 
-      if (latestReferenceId == null || latestReferenceId.isEmpty) {
-        return true;
-      }
+          if (latestReferenceId == null || latestReferenceId.isEmpty) {
+            return true;
+          }
 
-      return item.referenceId != latestReferenceId;
-    }).toList();
+          return item.referenceId != latestReferenceId;
+        })
+        .toList(growable: false);
 
-    return [_latestPendingOpeningUpdate!, ...deduped];
+    return <AppNotification>[_latestPendingOpeningUpdate!, ...deduped];
   }
 
   void _resetRuntimeState({bool notify = true}) {
     _stopRealtimeListener?.call();
     _stopRealtimeListener = null;
 
-    _notifications = [];
+    _notifications = <AppNotification>[];
     _latestPendingOpeningUpdate = null;
 
     _isLoading = false;

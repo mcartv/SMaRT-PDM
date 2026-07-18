@@ -452,7 +452,7 @@ function handleJoinPayload(socket, payload = {}) {
 // SERVER START WITH SOCKET.IO
 // =========================
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 const server = http.createServer(app);
 

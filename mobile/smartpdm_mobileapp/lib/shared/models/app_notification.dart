@@ -28,14 +28,14 @@ class AppNotification {
   static String _pickString(Map<String, dynamic> json, List<String> keys) {
     for (final key in keys) {
       final value = json[key];
-      if (value == null) {
-        continue;
-      }
-      final text = value.toString();
-      if (text.isNotEmpty) {
-        return text;
-      }
+
+      if (value == null) continue;
+
+      final text = value.toString().trim();
+
+      if (text.isNotEmpty) return text;
     }
+
     return '';
   }
 
@@ -50,72 +50,104 @@ class AppNotification {
   static bool _pickBool(Map<String, dynamic> json, List<String> keys) {
     for (final key in keys) {
       final value = json[key];
-      if (value is bool) {
-        return value;
-      }
-      if (value is num) {
-        return value != 0;
-      }
+
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+
       if (value is String) {
         final normalized = value.trim().toLowerCase();
-        if (normalized == 'true' || normalized == '1') {
-          return true;
-        }
-        if (normalized == 'false' || normalized == '0') {
-          return false;
-        }
+
+        if (normalized == 'true' || normalized == '1') return true;
+        if (normalized == 'false' || normalized == '0') return false;
       }
     }
+
     return false;
   }
 
   factory AppNotification.fromJson(Map<String, dynamic> json) {
+    final parsedType = _pickString(json, [
+      'type',
+      'notificationType',
+      'notification_type',
+    ]);
+
+    final parsedTitle = _pickString(json, [
+      'title',
+      'notificationTitle',
+      'notification_title',
+    ]);
+
     return AppNotification(
-      notificationId: _pickString(json, ['notificationId', 'notification_id']),
+      notificationId: _pickString(json, [
+        'notificationId',
+        'notification_id',
+        'id',
+      ]),
       userId: _pickString(json, ['userId', 'user_id']),
-      type: _pickString(json, ['type']).isEmpty
-          ? 'Notification'
-          : _pickString(json, ['type']),
-      title: _pickString(json, ['title']).isEmpty
-          ? 'Notification'
-          : _pickString(json, ['title']),
-      message: _pickString(json, ['message']),
-      referenceId: _pickNullableString(json, ['referenceId', 'reference_id']),
+      type: parsedType.isEmpty ? 'Notification' : parsedType,
+      title: parsedTitle.isEmpty ? 'Notification' : parsedTitle,
+      message: _pickString(json, ['message', 'body', 'content', 'description']),
+      referenceId: _pickNullableString(json, [
+        'referenceId',
+        'reference_id',
+        'roId',
+        'ro_id',
+        'applicationId',
+        'application_id',
+        'openingId',
+        'opening_id',
+        'payoutBatchId',
+        'payout_batch_id',
+      ]),
       referenceType: _pickNullableString(json, [
         'referenceType',
         'reference_type',
       ]),
-      isRead: _pickBool(json, ['isRead', 'is_read']),
+      isRead: _pickBool(json, ['isRead', 'is_read', 'read']),
       pushSent: _pickBool(json, ['pushSent', 'push_sent']),
       createdAt:
           DateTime.tryParse(
-            _pickString(json, ['createdAt', 'created_at']),
+            _pickString(json, ['createdAt', 'created_at', 'date', 'timestamp']),
           ) ??
           DateTime.now(),
     );
   }
 
-  AppNotification copyWith({bool? isRead}) {
+  AppNotification copyWith({
+    String? notificationId,
+    String? userId,
+    String? type,
+    String? title,
+    String? message,
+    String? referenceId,
+    String? referenceType,
+    bool? isRead,
+    bool? pushSent,
+    DateTime? createdAt,
+  }) {
     return AppNotification(
-      notificationId: notificationId,
-      userId: userId,
-      type: type,
-      title: title,
-      message: message,
-      referenceId: referenceId,
-      referenceType: referenceType,
+      notificationId: notificationId ?? this.notificationId,
+      userId: userId ?? this.userId,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      message: message ?? this.message,
+      referenceId: referenceId ?? this.referenceId,
+      referenceType: referenceType ?? this.referenceType,
       isRead: isRead ?? this.isRead,
-      pushSent: pushSent,
-      createdAt: createdAt,
+      pushSent: pushSent ?? this.pushSent,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
   factory AppNotification.fromLatestOpening(Map<String, dynamic> json) {
     final openingId = json['opening_id']?.toString() ?? '';
+
     final openingTitle =
         json['opening_title']?.toString().trim().isNotEmpty == true
         ? json['opening_title']!.toString().trim()
         : 'Scholarship Opening';
+
     final programName = json['program_name']?.toString().trim() ?? '';
     final body = json['announcement_text']?.toString().trim() ?? '';
 
@@ -141,72 +173,127 @@ class AppNotification {
     );
   }
 
-  bool get isOfficeUpdate {
-    final normalizedType = type.toLowerCase();
-    final normalizedReference = (referenceType ?? '').toLowerCase();
+  String get normalizedType => type.trim().toLowerCase();
 
-    return normalizedReference == 'announcement' ||
-        normalizedReference == 'program_opening' ||
+  String get normalizedTitle => title.trim().toLowerCase();
+
+  String get normalizedMessage => message.trim().toLowerCase();
+
+  String get normalizedReferenceType =>
+      (referenceType ?? '').trim().toLowerCase();
+
+  bool get isOfficeUpdate {
+    return normalizedReferenceType == 'announcement' ||
+        normalizedReferenceType == 'program_opening' ||
         normalizedType == 'announcement' ||
         normalizedType == 'opening';
   }
 
   bool get isOpeningUpdate {
-    final normalizedType = type.toLowerCase();
-    final normalizedReference = (referenceType ?? '').toLowerCase();
-    return normalizedReference == 'program_opening' ||
+    return normalizedReferenceType == 'program_opening' ||
         normalizedType == 'opening';
   }
 
   bool get isAnnouncementNotification {
-    final normalizedType = type.toLowerCase();
-    final normalizedReference = (referenceType ?? '').toLowerCase();
-    return normalizedReference == 'announcement' ||
+    return normalizedReferenceType == 'announcement' ||
         normalizedType == 'announcement';
   }
 
   bool get isPayoutNotification {
-    final normalizedType = type.toLowerCase();
-    final normalizedReference = (referenceType ?? '').toLowerCase();
     return normalizedType == 'payout_released' ||
-        normalizedReference == 'payout_batch' ||
-        title.toLowerCase().contains('payout');
+        normalizedType == 'payout_scheduled' ||
+        normalizedType.contains('payout') ||
+        normalizedReferenceType == 'payout_batch' ||
+        normalizedTitle.contains('payout');
+  }
+
+  bool get isRoNotification {
+    return normalizedReferenceType == 'return_of_obligation' ||
+        normalizedReferenceType == 'return-of-obligation' ||
+        normalizedReferenceType == 'ro' ||
+        normalizedType == 'ro_assignment' ||
+        normalizedType == 'return_of_obligation' ||
+        normalizedType == 'return-of-obligation' ||
+        normalizedType.contains('ro_') ||
+        normalizedType.contains('return') ||
+        normalizedType.contains('obligation') ||
+        normalizedTitle.contains('return of obligation') ||
+        normalizedTitle.contains('obligation');
+  }
+
+  bool get isApplicationNotification {
+    return normalizedReferenceType == 'application' ||
+        normalizedType.contains('application') ||
+        normalizedTitle.contains('application');
+  }
+
+  bool get isDocumentNotification {
+    return normalizedReferenceType == 'application_document' ||
+        normalizedType.contains('document') ||
+        normalizedTitle.contains('document');
   }
 
   String get officeUpdateLabel {
-    if (isOpeningUpdate) {
-      return 'SCHOLARSHIP OPENING';
-    }
-
+    if (isOpeningUpdate) return 'SCHOLARSHIP OPENING';
     return 'ANNOUNCEMENT';
   }
 
-  String get previewText {
-    if (message.trim().isEmpty) {
-      return isOpeningUpdate
-          ? 'A scholarship opening has been posted for applicants.'
-          : 'A new office update has been posted.';
+  String get badgeLabel {
+    if (isRoNotification) return 'RO ASSIGNMENT';
+
+    if (isPayoutNotification) {
+      if (normalizedType.contains('scheduled')) return 'PAYOUT SCHEDULED';
+      if (normalizedType.contains('released')) return 'PAYOUT RELEASED';
+      return 'PAYOUT';
     }
 
-    return message.trim();
+    if (isOpeningUpdate) return 'SCHOLARSHIP OPENING';
+    if (isAnnouncementNotification) return 'ANNOUNCEMENT';
+    if (isApplicationNotification) return 'APPLICATION';
+    if (isDocumentNotification) return 'DOCUMENT';
+
+    return type.trim().isEmpty ? 'NOTIFICATION' : type.trim().toUpperCase();
+  }
+
+  String get previewText {
+    final trimmedMessage = message.trim();
+
+    if (trimmedMessage.isNotEmpty) return trimmedMessage;
+
+    if (isRoNotification) {
+      return 'You have a Return of Obligation update.';
+    }
+
+    if (isOpeningUpdate) {
+      return 'A scholarship opening has been posted for applicants.';
+    }
+
+    if (isPayoutNotification) {
+      return 'Your scholarship payout has an update.';
+    }
+
+    if (isAnnouncementNotification) {
+      return 'A new office update has been posted.';
+    }
+
+    return 'You have a new notification.';
   }
 
   IconData get icon {
-    final normalizedType = type.toLowerCase();
-    final normalizedReference = (referenceType ?? '').toLowerCase();
-
-    if (normalizedReference == 'program_opening' ||
-        normalizedType == 'opening') {
-      return Icons.auto_awesome_motion_outlined;
-    }
-
-    if (normalizedReference == 'announcement' ||
-        normalizedType == 'announcement') {
-      return Icons.campaign_outlined;
+    if (isRoNotification) {
+      return Icons.assignment_turned_in_outlined;
     }
 
     if (isPayoutNotification) {
       return Icons.payments_outlined;
+    }
+
+    if (isOpeningUpdate) {
+      return Icons.auto_awesome_motion_outlined;
+    }
+
+    if (isAnnouncementNotification) {
+      return Icons.campaign_outlined;
     }
 
     if (normalizedType.contains('interview')) {
@@ -227,21 +314,20 @@ class AppNotification {
   }
 
   Color get accentColor {
-    final normalizedType = type.toLowerCase();
-    final normalizedReference = (referenceType ?? '').toLowerCase();
-
-    if (normalizedReference == 'program_opening' ||
-        normalizedType == 'opening') {
-      return Colors.deepOrange;
-    }
-
-    if (normalizedReference == 'announcement' ||
-        normalizedType == 'announcement') {
-      return Colors.orange;
+    if (isRoNotification) {
+      return Colors.amber;
     }
 
     if (isPayoutNotification) {
       return Colors.green;
+    }
+
+    if (isOpeningUpdate) {
+      return Colors.deepOrange;
+    }
+
+    if (isAnnouncementNotification) {
+      return Colors.orange;
     }
 
     if (normalizedType.contains('interview')) {

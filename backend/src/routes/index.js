@@ -16,14 +16,19 @@ const roRoutes = require('./roRoutes');
 
 const router = express.Router();
 
-
-
 router.use('/api/auth', authRoutes);
 
 router.use('/api/courses', courseRoutes);
 router.use('/api/profile', profileRoutes);
 router.use('/api/applications', applicationRoutes);
+
+/*
+  Mobile uses /api/openings.
+  Some admin/web code may use /api/program-openings.
+*/
 router.use('/api/openings', openingRoutes);
+router.use('/api/program-openings', openingRoutes);
+
 router.use('/api/messages', messageRoutes);
 router.use('/api/admin/applications', adminApplicationRoutes);
 router.use('/api/admin/profile-photos', adminProfilePhotoRoutes);
@@ -33,8 +38,13 @@ router.use('/api/students', studentRoutes);
 router.use('/api/payouts', payoutRoutes);
 router.use('/api/ro', roRoutes);
 
-router.get('/api/health', (req, res) => {
-    res.status(200).json({ status: 'OK' });
+router.get('/api/health', (_req, res) => {
+    res.status(200).json({
+        status: 'OK',
+        service: 'SMaRT-PDM backend',
+    });
 });
+
+console.log('[Routes] Mounted: /api/openings and /api/openings/latest');
 
 module.exports = router;

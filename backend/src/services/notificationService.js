@@ -31,11 +31,13 @@ function safeCompareSecrets(left, right) {
   const rightBuffer = Buffer.from(right || '');
 
   if (leftBuffer.length !== rightBuffer.length) return false;
+
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 function isLoopbackAddress(value) {
   const normalized = String(value || '').trim().replace(/^::ffff:/, '');
+
   return (
     normalized === '127.0.0.1' ||
     normalized === '::1' ||
@@ -51,24 +53,119 @@ function isAuthorizedInternalRequest(req) {
     return safeCompareSecrets(providedSecret, expectedSecret);
   }
 
-  return isLoopbackAddress(req.ip) || isLoopbackAddress(req.socket?.remoteAddress);
+  return (
+    isLoopbackAddress(req.ip) ||
+    isLoopbackAddress(req.socket?.remoteAddress)
+  );
+}
+
+function normalizeNotification(row = {}) {
+  const id = row.notification_id || row.notificationId || row.id || null;
+  const userId = row.user_id || row.userId || null;
+  const referenceId = row.reference_id || row.referenceId || null;
+  const referenceType = row.reference_type || row.referenceType || null;
+  const createdAt = row.created_at || row.createdAt || new Date().toISOString();
+
+  return {
+    id,
+    notificationId: id,
+    notification_id: id,
+
+    userId,
+    user_id: userId,
+
+    type: row.type || 'General',
+    title: row.title || '',
+    message: row.message || '',
+
+    referenceId,
+    reference_id: referenceId,
+
+    referenceType,
+    reference_type: referenceType,
+
+    isRead: row.is_read === true || row.isRead === true,
+    is_read: row.is_read === true || row.isRead === true,
+
+    pushSent: row.push_sent === true || row.pushSent === true,
+    push_sent: row.push_sent === true || row.pushSent === true,
+
+    createdAt,
+    created_at: createdAt,
+  };
 }
 
 function emitToUser(userId, eventName, payload) {
   if (!ioInstance || !userId) return;
+
   ioInstance.to(`user:${userId}`).emit(eventName, payload);
+}
+
+function emitNotificationCreated(userId, notification) {
+  const payload = normalizeNotification(notification);
+
+  emitToUser(userId, 'notification:new', payload);
+  emitToUser(userId, 'notification:created', payload);
+
+  // Compatibility aliases.
+  emitToUser(userId, 'notifications:updated', payload);
+  emitToUser(userId, 'notificationCreated', payload);
+}
+
+function emitNotificationUpdated(userId, notification) {
+  const payload = normalizeNotification(notification);
+
+  emitToUser(userId, 'notification:updated', payload);
+
+  // Compatibility aliases.
+  emitToUser(userId, 'notifications:updated', payload);
+  emitToUser(userId, 'notificationUpdated', payload);
+}
+
+function emitNotificationReadAll(userId, updatedCount = 0) {
+  const payload = {
+    user_id: userId,
+    userId,
+    updatedCount,
+    updated_count: updatedCount,
+    created_at: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  };
+
+  emitToUser(userId, 'notification:read-all', payload);
+  emitToUser(userId, 'notification:updated', payload);
+
+  // Compatibility aliases.
+  emitToUser(userId, 'notifications:updated', payload);
+  emitToUser(userId, 'notificationUpdated', payload);
+}
+
+function emitNotificationDeleted(userId, notificationId) {
+  const payload = {
+    notificationId,
+    notification_id: notificationId,
+    referenceId: notificationId,
+    reference_id: notificationId,
+    created_at: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  };
+
+  emitToUser(userId, 'notification:deleted', payload);
+
+  // Compatibility aliases.
+  emitToUser(userId, 'notifications:updated', payload);
 }
 
 function isAnnouncementNotification(row = {}) {
   const type = normalizeText(row.type);
-  const referenceType = normalizeText(row.reference_type);
+  const referenceType = normalizeText(row.reference_type || row.referenceType);
 
   return type.includes('announcement') || referenceType === 'announcement';
 }
 
 function isOpeningNotification(row = {}) {
   const type = normalizeText(row.type);
-  const referenceType = normalizeText(row.reference_type);
+  const referenceType = normalizeText(row.reference_type || row.referenceType);
 
   return (
     type.includes('opening') ||
@@ -84,7 +181,7 @@ async function filterLiveNotificationRows(rows = []) {
     ...new Set(
       source
         .filter(isAnnouncementNotification)
-        .map((row) => row.reference_id)
+        .map((row) => row.reference_id || row.referenceId)
         .filter(Boolean)
         .map(String)
     ),
@@ -94,7 +191,7 @@ async function filterLiveNotificationRows(rows = []) {
     ...new Set(
       source
         .filter(isOpeningNotification)
-        .map((row) => row.reference_id)
+        .map((row) => row.reference_id || row.referenceId)
         .filter(Boolean)
         .map(String)
     ),
@@ -139,18 +236,37 @@ async function filterLiveNotificationRows(rows = []) {
 
   return source.filter((row) => {
     if (isAnnouncementNotification(row)) {
-      if (!row.reference_id) return false;
-      return liveAnnouncementIds.has(String(row.reference_id));
+      const referenceId = row.reference_id || row.referenceId;
+
+      if (!referenceId) return false;
+
+      return liveAnnouncementIds.has(String(referenceId));
     }
 
     if (isOpeningNotification(row)) {
-      if (!row.reference_id) return false;
-      return liveOpeningIds.has(String(row.reference_id));
+      const referenceId = row.reference_id || row.referenceId;
+
+      if (!referenceId) return false;
+
+      return liveOpeningIds.has(String(referenceId));
     }
 
     return true;
   });
 }
+
+const NOTIFICATION_SELECT = `
+  notification_id,
+  user_id,
+  type,
+  title,
+  message,
+  reference_id,
+  reference_type,
+  is_read,
+  push_sent,
+  created_at
+`;
 
 async function createUserNotification({
   userId,
@@ -221,23 +337,12 @@ async function createUserNotification({
       push_sent: false,
       created_at: createdAt || new Date().toISOString(),
     })
-    .select(`
-      notification_id,
-      user_id,
-      type,
-      title,
-      message,
-      reference_id,
-      reference_type,
-      is_read,
-      push_sent,
-      created_at
-    `)
+    .select(NOTIFICATION_SELECT)
     .single();
 
   if (error) throw error;
 
-  emitToUser(userId, 'notification:new', data);
+  emitNotificationCreated(userId, data);
 
   return data;
 }
@@ -246,27 +351,11 @@ async function getMyNotifications(userId, query = {}) {
   const limit = Math.min(safeInteger(query.limit, 50), 100);
   const offset = safeInteger(query.offset, 0);
 
-  /*
-    We over-fetch first, then filter stale announcement/opening rows.
-    Reason: notifications.reference_id has no FK to announcements/openings,
-    so Supabase cannot directly join/filter this safely in one query.
-  */
   const fetchLimit = Math.min(offset + limit + 200, 300);
 
   const { data, error } = await supabase
     .from('notifications')
-    .select(`
-      notification_id,
-      user_id,
-      type,
-      title,
-      message,
-      reference_id,
-      reference_type,
-      is_read,
-      push_sent,
-      created_at
-    `)
+    .select(NOTIFICATION_SELECT)
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .range(0, fetchLimit - 1);
@@ -276,8 +365,12 @@ async function getMyNotifications(userId, query = {}) {
   const filtered = await filterLiveNotificationRows(data || []);
   const paginated = filtered.slice(offset, offset + limit);
 
+  const items = paginated.map(normalizeNotification);
+
   return {
-    items: paginated,
+    items,
+    notifications: items,
+    data: items,
     total: filtered.length,
     limit,
     offset,
@@ -288,18 +381,7 @@ async function getMyNotifications(userId, query = {}) {
 async function getUnreadCount(userId) {
   const { data, error } = await supabase
     .from('notifications')
-    .select(`
-      notification_id,
-      user_id,
-      type,
-      title,
-      message,
-      reference_id,
-      reference_type,
-      is_read,
-      push_sent,
-      created_at
-    `)
+    .select(NOTIFICATION_SELECT)
     .eq('user_id', userId)
     .eq('is_read', false)
     .order('created_at', { ascending: false })
@@ -311,6 +393,7 @@ async function getUnreadCount(userId) {
 
   return {
     unreadCount: filtered.length,
+    count: filtered.length,
   };
 }
 
@@ -321,52 +404,51 @@ async function markAsRead(userId, notificationId) {
 
   const { data, error } = await supabase
     .from('notifications')
-    .update({ is_read: true })
+    .update({
+      is_read: true,
+      read_at: new Date().toISOString(),
+    })
     .eq('notification_id', notificationId)
     .eq('user_id', userId)
-    .select(`
-      notification_id,
-      user_id,
-      type,
-      title,
-      message,
-      reference_id,
-      reference_type,
-      is_read,
-      push_sent,
-      created_at
-    `)
+    .select(NOTIFICATION_SELECT)
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw createHttpError(404, 'Notification not found.');
 
-  emitToUser(userId, 'notification:updated', data);
+  if (!data) {
+    throw createHttpError(404, 'Notification not found.');
+  }
+
+  const notification = normalizeNotification(data);
+
+  emitNotificationUpdated(userId, notification);
 
   return {
     message: 'Notification marked as read.',
-    notification: data,
+    notification,
   };
 }
 
 async function markAllAsRead(userId) {
   const { data, error } = await supabase
     .from('notifications')
-    .update({ is_read: true })
+    .update({
+      is_read: true,
+      read_at: new Date().toISOString(),
+    })
     .eq('user_id', userId)
     .eq('is_read', false)
     .select('notification_id');
 
   if (error) throw error;
 
-  emitToUser(userId, 'notification:read-all', {
-    user_id: userId,
-    updatedCount: data?.length || 0,
-  });
+  const updatedCount = data?.length || 0;
+
+  emitNotificationReadAll(userId, updatedCount);
 
   return {
     message: 'All notifications marked as read.',
-    updatedCount: data?.length || 0,
+    updatedCount,
   };
 }
 
@@ -384,16 +466,17 @@ async function deleteNotification(userId, notificationId) {
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw createHttpError(404, 'Notification not found.');
 
-  emitToUser(userId, 'notification:deleted', {
-    notificationId,
-    notification_id: notificationId,
-  });
+  if (!data) {
+    throw createHttpError(404, 'Notification not found.');
+  }
+
+  emitNotificationDeleted(userId, notificationId);
 
   return {
     message: 'Notification deleted.',
     notificationId,
+    notification_id: notificationId,
   };
 }
 
@@ -405,19 +488,17 @@ async function registerDeviceToken(userId, body = {}) {
     throw createHttpError(400, 'deviceToken is required.');
   }
 
+  const payload = {
+    user_id: userId,
+    device_token: deviceToken,
+    platform,
+  };
+
   const { data, error } = await supabase
     .from('user_device_tokens')
-    .upsert(
-      {
-        user_id: userId,
-        device_token: deviceToken,
-        platform,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: 'user_id,device_token',
-      }
-    )
+    .upsert(payload, {
+      onConflict: 'user_id,device_token',
+    })
     .select('*')
     .single();
 
@@ -456,7 +537,7 @@ async function createInternalUserNotification(req) {
 
   return {
     message: 'Notification created.',
-    notification,
+    notification: normalizeNotification(notification),
   };
 }
 
@@ -470,4 +551,5 @@ module.exports = {
   markAllAsRead,
   deleteNotification,
   registerDeviceToken,
+  normalizeNotification,
 };

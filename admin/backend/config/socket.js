@@ -1,200 +1,173 @@
-/**
- * Socket.io Event Emitter Utility
- * Centralized realtime event names for SMaRT-PDM.
- *
- * Naming rule:
- * - Use :created when a new record is created.
- * - Use :updated when an existing record changes.
- * - Use :archived when a record is hidden/soft-deleted.
- * - Use :restored when an archived record is brought back.
- * - Use :deleted only for true permanent deletion. Current admin modules use archive/restore.
- */
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 
-function normalizeUserIds(userIds = []) {
-    return [
-        ...new Set(
-            userIds
-                .flat()
-                .map((id) => String(id || '').trim())
-                .filter(Boolean)
-        ),
-    ];
+const DEFAULT_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://smart-pdm.vercel.app',
+    'https://s-ma-rt-nasuuppz4-mcartvs-projects.vercel.app',
+    'https://s-ma-rt-734gd5yf5-mcartvs-projects.vercel.app',
+];
+
+const DEFAULT_ALLOWED_SUFFIXES = ['.vercel.app'];
+
+function parseCsv(value) {
+    return String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
 }
 
-const addMeta = (data = {}) => ({
-    ...data,
-    emitted_at: new Date().toISOString(),
-});
+function getAllowedOrigins() {
+    const fromEnv = parseCsv(process.env.FRONTEND_ORIGINS);
+    return fromEnv.length ? fromEnv : DEFAULT_ALLOWED_ORIGINS;
+}
 
-const emitEvent = (io, eventName, data = {}) => {
-    if (!io) {
-        console.warn(`[Socket] No io instance available for event: ${eventName}`);
-        return;
+function getAllowedSuffixes() {
+    const fromEnv = parseCsv(process.env.FRONTEND_ORIGIN_SUFFIXES);
+    return fromEnv.length ? fromEnv : DEFAULT_ALLOWED_SUFFIXES;
+}
+
+function isAllowedOrigin(origin, allowedOrigins, allowedSuffixes) {
+    if (!origin) return true;
+
+    if (allowedOrigins.includes(origin)) return true;
+
+    try {
+        const { hostname } = new URL(origin);
+
+        return allowedSuffixes.some((suffix) => {
+            return hostname === suffix.replace(/^\./, '') || hostname.endsWith(suffix);
+        });
+    } catch {
+        return false;
+    }
+}
+
+function decodeSocketToken(token) {
+    const cleanToken = String(token || '').trim();
+
+    if (!cleanToken) return null;
+
+    const secret =
+        process.env.JWT_SECRET ||
+        process.env.ACCESS_TOKEN_SECRET ||
+        process.env.ADMIN_JWT_SECRET ||
+        '';
+
+    if (secret) {
+        try {
+            return jwt.verify(cleanToken, secret);
+        } catch (error) {
+            console.warn('[Socket] JWT verify failed, falling back to decode:', error.message);
+        }
     }
 
-    const payload = addMeta(data);
-    console.log(`[Socket] Emitting global: ${eventName}`, payload);
-    io.emit(eventName, payload);
-};
-
-const emitToUser = (io, userId, eventName, data = {}) => {
-    if (!io) {
-        console.warn(`[Socket] No io instance available for event: ${eventName}`);
-        return;
+    try {
+        return jwt.decode(cleanToken);
+    } catch {
+        return null;
     }
+}
 
+function getUserIdFromPayload(payload = {}) {
+    return (
+        payload.user_id ||
+        payload.userId ||
+        payload.id ||
+        payload.sub ||
+        payload.user?.user_id ||
+        payload.user?.userId ||
+        payload.user?.id ||
+        null
+    );
+}
+
+function joinUserRoom(socket, userId) {
     const normalizedUserId = String(userId || '').trim();
 
-    if (!normalizedUserId) {
-        console.warn(`[Socket] Missing userId for event: ${eventName}`);
-        return;
-    }
+    if (!normalizedUserId) return;
 
-    const payload = addMeta(data);
-    console.log(`[Socket] Emitting to user ${normalizedUserId}: ${eventName}`, payload);
-    io.to(`user:${normalizedUserId}`).emit(eventName, payload);
-};
+    const roomName = `user:${normalizedUserId}`;
 
-const emitToUsers = (io, userIds = [], eventName, data = {}) => {
-    if (!io) {
-        console.warn(`[Socket] No io instance available for event: ${eventName}`);
-        return;
-    }
+    socket.join(roomName);
 
-    const targetUserIds = normalizeUserIds(userIds);
-
-    if (!targetUserIds.length) {
-        console.warn(`[Socket] No target users for event: ${eventName}`);
-        return;
-    }
-
-    const payload = addMeta(data);
-
-    targetUserIds.forEach((userId) => {
-        console.log(`[Socket] Emitting to user ${userId}: ${eventName}`, payload);
-        io.to(`user:${userId}`).emit(eventName, payload);
-    });
-};
-
-const emitToRoom = (io, roomName, eventName, data = {}) => {
-    if (!io) {
-        console.warn(`[Socket] No io instance available for event: ${eventName}`);
-        return;
-    }
-
-    if (!roomName) {
-        console.warn(`[Socket] Missing roomName for event: ${eventName}`);
-        return;
-    }
-
-    const payload = addMeta(data);
-    console.log(`[Socket] Emitting to room ${roomName}: ${eventName}`, payload);
-    io.to(roomName).emit(eventName, payload);
-};
-
-function emitMessageEvent(io, eventName, data = {}, options = {}) {
-    const targetUserIds = normalizeUserIds(options.targetUserIds || []);
-
-    if (targetUserIds.length) {
-        emitToUsers(io, targetUserIds, eventName, data);
-        return;
-    }
-
-    emitEvent(io, eventName, data);
+    console.log('[Socket] joined room:', roomName);
 }
 
-const socketEvents = {
-    /** Base emitters. */
-    emitEvent,
-    emitToUser,
-    emitToUsers,
-    emitToRoom,
+function configureSocket(server) {
+    const allowedOrigins = getAllowedOrigins();
+    const allowedSuffixes = getAllowedSuffixes();
 
-    /** Dashboard-wide refresh channels. */
-    dashboardUpdated: (io, data) => emitEvent(io, 'dashboard:updated', data),
-    maintenanceUpdated: (io, data) => emitEvent(io, 'maintenance:updated', data),
-    reportUpdated: (io, data) => emitEvent(io, 'report:updated', data),
-    auditCreated: (io, data) => emitEvent(io, 'audit:created', data),
+    const io = new Server(server, {
+        cors: {
+            origin(origin, callback) {
+                if (isAllowedOrigin(origin, allowedOrigins, allowedSuffixes)) {
+                    callback(null, true);
+                    return;
+                }
 
-    /** Payout Management. */
-    payoutCreated: (io, data) => emitEvent(io, 'payout:created', data),
-    payoutUpdated: (io, data) => emitEvent(io, 'payout:updated', data),
-    payoutArchived: (io, data) => emitEvent(io, 'payout:archived', data),
-    payoutRestored: (io, data) => emitEvent(io, 'payout:restored', data),
-    scholarReleased: (io, data) => emitEvent(io, 'scholar:released', data),
+                callback(new Error(`Socket origin not allowed: ${origin}`));
+            },
+            credentials: true,
+            methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+        },
+        transports: ['websocket', 'polling'],
+    });
 
-    /** Announcements. */
-    announcementCreated: (io, data) => emitEvent(io, 'announcement:created', data),
-    announcementUpdated: (io, data) => emitEvent(io, 'announcement:updated', data),
-    announcementArchived: (io, data) => emitEvent(io, 'announcement:archived', data),
-    announcementRestored: (io, data) => emitEvent(io, 'announcement:restored', data),
-    announcementPublished: (io, data) => emitEvent(io, 'announcement:published', data),
-    announcementRefresh: (io, data) => emitEvent(io, 'announcement:refresh', data),
+    console.log(`WebSocket enabled at ws://localhost:${process.env.PORT || 5000}`);
+    console.log('Allowed origins:', allowedOrigins);
+    console.log('Allowed origin suffixes:', allowedSuffixes);
 
-    /** Applications and documents. */
-    applicationCreated: (io, data) => emitEvent(io, 'application:created', data),
-    applicationUpdated: (io, data) => emitEvent(io, 'application:updated', data),
-    applicationApproved: (io, data) => emitEvent(io, 'application:approved', data),
-    applicationRejected: (io, data) => emitEvent(io, 'application:rejected', data),
-    applicationDisqualified: (io, data) => emitEvent(io, 'application:disqualified', data),
-    applicationDocumentUploaded: (io, data) => emitEvent(io, 'application-document:uploaded', data),
-    applicationDocumentReviewed: (io, data) => emitEvent(io, 'application-document:reviewed', data),
-    applicationOcrQueued: (io, data) => emitEvent(io, 'application-ocr:queued', data),
-    applicationOcrSnapshotSaved: (io, data) => emitEvent(io, 'application-ocr:snapshot-saved', data),
+    io.on('connection', (socket) => {
+        console.log('[Socket] connected:', socket.id);
 
-    /** Scholars and renewals. */
-    scholarCreated: (io, data) => emitEvent(io, 'scholar:created', data),
-    scholarUpdated: (io, data) => emitEvent(io, 'scholar:updated', data),
-    scholarArchived: (io, data) => emitEvent(io, 'scholar:archived', data),
-    scholarRestored: (io, data) => emitEvent(io, 'scholar:restored', data),
-    renewalUpdated: (io, data) => emitEvent(io, 'renewal:updated', data),
-    renewalApproved: (io, data) => emitEvent(io, 'renewal:approved', data),
-    renewalArchived: (io, data) => emitEvent(io, 'renewal:archived', data),
-    renewalRestored: (io, data) => emitEvent(io, 'renewal:restored', data),
+        const token =
+            socket.handshake.auth?.token ||
+            socket.handshake.query?.token ||
+            socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '') ||
+            '';
 
-    /** Endorsements. */
-    endorsementUpdated: (io, data) => emitEvent(io, 'endorsement:updated', data),
-    endorsementArchived: (io, data) => emitEvent(io, 'endorsement:archived', data),
-    endorsementRestored: (io, data) => emitEvent(io, 'endorsement:restored', data),
+        const decoded = decodeSocketToken(token);
+        const userId = getUserIdFromPayload(decoded || {});
 
-    /** Return of Obligation. */
-    roUpdated: (io, data) => emitEvent(io, 'ro:updated', data),
-    roArchived: (io, data) => emitEvent(io, 'ro:archived', data),
-    roRestored: (io, data) => emitEvent(io, 'ro:restored', data),
+        if (userId) {
+            joinUserRoom(socket, userId);
+            socket.data.userId = String(userId);
+        } else {
+            console.warn('[Socket] connected without resolved user id:', socket.id);
+        }
 
-    /** Scholarship openings. */
-    openingCreated: (io, data) => emitEvent(io, 'opening:created', data),
-    openingUpdated: (io, data) => emitEvent(io, 'opening:updated', data),
-    openingClosed: (io, data) => emitEvent(io, 'opening:closed', data),
-    openingArchived: (io, data) => emitEvent(io, 'opening:archived', data),
-    openingRestored: (io, data) => emitEvent(io, 'opening:restored', data),
+        socket.on('user-join', (payload) => {
+            const payloadUserId =
+                typeof payload === 'string'
+                    ? payload
+                    : payload?.user_id || payload?.userId || payload?.id || null;
 
-    /** Notifications. */
-    notificationCreated: (io, userId, data) => emitToUser(io, userId, 'notification:created', data),
-    notificationUpdated: (io, userId, data) => emitToUser(io, userId, 'notification:updated', data),
-    notificationReadAll: (io, userId, data) => emitToUser(io, userId, 'notification:read-all', data),
-    notificationArchived: (io, userId, data) => emitToUser(io, userId, 'notification:archived', data),
-    notificationRestored: (io, userId, data) => emitToUser(io, userId, 'notification:restored', data),
+            joinUserRoom(socket, payloadUserId);
+            socket.data.userId = String(payloadUserId || '');
+        });
 
-    /** Messages and rooms. */
-    messageCreated: (io, data, options = {}) => emitMessageEvent(io, 'message:created', data, options),
-    messageRead: (io, data, options = {}) => emitMessageEvent(io, 'message:read', data, options),
-    messageUnread: (io, data, options = {}) => emitMessageEvent(io, 'message:unread', data, options),
-    conversationUpdated: (io, data, options = {}) => emitMessageEvent(io, 'conversation:updated', data, options),
-    threadArchived: (io, data, options = {}) => emitMessageEvent(io, 'message:thread-archived', data, options),
-    threadRestored: (io, data, options = {}) => emitMessageEvent(io, 'message:thread-restored', data, options),
-    roomCreated: (io, data, options = {}) => emitMessageEvent(io, 'room:created', data, options),
-    roomMembersAdded: (io, data, options = {}) => emitMessageEvent(io, 'room:members-added', data, options),
-    roomUpdated: (io, data, options = {}) => emitMessageEvent(io, 'room:updated', data, options),
-    roomArchived: (io, data, options = {}) => emitMessageEvent(io, 'room:archived', data, options),
-    roomRestored: (io, data, options = {}) => emitMessageEvent(io, 'room:restored', data, options),
+        socket.on('join:user', (payload) => {
+            const payloadUserId =
+                typeof payload === 'string'
+                    ? payload
+                    : payload?.user_id || payload?.userId || payload?.id || null;
 
-    /** Tickets. */
-    ticketCreated: (io, data) => emitEvent(io, 'ticket:created', data),
-    ticketUpdated: (io, data) => emitEvent(io, 'ticket:updated', data),
-    ticketResolved: (io, data) => emitEvent(io, 'ticket:resolved', data),
-    ticketArchived: (io, data) => emitEvent(io, 'ticket:archived', data),
-    ticketRestored: (io, data) => emitEvent(io, 'ticket:restored', data),
+            joinUserRoom(socket, payloadUserId);
+            socket.data.userId = String(payloadUserId || '');
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('[Socket] disconnected:', socket.id, reason);
+        });
+    });
+
+    return io;
+}
+
+module.exports = {
+    configureSocket,
 };
-
-module.exports = socketEvents;

@@ -1,3 +1,5 @@
+const adminRealtimeRelayService = require('./adminRealtimeRelayService');
+
 const MESSAGE_FIELDS =
   'message_id, sender_id, receiver_id, room_id, subject, message_body, sent_at, is_read, attachment_url';
 
@@ -105,6 +107,13 @@ function emitToGroup(roomId, eventName, payload) {
   });
 
   ioRef.to(`group:${roomId}`).emit(eventName, payload);
+}
+
+
+function relayToAdminBackend(message) {
+  adminRealtimeRelayService.relayMessageCreated(message).catch((error) => {
+    console.error('[Admin Realtime Relay] async error:', error.message);
+  });
 }
 
 function mapMessageRow(row = {}, profiles = null) {
@@ -641,6 +650,8 @@ async function createMessage({ senderId, receiverId, roomId, messageBody }) {
     emitToUser(senderId, 'message:created', message);
     emitToUser(receiverId, 'message:created', message);
   }
+
+  relayToAdminBackend(message);
 
   return message;
 }

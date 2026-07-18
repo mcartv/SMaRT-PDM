@@ -2105,10 +2105,11 @@ export default function AdminMessages() {
   useSocketEvent(
     'message:created',
     (data) => {
-      console.log('[TEST ADMIN RECEIVED message:created]', data);
+      console.log('[Admin received message:created]', data)
+      handleIncomingMessageRealtime(data, 'message:created')
     },
-    []
-  );
+    [handleIncomingMessageRealtime]
+  )
 
   useSocketEvent(
     'message:read',

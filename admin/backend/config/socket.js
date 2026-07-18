@@ -7,8 +7,6 @@ const DEFAULT_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://smart-pdm.vercel.app',
-    'https://s-ma-rt-nasuuppz4-mcartvs-projects.vercel.app',
-    'https://s-ma-rt-734gd5yf5-mcartvs-projects.vercel.app',
 ];
 
 const DEFAULT_ALLOWED_SUFFIXES = ['.vercel.app'];
@@ -16,7 +14,7 @@ const DEFAULT_ALLOWED_SUFFIXES = ['.vercel.app'];
 function parseCsv(value) {
     return String(value || '')
         .split(',')
-        .map((item) => item.trim())
+        .map((item) => item.trim().replace(/\/+$/, ''))
         .filter(Boolean);
 }
 
@@ -33,13 +31,17 @@ function getAllowedSuffixes() {
 function isAllowedOrigin(origin, allowedOrigins, allowedSuffixes) {
     if (!origin) return true;
 
-    if (allowedOrigins.includes(origin)) return true;
+    const normalizedOrigin = String(origin).trim().replace(/\/+$/, '');
+
+    if (allowedOrigins.includes(normalizedOrigin)) return true;
 
     try {
-        const { hostname } = new URL(origin);
+        const parsed = new URL(normalizedOrigin);
+        const hostname = parsed.hostname.toLowerCase();
 
         return allowedSuffixes.some((suffix) => {
-            return hostname === suffix.replace(/^\./, '') || hostname.endsWith(suffix);
+            const cleanSuffix = String(suffix || '').toLowerCase();
+            return hostname === cleanSuffix.replace(/^\./, '') || hostname.endsWith(cleanSuffix);
         });
     } catch {
         return false;
@@ -47,7 +49,7 @@ function isAllowedOrigin(origin, allowedOrigins, allowedSuffixes) {
 }
 
 function decodeSocketToken(token) {
-    const cleanToken = String(token || '').trim();
+    const cleanToken = String(token || '').replace(/^Bearer\s+/i, '').trim();
 
     if (!cleanToken) return null;
 
@@ -85,16 +87,44 @@ function getUserIdFromPayload(payload = {}) {
     );
 }
 
+function getUserIdFromJoinPayload(payload = {}) {
+    if (typeof payload === 'string') return payload;
+
+    return (
+        payload.user_id ||
+        payload.userId ||
+        payload.id ||
+        payload.sub ||
+        payload.user?.user_id ||
+        payload.user?.userId ||
+        payload.user?.id ||
+        null
+    );
+}
+
 function joinUserRoom(socket, userId) {
     const normalizedUserId = String(userId || '').trim();
 
-    if (!normalizedUserId) return;
+    if (!normalizedUserId) {
+        console.warn('[Socket] joinUserRoom skipped: missing user id', socket.id);
+        return false;
+    }
 
     const roomName = `user:${normalizedUserId}`;
 
     socket.join(roomName);
+    socket.data.userId = normalizedUserId;
 
     console.log('[Socket] joined room:', roomName);
+
+    socket.emit('socket:joined', {
+        user_id: normalizedUserId,
+        userId: normalizedUserId,
+        room: roomName,
+        joined_at: new Date().toISOString(),
+    });
+
+    return true;
 }
 
 function configureSocket(server) {
@@ -115,9 +145,11 @@ function configureSocket(server) {
             methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
         },
         transports: ['websocket', 'polling'],
+        pingTimeout: 30000,
+        pingInterval: 25000,
     });
 
-    console.log(`WebSocket enabled at ws://localhost:${process.env.PORT || 5000}`);
+    console.log(`WebSocket enabled at ws://localhost:${process.env.PORT || 5001}`);
     console.log('Allowed origins:', allowedOrigins);
     console.log('Allowed origin suffixes:', allowedSuffixes);
 
@@ -127,38 +159,43 @@ function configureSocket(server) {
         const token =
             socket.handshake.auth?.token ||
             socket.handshake.query?.token ||
-            socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '') ||
+            socket.handshake.headers?.authorization ||
+            socket.handshake.headers?.Authorization ||
+            '';
+
+        const directUserId =
+            socket.handshake.auth?.user_id ||
+            socket.handshake.auth?.userId ||
+            socket.handshake.query?.user_id ||
+            socket.handshake.query?.userId ||
             '';
 
         const decoded = decodeSocketToken(token);
-        const userId = getUserIdFromPayload(decoded || {});
+        const tokenUserId = getUserIdFromPayload(decoded || {});
+        const userId = directUserId || tokenUserId;
 
         if (userId) {
             joinUserRoom(socket, userId);
-            socket.data.userId = String(userId);
         } else {
             console.warn('[Socket] connected without resolved user id:', socket.id);
         }
 
-        socket.on('user-join', (payload) => {
-            const payloadUserId =
-                typeof payload === 'string'
-                    ? payload
-                    : payload?.user_id || payload?.userId || payload?.id || null;
+        const joinEvents = [
+            'user-join',
+            'join:user',
+            'joinUser',
+            'join-user',
+            'joinUserRoom',
+            'authenticate',
+            'register',
+        ];
 
-            joinUserRoom(socket, payloadUserId);
-            socket.data.userId = String(payloadUserId || '');
-        });
-
-        socket.on('join:user', (payload) => {
-            const payloadUserId =
-                typeof payload === 'string'
-                    ? payload
-                    : payload?.user_id || payload?.userId || payload?.id || null;
-
-            joinUserRoom(socket, payloadUserId);
-            socket.data.userId = String(payloadUserId || '');
-        });
+        for (const eventName of joinEvents) {
+            socket.on(eventName, (payload) => {
+                const payloadUserId = getUserIdFromJoinPayload(payload);
+                joinUserRoom(socket, payloadUserId);
+            });
+        }
 
         socket.on('disconnect', (reason) => {
             console.log('[Socket] disconnected:', socket.id, reason);

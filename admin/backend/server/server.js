@@ -48,6 +48,7 @@ const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
 const {
   runDepartmentDigestScheduler,
 } = require('../services/schedulerService');
+const internalRealtimeRoutes = require('../routes/internalRealtimeRoutes');
 
 const announcementService = require('../services/announcementService');
 const { configureRealtimeBridge } = require('../services/realtimeBridgeService');
@@ -256,6 +257,7 @@ app.use('/api/theme-settings', themeSettingRoutes);
 app.use('/api/general-settings', generalSettingRoutes);
 
 app.use('/api/pi', piRoutes);
+app.use('/api/internal/realtime', internalRealtimeRoutes);
 
 // =========================
 // SPA CATCH-ALL

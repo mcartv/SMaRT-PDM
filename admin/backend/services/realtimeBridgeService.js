@@ -449,21 +449,9 @@ function configureRealtimeBridge({ io, supabase }) {
         latestMessage: data?.[0] || null,
       });
     });
-    
+
   bridgeChannel = supabase
     .channel('admin-realtime-bridge')
-    // test listener
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'messages' },
-      (payload) => {
-        console.log('[TEST REALTIME] messages payload received:', {
-          eventType: payload.eventType,
-          new: payload.new,
-          old: payload.old,
-        });
-      }
-    )
 
     .on(
       'postgres_changes',

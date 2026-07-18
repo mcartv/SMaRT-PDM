@@ -29,7 +29,11 @@ class AppRoutes {
   static const messaging = '/messaging';
   static const chatThread = '/chat-thread';
   static const tickets = '/tickets';
+
+  // Return of Obligation
+  static const roAssignment = '/ro-assignment';
   static const roCompletion = '/ro-completion';
+
   static const success = '/success';
   static const scholarshipOpenings = '/scholarship-openings';
 

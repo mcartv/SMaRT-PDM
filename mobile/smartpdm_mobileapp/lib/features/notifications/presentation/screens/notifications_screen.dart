@@ -10,7 +10,7 @@ import 'package:smartpdm_mobileapp/features/notifications/presentation/providers
 import 'package:smartpdm_mobileapp/shared/models/app_notification.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
-enum _NotificationFilter { all, unread, officeUpdates, payouts }
+enum _NotificationFilter { all, unread, officeUpdates, payouts, ro }
 
 class NotificationsScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -89,6 +89,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       case _NotificationFilter.payouts:
         return items.where((item) => item.isPayoutNotification).toList();
+
+      case _NotificationFilter.ro:
+        return items.where((item) {
+          final type = item.type.toLowerCase();
+          final title = item.title.toLowerCase();
+          final referenceType = (item.referenceType ?? '').toLowerCase();
+
+          return type.contains('ro') ||
+              type.contains('obligation') ||
+              referenceType.contains('return_of_obligation') ||
+              referenceType.contains('ro') ||
+              title.contains('return') ||
+              title.contains('obligation');
+        }).toList();
     }
   }
 
@@ -102,6 +116,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return 'Updates';
       case _NotificationFilter.payouts:
         return 'Payouts';
+      case _NotificationFilter.ro:
+        return 'RO';
     }
   }
 
@@ -258,9 +274,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     if (type.contains('ro') ||
+        type.contains('obligation') ||
+        referenceType.contains('return_of_obligation') ||
+        referenceType.contains('ro') ||
         title.contains('return') ||
         title.contains('obligation')) {
-      Navigator.pushNamed(context, AppRoutes.payouts);
+      Navigator.pushNamed(
+        context,
+        AppRoutes.roAssignment,
+        arguments: {'roId': notification.referenceId},
+      );
       return;
     }
   }
@@ -288,6 +311,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       _NotificationFilter.payouts: provider.notifications
           .where((item) => item.isPayoutNotification)
           .length,
+      _NotificationFilter.ro: provider.notifications.where((item) {
+        final type = item.type.toLowerCase();
+        final title = item.title.toLowerCase();
+        final referenceType = (item.referenceType ?? '').toLowerCase();
+
+        return type.contains('ro') ||
+            type.contains('obligation') ||
+            referenceType.contains('return_of_obligation') ||
+            referenceType.contains('ro') ||
+            title.contains('return') ||
+            title.contains('obligation');
+      }).length,
     };
 
     return SingleChildScrollView(

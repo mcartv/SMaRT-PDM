@@ -734,6 +734,12 @@ class _LegacyDashboardContentState extends State<_LegacyDashboardContent> {
     return _hasScholarAccess
         ? [
             _QuickAction(
+              icon: Icons.assignment_turned_in_rounded,
+              title: 'Return of Obligation',
+              subtitle: 'Time in, time out, and track progress',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
+            ),
+            _QuickAction(
               icon: Icons.upload_file_rounded,
               title: 'Renewal',
               subtitle: 'Upload documents',
@@ -836,6 +842,12 @@ class _LegacyDashboardContentState extends State<_LegacyDashboardContent> {
               title: 'Track Endorsement',
               subtitle: 'Follow SDO, Guidance, and PD review',
               onTap: () => Navigator.pushNamed(context, AppRoutes.endorsement),
+            ),
+            _MenuAction(
+              icon: Icons.assignment_turned_in_rounded,
+              title: 'Return of Obligation',
+              subtitle: 'Time in, time out, and track your RO progress',
+              onTap: () => Navigator.pushNamed(context, AppRoutes.roAssignment),
             ),
             _MenuAction(
               icon: Icons.help_outline_rounded,

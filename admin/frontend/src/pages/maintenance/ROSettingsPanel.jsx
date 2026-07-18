@@ -4,13 +4,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
     AlertTriangle,
+    Building2,
     CheckCircle2,
     Clock3,
-    History,
     Loader2,
+    Pencil,
+    Plus,
+    Power,
     RefreshCw,
+    Save,
+    Search,
+    X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const C = {
     brownMid: '#7c4a2e',
@@ -18,6 +25,8 @@ const C = {
     greenSoft: '#F0FDF4',
     red: '#dc2626',
     redSoft: '#FEF2F2',
+    amber: '#d97706',
+    amberSoft: '#FFF7ED',
     line: '#e7e5e4',
 };
 
@@ -57,7 +66,7 @@ function formatDateTime(value) {
 function StatusPill({ active }) {
     return (
         <span
-            className="inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold"
+            className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
             style={{
                 background: active ? C.greenSoft : '#f5f5f4',
                 color: active ? C.green : '#57534e',
@@ -68,50 +77,172 @@ function StatusPill({ active }) {
     );
 }
 
+function DepartmentModal({
+    open,
+    mode,
+    value,
+    setValue,
+    onClose,
+    onSave,
+    saving,
+}) {
+    if (!open) return null;
+
+    const isEdit = mode === 'edit';
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-lg overflow-hidden border-stone-200 shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-stone-800">
+                        {isEdit ? 'Edit RO Department' : 'Add RO Department'}
+                    </h3>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={saving}
+                        className="rounded-md p-1.5 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 disabled:opacity-50"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                <CardContent className="space-y-3 p-4">
+                    <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                            Department / Office Name
+                        </label>
+
+                        <Input
+                            value={value}
+                            onChange={(event) => setValue(event.target.value)}
+                            placeholder="Example: Library, Registrar, Guidance Office"
+                            className="h-9 rounded-lg border-stone-200 text-sm"
+                        />
+                    </div>
+                </CardContent>
+
+                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                        disabled={saving}
+                        className="h-8 rounded-lg border-stone-200 text-xs"
+                    >
+                        Cancel
+                    </Button>
+
+                    <Button
+                        onClick={onSave}
+                        disabled={saving || !value.trim()}
+                        className="h-8 rounded-lg border-none text-xs text-white disabled:opacity-50"
+                        style={{ background: C.brownMid }}
+                    >
+                        {saving ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                            <Save className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        {isEdit ? 'Save' : 'Create'}
+                    </Button>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
 export default function ROSettingsPanel() {
     const [settings, setSettings] = useState([]);
     const [activeSetting, setActiveSetting] = useState(null);
+    const [departments, setDepartments] = useState([]);
 
     const [requiredHours, setRequiredHours] = useState(20);
     const [allowCarryOver, setAllowCarryOver] = useState(true);
-    const [remarks, setRemarks] = useState('');
+
+    const [search, setSearch] = useState('');
+    const [pageTab, setPageTab] = useState('current');
+
+    const [departmentName, setDepartmentName] = useState('');
+    const [editingDepartmentId, setEditingDepartmentId] = useState(null);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('create');
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [activatingId, setActivatingId] = useState('');
+    const [departmentSaving, setDepartmentSaving] = useState(false);
+    const [departmentActionId, setDepartmentActionId] = useState('');
+
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
     const activeSettingId = activeSetting?.setting_id || null;
 
-    const sortedSettings = useMemo(() => {
-        return [...settings].sort((a, b) => {
-            if (a.is_active && !b.is_active) return -1;
-            if (!a.is_active && b.is_active) return 1;
+    const currentCount = useMemo(
+        () => departments.filter((item) => item.is_active !== false).length,
+        [departments]
+    );
 
-            return (
-                new Date(b.updated_at || b.created_at || 0).getTime() -
-                new Date(a.updated_at || a.created_at || 0).getTime()
+    const inactiveCount = useMemo(
+        () => departments.filter((item) => item.is_active === false).length,
+        [departments]
+    );
+
+    const latestSettingText = useMemo(() => {
+        if (!activeSetting?.updated_at && !activeSetting?.created_at) return 'Not yet saved';
+        return formatDateTime(activeSetting.updated_at || activeSetting.created_at);
+    }, [activeSetting]);
+
+    const filteredDepartments = useMemo(() => {
+        const q = search.trim().toLowerCase();
+
+        return departments
+            .filter((department) => {
+                const isActive = department.is_active !== false;
+
+                if (pageTab === 'current' && !isActive) return false;
+                if (pageTab === 'inactive' && isActive) return false;
+
+                if (!q) return true;
+
+                return String(department.department_name || '')
+                    .toLowerCase()
+                    .includes(q);
+            })
+            .sort((a, b) =>
+                String(a.department_name || '').localeCompare(
+                    String(b.department_name || '')
+                )
             );
-        });
-    }, [settings]);
+    }, [departments, search, pageTab]);
 
     const loadSettings = async () => {
         try {
             setLoading(true);
             setError('');
 
-            const [settingsResponse, activeResponse] = await Promise.all([
-                fetch(buildApiUrl('/api/ro-settings'), {
-                    headers: getHeaders(),
-                }),
-                fetch(buildApiUrl('/api/ro-settings/active'), {
-                    headers: getHeaders(),
-                }),
-            ]);
+            const [settingsResponse, activeResponse, departmentsResponse] =
+                await Promise.all([
+                    fetch(buildApiUrl('/api/ro-settings'), {
+                        headers: getHeaders(),
+                    }),
+                    fetch(buildApiUrl('/api/ro-settings/active'), {
+                        headers: getHeaders(),
+                    }),
+                    fetch(buildApiUrl('/api/ro-settings/departments'), {
+                        headers: getHeaders(),
+                    }),
+                ]);
 
             const settingsPayload = await settingsResponse.json().catch(() => ({}));
             const activePayload = await activeResponse.json().catch(() => ({}));
+            const departmentsPayload = await departmentsResponse.json().catch(() => ({}));
 
             if (!settingsResponse.ok) {
                 throw new Error(settingsPayload.error || 'Failed to load RO settings.');
@@ -121,15 +252,22 @@ export default function ROSettingsPanel() {
                 throw new Error(activePayload.error || 'Failed to load active RO setting.');
             }
 
-            const rows = parseItemsPayload(settingsPayload);
-            const active = parseSettingPayload(activePayload);
+            if (!departmentsResponse.ok) {
+                throw new Error(
+                    departmentsPayload.error || 'Failed to load RO departments.'
+                );
+            }
 
-            setSettings(rows);
+            const settingRows = parseItemsPayload(settingsPayload);
+            const active = parseSettingPayload(activePayload);
+            const departmentRows = parseItemsPayload(departmentsPayload);
+
+            setSettings(settingRows);
             setActiveSetting(active);
+            setDepartments(departmentRows);
 
             setRequiredHours(Number(active?.required_hours || 20));
             setAllowCarryOver(active?.allow_carry_over !== false);
-            setRemarks(active?.remarks || '');
         } catch (err) {
             console.error('LOAD RO SETTINGS ERROR:', err);
             setError(err.message || 'Failed to load RO settings.');
@@ -141,6 +279,30 @@ export default function ROSettingsPanel() {
     useEffect(() => {
         loadSettings();
     }, []);
+
+    useSocketEvent(
+        'ro:updated',
+        () => {
+            loadSettings();
+        },
+        []
+    );
+
+    useSocketEvent(
+        'roUpdated',
+        () => {
+            loadSettings();
+        },
+        []
+    );
+
+    useSocketEvent(
+        'maintenance:updated',
+        () => {
+            loadSettings();
+        },
+        []
+    );
 
     const saveActiveSetting = async () => {
         try {
@@ -157,7 +319,8 @@ export default function ROSettingsPanel() {
             const payload = {
                 required_hours: hours,
                 allow_carry_over: allowCarryOver,
-                remarks,
+                remarks: null,
+                apply_to_pending: true,
             };
 
             let response;
@@ -195,43 +358,131 @@ export default function ROSettingsPanel() {
         }
     };
 
-    const activateSetting = async (settingId) => {
+    const openCreateModal = () => {
+        setModalMode('create');
+        setEditingDepartmentId(null);
+        setDepartmentName('');
+        setError('');
+        setSuccess('');
+        setModalOpen(true);
+    };
+
+    const openEditModal = (department) => {
+        setModalMode('edit');
+        setEditingDepartmentId(department.department_id);
+        setDepartmentName(department.department_name || '');
+        setError('');
+        setSuccess('');
+        setModalOpen(true);
+    };
+
+    const closeDepartmentModal = () => {
+        if (departmentSaving) return;
+
+        setModalOpen(false);
+        setModalMode('create');
+        setEditingDepartmentId(null);
+        setDepartmentName('');
+    };
+
+    const saveDepartment = async () => {
         try {
-            setActivatingId(settingId);
+            setDepartmentSaving(true);
             setError('');
             setSuccess('');
 
-            const response = await fetch(buildApiUrl(`/api/ro-settings/${settingId}/activate`), {
-                method: 'PATCH',
-                headers: getHeaders(),
-            });
+            const name = String(departmentName || '').trim();
+
+            if (!name) {
+                throw new Error('Department name is required.');
+            }
+
+            const isEdit = modalMode === 'edit' && editingDepartmentId;
+
+            const response = await fetch(
+                buildApiUrl(
+                    isEdit
+                        ? `/api/ro-settings/departments/${editingDepartmentId}`
+                        : '/api/ro-settings/departments'
+                ),
+                {
+                    method: isEdit ? 'PATCH' : 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        departmentName: name,
+                    }),
+                }
+            );
 
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to activate RO setting.');
+                throw new Error(data.error || 'Failed to save RO department.');
             }
 
-            setSuccess(data.message || 'RO setting activated successfully.');
+            setSuccess(data.message || 'RO department saved successfully.');
+            closeDepartmentModal();
             await loadSettings();
         } catch (err) {
-            console.error('ACTIVATE RO SETTING ERROR:', err);
-            setError(err.message || 'Failed to activate RO setting.');
+            console.error('SAVE RO DEPARTMENT ERROR:', err);
+            setError(err.message || 'Failed to save RO department.');
         } finally {
-            setActivatingId('');
+            setDepartmentSaving(false);
         }
     };
 
+    const toggleDepartment = async (department) => {
+        try {
+            setDepartmentActionId(department.department_id);
+            setError('');
+            setSuccess('');
+
+            const response = await fetch(
+                buildApiUrl(`/api/ro-settings/departments/${department.department_id}/toggle`),
+                {
+                    method: 'PATCH',
+                    headers: getHeaders(),
+                }
+            );
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to update RO department status.');
+            }
+
+            setSuccess(data.message || 'RO department status updated successfully.');
+            await loadSettings();
+        } catch (err) {
+            console.error('TOGGLE RO DEPARTMENT ERROR:', err);
+            setError(err.message || 'Failed to update RO department status.');
+        } finally {
+            setDepartmentActionId('');
+        }
+    };
+
+    const hasSearch = search.trim().length > 0;
+
     if (loading) {
         return (
-            <div className="flex min-h-[260px] items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-stone-300" />
+            <div className="flex h-[260px] items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
+            <DepartmentModal
+                open={modalOpen}
+                mode={modalMode}
+                value={departmentName}
+                setValue={setDepartmentName}
+                onClose={closeDepartmentModal}
+                onSave={saveDepartment}
+                saving={departmentSaving}
+            />
+
             {error ? (
                 <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -246,31 +497,35 @@ export default function ROSettingsPanel() {
                 </div>
             ) : null}
 
-            <Card className="rounded-2xl border-stone-200 bg-white shadow-none">
-                <CardContent className="space-y-5 p-5">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <h2 className="text-base font-semibold text-stone-900">
-                                Return of Obligation Settings
-                            </h2>
-                            <p className="mt-1 text-sm text-stone-500">
-                                Set how many RO hours scholars need to complete. The active setting can be used by the mobile RO progress screen.
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                RO Configuration
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                                Required hours: {Number(requiredHours || 0)} · Carry-over {allowCarryOver ? 'allowed' : 'not allowed'}
+                            </p>
+                            <p className="mt-0.5 text-xs text-stone-400">
+                                Last updated: {latestSettingText}
                             </p>
                         </div>
 
                         <Button
                             variant="outline"
+                            size="sm"
                             onClick={loadSettings}
-                            className="h-10 rounded-xl border-stone-200 text-sm"
+                            className="h-8 rounded-lg border-stone-200 text-xs text-stone-600"
                         >
-                            <RefreshCw className="mr-2 h-4 w-4" />
+                            <RefreshCw className="mr-1 h-3.5 w-3.5" />
                             Refresh
                         </Button>
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-3">
+                    <div className="grid gap-3 border-t border-stone-100 pt-3 md:grid-cols-[220px_1fr_auto] md:items-end">
                         <div>
-                            <label className="mb-1.5 block text-xs font-semibold text-stone-600">
+                            <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-stone-400">
                                 Required RO Hours
                             </label>
 
@@ -279,171 +534,196 @@ export default function ROSettingsPanel() {
                                 min="0"
                                 value={requiredHours}
                                 onChange={(event) => setRequiredHours(event.target.value)}
-                                className="h-11 rounded-xl border-stone-200"
-                            />
-
-                            <p className="mt-1 text-xs text-stone-400">
-                                Example: 20 means the scholar must complete 20 hours.
-                            </p>
-                        </div>
-
-                        <div className="lg:col-span-2">
-                            <label className="mb-1.5 block text-xs font-semibold text-stone-600">
-                                Remarks
-                            </label>
-
-                            <Input
-                                value={remarks}
-                                onChange={(event) => setRemarks(event.target.value)}
-                                placeholder="Example: Default RO hours for the current term"
-                                className="h-11 rounded-xl border-stone-200"
+                                className="h-9 rounded-lg border-stone-200 text-sm"
                             />
                         </div>
-                    </div>
 
-                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-                        <input
-                            type="checkbox"
-                            checked={allowCarryOver}
-                            onChange={(event) => setAllowCarryOver(event.target.checked)}
-                        />
+                        <label className="flex h-9 cursor-pointer items-center gap-3 rounded-lg border border-stone-200 bg-white px-3">
+                            <input
+                                type="checkbox"
+                                checked={allowCarryOver}
+                                onChange={(event) => setAllowCarryOver(event.target.checked)}
+                            />
 
-                        <div>
-                            <p className="text-sm font-semibold text-stone-800">
+                            <span className="text-xs font-semibold text-stone-700">
                                 Allow carry-over
-                            </p>
-                            <p className="text-xs text-stone-500">
-                                Enable this if unfinished RO hours can carry over to the next period.
-                            </p>
-                        </div>
-                    </label>
+                            </span>
+                        </label>
 
-                    <div className="flex justify-end border-t border-stone-100 pt-4">
                         <Button
+                            size="sm"
                             onClick={saveActiveSetting}
                             disabled={saving}
-                            className="h-10 rounded-xl border-none text-white"
+                            className="h-8 rounded-lg border-none text-xs text-white"
                             style={{ background: C.brownMid }}
                         >
                             {saving ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                             ) : (
-                                <Clock3 className="mr-2 h-4 w-4" />
+                                <Clock3 className="mr-1 h-3.5 w-3.5" />
                             )}
-                            Save Active Setting
+                            Save Setting
                         </Button>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            <section
-                className="overflow-hidden rounded-2xl border bg-white"
-                style={{ borderColor: C.line }}
-            >
-                <div className="border-b border-stone-100 px-5 py-4">
-                    <div className="flex items-center gap-2">
-                        <History className="h-4 w-4 text-stone-500" />
-                        <h3 className="text-sm font-semibold text-stone-800">
-                            RO Settings History
-                        </h3>
+            <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                RO Department Records
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-stone-900">
+                                {currentCount} active · {inactiveCount} inactive
+                            </p>
+                        </div>
+
+                        <div className="relative w-full md:w-[320px]">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                placeholder="Search department..."
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                className="h-9 rounded-lg border-stone-200 bg-white pl-9 text-sm"
+                            />
+                        </div>
                     </div>
 
-                    <p className="mt-1 text-xs text-stone-500">
-                        Activate an older setting to reuse its required hours.
-                    </p>
+                    <div className="flex flex-col gap-3 border-t border-stone-100 pt-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('current')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'current'
+                                        ? 'bg-[#7c4a2e] text-white'
+                                        : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Current ({currentCount})
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setPageTab('inactive')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${pageTab === 'inactive'
+                                        ? 'bg-[#7c4a2e] text-white'
+                                        : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                                    }`}
+                            >
+                                Inactive ({inactiveCount})
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {hasSearch ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSearch('')}
+                                    className="h-8 rounded-lg border-stone-200 text-xs"
+                                >
+                                    Reset
+                                </Button>
+                            ) : null}
+
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={loadSettings}
+                                className="h-8 rounded-lg border-stone-200 text-xs text-stone-600"
+                            >
+                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                                Refresh
+                            </Button>
+
+                            <Button
+                                size="sm"
+                                className="h-8 rounded-lg border-none text-xs text-white"
+                                style={{ background: C.brownMid }}
+                                onClick={openCreateModal}
+                            >
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                Add
+                            </Button>
+                        </div>
+                    </div>
                 </div>
+            </div>
 
-                <div className="overflow-x-auto p-4">
-                    <table className="min-w-full border-collapse text-left">
-                        <thead>
-                            <tr className="border-b border-stone-200 bg-stone-50/70">
-                                <th className="px-3 py-3 text-xs font-semibold text-stone-900">
-                                    Required Hours
-                                </th>
-                                <th className="px-3 py-3 text-xs font-semibold text-stone-900">
-                                    Carry Over
-                                </th>
-                                <th className="px-3 py-3 text-xs font-semibold text-stone-900">
-                                    Remarks
-                                </th>
-                                <th className="px-3 py-3 text-xs font-semibold text-stone-900">
-                                    Updated
-                                </th>
-                                <th className="px-3 py-3 text-xs font-semibold text-stone-900">
-                                    Status
-                                </th>
-                                <th className="px-3 py-3 text-right text-xs font-semibold text-stone-900">
-                                    Action
-                                </th>
-                            </tr>
-                        </thead>
+            <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                {filteredDepartments.length === 0 ? (
+                    <div className="flex min-h-[220px] flex-col items-center justify-center px-4 text-center text-stone-400">
+                        <Building2 size={42} className="mb-4 opacity-50" />
+                        <p className="text-sm font-medium">No departments found</p>
+                        <p className="mt-1 text-xs">
+                            Click the add button above to create an RO department.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="divide-y">
+                        {filteredDepartments.map((department) => {
+                            const isActive = department.is_active !== false;
+                            const loadingThis =
+                                departmentActionId === department.department_id;
 
-                        <tbody className="divide-y divide-stone-100 bg-white">
-                            {sortedSettings.length === 0 ? (
-                                <tr>
-                                    <td
-                                        colSpan={6}
-                                        className="px-3 py-10 text-center text-sm text-stone-400"
-                                    >
-                                        No RO settings found.
-                                    </td>
-                                </tr>
-                            ) : (
-                                sortedSettings.map((setting) => (
-                                    <tr
-                                        key={setting.setting_id}
-                                        className="transition hover:bg-stone-50/70"
-                                    >
-                                        <td className="px-3 py-3 text-sm font-semibold text-stone-900">
-                                            {setting.required_hours} hour
-                                            {Number(setting.required_hours) === 1 ? '' : 's'}
-                                        </td>
+                            return (
+                                <div
+                                    key={department.department_id}
+                                    className="flex items-center justify-between px-4 py-3 hover:bg-stone-50"
+                                >
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-sm font-medium text-stone-900">
+                                                {department.department_name}
+                                            </h3>
 
-                                        <td className="px-3 py-3 text-xs text-stone-600">
-                                            {setting.allow_carry_over ? 'Allowed' : 'Not Allowed'}
-                                        </td>
+                                            <StatusPill active={isActive} />
+                                        </div>
 
-                                        <td className="px-3 py-3 text-xs text-stone-600">
-                                            <div className="max-w-[360px]">
-                                                {setting.remarks || '—'}
-                                            </div>
-                                        </td>
+                                        <p className="mt-1 truncate text-xs text-stone-400">
+                                            Updated {formatDateTime(department.updated_at || department.created_at)}
+                                        </p>
+                                    </div>
 
-                                        <td className="px-3 py-3 text-xs text-stone-500">
-                                            {formatDateTime(setting.updated_at || setting.created_at)}
-                                        </td>
+                                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 rounded-lg border-stone-200 px-2 text-xs"
+                                            onClick={() => openEditModal(department)}
+                                            disabled={departmentSaving || !!departmentActionId}
+                                        >
+                                            <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                                            Edit
+                                        </Button>
 
-                                        <td className="px-3 py-3">
-                                            <StatusPill active={setting.is_active} />
-                                        </td>
-
-                                        <td className="px-3 py-3 text-right">
-                                            {setting.is_active ? (
-                                                <span className="text-xs font-medium text-stone-400">
-                                                    Current active setting
-                                                </span>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className={`h-7 rounded-lg px-2 text-xs ${isActive
+                                                    ? 'border-red-200 text-red-700 hover:bg-red-50'
+                                                    : 'border-green-200 text-green-700 hover:bg-green-50'
+                                                }`}
+                                            onClick={() => toggleDepartment(department)}
+                                            disabled={loadingThis}
+                                        >
+                                            {loadingThis ? (
+                                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                                             ) : (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    disabled={activatingId === setting.setting_id}
-                                                    onClick={() => activateSetting(setting.setting_id)}
-                                                    className="h-8 rounded-lg border-stone-200 text-xs"
-                                                >
-                                                    {activatingId === setting.setting_id ? (
-                                                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                                                    ) : null}
-                                                    Activate
-                                                </Button>
+                                                <Power className="mr-1.5 h-3.5 w-3.5" />
                                             )}
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+
+                                            {isActive ? 'Deactivate' : 'Restore'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

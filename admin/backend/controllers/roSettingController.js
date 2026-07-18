@@ -6,6 +6,14 @@ function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+function getSafeStatusCode(error) {
+    const parsed = Number.parseInt(error?.statusCode, 10);
+
+    return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
+        ? parsed
+        : 500;
+}
+
 async function writeRoSettingAudit(
     req,
     actionTaken,
@@ -38,29 +46,31 @@ async function writeRoSettingAudit(
 
 function emitRoSettingUpdate(req, payload = {}) {
     try {
-        const io = req.app.get('io');
+        const io = req.app?.get?.('io');
+
+        if (!io) return;
 
         const eventPayload = {
             updated_at: new Date().toISOString(),
             ...payload,
         };
 
-        if (socketEvents?.roUpdated) {
+        if (typeof socketEvents?.roUpdated === 'function') {
             socketEvents.roUpdated(io, eventPayload);
-        } else if (io) {
-            io.emit('ro:updated', eventPayload);
+            return;
         }
+
+        if (typeof socketEvents?.emitEvent === 'function') {
+            socketEvents.emitEvent(io, 'ro:updated', eventPayload);
+            socketEvents.emitEvent(io, 'roUpdated', eventPayload);
+            return;
+        }
+
+        io.emit('ro:updated', eventPayload);
+        io.emit('roUpdated', eventPayload);
     } catch (error) {
         console.error('RO SETTINGS SOCKET ERROR:', error.message);
     }
-}
-
-function getSafeStatusCode(error) {
-    const parsed = Number.parseInt(error?.statusCode, 10);
-
-    return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
-        ? parsed
-        : 500;
 }
 
 async function getSettings(req, res) {
@@ -308,7 +318,7 @@ async function toggleDepartment(req, res) {
         await writeRoSettingAudit(
             req,
             'TOGGLE_RO_DEPARTMENT',
-            'Toggled RO department active/archive state.',
+            'Toggled RO department active state.',
             'ro_department',
             req.params.departmentId,
             result,

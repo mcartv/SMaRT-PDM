@@ -2,172 +2,221 @@ const roService = require('../services/roService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 
-exports.getSummary = async (req, res) => {
-    try {
-        const data = await roService.getSummary();
-        res.status(200).json(data);
-    } catch (err) {
-        console.error('GET RO SUMMARY ERROR:', err.message);
-        res.status(500).json({ error: err.message });
+function getRequestUserId(req) {
+  return req.user?.user_id || req.user?.userId || req.user?.id || req.user?.sub || null;
+}
+
+function getSafeStatusCode(error) {
+  const parsed = Number.parseInt(error?.statusCode, 10);
+
+  return Number.isInteger(parsed) && parsed >= 400 && parsed <= 599
+    ? parsed
+    : 500;
+}
+
+function emitRoUpdated(req, action, payload = {}) {
+  try {
+    const io = req.app?.get?.('io');
+    if (!io) return;
+
+    const data = {
+      source: 'ro-admin',
+      action,
+      updated_at: new Date().toISOString(),
+      ...payload,
+    };
+
+    if (typeof socketEvents?.roUpdated === 'function') {
+      socketEvents.roUpdated(io, data);
+      return;
     }
+
+    if (typeof socketEvents?.emitEvent === 'function') {
+      socketEvents.emitEvent(io, 'ro:updated', data);
+      socketEvents.emitEvent(io, 'roUpdated', data);
+      return;
+    }
+
+    io.emit('ro:updated', data);
+    io.emit('roUpdated', data);
+  } catch (error) {
+    console.error('RO REALTIME EMIT ERROR:', error.message);
+  }
+}
+
+function writeAudit(req, actionTaken, entityId, description, metadata = {}) {
+  try {
+    if (typeof auditLogService?.logAudit !== 'function') return;
+
+    auditLogService
+      .logAudit({
+        req,
+        userId: getRequestUserId(req),
+        actionTaken,
+        module: 'Return of Obligation',
+        entityType: 'return_of_obligation',
+        entityId: entityId ? String(entityId) : null,
+        description,
+        metadata,
+      })
+      .catch((error) => {
+        console.error('RO AUDIT LOG ERROR:', error.message);
+      });
+  } catch (error) {
+    console.error('RO AUDIT WRAPPER ERROR:', error.message);
+  }
+}
+
+exports.getSummary = async (req, res) => {
+  try {
+    const data = await roService.getSummary();
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('GET RO SUMMARY ERROR:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 exports.getROScholars = async (req, res) => {
-    try {
-        const data = await roService.getROScholars(req.query);
-        res.status(200).json({ scholars: data });
-    } catch (err) {
-        console.error('GET RO SCHOLARS ERROR:', err.message);
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    const data = await roService.getROScholars(req.query);
+    return res.status(200).json({ scholars: data });
+  } catch (err) {
+    console.error('GET RO SCHOLARS ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
+exports.assignScholarRO = async (req, res) => {
+  try {
+    const data = await roService.assignScholarRO(
+      req.params.studentId,
+      req.body || {},
+      req.user || {}
+    );
+
+    emitRoUpdated(req, 'assign', {
+      student_id: req.params.studentId,
+      ro_id: data?.assignment?.ro_id || null,
+      data,
+    });
+
+    writeAudit(
+      req,
+      'ASSIGN_RO',
+      data?.assignment?.ro_id || req.params.studentId,
+      'Assigned Return of Obligation to scholar.',
+      {
+        student_id: req.params.studentId,
+        body_keys: Object.keys(req.body || {}),
+      }
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('ASSIGN SCHOLAR RO ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
+exports.validateTimeLog = async (req, res) => {
+  try {
+    const data = await roService.validateTimeLog(
+      req.params.logId,
+      req.body || {},
+      req.user || {}
+    );
+
+    emitRoUpdated(req, 'validate-log', {
+      log_id: req.params.logId,
+      ro_id: data?.log?.ro_id || null,
+      student_id: data?.log?.student_id || null,
+      data,
+    });
+
+    writeAudit(
+      req,
+      'VALIDATE_RO_TIME_LOG',
+      req.params.logId,
+      'Validated Return of Obligation time log.',
+      {
+        log_id: req.params.logId,
+        validation_status: req.body?.validationStatus || req.body?.validation_status,
+      }
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('VALIDATE RO TIME LOG ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
 };
 
 exports.clearScholarRO = async (req, res) => {
-    try {
-        const data = await roService.clearScholarRO(
-            req.params.studentId,
-            req.body,
-            req.user
-        );
+  try {
+    const data = await roService.clearScholarRO(
+      req.params.studentId,
+      req.body || {},
+      req.user || {}
+    );
 
-        const io = req.app.get('io');
+    emitRoUpdated(req, 'clear', {
+      student_id: req.params.studentId,
+      application_id: req.body?.applicationId || null,
+      opening_id: req.body?.openingId || null,
+      ro_id: data?.clearance?.ro_id || null,
+      data,
+    });
 
-        socketEvents.roUpdated(io, {
-            updated_at: new Date().toISOString(),
-            source: 'ro-clearance',
-            action: 'clear',
-            student_id: req.params.studentId,
-            application_id: req.body?.applicationId || null,
-            opening_id: req.body?.openingId || null,
-            data,
-        });
+    writeAudit(
+      req,
+      'CLEAR_RO',
+      data?.clearance?.ro_id || req.params.studentId,
+      'Marked scholar Return of Obligation as cleared.',
+      {
+        student_id: req.params.studentId,
+        application_id: req.body?.applicationId || null,
+        opening_id: req.body?.openingId || null,
+      }
+    );
 
-        res.status(200).json(data);
-    } catch (err) {
-        console.error('CLEAR STUDENT RO ERROR:', err.message);
-        res.status(500).json({ error: err.message });
-    }
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('CLEAR STUDENT RO ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
 };
 
-/* Realtime + audit wrapper
- * This adds audit trail coverage to controller actions that previously had realtime only,
- * or no centralized audit. It skips read-only handlers.
- */
-(function attachRealtimeAuditWrapper() {
-    const MODULE_NAME = 'Return of Obligation';
-    const EVENT_BASE = 'ro';
+exports.batchAssignScholarsRO = async (req, res) => {
+  try {
+    const data = await roService.batchAssignScholarsRO(
+      req.body || {},
+      req.user || {}
+    );
 
-    const readOnlyPrefixes = ['get', 'fetch', 'list', 'download', 'export'];
-
-    function isReadOnlyAction(name) {
-        return readOnlyPrefixes.some((prefix) => String(name).startsWith(prefix));
-    }
-
-    function resolveActionName(name) {
-        const raw = String(name || '').toLowerCase();
-
-        if (raw.includes('archive')) return 'archived';
-        if (raw.includes('restore')) return 'restored';
-        if (raw.includes('approve')) return 'approved';
-        if (raw.includes('reject')) return 'rejected';
-        if (raw.includes('disqualify')) return 'disqualified';
-        if (raw.includes('create') || raw.includes('upload')) return 'created';
-        return 'updated';
-    }
-
-    function getActorUserId(req) {
-        return req.user?.user_id || req.user?.userId || req.user?.id || null;
-    }
-
-    function getEntityId(req, body) {
-        return (
-            req.params?.id ||
-            req.params?.applicationId ||
-            req.params?.studentId ||
-            req.params?.scholarId ||
-            req.params?.reviewId ||
-            req.params?.ticketId ||
-            req.params?.settingId ||
-            body?.data?.id ||
-            body?.data?.application_id ||
-            body?.data?.student_id ||
-            body?.id ||
-            body?.application_id ||
-            body?.student_id ||
-            null
-        );
-    }
-
-    function safeAudit(req, functionName, responseBody) {
-        try {
-            const action = resolveActionName(functionName);
-            const entityId = getEntityId(req, responseBody);
-            const actionTaken = `${action.toUpperCase()}_${EVENT_BASE.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase()}`;
-
-            if (typeof auditLogService?.logAudit === 'function') {
-                auditLogService.logAudit({
-                    req,
-                    userId: getActorUserId(req),
-                    actionTaken,
-                    module: MODULE_NAME,
-                    entityType: EVENT_BASE,
-                    entityId: entityId ? String(entityId) : null,
-                    description: `${MODULE_NAME}: ${functionName} completed successfully.`,
-                    metadata: {
-                        action,
-                        params: req.params || {},
-                        query: req.query || {},
-                        body_keys: Object.keys(req.body || {}),
-                    },
-                }).catch((error) => {
-                    console.error(`${MODULE_NAME} AUDIT WRAPPER ERROR:`, error.message);
-                });
-            }
-
-            const io = req.app?.get?.('io');
-            if (io && socketEvents?.emitEvent) {
-                socketEvents.emitEvent(io, `${EVENT_BASE}:${action}`, {
-                    module: MODULE_NAME,
-                    action,
-                    entity_id: entityId ? String(entityId) : null,
-                    source: functionName,
-                    updated_at: new Date().toISOString(),
-                });
-
-                socketEvents.emitEvent(io, 'audit:created', {
-                    module: MODULE_NAME,
-                    action_taken: actionTaken,
-                    entity_type: EVENT_BASE,
-                    entity_id: entityId ? String(entityId) : null,
-                    created_at: new Date().toISOString(),
-                });
-            }
-        } catch (error) {
-            console.error(`${MODULE_NAME} REALTIME/AUDIT WRAPPER ERROR:`, error.message);
-        }
-    }
-
-    Object.entries(module.exports).forEach(([functionName, handler]) => {
-        if (typeof handler !== 'function' || isReadOnlyAction(functionName)) return;
-        if (handler.__realtimeAuditWrapped) return;
-
-        const wrapped = async function realtimeAuditWrappedHandler(req, res, next) {
-            let captured = false;
-            const originalJson = res.json.bind(res);
-
-            res.json = function patchedJson(body) {
-                if (!captured && res.statusCode >= 200 && res.statusCode < 400) {
-                    captured = true;
-                    safeAudit(req, functionName, body || {});
-                }
-
-                return originalJson(body);
-            };
-
-            return handler(req, res, next);
-        };
-
-        wrapped.__realtimeAuditWrapped = true;
-        module.exports[functionName] = wrapped;
+    emitRoUpdated(req, 'batch-assign', {
+      total: data.total,
+      success_count: data.success_count,
+      failed_count: data.failed_count,
+      data,
     });
-})();
+
+    writeAudit(
+      req,
+      'BATCH_ASSIGN_RO',
+      null,
+      'Batch assigned Return of Obligation notices to scholars.',
+      {
+        total: data.total,
+        success_count: data.success_count,
+        failed_count: data.failed_count,
+        selected_student_ids: req.body?.studentIds || req.body?.student_ids || [],
+      }
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('BATCH ASSIGN RO ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};

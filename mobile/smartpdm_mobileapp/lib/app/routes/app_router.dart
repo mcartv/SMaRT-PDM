@@ -24,6 +24,7 @@ import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/messa
 import 'package:smartpdm_mobileapp/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/chat_list_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/report_ticket_screen.dart';
+import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/student_lookup_screen.dart';
 
@@ -34,7 +35,10 @@ class AppRouter {
         return _buildRoute(settings, (_) => const SplashScreen());
 
       case AppRoutes.studentLookup:
-        return _buildRoute(settings, (_) => StudentLookupScreen(mode: settings.arguments as String?));
+        return _buildRoute(
+          settings,
+          (_) => StudentLookupScreen(mode: settings.arguments as String?),
+        );
 
       case AppRoutes.login:
         return _buildRoute(settings, (_) => const LoginScreen());
@@ -156,6 +160,12 @@ class AppRouter {
         return _buildProtectedRoute(
           settings,
           (_) => _buildMessagingScreen(settings),
+        );
+
+      case AppRoutes.roAssignment:
+        return _buildProtectedRoute(
+          settings,
+          (_) => const ScholarAccessGate(child: ROAssignmentScreen()),
         );
 
       case AppRoutes.tickets:

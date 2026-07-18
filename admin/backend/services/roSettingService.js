@@ -20,10 +20,6 @@ function normalizeRequiredHours(value) {
     return parsed;
 }
 
-function hasValue(value) {
-    return value !== undefined && value !== null;
-}
-
 function getSettingPayload(setting = {}) {
     return {
         setting_id: setting.setting_id || null,
@@ -37,6 +33,16 @@ function getSettingPayload(setting = {}) {
         updated_at: setting.updated_at || null,
         academic_years: setting.academic_years || null,
         academic_period: setting.academic_period || null,
+    };
+}
+
+function getDepartmentPayload(department = {}) {
+    return {
+        department_id: department.department_id || null,
+        department_name: department.department_name || '',
+        is_active: department.is_active === true,
+        created_at: department.created_at || null,
+        updated_at: department.updated_at || null,
     };
 }
 
@@ -418,7 +424,7 @@ async function getDepartments() {
     if (error) throw error;
 
     return {
-        items: data || [],
+        items: Array.isArray(data) ? data.map(getDepartmentPayload) : [],
     };
 }
 
@@ -435,14 +441,20 @@ async function createDepartment(body = {}) {
             department_name: departmentName,
             is_active: body.is_active !== false && body.isActive !== false,
         })
-        .select('*')
+        .select('department_id, department_name, is_active, created_at, updated_at')
         .single();
 
-    if (error) throw error;
+    if (error) {
+        if (error.code === '23505') {
+            throw createHttpError(409, 'This RO department already exists.');
+        }
+
+        throw error;
+    }
 
     return {
         message: 'RO department created successfully.',
-        department: data,
+        department: getDepartmentPayload(data),
     };
 }
 
@@ -463,10 +475,16 @@ async function updateDepartment(departmentId, body = {}) {
             department_name: departmentName,
         })
         .eq('department_id', departmentId)
-        .select('*')
+        .select('department_id, department_name, is_active, created_at, updated_at')
         .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+        if (error.code === '23505') {
+            throw createHttpError(409, 'This RO department already exists.');
+        }
+
+        throw error;
+    }
 
     if (!data) {
         throw createHttpError(404, 'RO department not found.');
@@ -474,7 +492,7 @@ async function updateDepartment(departmentId, body = {}) {
 
     return {
         message: 'RO department updated successfully.',
-        department: data,
+        department: getDepartmentPayload(data),
     };
 }
 
@@ -501,14 +519,16 @@ async function toggleDepartment(departmentId) {
             is_active: !existing.is_active,
         })
         .eq('department_id', departmentId)
-        .select('*')
+        .select('department_id, department_name, is_active, created_at, updated_at')
         .single();
 
     if (error) throw error;
 
     return {
-        message: 'RO department status updated successfully.',
-        department: data,
+        message: data.is_active
+            ? 'RO department activated successfully.'
+            : 'RO department deactivated successfully.',
+        department: getDepartmentPayload(data),
     };
 }
 

@@ -1,32 +1,40 @@
 const express = require('express');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const roSettingController = require('../controllers/roSettingController');
 
 const router = express.Router();
 
-router.get('/', protect, roSettingController.getSettings);
-router.get('/active', protect, roSettingController.getActiveSetting);
+const adminOnly = [protect, authorizeRoles('admin')];
+
+router.get('/', adminOnly, roSettingController.getSettings);
+router.get('/active', adminOnly, roSettingController.getActiveSetting);
 
 // Manual apply active setting to existing pending RO records.
 // This must be before /:settingId.
-router.patch('/active/apply-to-pending', protect, roSettingController.applyActiveSettingToPending);
+router.patch(
+    '/active/apply-to-pending',
+    adminOnly,
+    roSettingController.applyActiveSettingToPending
+);
 
 // RO departments — MUST be before /:settingId
-router.get('/departments', protect, roSettingController.getDepartments);
-router.post('/departments', protect, roSettingController.createDepartment);
+router.get('/departments', adminOnly, roSettingController.getDepartments);
+router.post('/departments', adminOnly, roSettingController.createDepartment);
+
 router.patch(
     '/departments/:departmentId',
-    protect,
+    adminOnly,
     roSettingController.updateDepartment
 );
+
 router.patch(
     '/departments/:departmentId/toggle',
-    protect,
+    adminOnly,
     roSettingController.toggleDepartment
 );
 
-router.post('/', protect, roSettingController.createSetting);
-router.patch('/:settingId', protect, roSettingController.updateSetting);
-router.patch('/:settingId/activate', protect, roSettingController.activateSetting);
+router.post('/', adminOnly, roSettingController.createSetting);
+router.patch('/:settingId', adminOnly, roSettingController.updateSetting);
+router.patch('/:settingId/activate', adminOnly, roSettingController.activateSetting);
 
 module.exports = router;

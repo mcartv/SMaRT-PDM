@@ -1,8 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
+import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ROAssignmentScreen extends StatefulWidget {
@@ -21,9 +28,38 @@ class ObligationsScreen extends StatelessWidget {
   }
 }
 
+class RoPickedPhoto {
+  const RoPickedPhoto({
+    required this.file,
+    required this.bytes,
+    required this.fileName,
+    required this.mimeType,
+    required this.capturedAtDevice,
+    required this.source,
+  });
+
+  final XFile file;
+  final Uint8List bytes;
+  final String fileName;
+  final String mimeType;
+  final DateTime capturedAtDevice;
+  final ImageSource source;
+
+  String get sourceLabel => source == ImageSource.camera ? 'camera' : 'gallery';
+}
+
+class RoActionInput {
+  const RoActionInput({required this.note, required this.photo});
+
+  final String note;
+  final RoPickedPhoto? photo;
+}
+
 class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     with SingleTickerProviderStateMixin {
   final ApiClient _apiClient = ApiClient();
+  final SessionService _sessionService = const SessionService();
+  final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _noteController = TextEditingController();
 
   late final TabController _tabController;
@@ -106,6 +142,664 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  String _guessImageMimeType({required XFile file, required Uint8List bytes}) {
+    final providedMime = (file.mimeType ?? '').trim().toLowerCase();
+
+    if (providedMime.startsWith('image/')) {
+      return providedMime == 'image/jpg' ? 'image/jpeg' : providedMime;
+    }
+
+    final name = file.name.trim().toLowerCase();
+
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return 'image/jpeg';
+    }
+
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A) {
+      return 'image/png';
+    }
+
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'image/webp';
+    }
+
+    return 'image/jpeg';
+  }
+
+  String _extensionFromMimeType(String mimeType) {
+    final value = mimeType.trim().toLowerCase();
+
+    if (value == 'image/png') return 'png';
+    if (value == 'image/webp') return 'webp';
+
+    return 'jpg';
+  }
+
+  String _safeRoPhotoFileName({required XFile file, required String mimeType}) {
+    final rawName = file.name.trim();
+    final lowerName = rawName.toLowerCase();
+
+    if (lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.webp')) {
+      return rawName;
+    }
+
+    final extension = _extensionFromMimeType(mimeType);
+    return 'ro-proof-${DateTime.now().millisecondsSinceEpoch}.$extension';
+  }
+
+  Future<RoPickedPhoto?> _pickRoProofPhoto(ImageSource source) async {
+    final pickedFile = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 78,
+      maxWidth: 1600,
+    );
+
+    if (pickedFile == null) return null;
+
+    final bytes = await pickedFile.readAsBytes();
+    final mimeType = _guessImageMimeType(file: pickedFile, bytes: bytes);
+    final fileName = _safeRoPhotoFileName(file: pickedFile, mimeType: mimeType);
+
+    return RoPickedPhoto(
+      file: pickedFile,
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: mimeType,
+      capturedAtDevice: DateTime.now(),
+      source: source,
+    );
+  }
+
+  Future<Map<String, String>> _buildMultipartHeaders() async {
+    final session = await _sessionService.getCurrentUser();
+    final headers = <String, String>{'Accept': 'application/json'};
+
+    if (session.token.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer ${session.token.trim()}';
+    }
+
+    return headers;
+  }
+
+  Map<String, dynamic> _decodeMultipartResponse(http.Response response) {
+    final body = response.body.trim();
+    final fallbackMessage =
+        response.statusCode >= 200 && response.statusCode < 300
+        ? 'Request completed.'
+        : 'Request failed.';
+
+    if (body.isEmpty) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return <String, dynamic>{};
+      }
+
+      throw Exception(fallbackMessage);
+    }
+
+    final decoded = jsonDecode(body);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (decoded is Map<String, dynamic>) {
+        throw Exception(
+          decoded['message']?.toString() ??
+              decoded['error']?.toString() ??
+              fallbackMessage,
+        );
+      }
+
+      throw Exception(fallbackMessage);
+    }
+
+    if (decoded is Map<String, dynamic>) return decoded;
+
+    throw Exception('Unexpected response from server.');
+  }
+
+  Future<Map<String, dynamic>> _sendRoMultipart({
+    required String path,
+    required Map<String, String> fields,
+    RoPickedPhoto? photo,
+    String method = 'POST',
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    try {
+      final request = http.MultipartRequest(method, _apiClient.buildUri(path));
+      request.headers.addAll(await _buildMultipartHeaders());
+      request.fields.addAll(fields);
+
+      if (photo != null) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'photo',
+            photo.bytes,
+            filename: photo.fileName,
+            contentType: MediaType.parse(photo.mimeType),
+          ),
+        );
+      }
+
+      final streamedResponse = await request.send().timeout(timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      return _decodeMultipartResponse(response);
+    } on TimeoutException {
+      throw Exception(
+        'Upload timed out. Please check your connection and try again.',
+      );
+    } on http.ClientException {
+      throw Exception(
+        'Connection error. Please ensure your backend is running and accessible.',
+      );
+    } on FormatException {
+      throw Exception('Unexpected response from server.');
+    }
+  }
+
+  Future<RoActionInput?> _showRoActionDialog({
+    required String title,
+    required String hint,
+    required String primaryLabel,
+  }) async {
+    _noteController.clear();
+    RoPickedPhoto? selectedPhoto;
+
+    return showDialog<RoActionInput>(
+      context: context,
+      barrierDismissible: !_isSubmitting,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> choosePhoto(ImageSource source) async {
+              try {
+                final photo = await _pickRoProofPhoto(source);
+
+                if (photo == null) {
+                  _showSnack('Photo selection was cancelled.');
+                  return;
+                }
+
+                setDialogState(() {
+                  selectedPhoto = photo;
+                });
+              } catch (error) {
+                _showSnack('Unable to get photo: ${_cleanError(error)}');
+              }
+            }
+
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              backgroundColor: Colors.transparent,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: AnimatedPadding(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: const Color(0xFFE7D8C7)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.18),
+                            blurRadius: 28,
+                            offset: const Offset(0, 14),
+                          ),
+                        ],
+                      ),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFB8A99A),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Text(
+                              title,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF1C1917),
+                                  ),
+                            ),
+                            const SizedBox(height: 18),
+                            TextField(
+                              controller: _noteController,
+                              minLines: 3,
+                              maxLines: 4,
+                              textInputAction: TextInputAction.newline,
+                              decoration: InputDecoration(
+                                hintText: hint,
+                                hintStyle: const TextStyle(
+                                  color: Color(0xFF786D63),
+                                  fontSize: 14,
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFFFFFBF6),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF8B7A68),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                  borderSide: const BorderSide(
+                                    color: Color(0xFF4A2400),
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.74),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: const Color(0xFFE7D8C7),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Photo proof is optional for now',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF1C1917),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    selectedPhoto == null
+                                        ? 'Continue without a photo, take one using the camera, or choose from gallery.'
+                                        : 'Selected: ${selectedPhoto!.fileName}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      height: 1.35,
+                                      color: Color(0xFF78716C),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (selectedPhoto != null) ...[
+                                    const SizedBox(height: 12),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Stack(
+                                        children: [
+                                          Container(
+                                            width: double.infinity,
+                                            height: 170,
+                                            color: const Color(0xFFF5EEE6),
+                                            child: Image.memory(
+                                              selectedPhoto!.bytes,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return const Center(
+                                                      child: Column(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons
+                                                                .broken_image_rounded,
+                                                            color: Color(
+                                                              0xFF78716C,
+                                                            ),
+                                                          ),
+                                                          SizedBox(height: 6),
+                                                          Text(
+                                                            'Unable to preview image',
+                                                            style: TextStyle(
+                                                              color: Color(
+                                                                0xFF78716C,
+                                                              ),
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  },
+                                            ),
+                                          ),
+                                          Positioned(
+                                            left: 10,
+                                            top: 10,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withOpacity(
+                                                  0.62,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    selectedPhoto!.source ==
+                                                            ImageSource.camera
+                                                        ? Icons
+                                                              .camera_alt_rounded
+                                                        : Icons
+                                                              .photo_library_rounded,
+                                                    color: Colors.white,
+                                                    size: 14,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    selectedPhoto!
+                                                                .sourceLabel ==
+                                                            'camera'
+                                                        ? 'Camera'
+                                                        : 'Gallery',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          Positioned(
+                                            right: 10,
+                                            top: 10,
+                                            child: InkWell(
+                                              onTap: _isSubmitting
+                                                  ? null
+                                                  : () {
+                                                      setDialogState(() {
+                                                        selectedPhoto = null;
+                                                      });
+                                                    },
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              child: Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black
+                                                      .withOpacity(0.62),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.close_rounded,
+                                                  color: Colors.white,
+                                                  size: 18,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSubmitting
+                                              ? null
+                                              : () => choosePhoto(
+                                                  ImageSource.camera,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.camera_alt_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Camera'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(
+                                              0xFF4A2400,
+                                            ),
+                                            side: const BorderSide(
+                                              color: Color(0xFFD8C7B3),
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSubmitting
+                                              ? null
+                                              : () => choosePhoto(
+                                                  ImageSource.gallery,
+                                                ),
+                                          icon: const Icon(
+                                            Icons.photo_library_rounded,
+                                            size: 18,
+                                          ),
+                                          label: const Text('Gallery'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(
+                                              0xFF4A2400,
+                                            ),
+                                            side: const BorderSide(
+                                              color: Color(0xFFD8C7B3),
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (selectedPhoto != null) ...[
+                                    const SizedBox(height: 8),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: TextButton.icon(
+                                        onPressed: _isSubmitting
+                                            ? null
+                                            : () {
+                                                setDialogState(() {
+                                                  selectedPhoto = null;
+                                                });
+                                              },
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          size: 18,
+                                        ),
+                                        label: const Text(
+                                          'Remove selected photo',
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: const Color(
+                                            0xFFB3261E,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.darkBrown,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : () {
+                                        Navigator.pop(
+                                          dialogContext,
+                                          RoActionInput(
+                                            note: _noteController.text.trim(),
+                                            photo: selectedPhoto,
+                                          ),
+                                        );
+                                      },
+                                child: Text(primaryLabel),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => Navigator.pop(dialogContext),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: Color(0xFF78716C),
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<Map<String, String>> _buildProofFields({
+    String? studentNote,
+    RoPickedPhoto? photo,
+  }) async {
+    final capturedAt = DateTime.now();
+    final fields = <String, String>{
+      'captured_at_device': capturedAt.toUtc().toIso8601String(),
+      'device_timezone': capturedAt.timeZoneName,
+      'location_source': 'device_gps',
+      'device_info': jsonEncode({
+        'platform': Theme.of(context).platform.name,
+        'capture_method': photo?.sourceLabel ?? 'none',
+        'source': 'smartpdm_mobile_ro',
+        'has_photo': photo != null,
+        'photo_name': photo?.fileName,
+      }),
+      'exif_metadata': jsonEncode({}),
+      if (photo != null) 'mime_type': photo.mimeType,
+      if (photo != null) 'file_name': photo.fileName,
+      if (studentNote != null && studentNote.trim().isNotEmpty)
+        'studentNote': studentNote.trim(),
+    };
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        fields['location_permission_status'] = 'service_disabled';
+        return fields;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      fields['location_permission_status'] = permission.name;
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return fields;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      fields['latitude'] = position.latitude.toString();
+      fields['longitude'] = position.longitude.toString();
+      fields['accuracy_meters'] = position.accuracy.toString();
+      fields['altitude_meters'] = position.altitude.toString();
+    } catch (error) {
+      fields['location_permission_status'] = 'location_error';
+      fields['location_error'] = error.toString();
+    }
+
+    return fields;
   }
 
   Future<void> _acknowledge(RoAssignment item) async {
@@ -192,13 +886,13 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   Future<void> _timeIn(RoAssignment item) async {
-    final note = await _showNoteSheet(
+    final input = await _showRoActionDialog(
       title: 'Time In',
       hint: 'Optional note before starting your RO session',
-      primaryLabel: 'Start Session',
+      primaryLabel: 'Start Time In',
     );
 
-    if (note == null) return;
+    if (input == null) return;
 
     setState(() {
       _isSubmitting = true;
@@ -206,14 +900,21 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     });
 
     try {
-      final response = await _apiClient.postJson(
-        '/api/ro/${item.roId}/time-in',
-        body: {if (note.trim().isNotEmpty) 'studentNote': note.trim()},
+      final fields = await _buildProofFields(
+        studentNote: input.note,
+        photo: input.photo,
+      );
+
+      final response = await _sendRoMultipart(
+        path: '/api/ro/${item.roId}/time-in',
+        fields: fields,
+        photo: input.photo,
       );
 
       _applyResponse(response);
       _showSnack(response['message']?.toString() ?? 'Timed in successfully.');
     } catch (error) {
+      if (!mounted) return;
       setState(() => _errorMessage = _cleanError(error));
     } finally {
       if (mounted) {
@@ -223,33 +924,13 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   Future<void> _timeOut(RoAssignment item) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Time out?'),
-          content: const Text(
-            'Your current RO session will be submitted for validation.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFB3261E),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Time Out'),
-            ),
-          ],
-        );
-      },
+    final input = await _showRoActionDialog(
+      title: 'Time Out',
+      hint: 'Optional note before ending your RO session',
+      primaryLabel: 'Submit Time Out',
     );
 
-    if (confirmed != true) return;
+    if (input == null) return;
 
     setState(() {
       _isSubmitting = true;
@@ -257,13 +938,21 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
     });
 
     try {
-      final response = await _apiClient.patchJson(
-        '/api/ro/${item.roId}/time-out',
+      final fields = await _buildProofFields(
+        studentNote: input.note,
+        photo: input.photo,
+      );
+
+      final response = await _sendRoMultipart(
+        path: '/api/ro/${item.roId}/time-out',
+        fields: fields,
+        photo: input.photo,
       );
 
       _applyResponse(response);
       _showSnack(response['message']?.toString() ?? 'Timed out successfully.');
     } catch (error) {
+      if (!mounted) return;
       setState(() => _errorMessage = _cleanError(error));
     } finally {
       if (mounted) {

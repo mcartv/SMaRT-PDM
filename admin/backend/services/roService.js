@@ -2,6 +2,7 @@ const supabase = require('../config/supabase');
 const notificationService = require('./notificationService');
 
 const APPROVED_APPLICATION_STATUSES = ['Approved', 'Approved Scholar', 'Accepted'];
+const RO_PROOFS_BUCKET = process.env.RO_PROOFS_BUCKET || 'ro-proofs';
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -87,6 +88,58 @@ async function resolveAvatarUrl(value) {
     return data?.signedUrl || rawValue;
 }
 
+function extractStoragePath(value, bucketName) {
+    const rawValue = String(value || '').trim();
+
+    if (!rawValue) return null;
+
+    if (!/^https?:\/\//i.test(rawValue)) {
+        return rawValue
+            .replace(new RegExp(`^${bucketName}/`), '')
+            .replace(/^\/+/, '');
+    }
+
+    const markers = [
+        `/storage/v1/object/public/${bucketName}/`,
+        `/storage/v1/object/sign/${bucketName}/`,
+        `/storage/v1/object/authenticated/${bucketName}/`,
+    ];
+
+    for (const marker of markers) {
+        const markerIndex = rawValue.indexOf(marker);
+
+        if (markerIndex >= 0) {
+            return rawValue.slice(markerIndex + marker.length).split('?')[0];
+        }
+    }
+
+    return null;
+}
+
+async function resolveRoProofUrl(fileUrl, filePath) {
+    const rawFileUrl = String(fileUrl || '').trim();
+    const rawFilePath = String(filePath || '').trim();
+
+    const storagePath =
+        extractStoragePath(rawFilePath, RO_PROOFS_BUCKET) ||
+        extractStoragePath(rawFileUrl, RO_PROOFS_BUCKET);
+
+    if (!storagePath) {
+        return rawFileUrl || null;
+    }
+
+    const { data, error } = await supabase.storage
+        .from(RO_PROOFS_BUCKET)
+        .createSignedUrl(storagePath, 60 * 60);
+
+    if (error) {
+        console.error('RO PROOF SIGNED URL ERROR:', error.message);
+        return rawFileUrl || rawFilePath || null;
+    }
+
+    return data?.signedUrl || rawFileUrl || rawFilePath || null;
+}
+
 function getUserId(user = {}) {
     return user?.userId || user?.user_id || user?.id || user?.sub || null;
 }
@@ -153,6 +206,70 @@ async function getROByApplication(studentId, applicationId) {
     return data || null;
 }
 
+async function getProofsForLogIds(logIds = []) {
+    const ids = [...new Set(logIds.filter(Boolean))];
+
+    if (!ids.length) return new Map();
+
+    const { data, error } = await supabase
+        .from('ro_time_log_proofs')
+        .select(`
+      proof_id,
+      log_id,
+      ro_id,
+      student_id,
+      proof_type,
+      file_url,
+      file_path,
+      file_name,
+      mime_type,
+      file_size_bytes,
+      photo_sha256,
+      captured_at_device,
+      captured_at_server,
+      device_timezone,
+      latitude,
+      longitude,
+      accuracy_meters,
+      altitude_meters,
+      location_permission_status,
+      location_source,
+      device_info,
+      exif_metadata,
+      proof_status,
+      admin_comment,
+      reviewed_by,
+      reviewed_at,
+      created_at
+    `)
+        .in('log_id', ids)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
+
+    const map = new Map();
+
+    for (const proof of data || []) {
+        const resolvedFileUrl = await resolveRoProofUrl(
+            proof.file_url,
+            proof.file_path
+        );
+
+        const proofWithResolvedUrl = {
+            ...proof,
+            file_url: resolvedFileUrl,
+        };
+
+        const current = map.get(proof.log_id) || [];
+        current.push(proofWithResolvedUrl);
+        map.set(proof.log_id, current);
+    }
+
+    return map;
+}
+
 async function getLogsForROIds(roIds) {
     const ids = [...new Set(roIds.filter(Boolean))];
 
@@ -174,6 +291,9 @@ async function getLogsForROIds(roIds) {
       validation_remarks,
       validated_by,
       validated_at,
+      auto_timed_out,
+      auto_timeout_reason,
+      requires_admin_attention,
       created_at,
       updated_at
     `)
@@ -184,18 +304,108 @@ async function getLogsForROIds(roIds) {
         throw createHttpError(500, error.message);
     }
 
+    const logRows = data || [];
+    const proofsByLog = await getProofsForLogIds(logRows.map((log) => log.log_id));
+
     const map = new Map();
 
-    for (const log of data || []) {
+    for (const log of logRows) {
         const current = map.get(log.ro_id) || [];
-        current.push(log);
+        current.push({
+            ...log,
+            proofs: proofsByLog.get(log.log_id) || [],
+        });
         map.set(log.ro_id, current);
     }
 
     return map;
 }
 
+function serializeProof(proof = {}) {
+    return {
+        proof_id: proof.proof_id,
+        proofId: proof.proof_id,
+
+        log_id: proof.log_id,
+        logId: proof.log_id,
+
+        ro_id: proof.ro_id,
+        roId: proof.ro_id,
+
+        student_id: proof.student_id,
+        studentId: proof.student_id,
+
+        proof_type: proof.proof_type,
+        proofType: proof.proof_type,
+
+        file_url: proof.file_url,
+        fileUrl: proof.file_url,
+
+        file_path: proof.file_path,
+        filePath: proof.file_path,
+
+        file_name: proof.file_name,
+        fileName: proof.file_name,
+
+        mime_type: proof.mime_type,
+        mimeType: proof.mime_type,
+
+        file_size_bytes: proof.file_size_bytes,
+        fileSizeBytes: proof.file_size_bytes,
+
+        photo_sha256: proof.photo_sha256,
+        photoSha256: proof.photo_sha256,
+
+        captured_at_device: proof.captured_at_device,
+        capturedAtDevice: proof.captured_at_device,
+
+        captured_at_server: proof.captured_at_server,
+        capturedAtServer: proof.captured_at_server,
+
+        device_timezone: proof.device_timezone,
+        deviceTimezone: proof.device_timezone,
+
+        latitude: proof.latitude,
+        longitude: proof.longitude,
+
+        accuracy_meters: proof.accuracy_meters,
+        accuracyMeters: proof.accuracy_meters,
+
+        altitude_meters: proof.altitude_meters,
+        altitudeMeters: proof.altitude_meters,
+
+        location_permission_status: proof.location_permission_status,
+        locationPermissionStatus: proof.location_permission_status,
+
+        location_source: proof.location_source,
+        locationSource: proof.location_source,
+
+        device_info: proof.device_info || {},
+        deviceInfo: proof.device_info || {},
+
+        exif_metadata: proof.exif_metadata || {},
+        exifMetadata: proof.exif_metadata || {},
+
+        proof_status: proof.proof_status || 'Pending Review',
+        proofStatus: proof.proof_status || 'Pending Review',
+
+        admin_comment: proof.admin_comment || '',
+        adminComment: proof.admin_comment || '',
+
+        reviewed_by: proof.reviewed_by || null,
+        reviewedBy: proof.reviewed_by || null,
+
+        reviewed_at: proof.reviewed_at || null,
+        reviewedAt: proof.reviewed_at || null,
+
+        created_at: proof.created_at || null,
+        createdAt: proof.created_at || null,
+    };
+}
+
 function serializeLog(log = {}) {
+    const proofs = Array.isArray(log.proofs) ? log.proofs.map(serializeProof) : [];
+
     return {
         log_id: log.log_id,
         logId: log.log_id,
@@ -235,6 +445,19 @@ function serializeLog(log = {}) {
 
         validated_at: log.validated_at || null,
         validatedAt: log.validated_at || null,
+
+        auto_timed_out: log.auto_timed_out === true,
+        autoTimedOut: log.auto_timed_out === true,
+
+        auto_timeout_reason: log.auto_timeout_reason || '',
+        autoTimeoutReason: log.auto_timeout_reason || '',
+
+        requires_admin_attention: log.requires_admin_attention === true,
+        requiresAdminAttention: log.requires_admin_attention === true,
+
+        proofs,
+        proof_count: proofs.length,
+        proofCount: proofs.length,
 
         created_at: log.created_at || null,
         createdAt: log.created_at || null,
@@ -420,6 +643,95 @@ async function sendRoAssignmentNotification({
         return notification;
     } catch (error) {
         console.error('RO ASSIGNMENT NOTIFICATION ERROR:', error.message);
+        return null;
+    }
+}
+
+async function getStudentNotificationTarget(studentId) {
+    if (!studentId) return null;
+
+    const { data, error } = await supabase
+        .from('students')
+        .select(`
+      student_id,
+      user_id,
+      pdm_id,
+      first_name,
+      middle_name,
+      last_name
+    `)
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+    if (error) {
+        console.error('GET RO NOTIFICATION TARGET ERROR:', error.message);
+        return null;
+    }
+
+    return data || null;
+}
+
+async function sendRoTimeLogValidationNotification({
+    studentId,
+    log,
+    validationStatus,
+    validatedMinutes,
+}) {
+    try {
+        if (typeof notificationService?.createUserNotification !== 'function') {
+            return null;
+        }
+
+        const student = await getStudentNotificationTarget(studentId);
+
+        if (!student?.user_id) return null;
+
+        const isApproved = validationStatus === 'Approved';
+        const title = isApproved
+            ? 'RO Time Log Approved'
+            : 'RO Time Log Rejected';
+
+        const message = isApproved
+            ? `Your Return of Obligation time log has been approved. Approved time: ${validatedMinutes} minute(s).`
+            : 'Your Return of Obligation time log was rejected. Please check the RO module for details.';
+
+        return await notificationService.createUserNotification({
+            userId: student.user_id,
+            type: 'RO Validation',
+            title,
+            message,
+            referenceId: log?.log_id || null,
+            referenceType: 'ro_time_log',
+            createdAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('RO VALIDATION NOTIFICATION ERROR:', error.message);
+        return null;
+    }
+}
+
+async function sendRoClearanceNotification({ studentId, ro }) {
+    try {
+        if (typeof notificationService?.createUserNotification !== 'function') {
+            return null;
+        }
+
+        const student = await getStudentNotificationTarget(studentId);
+
+        if (!student?.user_id) return null;
+
+        return await notificationService.createUserNotification({
+            userId: student.user_id,
+            type: 'RO Clearance',
+            title: 'Return of Obligation Completed',
+            message:
+                'Your Return of Obligation has been marked as completed. Please check the RO module for your updated status.',
+            referenceId: ro?.ro_id || null,
+            referenceType: 'return_of_obligation',
+            createdAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('RO CLEARANCE NOTIFICATION ERROR:', error.message);
         return null;
     }
 }
@@ -1077,6 +1389,18 @@ exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
         throw createHttpError(404, 'Time log not found.');
     }
 
+    const { data: beforeRo, error: beforeRoError } = await supabase
+        .from('return_of_obligations')
+        .select('ro_id, ro_status')
+        .eq('ro_id', existingLog.ro_id)
+        .maybeSingle();
+
+    if (beforeRoError) {
+        throw createHttpError(500, beforeRoError.message);
+    }
+
+    const wasAlreadyCleared = beforeRo?.ro_status === 'Cleared';
+
     const durationMinutes = toNumber(existingLog.duration_minutes);
 
     const requestedValidatedMinutes = toNumber(
@@ -1116,10 +1440,77 @@ exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
 
     const ro = await syncRoTotals(existingLog.ro_id, user);
 
+    const validationNotification = await sendRoTimeLogValidationNotification({
+        studentId: existingLog.student_id,
+        log,
+        validationStatus,
+        validatedMinutes,
+    });
+
+    let clearanceNotification = null;
+
+    if (!wasAlreadyCleared && ro?.ro_status === 'Cleared') {
+        clearanceNotification = await sendRoClearanceNotification({
+            studentId: existingLog.student_id,
+            ro,
+        });
+    }
+
     return {
         message: `Time log ${validationStatus.toLowerCase()}.`,
         log,
         ro,
+        notification: validationNotification,
+        clearanceNotification,
+    };
+};
+
+exports.reviewTimeLogProof = async (proofId, payload = {}, user = {}) => {
+    if (!proofId) {
+        throw createHttpError(400, 'Proof ID is required.');
+    }
+
+    const proofStatus = cleanText(payload.proofStatus || payload.proof_status);
+
+    if (!['Accepted', 'Rejected', 'Flagged', 'Pending Review'].includes(proofStatus)) {
+        throw createHttpError(
+            400,
+            'Proof status must be Accepted, Rejected, Flagged, or Pending Review.'
+        );
+    }
+
+    const now = new Date().toISOString();
+    const adminUserId = getUserId(user);
+
+    const { data: proof, error } = await supabase
+        .from('ro_time_log_proofs')
+        .update({
+            proof_status: proofStatus,
+            admin_comment:
+                cleanText(
+                    payload.adminComment ||
+                    payload.admin_comment ||
+                    payload.comment ||
+                    payload.remarks
+                ) || null,
+            reviewed_by: adminUserId,
+            reviewed_at: now,
+        })
+        .eq('proof_id', proofId)
+        .select()
+        .single();
+
+    if (error) {
+        throw createHttpError(500, error.message);
+    }
+
+    if (!proof) {
+        throw createHttpError(404, 'RO proof not found.');
+    }
+
+    return {
+        message: `Proof marked as ${proofStatus}.`,
+        proof,
     };
 };
 

@@ -28,17 +28,32 @@ function emitRoUpdated(req, action, payload = {}) {
 
     if (typeof socketEvents?.roUpdated === 'function') {
       socketEvents.roUpdated(io, data);
-      return;
-    }
-
-    if (typeof socketEvents?.emitEvent === 'function') {
+    } else if (typeof socketEvents?.emitEvent === 'function') {
       socketEvents.emitEvent(io, 'ro:updated', data);
       socketEvents.emitEvent(io, 'roUpdated', data);
-      return;
+    } else {
+      io.emit('ro:updated', data);
+      io.emit('roUpdated', data);
     }
 
     io.emit('ro:updated', data);
     io.emit('roUpdated', data);
+
+    if (action === 'validate-log') {
+      io.emit('ro:time-log-updated', data);
+    }
+
+    if (action === 'review-proof') {
+      io.emit('ro:proof-updated', data);
+    }
+
+    if (
+      action === 'assign' ||
+      action === 'batch-assign' ||
+      action === 'clear'
+    ) {
+      io.emit('ro:assignment-updated', data);
+    }
   } catch (error) {
     console.error('RO REALTIME EMIT ERROR:', error.message);
   }
@@ -119,6 +134,40 @@ exports.assignScholarRO = async (req, res) => {
   }
 };
 
+exports.batchAssignScholarsRO = async (req, res) => {
+  try {
+    const data = await roService.batchAssignScholarsRO(
+      req.body || {},
+      req.user || {}
+    );
+
+    emitRoUpdated(req, 'batch-assign', {
+      total: data.total,
+      success_count: data.success_count,
+      failed_count: data.failed_count,
+      data,
+    });
+
+    writeAudit(
+      req,
+      'BATCH_ASSIGN_RO',
+      null,
+      'Batch assigned Return of Obligation notices to scholars.',
+      {
+        total: data.total,
+        success_count: data.success_count,
+        failed_count: data.failed_count,
+        selected_student_ids: req.body?.studentIds || req.body?.student_ids || [],
+      }
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('BATCH ASSIGN RO ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
 exports.validateTimeLog = async (req, res) => {
   try {
     const data = await roService.validateTimeLog(
@@ -131,6 +180,8 @@ exports.validateTimeLog = async (req, res) => {
       log_id: req.params.logId,
       ro_id: data?.log?.ro_id || null,
       student_id: data?.log?.student_id || null,
+      validation_status: data?.log?.validation_status || null,
+      validated_minutes: data?.log?.validated_minutes || 0,
       data,
     });
 
@@ -142,12 +193,48 @@ exports.validateTimeLog = async (req, res) => {
       {
         log_id: req.params.logId,
         validation_status: req.body?.validationStatus || req.body?.validation_status,
+        validated_minutes: req.body?.validatedMinutes || req.body?.validated_minutes,
       }
     );
 
     return res.status(200).json(data);
   } catch (err) {
     console.error('VALIDATE RO TIME LOG ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
+exports.reviewTimeLogProof = async (req, res) => {
+  try {
+    const data = await roService.reviewTimeLogProof(
+      req.params.proofId,
+      req.body || {},
+      req.user || {}
+    );
+
+    emitRoUpdated(req, 'review-proof', {
+      proof_id: req.params.proofId,
+      log_id: data?.proof?.log_id || null,
+      ro_id: data?.proof?.ro_id || null,
+      student_id: data?.proof?.student_id || null,
+      proof_status: data?.proof?.proof_status || null,
+      data,
+    });
+
+    writeAudit(
+      req,
+      'REVIEW_RO_TIME_LOG_PROOF',
+      req.params.proofId,
+      'Reviewed Return of Obligation photo proof.',
+      {
+        proof_id: req.params.proofId,
+        proof_status: req.body?.proofStatus || req.body?.proof_status,
+      }
+    );
+
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('REVIEW RO TIME LOG PROOF ERROR:', err.message);
     return res.status(getSafeStatusCode(err)).json({ error: err.message });
   }
 };
@@ -183,40 +270,6 @@ exports.clearScholarRO = async (req, res) => {
     return res.status(200).json(data);
   } catch (err) {
     console.error('CLEAR STUDENT RO ERROR:', err.message);
-    return res.status(getSafeStatusCode(err)).json({ error: err.message });
-  }
-};
-
-exports.batchAssignScholarsRO = async (req, res) => {
-  try {
-    const data = await roService.batchAssignScholarsRO(
-      req.body || {},
-      req.user || {}
-    );
-
-    emitRoUpdated(req, 'batch-assign', {
-      total: data.total,
-      success_count: data.success_count,
-      failed_count: data.failed_count,
-      data,
-    });
-
-    writeAudit(
-      req,
-      'BATCH_ASSIGN_RO',
-      null,
-      'Batch assigned Return of Obligation notices to scholars.',
-      {
-        total: data.total,
-        success_count: data.success_count,
-        failed_count: data.failed_count,
-        selected_student_ids: req.body?.studentIds || req.body?.student_ids || [],
-      }
-    );
-
-    return res.status(200).json(data);
-  } catch (err) {
-    console.error('BATCH ASSIGN RO ERROR:', err.message);
     return res.status(getSafeStatusCode(err)).json({ error: err.message });
   }
 };

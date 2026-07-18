@@ -8,7 +8,6 @@ import {
   Search,
   RefreshCw,
   Loader2,
-  CheckCircle2,
   ClipboardCheck,
   Filter,
   X,
@@ -18,6 +17,14 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  Camera,
+  MapPin,
+  Clock,
+  ImageIcon,
+  CheckCircle2,
+  Ban,
+  Flag,
+  ExternalLink,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 
@@ -86,6 +93,26 @@ function getAssignmentTone(value) {
   if (status === 'unassigned') return 'default';
 
   return 'default';
+}
+
+function getProofTone(value) {
+  const status = normalizeStatus(value);
+
+  if (status === 'accepted') return 'green';
+  if (status === 'rejected') return 'red';
+  if (status === 'flagged') return 'amber';
+
+  return 'default';
+}
+
+function proofTypeLabel(value) {
+  const type = normalizeStatus(value);
+
+  if (type === 'time_in') return 'Time In Proof';
+  if (type === 'time_out') return 'Time Out Proof';
+  if (type === 'auto_timeout_note') return 'Auto Timeout Note';
+
+  return 'Photo Proof';
 }
 
 function matchesStatusTab(scholar, viewMode) {
@@ -272,6 +299,18 @@ function getRoMetrics(scholar) {
   };
 }
 
+function ProofMetaRow({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-start gap-2 text-[11px]">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-400" />
+      <div>
+        <p className="font-black uppercase tracking-wide text-stone-400">{label}</p>
+        <p className="mt-0.5 break-all font-semibold text-stone-700">{value || 'N/A'}</p>
+      </div>
+    </div>
+  );
+}
+
 function ProgressLine({ label, value, caption, color }) {
   const percent = clampPercent(value);
 
@@ -319,6 +358,68 @@ function EmptyState({ onAssignMode }) {
       >
         Show Unassigned
       </Button>
+    </div>
+  );
+}
+
+function ImagePreviewModal({ proof, onClose }) {
+  if (!proof) return null;
+
+  const url = proof.fileUrl || proof.file_url;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="absolute inset-0" onClick={onClose} />
+
+      <Card className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+          <div>
+            <h3 className="text-sm font-black text-stone-900">
+              {proofTypeLabel(proof.proofType || proof.proof_type)}
+            </h3>
+            <p className="mt-0.5 text-xs text-stone-500">
+              {proof.fileName || proof.file_name || 'Photo proof'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto bg-stone-950 p-4">
+          {url ? (
+            <img
+              src={url}
+              alt="RO proof"
+              className="mx-auto max-h-[72vh] max-w-full rounded-xl object-contain"
+            />
+          ) : (
+            <div className="flex min-h-[300px] items-center justify-center text-sm text-white">
+              No image URL available.
+            </div>
+          )}
+        </div>
+
+        {url ? (
+          <div className="flex justify-end border-t border-stone-100 px-5 py-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+              className="rounded-xl border-stone-200 text-xs"
+            >
+              <ExternalLink className="mr-2 h-3.5 w-3.5" />
+              Open Original
+            </Button>
+          </div>
+        ) : null}
+      </Card>
     </div>
   );
 }
@@ -760,165 +861,470 @@ function BatchAssignModal({
   );
 }
 
-function LogsModal({ open, scholar, loading, error, onClose, onValidate }) {
+function ProofCard({ proof, loading, onPreview, onReview }) {
+  const proofId = proof.proofId || proof.proof_id;
+  const fileUrl = proof.fileUrl || proof.file_url;
+  const status = proof.proofStatus || proof.proof_status || 'Pending Review';
+
+  const latitude = proof.latitude;
+  const longitude = proof.longitude;
+  const hasLocation = latitude !== null && latitude !== undefined && longitude !== null && longitude !== undefined;
+
+  const locationText = hasLocation
+    ? `${latitude}, ${longitude}`
+    : proof.locationPermissionStatus || proof.location_permission_status || 'Location unavailable';
+
+  return (
+    <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => onPreview(proof)}
+          className="flex h-32 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-stone-200 bg-white sm:w-36"
+        >
+          {fileUrl ? (
+            <img
+              src={fileUrl}
+              alt={proofTypeLabel(proof.proofType || proof.proof_type)}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <ImageIcon className="h-8 w-8 text-stone-300" />
+          )}
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusChip tone="blue">
+                {proofTypeLabel(proof.proofType || proof.proof_type)}
+              </StatusChip>
+
+              <StatusChip tone={getProofTone(status)}>
+                {status}
+              </StatusChip>
+            </div>
+
+            {fileUrl ? (
+              <button
+                type="button"
+                onClick={() => window.open(fileUrl, '_blank', 'noopener,noreferrer')}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 hover:underline"
+              >
+                Open <ExternalLink className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <ProofMetaRow
+              icon={Clock}
+              label="Device Captured"
+              value={formatDateTime(proof.capturedAtDevice || proof.captured_at_device)}
+            />
+
+            <ProofMetaRow
+              icon={Clock}
+              label="Server Received"
+              value={formatDateTime(proof.capturedAtServer || proof.captured_at_server)}
+            />
+
+            <ProofMetaRow
+              icon={MapPin}
+              label="Location"
+              value={locationText}
+            />
+
+            <ProofMetaRow
+              icon={MapPin}
+              label="Accuracy"
+              value={
+                proof.accuracyMeters || proof.accuracy_meters
+                  ? `${proof.accuracyMeters || proof.accuracy_meters}m`
+                  : 'N/A'
+              }
+            />
+          </div>
+
+          {(proof.adminComment || proof.admin_comment) ? (
+            <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-stone-600">
+              <span className="font-black">Admin note:</span>{' '}
+              {proof.adminComment || proof.admin_comment}
+            </p>
+          ) : null}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={loading || !proofId}
+              onClick={() =>
+                onReview(proof, {
+                  proofStatus: 'Accepted',
+                  adminComment: 'Proof accepted by RO admin.',
+                })
+              }
+              className="h-8 rounded-lg border-none text-xs text-white"
+              style={{ background: C.green }}
+            >
+              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+              Accept
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              disabled={loading || !proofId}
+              onClick={() =>
+                onReview(proof, {
+                  proofStatus: 'Flagged',
+                  adminComment: 'Proof flagged for review.',
+                })
+              }
+              className="h-8 rounded-lg border-none text-xs text-white"
+              style={{ background: C.amber }}
+            >
+              <Flag className="mr-1.5 h-3.5 w-3.5" />
+              Flag
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              disabled={loading || !proofId}
+              onClick={() =>
+                onReview(proof, {
+                  proofStatus: 'Rejected',
+                  adminComment: 'Proof rejected by RO admin.',
+                })
+              }
+              className="h-8 rounded-lg border-none text-xs text-white"
+              style={{ background: C.red }}
+            >
+              <Ban className="mr-1.5 h-3.5 w-3.5" />
+              Reject
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogsModal({
+  open,
+  scholar,
+  loading,
+  error,
+  onClose,
+  onBackToDetails,
+  canBackToDetails = false,
+  onValidate,
+  onReviewProof,
+}) {
+  const [previewProof, setPreviewProof] = useState(null);
+  const [drafts, setDrafts] = useState({});
+
+  useEffect(() => {
+    if (!open || !scholar) return;
+
+    const nextDrafts = {};
+    const logs = Array.isArray(scholar.logs) ? scholar.logs : [];
+
+    for (const log of logs) {
+      const logId = log.logId || log.log_id;
+      const duration = log.durationMinutes || log.duration_minutes || 0;
+
+      nextDrafts[logId] = {
+        validatedMinutes: String(duration),
+        remarks: '',
+      };
+    }
+
+    setDrafts(nextDrafts);
+  }, [open, scholar]);
+
   if (!open || !scholar) return null;
 
   const logs = Array.isArray(scholar.logs) ? scholar.logs : [];
 
+  const updateDraft = (logId, key, value) => {
+    setDrafts((current) => ({
+      ...current,
+      [logId]: {
+        ...(current[logId] || {}),
+        [key]: value,
+      },
+    }));
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
+    <>
+      <ImagePreviewModal proof={previewProof} onClose={() => setPreviewProof(null)} />
 
-      <Card className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <div>
-            <h3 className="text-sm font-semibold text-stone-900">RO Logs</h3>
-            <p className="mt-1 text-xs text-stone-500">
-              {getScholarName(scholar)}
-            </p>
-          </div>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+        <div className="absolute inset-0" onClick={loading ? undefined : onClose} />
 
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <CardContent className="flex-1 space-y-3 overflow-y-auto p-5">
-          {logs.length === 0 ? (
-            <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-stone-700">
-                No logs yet
+        <Card className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
+          <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
+            <div>
+              <h3 className="text-sm font-semibold text-stone-900">RO Logs & Proofs</h3>
+              <p className="mt-1 text-xs text-stone-500">
+                {getScholarName(scholar)}
               </p>
             </div>
-          ) : (
-            logs.map((log) => {
-              const status = log.validationStatus || log.validation_status;
-              const pending = status === 'Pending Validation';
 
-              return (
-                <div
-                  key={log.logId || log.log_id}
-                  className="rounded-xl border border-stone-200 bg-white p-4"
+            <div className="flex items-center gap-2">
+              {canBackToDetails ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loading}
+                  onClick={onBackToDetails}
+                  className="h-8 rounded-lg border-stone-200 text-xs"
                 >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusChip
-                          tone={
-                            status === 'Approved'
-                              ? 'green'
-                              : status === 'Rejected'
-                                ? 'red'
-                                : 'amber'
-                          }
-                        >
-                          {status || 'Pending Validation'}
-                        </StatusChip>
+                  Back to Details
+                </Button>
+              ) : null}
 
-                        <StatusChip tone="default">
-                          {log.logStatus || log.log_status || 'Timed Out'}
-                        </StatusChip>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                        <p>
-                          <span className="font-bold text-stone-700">Time In:</span>{' '}
-                          <span className="text-stone-500">
-                            {formatDateTime(log.timeInAt || log.time_in_at)}
-                          </span>
-                        </p>
-
-                        <p>
-                          <span className="font-bold text-stone-700">Time Out:</span>{' '}
-                          <span className="text-stone-500">
-                            {formatDateTime(log.timeOutAt || log.time_out_at)}
-                          </span>
-                        </p>
-
-                        <p>
-                          <span className="font-bold text-stone-700">Duration:</span>{' '}
-                          <span className="text-stone-500">
-                            {formatMinutes(log.durationMinutes || log.duration_minutes)}
-                          </span>
-                        </p>
-
-                        <p>
-                          <span className="font-bold text-stone-700">Validated:</span>{' '}
-                          <span className="text-stone-500">
-                            {formatMinutes(log.validatedMinutes || log.validated_minutes)}
-                          </span>
-                        </p>
-                      </div>
-
-                      {(log.studentNote || log.student_note) ? (
-                        <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
-                          {log.studentNote || log.student_note}
-                        </p>
-                      ) : null}
-
-                      {(log.validationRemarks || log.validation_remarks) ? (
-                        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
-                          {log.validationRemarks || log.validation_remarks}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    {pending ? (
-                      <div className="flex shrink-0 gap-2">
-                        <Button
-                          size="sm"
-                          disabled={loading}
-                          onClick={() =>
-                            onValidate(log, {
-                              validationStatus: 'Approved',
-                              validatedMinutes:
-                                log.durationMinutes || log.duration_minutes || 0,
-                              remarks: 'Approved by RO admin.',
-                            })
-                          }
-                          className="rounded-lg border-none text-xs text-white"
-                          style={{ background: C.green }}
-                        >
-                          Approve
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          disabled={loading}
-                          onClick={() =>
-                            onValidate(log, {
-                              validationStatus: 'Rejected',
-                              validatedMinutes: 0,
-                              remarks: 'Rejected by RO admin.',
-                            })
-                          }
-                          className="rounded-lg border-none text-xs text-white"
-                          style={{ background: C.red }}
-                        >
-                          Reject
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          )}
-
-          {error ? (
-            <div className="flex gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+
+          <CardContent className="flex-1 space-y-4 overflow-y-auto p-5">
+            {logs.length === 0 ? (
+              <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-8 text-center">
+                <p className="text-sm font-semibold text-stone-700">
+                  No logs yet
+                </p>
+              </div>
+            ) : (
+              logs.map((log) => {
+                const logId = log.logId || log.log_id;
+                const status = log.validationStatus || log.validation_status;
+                const pending = status === 'Pending Validation';
+                const proofs = Array.isArray(log.proofs) ? log.proofs : [];
+                const autoTimedOut = log.autoTimedOut || log.auto_timed_out;
+                const requiresAttention =
+                  log.requiresAdminAttention || log.requires_admin_attention;
+
+                const draft = drafts[logId] || {
+                  validatedMinutes: String(log.durationMinutes || log.duration_minutes || 0),
+                  remarks: '',
+                };
+
+                return (
+                  <div
+                    key={logId}
+                    className="rounded-2xl border border-stone-200 bg-white p-4"
+                  >
+                    <div className="flex flex-col gap-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <StatusChip
+                              tone={
+                                status === 'Approved'
+                                  ? 'green'
+                                  : status === 'Rejected'
+                                    ? 'red'
+                                    : 'amber'
+                              }
+                            >
+                              {status || 'Pending Validation'}
+                            </StatusChip>
+
+                            <StatusChip tone="default">
+                              {log.logStatus || log.log_status || 'Timed Out'}
+                            </StatusChip>
+
+                            {autoTimedOut ? (
+                              <StatusChip tone="amber">Auto Timed Out</StatusChip>
+                            ) : null}
+
+                            {requiresAttention ? (
+                              <StatusChip tone="red">Needs Review</StatusChip>
+                            ) : null}
+
+                            {proofs.length > 0 ? (
+                              <StatusChip tone="blue">
+                                {proofs.length} proof{proofs.length > 1 ? 's' : ''}
+                              </StatusChip>
+                            ) : (
+                              <StatusChip tone="red">No Proof</StatusChip>
+                            )}
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                            <p>
+                              <span className="font-bold text-stone-700">Time In:</span>{' '}
+                              <span className="text-stone-500">
+                                {formatDateTime(log.timeInAt || log.time_in_at)}
+                              </span>
+                            </p>
+
+                            <p>
+                              <span className="font-bold text-stone-700">Time Out:</span>{' '}
+                              <span className="text-stone-500">
+                                {formatDateTime(log.timeOutAt || log.time_out_at)}
+                              </span>
+                            </p>
+
+                            <p>
+                              <span className="font-bold text-stone-700">Duration:</span>{' '}
+                              <span className="text-stone-500">
+                                {formatMinutes(log.durationMinutes || log.duration_minutes)}
+                              </span>
+                            </p>
+
+                            <p>
+                              <span className="font-bold text-stone-700">Validated:</span>{' '}
+                              <span className="text-stone-500">
+                                {formatMinutes(log.validatedMinutes || log.validated_minutes)}
+                              </span>
+                            </p>
+                          </div>
+
+                          {(log.studentNote || log.student_note) ? (
+                            <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-500">
+                              {log.studentNote || log.student_note}
+                            </p>
+                          ) : null}
+
+                          {(log.autoTimeoutReason || log.auto_timeout_reason) ? (
+                            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                              <span className="font-black">Auto timeout reason:</span>{' '}
+                              {log.autoTimeoutReason || log.auto_timeout_reason}
+                            </p>
+                          ) : null}
+
+                          {(log.validationRemarks || log.validation_remarks) ? (
+                            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+                              {log.validationRemarks || log.validation_remarks}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        {pending ? (
+                          <div className="w-full shrink-0 rounded-xl border border-stone-200 bg-stone-50 p-3 lg:w-72">
+                            <label className="block">
+                              <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+                                Validated Minutes
+                              </span>
+                              <Input
+                                type="number"
+                                min="0"
+                                max={log.durationMinutes || log.duration_minutes || 0}
+                                value={draft.validatedMinutes}
+                                onChange={(e) =>
+                                  updateDraft(logId, 'validatedMinutes', e.target.value)
+                                }
+                                className="h-9 rounded-lg border-stone-200 bg-white text-xs"
+                              />
+                            </label>
+
+                            <label className="mt-2 block">
+                              <span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-stone-400">
+                                Remarks
+                              </span>
+                              <textarea
+                                value={draft.remarks}
+                                onChange={(e) =>
+                                  updateDraft(logId, 'remarks', e.target.value)
+                                }
+                                rows={2}
+                                placeholder="Optional validation remarks"
+                                className="w-full resize-none rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
+                              />
+                            </label>
+
+                            <div className="mt-3 flex gap-2">
+                              <Button
+                                size="sm"
+                                disabled={loading}
+                                onClick={() =>
+                                  onValidate(log, {
+                                    validationStatus: 'Approved',
+                                    validatedMinutes: Number(draft.validatedMinutes || 0),
+                                    remarks: draft.remarks || 'Approved by RO admin.',
+                                  })
+                                }
+                                className="h-8 flex-1 rounded-lg border-none text-xs text-white"
+                                style={{ background: C.green }}
+                              >
+                                Approve
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                disabled={loading}
+                                onClick={() =>
+                                  onValidate(log, {
+                                    validationStatus: 'Rejected',
+                                    validatedMinutes: 0,
+                                    remarks: draft.remarks || 'Rejected by RO admin.',
+                                  })
+                                }
+                                className="h-8 flex-1 rounded-lg border-none text-xs text-white"
+                                style={{ background: C.red }}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="border-t border-stone-100 pt-4">
+                        <div className="mb-3 flex items-center gap-2">
+                          <Camera className="h-4 w-4 text-stone-400" />
+                          <p className="text-xs font-black uppercase tracking-wide text-stone-500">
+                            Photo Proofs
+                          </p>
+                        </div>
+
+                        {proofs.length === 0 ? (
+                          <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
+                            No photo proof submitted for this time log.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-3">
+                            {proofs.map((proof) => (
+                              <ProofCard
+                                key={proof.proofId || proof.proof_id}
+                                proof={proof}
+                                loading={loading}
+                                onPreview={setPreviewProof}
+                                onReview={onReviewProof}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {error ? (
+              <div className="flex gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
 
@@ -952,6 +1358,14 @@ function RoDetailsModal({
     isCleared,
     progressSummary,
   } = getRoMetrics(scholar);
+
+  const proofCount = Array.isArray(scholar.logs)
+    ? scholar.logs.reduce((sum, log) => sum + (Array.isArray(log.proofs) ? log.proofs.length : 0), 0)
+    : 0;
+
+  const autoFlagCount = Array.isArray(scholar.logs)
+    ? scholar.logs.filter((log) => log.autoTimedOut || log.auto_timed_out || log.requiresAdminAttention || log.requires_admin_attention).length
+    : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
@@ -1021,7 +1435,7 @@ function RoDetailsModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
               <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
                 Department
@@ -1047,6 +1461,20 @@ function RoDetailsModal({
               <p className="mt-1 text-sm font-black text-stone-900">
                 {pendingLogCount > 0 ? `${pendingLogCount} pending` : 'No pending'}
               </p>
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                Proofs
+              </p>
+              <p className="mt-1 text-sm font-black text-stone-900">
+                {proofCount}
+              </p>
+              {autoFlagCount > 0 ? (
+                <p className="mt-1 text-[11px] font-bold text-amber-600">
+                  {autoFlagCount} flagged
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -1085,13 +1513,6 @@ function RoDetailsModal({
                   color={C.amber}
                   caption={`${formatMinutes(submittedMinutes)} submitted of ${formatMinutes(requiredMinutes)}`}
                 />
-
-                <ProgressLine
-                  label="Validated"
-                  value={validatedProgress}
-                  color={C.green}
-                  caption={`${formatMinutes(validatedMinutes)} validated of ${formatMinutes(requiredMinutes)}`}
-                />
               </div>
             </div>
           ) : null}
@@ -1129,7 +1550,7 @@ function RoDetailsModal({
               className="h-9 rounded-xl border-stone-200 text-xs"
             >
               <Eye className="mr-2 h-3.5 w-3.5" />
-              Logs
+              Logs & Proofs
             </Button>
           ) : null}
 
@@ -1165,6 +1586,7 @@ export default function ROAdmin() {
   const [courseId, setCourseId] = useState('all');
   const [yearLevel, setYearLevel] = useState('all');
   const [openingId, setOpeningId] = useState('all');
+  const [logsReturnScholar, setLogsReturnScholar] = useState(null);
 
   const [selectedIds, setSelectedIds] = useState([]);
   const [batchModalOpen, setBatchModalOpen] = useState(false);
@@ -1333,6 +1755,11 @@ export default function ROAdmin() {
         if (!current?.student_id) return current;
         return rows.find((row) => row.student_id === current.student_id) || current;
       });
+
+      setSelectedScholar((current) => {
+        if (!current?.student_id) return current;
+        return rows.find((row) => row.student_id === current.student_id) || current;
+      });
     } catch (err) {
       console.error('LOAD RO SCHOLARS ERROR:', err);
       setError(err.message || 'Failed to load RO scholars');
@@ -1379,6 +1806,30 @@ export default function ROAdmin() {
     [search, courseId, yearLevel, openingId]
   );
 
+  useSocketEvent(
+    'ro:time-log-updated',
+    () => {
+      refreshAll();
+    },
+    [search, courseId, yearLevel, openingId]
+  );
+
+  useSocketEvent(
+    'ro:proof-updated',
+    () => {
+      refreshAll();
+    },
+    [search, courseId, yearLevel, openingId]
+  );
+
+  useSocketEvent(
+    'ro:assignment-updated',
+    () => {
+      refreshAll();
+    },
+    [search, courseId, yearLevel, openingId]
+  );
+
   const handleResetFilters = () => {
     setSearch('');
     setCourseId('all');
@@ -1411,8 +1862,21 @@ export default function ROAdmin() {
     });
   };
 
+  const closeAllModals = () => {
+    setFilterOpen(false);
+    setAssignModalOpen(false);
+    setLogsModalOpen(false);
+    setDetailsModalOpen(false);
+    setBatchModalOpen(false);
+  };
+
   const openAssignModal = (scholar) => {
+    if (actionLoading) return;
+
+    closeAllModals();
     setSelectedScholar(scholar);
+    setDetailsScholar(null);
+    setLogsReturnScholar(null);
     setActionError('');
     setAssignModalOpen(true);
   };
@@ -1426,21 +1890,41 @@ export default function ROAdmin() {
   };
 
   const openLogsModal = (scholar) => {
+    if (actionLoading) return;
+
+    closeAllModals();
     setSelectedScholar(scholar);
+    setDetailsScholar(null);
+    setLogsReturnScholar(null);
     setActionError('');
     setLogsModalOpen(true);
   };
 
-  const closeLogsModal = () => {
+  const closeLogsModal = ({ returnToDetails = false } = {}) => {
     if (actionLoading) return;
+
+    const returnScholar = logsReturnScholar;
 
     setSelectedScholar(null);
     setActionError('');
     setLogsModalOpen(false);
+    setLogsReturnScholar(null);
+
+    if (returnToDetails && returnScholar) {
+      setTimeout(() => {
+        setDetailsScholar(returnScholar);
+        setDetailsModalOpen(true);
+      }, 0);
+    }
   };
 
   const openDetailsModal = (scholar) => {
+    if (actionLoading) return;
+
+    closeAllModals();
     setDetailsScholar(scholar);
+    setSelectedScholar(null);
+    setLogsReturnScholar(null);
     setActionError('');
     setDetailsModalOpen(true);
   };
@@ -1454,17 +1938,27 @@ export default function ROAdmin() {
   };
 
   const openAssignFromDetails = () => {
-    if (!detailsScholar) return;
+    if (!detailsScholar || actionLoading) return;
 
-    setSelectedScholar(detailsScholar);
+    const scholar = detailsScholar;
+
+    closeAllModals();
+    setSelectedScholar(scholar);
+    setDetailsScholar(null);
+    setLogsReturnScholar(null);
     setActionError('');
     setAssignModalOpen(true);
   };
 
   const openLogsFromDetails = () => {
-    if (!detailsScholar) return;
+    if (!detailsScholar || actionLoading) return;
 
-    setSelectedScholar(detailsScholar);
+    const scholar = detailsScholar;
+
+    closeAllModals();
+    setSelectedScholar(scholar);
+    setDetailsScholar(null);
+    setLogsReturnScholar(scholar);
     setActionError('');
     setLogsModalOpen(true);
   };
@@ -1578,12 +2072,43 @@ export default function ROAdmin() {
         throw new Error(data.error || data.message || 'Failed to validate time log');
       }
 
-      setLogsModalOpen(false);
-      setSelectedScholar(null);
       await refreshAll();
     } catch (err) {
       console.error('VALIDATE RO LOG ERROR:', err);
       setActionError(err.message || 'Failed to validate time log');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReviewProof = async (proof, payload) => {
+    const proofId = proof.proofId || proof.proof_id;
+
+    if (!proofId) return;
+
+    try {
+      setActionLoading(true);
+      setActionError('');
+
+      const res = await fetch(
+        buildApiUrl(`/api/ro/time-log-proofs/${proofId}/review`),
+        {
+          method: 'PATCH',
+          headers: authHeaders,
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to review proof');
+      }
+
+      await refreshAll();
+    } catch (err) {
+      console.error('REVIEW RO PROOF ERROR:', err);
+      setActionError(err.message || 'Failed to review proof');
     } finally {
       setActionLoading(false);
     }
@@ -1601,6 +2126,7 @@ export default function ROAdmin() {
     try {
       setActionLoading(true);
       setActionError('');
+      setError('');
 
       const res = await fetch(buildApiUrl(`/api/ro/scholars/${scholar.student_id}/clear`), {
         method: 'PATCH',
@@ -1618,6 +2144,38 @@ export default function ROAdmin() {
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to clear scholar');
       }
+
+      setScholars((current) =>
+        current.map((row) => {
+          if (String(row.student_id) !== String(scholar.student_id)) {
+            return row;
+          }
+
+          return {
+            ...row,
+            ro_status: 'Cleared',
+            is_cleared: true,
+            assignment_status: 'Cleared',
+            assignmentStatus: 'Cleared',
+            progress_status: 'Cleared',
+            progressStatus: 'Cleared',
+            ro_progress: 100,
+            validatedProgress: 100,
+            submitted_progress: 100,
+            submittedProgress: 100,
+            cleared_at: data?.clearance?.cleared_at || new Date().toISOString(),
+          };
+        })
+      );
+
+      setSelectedIds((current) =>
+        current.filter((id) => String(id) !== String(scholar.student_id))
+      );
+
+      closeAllModals();
+      setSelectedScholar(null);
+      setDetailsScholar(null);
+      setLogsReturnScholar(null);
 
       await refreshAll();
     } catch (err) {
@@ -1698,8 +2256,11 @@ export default function ROAdmin() {
         scholar={selectedScholar}
         loading={actionLoading}
         error={actionError}
-        onClose={closeLogsModal}
+        onClose={() => closeLogsModal()}
+        onBackToDetails={() => closeLogsModal({ returnToDetails: true })}
+        canBackToDetails={Boolean(logsReturnScholar)}
         onValidate={handleValidateLog}
+        onReviewProof={handleReviewProof}
       />
 
       <RoDetailsModal
@@ -1734,6 +2295,7 @@ export default function ROAdmin() {
             {selectedIds.length > 0 ? (
               <Button
                 onClick={() => {
+                  closeAllModals();
                   setBatchError('');
                   setBatchModalOpen(true);
                 }}
@@ -1747,7 +2309,10 @@ export default function ROAdmin() {
             ) : null}
 
             <Button
-              onClick={() => setFilterOpen(true)}
+              onClick={() => {
+                closeAllModals();
+                setFilterOpen(true);
+              }}
               variant="outline"
               size="sm"
               className="h-10 rounded-xl border-stone-200 bg-white px-3 text-stone-700"
@@ -1862,8 +2427,6 @@ export default function ROAdmin() {
                     const key = `${scholar.student_id}-${scholar.application_id || scholar.ro_id || 'ro'}`;
                     const name = getScholarName(scholar);
                     const hasAssignment = !!scholar.ro_id;
-                    const assignmentStatus =
-                      scholar.assignment_status || scholar.assignmentStatus || 'Unassigned';
                     const progressStatus =
                       scholar.progress_status || scholar.progressStatus || 'Not Started';
 
@@ -1879,6 +2442,19 @@ export default function ROAdmin() {
 
                     const selectable = isBatchSelectable(scholar);
                     const selected = selectedIds.includes(String(scholar.student_id));
+
+                    const logs = Array.isArray(scholar.logs) ? scholar.logs : [];
+                    const proofCount = logs.reduce(
+                      (sum, log) => sum + (Array.isArray(log.proofs) ? log.proofs.length : 0),
+                      0
+                    );
+                    const flagCount = logs.filter(
+                      (log) =>
+                        log.autoTimedOut ||
+                        log.auto_timed_out ||
+                        log.requiresAdminAttention ||
+                        log.requires_admin_attention
+                    ).length;
 
                     return (
                       <tr
@@ -1964,6 +2540,18 @@ export default function ROAdmin() {
                               {pendingLogCount > 0 ? (
                                 <StatusChip tone="blue">
                                   {pendingLogCount} pending
+                                </StatusChip>
+                              ) : null}
+
+                              {proofCount > 0 ? (
+                                <StatusChip tone="purple">
+                                  {proofCount} proof{proofCount > 1 ? 's' : ''}
+                                </StatusChip>
+                              ) : null}
+
+                              {flagCount > 0 ? (
+                                <StatusChip tone="amber">
+                                  {flagCount} flag{flagCount > 1 ? 's' : ''}
                                 </StatusChip>
                               ) : null}
                             </div>

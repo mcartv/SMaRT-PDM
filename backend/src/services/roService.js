@@ -1,9 +1,16 @@
 const supabase = require('../config/supabase');
+const notificationService = require('./notificationService');
 const crypto = require('crypto');
 
 const RO_PROOFS_BUCKET =
   process.env.RO_PROOFS_BUCKET ||
   'ro-proofs';
+
+const AUTO_TIMEOUT_INTERVAL_MS = Number(
+  process.env.RO_AUTO_TIMEOUT_INTERVAL_MS || 60000
+);
+
+let autoTimeoutTimer = null;
 
 function createHttpError(statusCode, message) {
   const error = new Error(message);
@@ -25,10 +32,7 @@ function toNumber(value, fallback = 0) {
     : fallback;
 }
 
-function percentFromMinutes(
-  doneMinutes,
-  requiredMinutes
-) {
+function percentFromMinutes(doneMinutes, requiredMinutes) {
   const done = toNumber(doneMinutes);
   const required = toNumber(requiredMinutes);
 
@@ -42,6 +46,41 @@ function percentFromMinutes(
       0,
       Math.round((done / required) * 100)
     )
+  );
+}
+
+function minutesBetween(startValue, endValue) {
+  const startDate = new Date(startValue);
+  const endDate = new Date(endValue);
+
+  const diffMs =
+    endDate.getTime() -
+    startDate.getTime();
+
+  if (
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    diffMs <= 0
+  ) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(diffMs / 60000)
+  );
+}
+
+function addMinutesToDate(value, minutes) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date();
+  }
+
+  return new Date(
+    date.getTime() +
+    Math.max(0, Number(minutes || 0)) * 60000
   );
 }
 
@@ -103,19 +142,6 @@ function cleanNumericOrNull(value) {
     : null;
 }
 
-/*
- * The MIME type supplied by a mobile multipart client cannot always be trusted.
- *
- * Flutter and native devices may send a valid image as:
- * - application/octet-stream
- * - binary/octet-stream
- * - an empty MIME value
- *
- * We therefore check:
- * 1. Reported MIME
- * 2. Filename extension
- * 3. Actual file signature/magic bytes
- */
 const SUPPORTED_RO_PROOF_MIME_TYPES =
   new Set([
     'image/jpeg',
@@ -124,9 +150,7 @@ const SUPPORTED_RO_PROOF_MIME_TYPES =
     'image/webp',
   ]);
 
-function detectMimeTypeFromFileName(
-  originalName = ''
-) {
+function detectMimeTypeFromFileName(originalName = '') {
   const name = String(originalName)
     .trim()
     .toLowerCase();
@@ -157,10 +181,6 @@ function detectMimeTypeFromBuffer(buffer) {
     return null;
   }
 
-  /*
-   * JPEG:
-   * FF D8 FF
-   */
   if (
     buffer.length >= 3 &&
     buffer[0] === 0xff &&
@@ -170,10 +190,6 @@ function detectMimeTypeFromBuffer(buffer) {
     return 'image/jpeg';
   }
 
-  /*
-   * PNG:
-   * 89 50 4E 47 0D 0A 1A 0A
-   */
   if (
     buffer.length >= 8 &&
     buffer[0] === 0x89 &&
@@ -188,10 +204,6 @@ function detectMimeTypeFromBuffer(buffer) {
     return 'image/png';
   }
 
-  /*
-   * WEBP:
-   * RIFF....WEBP
-   */
   if (
     buffer.length >= 12 &&
     buffer[0] === 0x52 &&
@@ -210,9 +222,7 @@ function detectMimeTypeFromBuffer(buffer) {
 }
 
 function normalizeRoProofMimeType(file = {}) {
-  const rawMime = String(
-    file.mimetype || ''
-  )
+  const rawMime = String(file.mimetype || '')
     .trim()
     .toLowerCase();
 
@@ -233,10 +243,6 @@ function normalizeRoProofMimeType(file = {}) {
     return mimeFromBuffer;
   }
 
-  /*
-   * Filename fallback is useful for multipart clients that send
-   * application/octet-stream. File signature is checked first.
-   */
   const mimeFromName =
     detectMimeTypeFromFileName(
       file.originalname
@@ -256,9 +262,7 @@ function normalizeRoProofMimeType(file = {}) {
   );
 }
 
-function getRoProofExtensionFromMimeType(
-  mimeType
-) {
+function getRoProofExtensionFromMimeType(mimeType) {
   if (mimeType === 'image/png') {
     return 'png';
   }
@@ -277,9 +281,7 @@ function sanitizeFileName(fileName = '') {
     .slice(0, 180);
 }
 
-async function removeStorageObjectQuietly(
-  filePath
-) {
+async function removeStorageObjectQuietly(filePath) {
   if (!filePath) {
     return;
   }
@@ -341,9 +343,7 @@ async function saveRoTimeLogProof({
 
   const fileName =
     rawOriginalName &&
-      /\.(jpg|jpeg|png|webp)$/i.test(
-        rawOriginalName
-      )
+      /\.(jpg|jpeg|png|webp)$/i.test(rawOriginalName)
       ? rawOriginalName
       : `${proofType}-${Date.now()}.${extension}`;
 
@@ -364,23 +364,18 @@ async function saveRoTimeLogProof({
       .update(file.buffer)
       .digest('hex');
 
-  const {
-    error: uploadError,
-  } = await supabase.storage
-    .from(RO_PROOFS_BUCKET)
-    .upload(
-      filePath,
-      file.buffer,
-      {
-        /*
-         * Use our verified/normalized MIME, not the raw MIME provided
-         * by the mobile application.
-         */
-        contentType: mimeType,
-        upsert: false,
-        cacheControl: '3600',
-      }
-    );
+  const { error: uploadError } =
+    await supabase.storage
+      .from(RO_PROOFS_BUCKET)
+      .upload(
+        filePath,
+        file.buffer,
+        {
+          contentType: mimeType,
+          upsert: false,
+          cacheControl: '3600',
+        }
+      );
 
   if (uploadError) {
     throw createHttpError(
@@ -408,10 +403,6 @@ async function saveRoTimeLogProof({
     file_url: fileUrl,
     file_path: filePath,
     file_name: fileName,
-
-    /*
-     * Save the normalized value in PostgreSQL.
-     */
     mime_type: mimeType,
 
     file_size_bytes:
@@ -481,20 +472,14 @@ async function saveRoTimeLogProof({
     proof_status: 'Pending Review',
   };
 
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('ro_time_log_proofs')
-    .insert(proofPayload)
-    .select()
-    .single();
+  const { data, error } =
+    await supabase
+      .from('ro_time_log_proofs')
+      .insert(proofPayload)
+      .select()
+      .single();
 
   if (error) {
-    /*
-     * Avoid leaving an orphaned Storage object when the database insert
-     * fails after the file was uploaded.
-     */
     await removeStorageObjectQuietly(
       filePath
     );
@@ -525,15 +510,13 @@ async function resolveAvatarUrl(value) {
     return rawValue;
   }
 
-  const {
-    data,
-    error,
-  } = await supabase.storage
-    .from('avatars')
-    .createSignedUrl(
-      storagePath,
-      60 * 60 * 24 * 7
-    );
+  const { data, error } =
+    await supabase.storage
+      .from('avatars')
+      .createSignedUrl(
+        storagePath,
+        60 * 60 * 24 * 7
+      );
 
   if (error) {
     return rawValue;
@@ -542,9 +525,7 @@ async function resolveAvatarUrl(value) {
   return data?.signedUrl || rawValue;
 }
 
-async function getStudentByUserId(
-  userId
-) {
+async function getStudentByUserId(userId) {
   if (!userId) {
     throw createHttpError(
       401,
@@ -552,25 +533,23 @@ async function getStudentByUserId(
     );
   }
 
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('students')
-    .select(`
-      student_id,
-      user_id,
-      pdm_id,
-      first_name,
-      last_name,
-      profile_photo_url,
-      is_active_scholar,
-      account_status,
-      scholarship_status,
-      course_id
-    `)
-    .eq('user_id', userId)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from('students')
+      .select(`
+        student_id,
+        user_id,
+        pdm_id,
+        first_name,
+        last_name,
+        profile_photo_url,
+        is_active_scholar,
+        account_status,
+        scholarship_status,
+        course_id
+      `)
+      .eq('user_id', userId)
+      .maybeSingle();
 
   if (error) {
     throw error;
@@ -598,27 +577,25 @@ function ensureApprovedScholar(student) {
 }
 
 async function getActiveSetting() {
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('ro_settings')
-    .select(`
-      setting_id,
-      required_hours,
-      is_active,
-      allow_carry_over,
-      remarks,
-      created_at,
-      updated_at
-    `)
-    .eq('is_active', true)
-    .order(
-      'updated_at',
-      { ascending: false }
-    )
-    .limit(1)
-    .maybeSingle();
+  const { data, error } =
+    await supabase
+      .from('ro_settings')
+      .select(`
+        setting_id,
+        required_hours,
+        is_active,
+        allow_carry_over,
+        remarks,
+        created_at,
+        updated_at
+      `)
+      .eq('is_active', true)
+      .order(
+        'updated_at',
+        { ascending: false }
+      )
+      .limit(1)
+      .maybeSingle();
 
   if (error) {
     console.error(
@@ -673,20 +650,37 @@ const RO_SELECT = `
   ro_progress
 `;
 
-async function getRoRowsForStudent(
-  studentId
-) {
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('return_of_obligations')
-    .select(RO_SELECT)
-    .eq('student_id', studentId)
-    .order(
-      'created_at',
-      { ascending: false }
-    );
+const LOG_SELECT = `
+  log_id,
+  ro_id,
+  student_id,
+  time_in_at,
+  time_out_at,
+  duration_minutes,
+  log_status,
+  student_note,
+  validated_minutes,
+  validation_status,
+  validation_remarks,
+  validated_by,
+  validated_at,
+  auto_timed_out,
+  auto_timeout_reason,
+  requires_admin_attention,
+  created_at,
+  updated_at
+`;
+
+async function getRoRowsForStudent(studentId) {
+  const { data, error } =
+    await supabase
+      .from('return_of_obligations')
+      .select(RO_SELECT)
+      .eq('student_id', studentId)
+      .order(
+        'created_at',
+        { ascending: false }
+      );
 
   if (error) {
     throw error;
@@ -695,19 +689,14 @@ async function getRoRowsForStudent(
   return data || [];
 }
 
-async function getRoRowForStudent(
-  studentId,
-  roId
-) {
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('return_of_obligations')
-    .select(RO_SELECT)
-    .eq('ro_id', roId)
-    .eq('student_id', studentId)
-    .maybeSingle();
+async function getRoRowForStudent(studentId, roId) {
+  const { data, error } =
+    await supabase
+      .from('return_of_obligations')
+      .select(RO_SELECT)
+      .eq('ro_id', roId)
+      .eq('student_id', studentId)
+      .maybeSingle();
 
   if (error) {
     throw error;
@@ -727,15 +716,13 @@ async function getProgramMap(programIds) {
     return new Map();
   }
 
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('scholarship_program')
-    .select(
-      'program_id, program_name'
-    )
-    .in('program_id', ids);
+  const { data, error } =
+    await supabase
+      .from('scholarship_program')
+      .select(
+        'program_id, program_name'
+      )
+      .in('program_id', ids);
 
   if (error) {
     throw error;
@@ -760,15 +747,13 @@ async function getOpeningMap(openingIds) {
     return new Map();
   }
 
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('program_openings')
-    .select(
-      'opening_id, opening_title'
-    )
-    .in('opening_id', ids);
+  const { data, error } =
+    await supabase
+      .from('program_openings')
+      .select(
+        'opening_id, opening_title'
+      )
+      .in('opening_id', ids);
 
   if (error) {
     throw error;
@@ -782,40 +767,20 @@ async function getOpeningMap(openingIds) {
   );
 }
 
-async function getActiveLogByStudent(
-  studentId
-) {
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('ro_time_logs')
-    .select(`
-      log_id,
-      ro_id,
-      student_id,
-      time_in_at,
-      time_out_at,
-      duration_minutes,
-      log_status,
-      student_note,
-      validated_minutes,
-      validation_status,
-      validation_remarks,
-      validated_by,
-      validated_at,
-      created_at,
-      updated_at
-    `)
-    .eq('student_id', studentId)
-    .is('time_out_at', null)
-    .eq('log_status', 'Timed In')
-    .order(
-      'time_in_at',
-      { ascending: false }
-    )
-    .limit(1)
-    .maybeSingle();
+async function getActiveLogByStudent(studentId) {
+  const { data, error } =
+    await supabase
+      .from('ro_time_logs')
+      .select(LOG_SELECT)
+      .eq('student_id', studentId)
+      .is('time_out_at', null)
+      .eq('log_status', 'Timed In')
+      .order(
+        'time_in_at',
+        { ascending: false }
+      )
+      .limit(1)
+      .maybeSingle();
 
   if (error) {
     throw error;
@@ -824,39 +789,18 @@ async function getActiveLogByStudent(
   return data || null;
 }
 
-async function getLogsForRo(
-  roId,
-  studentId
-) {
-  const {
-    data,
-    error,
-  } = await supabase
-    .from('ro_time_logs')
-    .select(`
-      log_id,
-      ro_id,
-      student_id,
-      time_in_at,
-      time_out_at,
-      duration_minutes,
-      log_status,
-      student_note,
-      validated_minutes,
-      validation_status,
-      validation_remarks,
-      validated_by,
-      validated_at,
-      created_at,
-      updated_at
-    `)
-    .eq('ro_id', roId)
-    .eq('student_id', studentId)
-    .order(
-      'time_in_at',
-      { ascending: false }
-    )
-    .limit(50);
+async function getLogsForRo(roId, studentId) {
+  const { data, error } =
+    await supabase
+      .from('ro_time_logs')
+      .select(LOG_SELECT)
+      .eq('ro_id', roId)
+      .eq('student_id', studentId)
+      .order(
+        'time_in_at',
+        { ascending: false }
+      )
+      .limit(50);
 
   if (error) {
     throw error;
@@ -918,6 +862,16 @@ function mapLog(row = {}) {
     validatedAt:
       row.validated_at?.toString() ||
       '',
+
+    autoTimedOut:
+      row.auto_timed_out === true,
+
+    autoTimeoutReason:
+      row.auto_timeout_reason?.toString() ||
+      '',
+
+    requiresAdminAttention:
+      row.requires_admin_attention === true,
 
     createdAt:
       row.created_at?.toString() ||
@@ -1124,17 +1078,75 @@ async function mapRO(
   };
 }
 
+async function getSubmittedMinutesForRo(roId, excludeLogId = null) {
+  const { data, error } =
+    await supabase
+      .from('ro_time_logs')
+      .select(`
+        log_id,
+        duration_minutes,
+        log_status,
+        validation_status
+      `)
+      .eq('ro_id', roId);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || [])
+    .filter((log) => {
+      if (
+        excludeLogId &&
+        String(log.log_id) ===
+        String(excludeLogId)
+      ) {
+        return false;
+      }
+
+      return (
+        log.log_status === 'Timed Out' &&
+        log.validation_status !== 'Rejected'
+      );
+    })
+    .reduce(
+      (sum, log) =>
+        sum +
+        toNumber(
+          log.duration_minutes
+        ),
+      0
+    );
+}
+
+async function getRemainingMinutesForRo(ro, excludeLogId = null) {
+  const requiredMinutes =
+    Math.max(
+      0,
+      toNumber(ro.required_hours) * 60
+    );
+
+  const submittedMinutes =
+    await getSubmittedMinutesForRo(
+      ro.ro_id,
+      excludeLogId
+    );
+
+  return Math.max(
+    0,
+    requiredMinutes - submittedMinutes
+  );
+}
+
 async function syncRoTotals(roId) {
-  const {
-    data: ro,
-    error: roError,
-  } = await supabase
-    .from('return_of_obligations')
-    .select(
-      'ro_id, required_hours, ro_status'
-    )
-    .eq('ro_id', roId)
-    .maybeSingle();
+  const { data: ro, error: roError } =
+    await supabase
+      .from('return_of_obligations')
+      .select(
+        'ro_id, required_hours, ro_status'
+      )
+      .eq('ro_id', roId)
+      .maybeSingle();
 
   if (roError) {
     throw roError;
@@ -1147,18 +1159,16 @@ async function syncRoTotals(roId) {
     );
   }
 
-  const {
-    data: logs,
-    error: logsError,
-  } = await supabase
-    .from('ro_time_logs')
-    .select(`
-      duration_minutes,
-      validated_minutes,
-      log_status,
-      validation_status
-    `)
-    .eq('ro_id', roId);
+  const { data: logs, error: logsError } =
+    await supabase
+      .from('ro_time_logs')
+      .select(`
+        duration_minutes,
+        validated_minutes,
+        log_status,
+        validation_status
+      `)
+      .eq('ro_id', roId);
 
   if (logsError) {
     throw logsError;
@@ -1242,6 +1252,18 @@ async function syncRoTotals(roId) {
     validated_minutes:
       validatedMinutes,
 
+    submitted_progress:
+      percentFromMinutes(
+        submittedMinutes,
+        requiredMinutes
+      ),
+
+    ro_progress:
+      percentFromMinutes(
+        validatedMinutes,
+        requiredMinutes
+      ),
+
     progress_status:
       progressStatus,
 
@@ -1253,22 +1275,63 @@ async function syncRoTotals(roId) {
       assignmentStatus;
   }
 
-  const {
-    error: updateError,
-  } = await supabase
-    .from('return_of_obligations')
-    .update(updatePayload)
-    .eq('ro_id', roId);
+  const { data, error: updateError } =
+    await supabase
+      .from('return_of_obligations')
+      .update(updatePayload)
+      .eq('ro_id', roId)
+      .select()
+      .single();
 
   if (updateError) {
     throw updateError;
   }
 
-  return {
-    submittedMinutes,
-    validatedMinutes,
-    progressStatus,
-  };
+  return data;
+}
+
+async function sendAutoTimeoutNotification({
+  studentId,
+  roId,
+  durationMinutes,
+}) {
+  try {
+    if (
+      typeof notificationService?.createUserNotification !==
+      'function'
+    ) {
+      return null;
+    }
+
+    const { data: student, error } =
+      await supabase
+        .from('students')
+        .select('student_id, user_id')
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+    if (error || !student?.user_id) {
+      return null;
+    }
+
+    return await notificationService.createUserNotification({
+      userId: student.user_id,
+      type: 'RO Auto Timeout',
+      title: 'RO Session Auto Timed Out',
+      message:
+        `Your RO session was automatically timed out after reaching the required remaining time. Recorded time: ${durationMinutes} minute(s). The log is pending admin validation.`,
+      referenceId: roId,
+      referenceType: 'return_of_obligation',
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(
+      'RO AUTO TIMEOUT NOTIFICATION ERROR:',
+      error.message
+    );
+
+    return null;
+  }
 }
 
 async function getMyAssignments(userId) {
@@ -1295,6 +1358,11 @@ async function getMyAssignments(userId) {
       items: [],
     };
   }
+
+  await autoTimeoutActiveLogsForStudent(
+    student.student_id,
+    null
+  );
 
   const rows =
     await getRoRowsForStudent(
@@ -1413,28 +1481,27 @@ async function acknowledgeMyRo(
   const now =
     new Date().toISOString();
 
-  const {
-    error,
-  } = await supabase
-    .from('return_of_obligations')
-    .update({
-      assignment_status:
-        'Acknowledged',
+  const { error } =
+    await supabase
+      .from('return_of_obligations')
+      .update({
+        assignment_status:
+          'Acknowledged',
 
-      assignment_acknowledged_at:
-        now,
+        assignment_acknowledged_at:
+          now,
 
-      progress_status:
-        'Not Started',
+        progress_status:
+          'Not Started',
 
-      conflict_reason: null,
-      updated_at: now,
-    })
-    .eq('ro_id', ro.ro_id)
-    .eq(
-      'student_id',
-      student.student_id
-    );
+        conflict_reason: null,
+        updated_at: now,
+      })
+      .eq('ro_id', ro.ro_id)
+      .eq(
+        'student_id',
+        student.student_id
+      );
 
   if (error) {
     throw error;
@@ -1500,27 +1567,26 @@ async function reportMyRoConflict(
   const now =
     new Date().toISOString();
 
-  const {
-    error,
-  } = await supabase
-    .from('return_of_obligations')
-    .update({
-      assignment_status:
-        'Conflict Reported',
+  const { error } =
+    await supabase
+      .from('return_of_obligations')
+      .update({
+        assignment_status:
+          'Conflict Reported',
 
-      conflict_reason:
-        reason,
+        conflict_reason:
+          reason,
 
-      progress_status:
-        'Revision Needed',
+        progress_status:
+          'Revision Needed',
 
-      updated_at: now,
-    })
-    .eq('ro_id', ro.ro_id)
-    .eq(
-      'student_id',
-      student.student_id
-    );
+        updated_at: now,
+      })
+      .eq('ro_id', ro.ro_id)
+      .eq(
+        'student_id',
+        student.student_id
+      );
 
   if (error) {
     throw error;
@@ -1552,10 +1618,6 @@ async function timeInMyRo(
   body = {},
   file = null
 ) {
-  /*
-   * Validate the image before inserting a time log. This prevents an
-   * unsupported upload from creating an active time-in record.
-   */
   if (
     file &&
     file.buffer &&
@@ -1580,6 +1642,18 @@ async function timeInMyRo(
     throw createHttpError(
       400,
       'This Return of Obligation is already cleared.'
+    );
+  }
+
+  const remainingMinutes =
+    await getRemainingMinutesForRo(
+      ro
+    );
+
+  if (remainingMinutes <= 0) {
+    throw createHttpError(
+      400,
+      'The required RO hours have already been submitted for validation.'
     );
   }
 
@@ -1626,6 +1700,15 @@ async function timeInMyRo(
 
       validation_status:
         'Pending Validation',
+
+      auto_timed_out:
+        false,
+
+      auto_timeout_reason:
+        null,
+
+      requires_admin_attention:
+        false,
     })
     .select()
     .single();
@@ -1664,19 +1747,14 @@ async function timeInMyRo(
         file,
       });
   } catch (error) {
-    /*
-     * Undo the new time-in record when proof upload fails, so the student
-     * is not trapped in a session that the app reported as unsuccessful.
-     */
-    const {
-      error: cleanupError,
-    } = await supabase
-      .from('ro_time_logs')
-      .delete()
-      .eq(
-        'log_id',
-        insertedLog.log_id
-      );
+    const { error: cleanupError } =
+      await supabase
+        .from('ro_time_logs')
+        .delete()
+        .eq(
+          'log_id',
+          insertedLog.log_id
+        );
 
     if (cleanupError) {
       console.error(
@@ -1688,26 +1766,19 @@ async function timeInMyRo(
     throw error;
   }
 
-  const {
-    error: updateError,
-  } = await supabase
-    .from('return_of_obligations')
-    .update({
-      progress_status:
-        ro.progress_status ===
-          'Not Started'
-          ? 'In Progress'
-          : ro.progress_status,
+  const { error: updateError } =
+    await supabase
+      .from('return_of_obligations')
+      .update({
+        progress_status:
+          'In Progress',
 
-      assignment_status:
-        ro.assignment_status ===
-          'Acknowledged'
-          ? 'In Progress'
-          : ro.assignment_status,
+        assignment_status:
+          'In Progress',
 
-      updated_at: now,
-    })
-    .eq('ro_id', ro.ro_id);
+        updated_at: now,
+      })
+      .eq('ro_id', ro.ro_id);
 
   if (updateError) {
     throw updateError;
@@ -1750,9 +1821,6 @@ async function timeOutMyRo(
   body = {},
   file = null
 ) {
-  /*
-   * Validate before updating the active log.
-   */
   if (
     file &&
     file.buffer &&
@@ -1796,35 +1864,42 @@ async function timeOutMyRo(
     );
   }
 
+  const remainingMinutes =
+    await getRemainingMinutesForRo(
+      ro,
+      activeLog.log_id
+    );
+
   const now = new Date();
 
-  const timeIn =
-    new Date(
-      activeLog.time_in_at
+  const actualDurationMinutes =
+    minutesBetween(
+      activeLog.time_in_at,
+      now
     );
 
-  if (
-    Number.isNaN(
-      timeIn.getTime()
-    )
-  ) {
-    throw createHttpError(
-      500,
-      'The active RO session has an invalid time-in value.'
-    );
-  }
+  const cappedDurationMinutes =
+    remainingMinutes <= 0
+      ? 0
+      : Math.min(
+        actualDurationMinutes,
+        remainingMinutes
+      );
 
-  const diffMs =
-    now.getTime() -
-    timeIn.getTime();
+  const wasCapped =
+    actualDurationMinutes >
+    cappedDurationMinutes ||
+    remainingMinutes <= 0;
 
-  const durationMinutes =
-    Math.max(
-      1,
-      Math.floor(
-        diffMs / 60000
-      )
-    );
+  const cappedTimeOutAt =
+    cappedDurationMinutes <= 0
+      ? now
+      : wasCapped
+        ? addMinutesToDate(
+          activeLog.time_in_at,
+          cappedDurationMinutes
+        )
+        : now;
 
   const note =
     normalizeValue(
@@ -1833,10 +1908,6 @@ async function timeOutMyRo(
       body.note
     );
 
-  /*
-   * Upload the proof first. The active log remains unchanged if the upload
-   * fails.
-   */
   const proof =
     await saveRoTimeLogProof({
       logId:
@@ -1857,10 +1928,10 @@ async function timeOutMyRo(
 
   const updatePayload = {
     time_out_at:
-      now.toISOString(),
+      cappedTimeOutAt.toISOString(),
 
     duration_minutes:
-      durationMinutes,
+      cappedDurationMinutes,
 
     log_status:
       'Timed Out',
@@ -1868,8 +1939,19 @@ async function timeOutMyRo(
     validation_status:
       'Pending Validation',
 
+    auto_timed_out:
+      wasCapped,
+
+    auto_timeout_reason:
+      wasCapped
+        ? 'Required RO hours reached. Extra elapsed time was not counted.'
+        : null,
+
+    requires_admin_attention:
+      wasCapped,
+
     updated_at:
-      now.toISOString(),
+      new Date().toISOString(),
   };
 
   if (note) {
@@ -1923,6 +2005,19 @@ async function timeOutMyRo(
     ro.ro_id
   );
 
+  if (wasCapped) {
+    await sendAutoTimeoutNotification({
+      studentId:
+        student.student_id,
+
+      roId:
+        ro.ro_id,
+
+      durationMinutes:
+        cappedDurationMinutes,
+    });
+  }
+
   const result =
     await getMyAssignments(
       userId
@@ -1932,9 +2027,11 @@ async function timeOutMyRo(
     ...result,
 
     message:
-      proof
-        ? 'Timed out successfully. Photo proof uploaded and your session is pending validation.'
-        : 'Timed out successfully. Your session is now pending validation.',
+      wasCapped
+        ? `Timed out successfully. Only ${cappedDurationMinutes} minute(s) were recorded because the required RO time was already reached.`
+        : proof
+          ? 'Timed out successfully. Photo proof uploaded and your session is pending validation.'
+          : 'Timed out successfully. Your session is now pending validation.',
 
     log: updatedLog,
     proof,
@@ -1952,7 +2049,13 @@ async function timeOutMyRo(
         activeLog.log_id,
 
       duration_minutes:
-        durationMinutes,
+        cappedDurationMinutes,
+
+      actual_duration_minutes:
+        actualDurationMinutes,
+
+      auto_timed_out:
+        wasCapped,
 
       has_proof:
         Boolean(proof),
@@ -1966,9 +2069,6 @@ async function submitMyCompletion(
   body = {},
   file = null
 ) {
-  /*
-   * Validate an optional completion proof before changing the assignment.
-   */
   if (
     file &&
     file.buffer &&
@@ -2008,34 +2108,28 @@ async function submitMyCompletion(
 
   let completionProof = null;
 
-  /*
-   * A completion proof is associated with the newest time log because
-   * ro_time_log_proofs requires a log_id.
-   */
   if (
     file &&
     file.buffer &&
     file.buffer.length
   ) {
-    const {
-      data: latestLog,
-      error: latestLogError,
-    } = await supabase
-      .from('ro_time_logs')
-      .select(
-        'log_id, ro_id, student_id'
-      )
-      .eq('ro_id', ro.ro_id)
-      .eq(
-        'student_id',
-        student.student_id
-      )
-      .order(
-        'created_at',
-        { ascending: false }
-      )
-      .limit(1)
-      .maybeSingle();
+    const { data: latestLog, error: latestLogError } =
+      await supabase
+        .from('ro_time_logs')
+        .select(
+          'log_id, ro_id, student_id'
+        )
+        .eq('ro_id', ro.ro_id)
+        .eq(
+          'student_id',
+          student.student_id
+        )
+        .order(
+          'created_at',
+          { ascending: false }
+        )
+        .limit(1)
+        .maybeSingle();
 
     if (latestLogError) {
       throw latestLogError;
@@ -2082,16 +2176,15 @@ async function submitMyCompletion(
       remarks;
   }
 
-  const {
-    error,
-  } = await supabase
-    .from('return_of_obligations')
-    .update(updatePayload)
-    .eq('ro_id', ro.ro_id)
-    .eq(
-      'student_id',
-      student.student_id
-    );
+  const { error } =
+    await supabase
+      .from('return_of_obligations')
+      .update(updatePayload)
+      .eq('ro_id', ro.ro_id)
+      .eq(
+        'student_id',
+        student.student_id
+      );
 
   if (error) {
     if (
@@ -2166,6 +2259,321 @@ async function submitMyCompletion(
   };
 }
 
+async function autoTimeoutSingleActiveLog(activeLog, ro, io = null) {
+  const remainingMinutes =
+    await getRemainingMinutesForRo(
+      ro,
+      activeLog.log_id
+    );
+
+  const now = new Date();
+
+  const actualElapsedMinutes =
+    minutesBetween(
+      activeLog.time_in_at,
+      now
+    );
+
+  if (
+    remainingMinutes > 0 &&
+    actualElapsedMinutes <
+    remainingMinutes
+  ) {
+    return null;
+  }
+
+  const durationMinutes =
+    remainingMinutes <= 0
+      ? 0
+      : remainingMinutes;
+
+  const cappedTimeOutAt =
+    durationMinutes <= 0
+      ? now
+      : addMinutesToDate(
+        activeLog.time_in_at,
+        durationMinutes
+      );
+
+  const updatePayload = {
+    time_out_at:
+      cappedTimeOutAt.toISOString(),
+
+    duration_minutes:
+      durationMinutes,
+
+    log_status:
+      'Timed Out',
+
+    validation_status:
+      'Pending Validation',
+
+    auto_timed_out:
+      true,
+
+    auto_timeout_reason:
+      durationMinutes <= 0
+        ? 'Required RO hours were already submitted. Session auto timed out with no additional counted time.'
+        : 'Required RO hours reached. Session auto timed out.',
+
+    requires_admin_attention:
+      true,
+
+    updated_at:
+      new Date().toISOString(),
+  };
+
+  const { data: updatedLog, error } =
+    await supabase
+      .from('ro_time_logs')
+      .update(updatePayload)
+      .eq(
+        'log_id',
+        activeLog.log_id
+      )
+      .is('time_out_at', null)
+      .select()
+      .single();
+
+  if (error) {
+    console.error(
+      'RO AUTO TIMEOUT UPDATE ERROR:',
+      error.message
+    );
+
+    return null;
+  }
+
+  const updatedRo =
+    await syncRoTotals(
+      ro.ro_id
+    );
+
+  await sendAutoTimeoutNotification({
+    studentId:
+      activeLog.student_id,
+
+    roId:
+      ro.ro_id,
+
+    durationMinutes,
+  });
+
+  const realtime = {
+    source:
+      'mobile-backend-auto-timeout',
+
+    action:
+      'auto-timeout',
+
+    updated_at:
+      new Date().toISOString(),
+
+    ro_id:
+      ro.ro_id,
+
+    student_id:
+      activeLog.student_id,
+
+    log_id:
+      activeLog.log_id,
+
+    duration_minutes:
+      durationMinutes,
+
+    actual_elapsed_minutes:
+      actualElapsedMinutes,
+
+    auto_timed_out:
+      true,
+
+    data: {
+      log: updatedLog,
+      ro: updatedRo,
+    },
+  };
+
+  if (io) {
+    io.emit('ro:updated', realtime);
+    io.emit('roUpdated', realtime);
+    io.emit('ro:time-log-updated', realtime);
+  }
+
+  return {
+    log: updatedLog,
+    ro: updatedRo,
+    realtime,
+  };
+}
+
+async function autoTimeoutActiveLogsForStudent(studentId, io = null) {
+  const { data: activeLogs, error } =
+    await supabase
+      .from('ro_time_logs')
+      .select(`
+        log_id,
+        ro_id,
+        student_id,
+        time_in_at,
+        time_out_at,
+        duration_minutes,
+        log_status
+      `)
+      .eq('student_id', studentId)
+      .is('time_out_at', null)
+      .eq('log_status', 'Timed In');
+
+  if (error) {
+    console.error(
+      'RO AUTO TIMEOUT STUDENT QUERY ERROR:',
+      error.message
+    );
+
+    return [];
+  }
+
+  const results = [];
+
+  for (const activeLog of activeLogs || []) {
+    const { data: ro, error: roError } =
+      await supabase
+        .from('return_of_obligations')
+        .select(RO_SELECT)
+        .eq('ro_id', activeLog.ro_id)
+        .maybeSingle();
+
+    if (roError || !ro) {
+      continue;
+    }
+
+    const result =
+      await autoTimeoutSingleActiveLog(
+        activeLog,
+        ro,
+        io
+      );
+
+    if (result) {
+      results.push(result);
+    }
+  }
+
+  return results;
+}
+
+async function runAutoTimeoutSweep(io = null) {
+  const { data: activeLogs, error } =
+    await supabase
+      .from('ro_time_logs')
+      .select(`
+        log_id,
+        ro_id,
+        student_id,
+        time_in_at,
+        time_out_at,
+        duration_minutes,
+        log_status
+      `)
+      .is('time_out_at', null)
+      .eq('log_status', 'Timed In')
+      .order(
+        'time_in_at',
+        { ascending: true }
+      )
+      .limit(100);
+
+  if (error) {
+    console.error(
+      'RO AUTO TIMEOUT SWEEP QUERY ERROR:',
+      error.message
+    );
+
+    return {
+      checked: 0,
+      timed_out: 0,
+      error: error.message,
+    };
+  }
+
+  let timedOut = 0;
+
+  for (const activeLog of activeLogs || []) {
+    try {
+      const { data: ro, error: roError } =
+        await supabase
+          .from('return_of_obligations')
+          .select(RO_SELECT)
+          .eq('ro_id', activeLog.ro_id)
+          .maybeSingle();
+
+      if (roError || !ro) {
+        continue;
+      }
+
+      const result =
+        await autoTimeoutSingleActiveLog(
+          activeLog,
+          ro,
+          io
+        );
+
+      if (result) {
+        timedOut += 1;
+      }
+    } catch (error) {
+      console.error(
+        'RO AUTO TIMEOUT ITEM ERROR:',
+        error.message
+      );
+    }
+  }
+
+  return {
+    checked:
+      activeLogs?.length || 0,
+
+    timed_out:
+      timedOut,
+  };
+}
+
+function startAutoTimeoutWorker(io = null) {
+  if (autoTimeoutTimer) {
+    return autoTimeoutTimer;
+  }
+
+  console.log(
+    `[RO Auto Timeout] Worker started. Interval: ${AUTO_TIMEOUT_INTERVAL_MS}ms`
+  );
+
+  runAutoTimeoutSweep(io).catch((error) => {
+    console.error(
+      'RO AUTO TIMEOUT INITIAL SWEEP ERROR:',
+      error.message
+    );
+  });
+
+  autoTimeoutTimer = setInterval(() => {
+    runAutoTimeoutSweep(io).catch((error) => {
+      console.error(
+        'RO AUTO TIMEOUT SWEEP ERROR:',
+        error.message
+      );
+    });
+  }, AUTO_TIMEOUT_INTERVAL_MS);
+
+  return autoTimeoutTimer;
+}
+
+function stopAutoTimeoutWorker() {
+  if (!autoTimeoutTimer) {
+    return;
+  }
+
+  clearInterval(autoTimeoutTimer);
+  autoTimeoutTimer = null;
+}
+
 module.exports = {
   getMyAssignments,
   acknowledgeMyRo,
@@ -2173,4 +2581,7 @@ module.exports = {
   timeInMyRo,
   timeOutMyRo,
   submitMyCompletion,
+  runAutoTimeoutSweep,
+  startAutoTimeoutWorker,
+  stopAutoTimeoutWorker,
 };

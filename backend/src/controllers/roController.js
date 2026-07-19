@@ -1,4 +1,5 @@
 const roService = require('../services/roService');
+const adminRealtimeRelayService = require('../services/adminRealtimeRelayService');
 
 function getUserId(req) {
   return (
@@ -11,96 +12,86 @@ function getUserId(req) {
 }
 
 function getSafeStatusCode(error) {
-  const statusCode = Number(
-    error?.statusCode ||
-    error?.status ||
-    500
-  );
+  const statusCode = Number(error?.statusCode || error?.status || 500);
 
-  if (
-    !Number.isInteger(statusCode) ||
-    statusCode < 400 ||
-    statusCode > 599
-  ) {
+  if (statusCode < 400 || statusCode > 599) {
     return 500;
   }
 
   return statusCode;
 }
 
-function buildErrorResponse(error, fallbackMessage) {
-  const message =
-    error?.message ||
-    fallbackMessage;
+function emitLocalRoUpdate(req, action, payload = {}) {
+  const io = req.app?.get?.('io');
 
-  return {
-    message,
-    error: message,
+  if (!io) return;
+
+  const data = {
+    source: 'mobile',
+    action,
+    updated_at: new Date().toISOString(),
+    ...payload,
   };
+
+  io.emit('ro:updated', data);
+  io.emit('roUpdated', data);
+
+  if (
+    action === 'acknowledge' ||
+    action === 'conflict' ||
+    action === 'assign' ||
+    action === 'clear'
+  ) {
+    io.emit('ro:assignment-updated', data);
+  }
+
+  if (
+    action === 'time-in' ||
+    action === 'time-out' ||
+    action === 'auto-time-out' ||
+    action === 'submit-progress'
+  ) {
+    io.emit('ro:time-log-updated', data);
+  }
+
+  if (action === 'upload-proof') {
+    io.emit('ro:proof-updated', data);
+  }
 }
 
-function emitRoUpdate(req, action, payload = {}) {
-  try {
-    const io = req.app?.get?.('io');
-
-    if (!io) {
-      return;
-    }
-
-    const data = {
-      source: 'mobile',
+function relayAdminRoUpdate(action, payload = {}) {
+  adminRealtimeRelayService
+    .relayRoUpdated({
       action,
-      updated_at: new Date().toISOString(),
       ...payload,
-    };
+    })
+    .catch((error) => {
+      console.error('[RO Admin Realtime Relay] async error:', error.message);
+    });
+}
 
-    /*
-     * Emit both event names because the existing admin/frontend code may
-     * listen to either one.
-     */
-    io.emit('ro:updated', data);
-    io.emit('roUpdated', data);
+function emitAndRelayRoUpdate(req, action, payload = {}) {
+  const data = {
+    action,
+    updated_at: new Date().toISOString(),
+    ...payload,
+  };
 
-    if (
-      action === 'time-in' ||
-      action === 'time-out'
-    ) {
-      io.emit('ro:time-log-updated', data);
-    }
-
-    if (
-      action === 'acknowledge' ||
-      action === 'conflict' ||
-      action === 'submit-progress'
-    ) {
-      io.emit('ro:assignment-updated', data);
-    }
-  } catch (error) {
-    console.error(
-      'MOBILE RO REALTIME EMIT ERROR:',
-      error.message
-    );
-  }
+  emitLocalRoUpdate(req, action, data);
+  relayAdminRoUpdate(action, data);
 }
 
 exports.getMyAssignments = async (req, res) => {
   try {
-    const data = await roService.getMyAssignments(
-      getUserId(req)
-    );
+    const data = await roService.getMyAssignments(getUserId(req));
 
     return res.status(200).json(data);
-  } catch (error) {
-    console.error('GET MY RO ERROR:', error);
+  } catch (err) {
+    console.error('GET MY RO ERROR:', err);
 
-    return res
-      .status(getSafeStatusCode(error))
-      .json(
-        buildErrorResponse(
-          error,
-          'Failed to load RO assignments.'
-        )
-      );
+    return res.status(getSafeStatusCode(err)).json({
+      error: err.message || 'Failed to load RO assignments.',
+    });
   }
 };
 
@@ -111,38 +102,50 @@ exports.acknowledgeMyRo = async (req, res) => {
       req.params.roId
     );
 
-    emitRoUpdate(req, 'acknowledge', {
+    emitAndRelayRoUpdate(req, 'acknowledge', {
       roId: req.params.roId,
       ro_id: req.params.roId,
 
-      studentId:
-        data?.student?.student_id ||
-        data?.realtime?.student_id ||
+      studentId: data?.student?.student_id || data?.assignment?.student_id || null,
+      student_id: data?.student?.student_id || data?.assignment?.student_id || null,
+
+      assignment_status:
+        data?.assignment?.assignment_status ||
+        data?.ro?.assignment_status ||
+        'Acknowledged',
+      assignmentStatus:
+        data?.assignment?.assignment_status ||
+        data?.ro?.assignment_status ||
+        'Acknowledged',
+
+      progress_status:
+        data?.assignment?.progress_status ||
+        data?.ro?.progress_status ||
+        null,
+      progressStatus:
+        data?.assignment?.progress_status ||
+        data?.ro?.progress_status ||
         null,
 
-      student_id:
-        data?.student?.student_id ||
-        data?.realtime?.student_id ||
+      ro_status:
+        data?.assignment?.ro_status ||
+        data?.ro?.ro_status ||
+        null,
+      roStatus:
+        data?.assignment?.ro_status ||
+        data?.ro?.ro_status ||
         null,
 
       data,
     });
 
     return res.status(200).json(data);
-  } catch (error) {
-    console.error(
-      'ACKNOWLEDGE RO ERROR:',
-      error
-    );
+  } catch (err) {
+    console.error('ACKNOWLEDGE RO ERROR:', err);
 
-    return res
-      .status(getSafeStatusCode(error))
-      .json(
-        buildErrorResponse(
-          error,
-          'Failed to acknowledge RO assignment.'
-        )
-      );
+    return res.status(getSafeStatusCode(err)).json({
+      error: err.message || 'Failed to acknowledge RO assignment.',
+    });
   }
 };
 
@@ -154,38 +157,50 @@ exports.reportMyRoConflict = async (req, res) => {
       req.body || {}
     );
 
-    emitRoUpdate(req, 'conflict', {
+    emitAndRelayRoUpdate(req, 'conflict', {
       roId: req.params.roId,
       ro_id: req.params.roId,
 
-      studentId:
-        data?.student?.student_id ||
-        data?.realtime?.student_id ||
+      studentId: data?.student?.student_id || data?.assignment?.student_id || null,
+      student_id: data?.student?.student_id || data?.assignment?.student_id || null,
+
+      assignment_status:
+        data?.assignment?.assignment_status ||
+        data?.ro?.assignment_status ||
+        'Conflict Reported',
+      assignmentStatus:
+        data?.assignment?.assignment_status ||
+        data?.ro?.assignment_status ||
+        'Conflict Reported',
+
+      progress_status:
+        data?.assignment?.progress_status ||
+        data?.ro?.progress_status ||
+        null,
+      progressStatus:
+        data?.assignment?.progress_status ||
+        data?.ro?.progress_status ||
         null,
 
-      student_id:
-        data?.student?.student_id ||
-        data?.realtime?.student_id ||
+      ro_status:
+        data?.assignment?.ro_status ||
+        data?.ro?.ro_status ||
+        null,
+      roStatus:
+        data?.assignment?.ro_status ||
+        data?.ro?.ro_status ||
         null,
 
       data,
     });
 
     return res.status(200).json(data);
-  } catch (error) {
-    console.error(
-      'REPORT RO CONFLICT ERROR:',
-      error
-    );
+  } catch (err) {
+    console.error('REPORT RO CONFLICT ERROR:', err);
 
-    return res
-      .status(getSafeStatusCode(error))
-      .json(
-        buildErrorResponse(
-          error,
-          'Failed to report RO concern.'
-        )
-      );
+    return res.status(getSafeStatusCode(err)).json({
+      error: err.message || 'Failed to report RO concern.',
+    });
   }
 };
 
@@ -198,28 +213,63 @@ exports.timeInMyRo = async (req, res) => {
       req.file || null
     );
 
-    emitRoUpdate(req, 'time-in', {
+    emitAndRelayRoUpdate(req, 'time-in', {
       roId: req.params.roId,
       ro_id: req.params.roId,
+
+      studentId:
+        data?.realtime?.student_id ||
+        data?.realtime?.studentId ||
+        data?.log?.student_id ||
+        null,
+      student_id:
+        data?.realtime?.student_id ||
+        data?.realtime?.studentId ||
+        data?.log?.student_id ||
+        null,
+
+      logId: data?.log?.log_id || data?.logId || null,
+      log_id: data?.log?.log_id || data?.logId || null,
+
+      assignment_status:
+        data?.ro?.assignment_status ||
+        data?.assignment?.assignment_status ||
+        'In Progress',
+      assignmentStatus:
+        data?.ro?.assignment_status ||
+        data?.assignment?.assignment_status ||
+        'In Progress',
+
+      progress_status:
+        data?.ro?.progress_status ||
+        data?.assignment?.progress_status ||
+        'In Progress',
+      progressStatus:
+        data?.ro?.progress_status ||
+        data?.assignment?.progress_status ||
+        'In Progress',
+
+      ro_status:
+        data?.ro?.ro_status ||
+        data?.assignment?.ro_status ||
+        null,
+      roStatus:
+        data?.ro?.ro_status ||
+        data?.assignment?.ro_status ||
+        null,
+
       ...(data.realtime || {}),
       data,
     });
 
     return res.status(200).json(data);
-  } catch (error) {
-    console.error(
-      'MOBILE RO TIME IN ERROR:',
-      error
-    );
+  } catch (err) {
+    console.error('MOBILE RO TIME IN ERROR:', err.message);
 
-    return res
-      .status(getSafeStatusCode(error))
-      .json(
-        buildErrorResponse(
-          error,
-          'Failed to time in.'
-        )
-      );
+    return res.status(getSafeStatusCode(err)).json({
+      message: err.message || 'Failed to time in.',
+      error: err.message,
+    });
   }
 };
 
@@ -232,28 +282,70 @@ exports.timeOutMyRo = async (req, res) => {
       req.file || null
     );
 
-    emitRoUpdate(req, 'time-out', {
+    const action =
+      data?.log?.auto_timed_out === true ||
+        data?.log?.autoTimedOut === true ||
+        data?.auto_timed_out === true
+        ? 'auto-time-out'
+        : 'time-out';
+
+    emitAndRelayRoUpdate(req, action, {
       roId: req.params.roId,
       ro_id: req.params.roId,
+
+      studentId:
+        data?.realtime?.student_id ||
+        data?.realtime?.studentId ||
+        data?.log?.student_id ||
+        null,
+      student_id:
+        data?.realtime?.student_id ||
+        data?.realtime?.studentId ||
+        data?.log?.student_id ||
+        null,
+
+      logId: data?.log?.log_id || data?.logId || null,
+      log_id: data?.log?.log_id || data?.logId || null,
+
+      assignment_status:
+        data?.ro?.assignment_status ||
+        data?.assignment?.assignment_status ||
+        'For Validation',
+      assignmentStatus:
+        data?.ro?.assignment_status ||
+        data?.assignment?.assignment_status ||
+        'For Validation',
+
+      progress_status:
+        data?.ro?.progress_status ||
+        data?.assignment?.progress_status ||
+        'For Validation',
+      progressStatus:
+        data?.ro?.progress_status ||
+        data?.assignment?.progress_status ||
+        'For Validation',
+
+      ro_status:
+        data?.ro?.ro_status ||
+        data?.assignment?.ro_status ||
+        null,
+      roStatus:
+        data?.ro?.ro_status ||
+        data?.assignment?.ro_status ||
+        null,
+
       ...(data.realtime || {}),
       data,
     });
 
     return res.status(200).json(data);
-  } catch (error) {
-    console.error(
-      'MOBILE RO TIME OUT ERROR:',
-      error
-    );
+  } catch (err) {
+    console.error('MOBILE RO TIME OUT ERROR:', err.message);
 
-    return res
-      .status(getSafeStatusCode(error))
-      .json(
-        buildErrorResponse(
-          error,
-          'Failed to time out.'
-        )
-      );
+    return res.status(getSafeStatusCode(err)).json({
+      message: err.message || 'Failed to time out.',
+      error: err.message,
+    });
   }
 };
 
@@ -266,27 +358,49 @@ exports.submitMyCompletion = async (req, res) => {
       req.file || null
     );
 
-    emitRoUpdate(req, 'submit-progress', {
+    emitAndRelayRoUpdate(req, 'submit-progress', {
       roId: req.params.roId,
       ro_id: req.params.roId,
+
+      studentId:
+        data?.realtime?.student_id ||
+        data?.realtime?.studentId ||
+        data?.student?.student_id ||
+        null,
+      student_id:
+        data?.realtime?.student_id ||
+        data?.realtime?.studentId ||
+        data?.student?.student_id ||
+        null,
+
+      assignment_status:
+        data?.ro?.assignment_status ||
+        data?.assignment?.assignment_status ||
+        'For Validation',
+      assignmentStatus:
+        data?.ro?.assignment_status ||
+        data?.assignment?.assignment_status ||
+        'For Validation',
+
+      progress_status:
+        data?.ro?.progress_status ||
+        data?.assignment?.progress_status ||
+        'For Validation',
+      progressStatus:
+        data?.ro?.progress_status ||
+        data?.assignment?.progress_status ||
+        'For Validation',
+
       ...(data.realtime || {}),
       data,
     });
 
     return res.status(200).json(data);
-  } catch (error) {
-    console.error(
-      'SUBMIT RO ERROR:',
-      error
-    );
+  } catch (err) {
+    console.error('SUBMIT RO ERROR:', err);
 
-    return res
-      .status(getSafeStatusCode(error))
-      .json(
-        buildErrorResponse(
-          error,
-          'Failed to submit RO progress.'
-        )
-      );
+    return res.status(getSafeStatusCode(err)).json({
+      error: err.message || 'Failed to submit RO progress.',
+    });
   }
 };

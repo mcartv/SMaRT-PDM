@@ -139,7 +139,104 @@ router.post('/message-created', requireInternalSecret, (req, res) => {
     return res.json({
         success: true,
         emitted: true,
+        event: 'message-created',
         targetUserIds,
+    });
+});
+
+router.post('/ro-updated', requireInternalSecret, (req, res) => {
+    const io = req.app.get('io');
+
+    if (!io) {
+        return res.status(500).json({
+            success: false,
+            message: 'Admin Socket.IO instance is missing',
+        });
+    }
+
+    const now = new Date().toISOString();
+
+    const payload = {
+        source: req.body?.source || 'mobile-relay',
+        action: req.body?.action || 'update',
+        updated_at: req.body?.updated_at || now,
+
+        ro_id: req.body?.ro_id || req.body?.roId || null,
+        roId: req.body?.roId || req.body?.ro_id || null,
+
+        student_id: req.body?.student_id || req.body?.studentId || null,
+        studentId: req.body?.studentId || req.body?.student_id || null,
+
+        application_id: req.body?.application_id || req.body?.applicationId || null,
+        applicationId: req.body?.applicationId || req.body?.application_id || null,
+
+        opening_id: req.body?.opening_id || req.body?.openingId || null,
+        openingId: req.body?.openingId || req.body?.opening_id || null,
+
+        log_id: req.body?.log_id || req.body?.logId || null,
+        logId: req.body?.logId || req.body?.log_id || null,
+
+        proof_id: req.body?.proof_id || req.body?.proofId || null,
+        proofId: req.body?.proofId || req.body?.proof_id || null,
+
+        assignment_status:
+            req.body?.assignment_status || req.body?.assignmentStatus || null,
+        assignmentStatus:
+            req.body?.assignmentStatus || req.body?.assignment_status || null,
+
+        progress_status:
+            req.body?.progress_status || req.body?.progressStatus || null,
+        progressStatus:
+            req.body?.progressStatus || req.body?.progress_status || null,
+
+        ro_status: req.body?.ro_status || req.body?.roStatus || null,
+        roStatus: req.body?.roStatus || req.body?.ro_status || null,
+
+        data: req.body?.data || null,
+        realtime: req.body?.realtime || null,
+    };
+
+    console.log('[Internal Realtime] ro-updated received:', {
+        source: payload.source,
+        action: payload.action,
+        ro_id: payload.ro_id,
+        student_id: payload.student_id,
+        assignment_status: payload.assignment_status,
+        progress_status: payload.progress_status,
+        ro_status: payload.ro_status,
+    });
+
+    io.emit('ro:updated', payload);
+    io.emit('roUpdated', payload);
+
+    if (
+        payload.action === 'assign' ||
+        payload.action === 'batch-assign' ||
+        payload.action === 'acknowledge' ||
+        payload.action === 'conflict' ||
+        payload.action === 'clear'
+    ) {
+        io.emit('ro:assignment-updated', payload);
+    }
+
+    if (
+        payload.action === 'time-in' ||
+        payload.action === 'time-out' ||
+        payload.action === 'auto-time-out' ||
+        payload.action === 'validate-log'
+    ) {
+        io.emit('ro:time-log-updated', payload);
+    }
+
+    if (payload.action === 'review-proof' || payload.action === 'upload-proof') {
+        io.emit('ro:proof-updated', payload);
+    }
+
+    return res.json({
+        success: true,
+        emitted: true,
+        event: 'ro-updated',
+        payload,
     });
 });
 

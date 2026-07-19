@@ -7,6 +7,7 @@ const supabase = require('./config/supabase');
 
 const notificationService = require('./services/notificationService');
 const messageService = require('./services/messageService');
+const roService = require('./services/roService');
 const { configureRealtimeBridge } = require('./services/realtimeBridgeService');
 
 const PORT = process.env.PORT || 5000;
@@ -15,6 +16,8 @@ const app = createApp();
 const server = http.createServer(app);
 
 const io = configureSocket(server);
+
+app.set('io', io);
 
 notificationService.configureNotificationService({
     io,
@@ -30,6 +33,8 @@ configureRealtimeBridge({
     io,
     supabase,
 });
+
+roService.startAutoTimeoutWorker(io);
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);

@@ -789,6 +789,54 @@ async function getActiveLogByStudent(studentId) {
   return data || null;
 }
 
+async function getActiveLogForRo(studentId, roId) {
+  const { data, error } =
+    await supabase
+      .from('ro_time_logs')
+      .select(LOG_SELECT)
+      .eq('student_id', studentId)
+      .eq('ro_id', roId)
+      .is('time_out_at', null)
+      .eq('log_status', 'Timed In')
+      .order('time_in_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function getLatestLogForRo(studentId, roId) {
+  const { data, error } =
+    await supabase
+      .from('ro_time_logs')
+      .select(LOG_SELECT)
+      .eq('student_id', studentId)
+      .eq('ro_id', roId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function syncRoTotalsQuietly(roId) {
+  try {
+    if (!roId) return null;
+    return await syncRoTotals(roId);
+  } catch (error) {
+    console.error('SYNC RO TOTALS QUIETLY ERROR:', error.message);
+    return null;
+  }
+}
+
 async function getLogsForRo(roId, studentId) {
   const { data, error } =
     await supabase
@@ -1178,17 +1226,12 @@ async function syncRoTotals(roId) {
     (logs || [])
       .filter(
         (log) =>
-          log.log_status ===
-          'Timed Out' &&
-          log.validation_status !==
-          'Rejected'
+          log.log_status === 'Timed Out' &&
+          log.validation_status !== 'Rejected'
       )
       .reduce(
         (sum, log) =>
-          sum +
-          toNumber(
-            log.duration_minutes
-          ),
+          sum + toNumber(log.duration_minutes),
         0
       );
 
@@ -1196,83 +1239,47 @@ async function syncRoTotals(roId) {
     (logs || [])
       .filter(
         (log) =>
-          log.validation_status ===
-          'Approved'
+          log.validation_status === 'Approved'
       )
       .reduce(
         (sum, log) =>
-          sum +
-          toNumber(
-            log.validated_minutes
-          ),
+          sum + toNumber(log.validated_minutes),
         0
       );
 
   const requiredMinutes =
     toNumber(ro.required_hours) * 60;
 
-  let progressStatus =
-    'Not Started';
-
+  let progressStatus = 'Not Started';
   let assignmentStatus = null;
 
   if (ro.ro_status === 'Cleared') {
     progressStatus = 'Cleared';
     assignmentStatus = 'Cleared';
-  } else if (
-    submittedMinutes <= 0
-  ) {
-    progressStatus =
-      'Not Started';
+  } else if (submittedMinutes <= 0) {
+    progressStatus = 'Not Started';
   } else if (
     requiredMinutes > 0 &&
-    submittedMinutes >=
-    requiredMinutes
+    submittedMinutes >= requiredMinutes
   ) {
-    progressStatus =
-      'For Validation';
-
-    assignmentStatus =
-      'For Validation';
+    progressStatus = 'For Validation';
+    assignmentStatus = 'For Validation';
   } else {
-    progressStatus =
-      'In Progress';
-
-    assignmentStatus =
-      'In Progress';
+    progressStatus = 'In Progress';
+    assignmentStatus = 'In Progress';
   }
 
-  const now =
-    new Date().toISOString();
+  const now = new Date().toISOString();
 
   const updatePayload = {
-    submitted_minutes:
-      submittedMinutes,
-
-    validated_minutes:
-      validatedMinutes,
-
-    submitted_progress:
-      percentFromMinutes(
-        submittedMinutes,
-        requiredMinutes
-      ),
-
-    ro_progress:
-      percentFromMinutes(
-        validatedMinutes,
-        requiredMinutes
-      ),
-
-    progress_status:
-      progressStatus,
-
+    submitted_minutes: submittedMinutes,
+    validated_minutes: validatedMinutes,
+    progress_status: progressStatus,
     updated_at: now,
   };
 
   if (assignmentStatus) {
-    updatePayload.assignment_status =
-      assignmentStatus;
+    updatePayload.assignment_status = assignmentStatus;
   }
 
   const { data, error: updateError } =
@@ -1362,6 +1369,17 @@ async function getMyAssignments(userId) {
   await autoTimeoutActiveLogsForStudent(
     student.student_id,
     null
+  );
+
+  const rowsBeforeSync =
+    await getRoRowsForStudent(
+      student.student_id
+    );
+
+  await Promise.all(
+    rowsBeforeSync
+      .filter((row) => row.ro_id)
+      .map((row) => syncRoTotalsQuietly(row.ro_id))
   );
 
   const rows =
@@ -1645,16 +1663,31 @@ async function timeInMyRo(
     );
   }
 
-  const remainingMinutes =
-    await getRemainingMinutesForRo(
-      ro
+  const activeLogForThisRo =
+    await getActiveLogForRo(
+      student.student_id,
+      ro.ro_id
     );
 
-  if (remainingMinutes <= 0) {
-    throw createHttpError(
-      400,
-      'The required RO hours have already been submitted for validation.'
-    );
+  if (activeLogForThisRo) {
+    const result =
+      await getMyAssignments(
+        userId
+      );
+
+    return {
+      ...result,
+      message:
+        'You already have an active time-in session for this RO.',
+      alreadyTimedIn: true,
+      activeLog: mapLog(activeLogForThisRo),
+      realtime: {
+        action: 'refresh',
+        ro_id: ro.ro_id,
+        student_id: student.student_id,
+        log_id: activeLogForThisRo.log_id,
+      },
+    };
   }
 
   const activeLog =
@@ -1667,6 +1700,32 @@ async function timeInMyRo(
       409,
       'You already have an active time-in session.'
     );
+  }
+
+  const remainingMinutes =
+    await getRemainingMinutesForRo(
+      ro
+    );
+
+  if (remainingMinutes <= 0) {
+    await syncRoTotalsQuietly(ro.ro_id);
+
+    const result =
+      await getMyAssignments(
+        userId
+      );
+
+    return {
+      ...result,
+      message:
+        'The required RO hours have already been submitted for validation.',
+      alreadySubmittedForValidation: true,
+      realtime: {
+        action: 'refresh',
+        ro_id: ro.ro_id,
+        student_id: student.student_id,
+      },
+    };
   }
 
   const note =
@@ -1849,19 +1908,43 @@ async function timeOutMyRo(
   }
 
   const activeLog =
-    await getActiveLogByStudent(
-      student.student_id
+    await getActiveLogForRo(
+      student.student_id,
+      ro.ro_id
     );
 
-  if (
-    !activeLog ||
-    String(activeLog.ro_id) !==
-    String(ro.ro_id)
-  ) {
-    throw createHttpError(
-      400,
-      'You do not have an active session for this RO.'
-    );
+  if (!activeLog) {
+    await syncRoTotalsQuietly(ro.ro_id);
+
+    const latestLog =
+      await getLatestLogForRo(
+        student.student_id,
+        ro.ro_id
+      );
+
+    const result =
+      await getMyAssignments(
+        userId
+      );
+
+    return {
+      ...result,
+      message: latestLog?.time_out_at
+        ? 'This RO session was already timed out. The latest record has been refreshed.'
+        : 'No active time-in session was found for this RO.',
+      alreadyTimedOut:
+        Boolean(latestLog?.time_out_at),
+      latestLog:
+        latestLog ? mapLog(latestLog) : null,
+      realtime: {
+        action: 'refresh',
+        ro_id: ro.ro_id,
+        student_id: student.student_id,
+        log_id: latestLog?.log_id || null,
+        already_timed_out:
+          Boolean(latestLog?.time_out_at),
+      },
+    };
   }
 
   const remainingMinutes =

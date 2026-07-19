@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
@@ -22,7 +23,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
   bool get _isExisting => widget.mode == 'existing';
 
   Future<void> _checkStudent() async {
-    final studentId = _controller.text.trim().toUpperCase();
+    final studentId = StudentIdInputFormatter.toFullStudentId(_controller.text);
 
     if (studentId.isEmpty) {
       setState(() => _error = 'Student ID is required');
@@ -31,7 +32,7 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
 
     final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$');
     if (!studentIdRegex.hasMatch(studentId)) {
-      setState(() => _error = 'Invalid format. Use PDM-YYYY-NNNNNN');
+      setState(() => _error = 'Invalid format. Use PDM-0000-000000');
       return;
     }
 
@@ -185,11 +186,13 @@ class _StudentLookupScreenState extends State<StudentLookupScreen> {
                       const SizedBox(height: 22),
                       TextField(
                         controller: _controller,
-                        textCapitalization: TextCapitalization.characters,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: const [StudentIdInputFormatter()],
                         style: const TextStyle(fontSize: 17),
                         decoration: InputDecoration(
                           labelText: 'Student ID',
-                          hintText: 'PDM-2024-000001',
+                          prefixText: 'PDM-',
+                          hintText: '0000-000000',
                           prefixIcon: const Icon(Icons.badge_outlined),
                           errorText: _error,
                           labelStyle: const TextStyle(

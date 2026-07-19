@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
@@ -37,7 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final focusPassword = args?['focusPassword'] == true;
 
     if (prefillStudentId.isNotEmpty) {
-      _studentIdController.text = prefillStudentId;
+      _studentIdController.text = StudentIdInputFormatter.formatVisible(
+        StudentIdInputFormatter.stripPdmPrefix(prefillStudentId),
+      );
       _passwordController.clear();
     }
 
@@ -63,7 +66,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       try {
         await _authService.login(
-          studentId: _studentIdController.text,
+          studentId: StudentIdInputFormatter.toFullStudentId(
+            _studentIdController.text,
+          ),
           password: _passwordController.text,
         );
 
@@ -146,20 +151,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 28),
                     TextFormField(
                       controller: _studentIdController,
-                      keyboardType: TextInputType.text,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: const [StudentIdInputFormatter()],
                       style: const TextStyle(fontSize: 17),
                       decoration: const InputDecoration(
                         labelText: 'Student ID',
                         prefixIcon: Icon(Icons.school_outlined),
+                        prefixText: 'PDM-',
+                        hintText: '0000-000000',
                       ),
                       validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your Student ID';
+                        final fullStudentId =
+                            StudentIdInputFormatter.toFullStudentId(
+                              value ?? '',
+                            );
+
+                        if (fullStudentId.isEmpty) {
+                          return 'Invalid Student ID format';
                         }
-                        final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$');
-                        if (!studentIdRegex.hasMatch(value.trim())) {
-                          return 'Invalid Student ID format (e.g., PDM-YYYY-NNNNNN)';
-                        }
+
                         return null;
                       },
                     ),

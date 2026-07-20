@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
+const adminSessionService = require('../services/adminSessionService');
 
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -13,17 +14,41 @@ const protect = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const normalizedRole = String(decoded.role || '').trim().toLowerCase();
 
         req.user = {
             ...decoded,
             userId: decoded.userId || decoded.user_id || decoded.sub || null,
             user_id: decoded.user_id || decoded.userId || decoded.sub || null,
-            role: String(decoded.role || '').trim().toLowerCase() || null,
+            role: normalizedRole || null,
         };
+        req.authToken = token;
 
-        next();
+        if (normalizedRole === 'admin') {
+            if (!decoded.sid) {
+                return res.status(401).json({
+                    code: 'ADMIN_SESSION_MIGRATION_REQUIRED',
+                    message: 'Admin session must be renewed. Please sign in again.',
+                });
+            }
+
+            req.adminSession = await adminSessionService.assertActiveAdminSession({
+                decoded: req.user,
+                rawToken: token,
+            });
+        }
+
+        return next();
     } catch (err) {
-        console.error('JWT VERIFY ERROR:', err.message);
+        console.error('JWT/SESSION VERIFY ERROR:', err.message);
+
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
         return res.status(401).json({
             message: 'Token is not valid',
         });

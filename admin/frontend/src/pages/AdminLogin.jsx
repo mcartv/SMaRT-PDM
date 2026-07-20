@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ArrowLeft,
@@ -9,62 +9,22 @@ import {
   BookOpen,
   Award,
 } from 'lucide-react';
+
 import pdmLogo from '../assets/pdm-logo.png';
-import { buildApiUrl } from '@/api';
 import usePortalTheme from '@/hooks/usePortalTheme';
-const LOGIN_URL = buildApiUrl('/api/auth/login');
+import { authService } from '@/services/authService';
+import {
+  getPortalNameFromRole,
+  getStoredPortalSession,
+  PORTAL_CONFIG,
+  savePortalSession,
+} from '@/utils/authStorage';
 
 const FEATURES = [
   { icon: GraduationCap, label: 'Scholarship Management' },
   { icon: BookOpen, label: 'Application Review' },
   { icon: Award, label: 'Financial Assistance' },
 ];
-
-const ROLE_PORTALS = {
-  pd: {
-    tokenStorageKey: 'pdToken',
-    profileStorageKey: 'pdProfile',
-    redirectPath: '/pd/dashboard',
-  },
-  guidance: {
-    tokenStorageKey: 'guidanceToken',
-    profileStorageKey: 'guidanceProfile',
-    redirectPath: '/guidance/dashboard',
-  },
-  sdo: {
-    tokenStorageKey: 'sdoToken',
-    profileStorageKey: 'sdoProfile',
-    redirectPath: '/sdo/dashboard',
-  },
-};
-
-const AUTH_STORAGE_KEYS = [
-  'adminToken',
-  'adminProfile',
-  'pdToken',
-  'pdProfile',
-  'guidanceToken',
-  'guidanceProfile',
-  'sdoToken',
-  'sdoProfile',
-];
-
-function clearAuthStorage() {
-  AUTH_STORAGE_KEYS.forEach((key) => {
-    sessionStorage.removeItem(key);
-
-    // Cleanup old remembered-login leftovers.
-    localStorage.removeItem(key);
-  });
-}
-
-function saveAuthSession({ tokenKey, profileKey, token, user }) {
-  sessionStorage.setItem(tokenKey, token);
-
-  if (user) {
-    sessionStorage.setItem(profileKey, JSON.stringify(user));
-  }
-}
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -73,56 +33,46 @@ export default function AdminLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [stayLoggedIn, setStayLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    const existingSession = getStoredPortalSession();
+
+    if (existingSession?.token) {
+      navigate(existingSession.redirectPath, { replace: true });
+    }
+  }, [navigate]);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setIsLoading(true);
     setError('');
 
-    const normalizedEmail = email.trim().toLowerCase();
-
     try {
-      const response = await fetch(LOGIN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password }),
+      const data = await authService.login({
+        email,
+        password,
+        stayLoggedIn,
       });
 
-      const data = await response.json();
+      const portalName = getPortalNameFromRole(data?.user?.role);
+      const portal = PORTAL_CONFIG[portalName];
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
-
-      const nextRole = data?.user?.role;
-      const rolePortal = ROLE_PORTALS[nextRole];
-
-      clearAuthStorage();
-
-      if (rolePortal) {
-        saveAuthSession({
-          tokenKey: rolePortal.tokenStorageKey,
-          profileKey: rolePortal.profileStorageKey,
-          token: data.token,
-          user: data.user,
-        });
-
-        navigate(rolePortal.redirectPath);
-        return;
-      }
-
-      saveAuthSession({
-        tokenKey: 'adminToken',
-        profileKey: 'adminProfile',
+      savePortalSession({
+        portalName,
         token: data.token,
         user: data.user,
+        // The 30-day option is intentionally limited to the true Admin account.
+        stayLoggedIn: portalName === 'admin' && stayLoggedIn,
       });
 
-      navigate('/admin/dashboard');
+      navigate(portal.redirectPath, { replace: true });
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      setError(
+        err.message || 'Login failed. Please check your credentials.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +90,8 @@ export default function AdminLogin() {
         <div
           className="absolute inset-0 opacity-10"
           style={{
-            backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
+            backgroundImage:
+              'radial-gradient(circle, #ffffff 1px, transparent 1px)',
             backgroundSize: '28px 28px',
           }}
         />
@@ -179,7 +130,10 @@ export default function AdminLogin() {
                 key={label}
                 className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${theme.accent}30` }}>
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-lg"
+                  style={{ background: `${theme.accent}30` }}
+                >
                   <Icon className="h-4 w-4" style={{ color: theme.accent }} />
                 </div>
                 <p className="text-sm font-medium text-stone-200">{label}</p>
@@ -206,7 +160,10 @@ export default function AdminLogin() {
           </button>
 
           <div className="mb-8">
-            <div className="mb-2 flex items-center gap-2" style={{ color: theme.base }}>
+            <div
+              className="mb-2 flex items-center gap-2"
+              style={{ color: theme.base }}
+            >
               <ShieldCheck size={18} />
               <span className="text-[10px] font-bold uppercase tracking-widest">
                 Authorized Access Only
@@ -221,7 +178,7 @@ export default function AdminLogin() {
 
           <form onSubmit={handleLogin} className="space-y-5">
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium animate-pulse">
+              <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium">
                 {error}
               </div>
             )}
@@ -236,7 +193,7 @@ export default function AdminLogin() {
                 autoComplete="email"
                 placeholder="staff@pdm.edu.ph"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm transition-all focus:outline-none focus:ring-2"
                 style={{ '--tw-ring-color': `${theme.base}33` }}
               />
@@ -264,20 +221,39 @@ export default function AdminLogin() {
                   autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 pr-12 text-sm transition-all focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': `${theme.base}33` }}
                 />
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
+                  onClick={() => setShowPassword((previous) => !previous)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 focus:outline-none"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={stayLoggedIn}
+                onChange={(event) => setStayLoggedIn(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-stone-300"
+                style={{ accentColor: theme.base }}
+              />
+              <span>
+                <span className="block text-xs font-semibold text-stone-700">
+                  Stay logged in for 30 days
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-4 text-stone-500">
+                  Use this only on the authorized Admin computer.
+                </span>
+              </span>
+            </label>
 
             <button
               type="submit"
@@ -285,7 +261,9 @@ export default function AdminLogin() {
               className="w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2"
               style={{
                 background: theme.base,
-                boxShadow: isLoading ? 'none' : `0 8px 20px -6px ${theme.base}80`,
+                boxShadow: isLoading
+                  ? 'none'
+                  : `0 8px 20px -6px ${theme.base}80`,
               }}
             >
               {isLoading ? (
@@ -300,7 +278,8 @@ export default function AdminLogin() {
           </form>
 
           <p className="mt-8 text-center text-xs text-stone-400 font-medium">
-            Contact <span className="text-stone-600">OSFA IT Support</span> for account issues.
+            Contact <span className="text-stone-600">OSFA IT Support</span>{' '}
+            for account issues.
           </p>
         </div>
       </div>

@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import { getStoredPortalSession } from './utils/authStorage';
 
 // --- LAYOUTS ---
 import AdminLayout from './components/layout/AdminLayout';
@@ -50,18 +52,9 @@ import SDOScholarList from './pages/SDOScholarList';
 import SDOProfile from './pages/SDOProfile';
 import SDOMaintenance from './pages/SDOMaintenance';
 
-/**
- * PROTECTED ROUTE WRAPPER
- * Prevents access to protected pages without the proper token.
- */
-const ProtectedRoute = ({ children, storageKey, redirectTo }) => {
-  const token = sessionStorage.getItem(storageKey);
-
-  if (!token) {
-    return <Navigate to={redirectTo} replace />;
-  }
-
-  return children;
+const PortalEntryRedirect = () => {
+  const activeSession = getStoredPortalSession();
+  return <Navigate to={activeSession?.redirectPath || '/landing'} replace />;
 };
 
 const RoleHome = () => {
@@ -72,7 +65,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/landing" replace />} />
+        <Route path="/" element={<PortalEntryRedirect />} />
 
         {/* Public Landing Page */}
         <Route path="/landing" element={<SmartPDMLanding />} />
@@ -300,3 +293,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

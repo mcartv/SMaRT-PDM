@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -27,6 +28,30 @@ router.post('/login', loginLimiter, authController.adminLogin);
 router.post('/pd/login', loginLimiter, authController.pdLogin);
 router.post('/guidance/login', loginLimiter, authController.guidanceLogin);
 router.post('/sdo/login', loginLimiter, authController.sdoLogin);
+
+router.post('/session/resume', authController.resumeAdminSession);
+router.post(
+    '/session/heartbeat',
+    protect,
+    authorizeRoles('admin'),
+    authController.heartbeatAdminSession
+);
+router.post(
+    '/session/release',
+    protect,
+    authorizeRoles('admin'),
+    authController.releaseAdminSessionPage
+);
+router.post(
+    '/session/release-beacon',
+    authController.releaseAdminSessionBeacon
+);
+router.post(
+    '/session/logout',
+    protect,
+    authorizeRoles('admin'),
+    authController.logoutAdminSession
+);
 
 router.post(
     '/admin/forgot-password/start',

@@ -7,6 +7,7 @@ const { sendAdminResetOtp } = require('../utils/mailer');
 const { resolveAvatarUrl } = require('../services/avatarService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
+const adminSessionService = require('../services/adminSessionService');
 
 const ALLOWED_ADMIN_EMAIL = String(
     process.env.ALLOWED_ADMIN_EMAIL || 'smartpdm.system@gmail.com'
@@ -146,7 +147,13 @@ async function findAuthorizedAdminForReset(email) {
 }
 
 async function loginWithRole(req, res, role) {
-    const { email, password } = req.body;
+    const {
+        email,
+        password,
+        stayLoggedIn = false,
+        deviceId = '',
+        pageId = '',
+    } = req.body || {};
     const normalizedEmail = normalizeEmail(email);
 
     try {
@@ -210,14 +217,35 @@ async function loginWithRole(req, res, role) {
             user.username ||
             user.email;
 
-        const token = buildToken(user, tokenRole);
+        let token;
+        let managedSession = null;
+
+        if (tokenRole === 'admin') {
+            const created = await adminSessionService.createAdminSession({
+                user,
+                role: tokenRole,
+                displayName,
+                stayLoggedIn: stayLoggedIn === true,
+                deviceId,
+                pageId,
+                req,
+            });
+
+            token = created.token;
+            managedSession = created.session;
+        } else {
+            token = buildToken(user, tokenRole);
+        }
 
         const portalTitle = departmentPortalLabels[role];
         const avatarUrl = await resolveAvatarUrl(user.profile_photo_url || null);
 
         return res.status(200).json({
             token,
-            message: portalTitle ? `Welcome to the ${portalTitle} panel` : 'Welcome back',
+            session: managedSession,
+            message: portalTitle
+                ? `Welcome to the ${portalTitle} panel`
+                : 'Welcome back',
             user: {
                 user_id: user.user_id,
                 admin_id: user.admin_id || null,
@@ -241,6 +269,14 @@ async function loginWithRole(req, res, role) {
         });
     } catch (err) {
         console.error(`${role.toUpperCase()} LOGIN ERROR:`, err);
+
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
         return res.status(500).json({
             message: 'Internal server error',
         });
@@ -251,6 +287,148 @@ exports.adminLogin = async (req, res) => loginWithRole(req, res, 'admin');
 exports.pdLogin = async (req, res) => loginWithRole(req, res, 'pd');
 exports.guidanceLogin = async (req, res) => loginWithRole(req, res, 'guidance');
 exports.sdoLogin = async (req, res) => loginWithRole(req, res, 'sdo');
+
+exports.resumeAdminSession = async (req, res) => {
+    try {
+        const rawToken = adminSessionService.getBearerToken(req);
+
+        const result = await adminSessionService.resumeAdminSession({
+            rawToken,
+            deviceId: req.body?.deviceId,
+            pageId: req.body?.pageId,
+        });
+
+        return res.status(200).json({
+            valid: true,
+            session: result.session,
+            user: {
+                user_id:
+                    result.decoded.user_id ||
+                    result.decoded.userId ||
+                    result.decoded.sub,
+                admin_id: result.decoded.adminId || null,
+                name: result.decoded.name || '',
+                email: result.decoded.email || '',
+                role: result.decoded.role || 'admin',
+                department: result.decoded.department || null,
+                position: result.decoded.position || null,
+            },
+        });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('ADMIN SESSION RESUME ERROR:', err);
+        return res.status(500).json({
+            message: 'Unable to resume the Admin session.',
+        });
+    }
+};
+
+exports.heartbeatAdminSession = async (req, res) => {
+    try {
+        await adminSessionService.heartbeatAdminSession({
+            decoded: req.user,
+            pageId: req.body?.pageId,
+        });
+
+        return res.status(200).json({
+            ok: true,
+            time: new Date().toISOString(),
+        });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('ADMIN SESSION HEARTBEAT ERROR:', err);
+        return res.status(500).json({
+            message: 'Unable to refresh the Admin session.',
+        });
+    }
+};
+
+exports.releaseAdminSessionPage = async (req, res) => {
+    try {
+        await adminSessionService.releaseAdminPage({
+            decoded: req.user,
+            pageId: req.body?.pageId,
+        });
+
+        return res.status(200).json({
+            released: true,
+        });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('ADMIN SESSION RELEASE ERROR:', err);
+        return res.status(500).json({
+            message: 'Unable to release the Admin session.',
+        });
+    }
+};
+
+exports.releaseAdminSessionBeacon = async (req, res) => {
+    try {
+        const rawToken = String(req.body?.token || '').trim();
+        const decoded = adminSessionService.verifyAdminToken(rawToken);
+
+        await adminSessionService.releaseAdminPage({
+            decoded,
+            pageId: req.body?.pageId,
+        });
+
+        return res.status(200).json({ released: true });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('ADMIN SESSION BEACON RELEASE ERROR:', err);
+        return res.status(500).json({
+            message: 'Unable to release the Admin session.',
+        });
+    }
+};
+
+exports.logoutAdminSession = async (req, res) => {
+    try {
+        await adminSessionService.logoutAdminSession({
+            decoded: req.user,
+        });
+
+        return res.status(200).json({
+            message: 'Logged out successfully.',
+        });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('ADMIN SESSION LOGOUT ERROR:', err);
+        return res.status(500).json({
+            message: 'Unable to log out the Admin session.',
+        });
+    }
+};
 
 exports.startAdminPasswordReset = async (req, res) => {
     const normalizedEmail = normalizeEmail(req.body?.email);
@@ -557,6 +735,11 @@ exports.resetAdminPassword = async (req, res) => {
                 [resetRow.reset_otp_id]
             );
 
+            await adminSessionService.revokeAllAdminSessionsForUser(
+                client,
+                resetRow.user_id
+            );
+
             await client.query(
                 `
                 UPDATE password_reset_otps
@@ -685,8 +868,21 @@ exports.resetAdminPassword = async (req, res) => {
         }
     }
 
+    const skipAuditActions = new Set([
+        'resumeAdminSession',
+        'heartbeatAdminSession',
+        'releaseAdminSessionPage',
+        'releaseAdminSessionBeacon',
+    ]);
+
     Object.entries(module.exports).forEach(([functionName, handler]) => {
-        if (typeof handler !== 'function' || isReadOnlyAction(functionName)) return;
+        if (
+            typeof handler !== 'function' ||
+            isReadOnlyAction(functionName) ||
+            skipAuditActions.has(functionName)
+        ) {
+            return;
+        }
         if (handler.__realtimeAuditWrapped) return;
 
         const wrapped = async function realtimeAuditWrappedHandler(req, res, next) {
@@ -709,3 +905,4 @@ exports.resetAdminPassword = async (req, res) => {
         module.exports[functionName] = wrapped;
     });
 })();
+

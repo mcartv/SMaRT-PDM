@@ -37,6 +37,7 @@ dependencies:
   google_fonts: ^6.1.0
   device_preview: ^1.2.0
   http: ^1.2.1
+  connectivity_plus: ^6.1.5
   shared_preferences: ^2.2.3
   file_picker: ^8.1.2
   image_picker: ^1.1.2

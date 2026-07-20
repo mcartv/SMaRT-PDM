@@ -23,6 +23,7 @@ import PortalQuickTools from './PortalQuickTools';
 import usePortalNotifications from '../../hooks/usePortalNotifications';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
+import { authService } from '../../services/authService';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -100,10 +101,8 @@ export default function AdminLayout() {
     initializeLayout();
   }, [navigate]);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('adminToken');
-    sessionStorage.removeItem('adminProfile');
-    navigate('/admin/login', { replace: true });
+  const handleLogout = async () => {
+    await authService.logout();
   };
 
   useEffect(() => {

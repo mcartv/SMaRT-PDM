@@ -33,8 +33,10 @@ from camera import CameraController
 from document_contracts import (
     build_birth_extracted_fields_from_ocr_result,
     build_extracted_fields,
+    build_indigency_extracted_fields_from_result,
     get_contract,
 )
+from extraction.indigency_core_field_extraction import extract_indigency_core_fields
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import register_psa_birth_form
@@ -93,6 +95,12 @@ def _is_birth_certificate_job(request: Dict) -> bool:
     document_key = str(request.get("document_key") or "").strip()
     contract = get_contract(document_key)
     return bool(contract and contract.document_key == "certificate_of_live_birth")
+
+
+def _is_indigency_job(request: Dict) -> bool:
+    document_key = str(request.get("document_key") or "").strip()
+    contract = get_contract(document_key)
+    return bool(contract and contract.document_key == "certificate_of_indigency")
 
 
 def _empty_birth_extracted_fields() -> Dict[str, object]:
@@ -445,6 +453,72 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
     else:
         status = "failed"
         error_message = "OCR scan failed or returned empty raw_text."
+
+    if _is_indigency_job(request):
+        extraction_result = None
+        extraction_status = "not_started"
+        extraction_issue_codes: list[str] = []
+        if status == "completed":
+            try:
+                source_image = _load_registered_image("/tmp/raw_capture.jpg")
+                if source_image is None:
+                    extraction_status = "failed"
+                    extraction_issue_codes = ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"]
+                else:
+                    extraction_result = extract_indigency_core_fields(source_image)
+                    extraction_status = str(
+                        getattr(extraction_result, "status", "failed") or "failed"
+                    )
+                    extraction_issue_codes = _issue_codes(extraction_result)
+            except Exception:
+                extraction_result = None
+                extraction_status = "failed"
+                extraction_issue_codes = ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"]
+
+            # Usable whole-document OCR remains the authoritative scan outcome.
+            status = "review_required"
+            error_message = None
+
+        extracted_fields = build_indigency_extracted_fields_from_result(
+            raw_text,
+            extraction_result,
+        )
+        preprocessing_variant = str(
+            extracted_fields.get("preprocessing_variant") or "positional_ocr"
+        )
+        payload = {
+            "status": status,
+            "raw_text": raw_text,
+            "ocr_confidence": None,
+            "document_type": "certificate_of_indigency",
+            "manual_review_required": True,
+            "preprocessing_variant": preprocessing_variant,
+            "extracted_fields": extracted_fields,
+            "source_payload": {
+                "source": "pi-worker-iot-ocr-request",
+                "mode": "indigency_structured_pipeline",
+                "request_id": request_id,
+                "application_id": application_id,
+                "student_id": student_id,
+                "student_name": student_name,
+                "document_key": document_key,
+                "document_type": document_type,
+                "document_contract_status": "approved",
+                "corrected_text": corrected_text,
+                "cancelled": was_cancelled,
+                "returncode": result.returncode,
+                "ocr_status": extraction_status,
+                "ocr_issue_codes": extraction_issue_codes,
+                "manual_review_required": True,
+                "worker_status": status,
+                "preprocessing_variant": preprocessing_variant,
+                "structured_field_keys": sorted(
+                    extracted_fields.get("fields", {}).keys()
+                ),
+            },
+            "error_message": error_message,
+        }
+        return status == "review_required", payload
 
     payload = {
         "status": status,

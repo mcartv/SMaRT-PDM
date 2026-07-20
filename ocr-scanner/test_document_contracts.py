@@ -1,6 +1,12 @@
 import unittest
 
-from document_contracts import build_extracted_fields, get_contract
+from types import SimpleNamespace
+
+from document_contracts import (
+    build_extracted_fields,
+    build_indigency_extracted_fields_from_result,
+    get_contract,
+)
 
 
 class DocumentContractsTest(unittest.TestCase):
@@ -49,7 +55,7 @@ class DocumentContractsTest(unittest.TestCase):
         )
 
     def test_pending_documents_are_explicitly_marked_for_review(self):
-        for key in ("certificate_of_indigency", "student_grade_forms"):
+        for key in ("student_grade_forms",):
             with self.subTest(key=key):
                 payload = build_extracted_fields(key, "sample text")
                 self.assertTrue(payload["review_required"])
@@ -64,10 +70,58 @@ class DocumentContractsTest(unittest.TestCase):
 
         self.assertEqual(payload["document_type"], "certificate_of_indigency")
         self.assertTrue(payload["review_required"])
-        self.assertEqual(payload["contract_status"], "pending_approval")
+        self.assertEqual(payload["contract_status"], "approved")
         self.assertEqual(payload["fields"], {})
         self.assertNotIn("name", payload)
         self.assertNotIn("extracted_name", payload)
+
+    def test_indigency_aliases_resolve_to_approved_subject_contract(self):
+        contracts = [get_contract(key) for key in ("certificate_of_indigency", "indigency")]
+
+        self.assertEqual({id(contract) for contract in contracts}, {id(contracts[0])})
+        self.assertEqual(contracts[0].document_key, "certificate_of_indigency")
+        self.assertEqual(contracts[0].status, "approved")
+        self.assertEqual(
+            [field.name for field in contracts[0].fields],
+            ["certificate_subject_name", "issue_date", "issuing_barangay"],
+        )
+
+    def test_indigency_result_uses_only_approved_ocr_fields(self):
+        fields = tuple(
+            SimpleNamespace(
+                name=name,
+                raw_text=value,
+                success=bool(value),
+                issue_codes=() if value else ("ISSUE_DATE_NOT_EXTRACTED",),
+                detection_variant="otsu_threshold",
+                anchor="synthetic anchor",
+                normalized_bounds=(0.1, 0.2, 0.3, 0.1) if value else None,
+            )
+            for name, value in (
+                ("certificate_subject_name", "SUBJECT OCR"),
+                ("issue_date", ""),
+                ("issuing_barangay", "SAMPLE BARANGAY"),
+            )
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(fields=fields, detection_variant="otsu_threshold")
+        )
+
+        payload = build_indigency_extracted_fields_from_result(
+            "RAW DOCUMENT OCR",
+            extraction_result,
+        )
+
+        self.assertEqual(payload["contract_status"], "approved")
+        self.assertTrue(payload["review_required"])
+        self.assertEqual(
+            tuple(payload["fields"]),
+            ("certificate_subject_name", "issue_date", "issuing_barangay"),
+        )
+        self.assertEqual(payload["fields"]["issue_date"]["raw_text"], "")
+        self.assertFalse(payload["fields"]["issue_date"]["success"])
+        self.assertNotIn("applicant_name", payload["fields"])
+        self.assertNotIn("extracted_name", payload["fields"])
 
     def test_mutating_one_result_does_not_affect_next_result(self):
         first = build_extracted_fields("certificate_of_live_birth", "sample text")

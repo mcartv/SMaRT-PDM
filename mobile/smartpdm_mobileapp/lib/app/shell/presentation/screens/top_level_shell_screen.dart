@@ -2,28 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholar_renewal_requirements_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:smartpdm_mobileapp/features/menu/presentation/screens/mobile_menu_screen.dart';
+import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/payout_schedule_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/messaging_bubble.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/notification_bell_button.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_bottom_nav.dart';
 
 class TopLevelShellScreen extends StatefulWidget {
-  final int initialIndex;
-
   const TopLevelShellScreen({
     super.key,
     required this.initialIndex,
   });
+
+  final int initialIndex;
 
   static TopLevelShellScreenState? maybeOf(BuildContext context) {
     return context.findAncestorStateOfType<TopLevelShellScreenState>();
@@ -85,13 +86,18 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       );
 
       if (!mounted) return;
-      context.read<NotificationProvider>().initialize();
+
+      final notificationProvider = context.read<NotificationProvider>();
+      final messagingProvider = context.read<MessagingProvider>();
+
+      notificationProvider.initialize();
+      await messagingProvider.initializeChat();
+      await messagingProvider.refreshUnreadCount();
     });
   }
 
   Future<void> _loadScholarState() async {
     final prefs = await SharedPreferences.getInstance();
-
     if (!mounted) return;
 
     setState(() {
@@ -127,9 +133,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
 
     if (targetIndex == _currentIndex) return;
 
-    setState(() {
-      _currentIndex = targetIndex;
-    });
+    setState(() => _currentIndex = targetIndex);
 
     if (animated) {
       await _pageController.animateToPage(
@@ -164,10 +168,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     }
 
     if (!mounted || index == _currentIndex) return;
-
-    setState(() {
-      _currentIndex = index;
-    });
+    setState(() => _currentIndex = index);
   }
 
   @override
@@ -192,8 +193,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        backgroundColor:
-            isDark ? const Color(0xFF24180F) : AppColors.white,
+        backgroundColor: isDark ? const Color(0xFF24180F) : AppColors.white,
         foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
         shape: Border(
           bottom: BorderSide(
@@ -224,10 +224,10 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: isDark ? Colors.white : AppColors.darkBrown,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
+                          color: isDark ? Colors.white : AppColors.darkBrown,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -235,11 +235,11 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: isDark
-                          ? Colors.white70
-                          : AppColors.brown.withValues(alpha: 0.78),
-                      fontWeight: FontWeight.w700,
-                    ),
+                          color: isDark
+                              ? Colors.white70
+                              : AppColors.brown.withValues(alpha: 0.78),
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
                 ],
               ),
@@ -253,6 +253,8 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
           ),
         ],
       ),
+      floatingActionButton: const MessagingBubble(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: SmartPdmBottomNav(
         selectedIndex: _currentIndex,
         isVerifiedScholar: hasScholarAccess,
@@ -263,8 +265,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       body: PageView(
         controller: _pageController,
         physics: const PageScrollPhysics(),
-        onPageChanged: (index) =>
-            _handlePageChanged(index, hasScholarAccess),
+        onPageChanged: (index) => _handlePageChanged(index, hasScholarAccess),
         children: _pages,
       ),
     );

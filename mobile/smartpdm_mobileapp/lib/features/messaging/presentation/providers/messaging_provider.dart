@@ -379,7 +379,6 @@ class MessagingProvider extends ChangeNotifier {
 
     final roomId = (message.roomId ?? '').trim();
     final isGroupMessage = roomId.isNotEmpty;
-
     final senderId = message.senderId.trim();
     final receiverId = (message.receiverId ?? '').trim();
 
@@ -388,8 +387,14 @@ class MessagingProvider extends ChangeNotifier {
         _currentUserId.trim().isNotEmpty &&
         (senderId == _currentUserId || receiverId == _currentUserId);
 
+    final isViewingPrivateThread =
+        _isViewingThread && _activeGroupId == null;
+
     final isActiveGroupMessage =
-        isGroupMessage && _activeGroupId != null && _activeGroupId == roomId;
+        _isViewingThread &&
+        isGroupMessage &&
+        _activeGroupId != null &&
+        _activeGroupId == roomId;
 
     debugPrint(
       '[MessagingProvider] realtime message check: '
@@ -397,42 +402,31 @@ class MessagingProvider extends ChangeNotifier {
       'senderId=$senderId, '
       'receiverId=$receiverId, '
       'currentUserId=$_currentUserId, '
-      'counterpartyId=$_counterpartyId, '
       'roomId=$roomId, '
       'activeGroupId=$_activeGroupId, '
       'isViewingThread=$_isViewingThread, '
       'isPrivateForCurrentUser=$isPrivateForCurrentUser, '
+      'isViewingPrivateThread=$isViewingPrivateThread, '
       'isActiveGroupMessage=$isActiveGroupMessage',
     );
 
-    /*
-    IMPORTANT:
-    For direct/private messages, do not require _counterpartyId to match.
-    The direct mobile chat only has one OSFA thread anyway, and the backend
-    payload already tells us this message belongs to the current user.
-  */
     if (isPrivateForCurrentUser) {
-      _upsertMessage(message);
-      _recalculatePrivateUnreadCount();
-
-      debugPrint(
-        '[MessagingProvider] private realtime message upserted: '
-        'count=${_messages.length}',
-      );
-
-      _notify();
+      // Only place a private message in the visible message list while the
+      // private OSFA conversation is open. This prevents private messages from
+      // appearing inside an active scholarship group chat.
+      if (isViewingPrivateThread) {
+        _upsertMessage(message);
+        _recalculatePrivateUnreadCount();
+        _notify();
+      } else {
+        _scheduleUnreadRefresh();
+      }
       return;
     }
 
     if (isActiveGroupMessage) {
       _upsertMessage(message);
       _setGroupUnreadCount(roomId, 0);
-
-      debugPrint(
-        '[MessagingProvider] group realtime message upserted: '
-        'count=${_messages.length}',
-      );
-
       _notify();
       return;
     }
@@ -448,9 +442,6 @@ class MessagingProvider extends ChangeNotifier {
       return;
     }
 
-    debugPrint(
-      '[MessagingProvider] realtime message ignored: not for this user/thread',
-    );
     _scheduleUnreadRefresh();
   }
 
@@ -660,3 +651,4 @@ class MessagingProvider extends ChangeNotifier {
     super.dispose();
   }
 }
+

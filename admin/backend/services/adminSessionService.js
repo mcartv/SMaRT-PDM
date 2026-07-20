@@ -116,6 +116,8 @@ async function cleanupStalePages(client, userId) {
         [userId, STALE_PAGE_SECONDS]
     );
 
+    // Page/tab activity must not control whether the remembered Admin login
+    // remains valid. A session stays active until explicit logout or expiry.
     await client.query(
         `
         UPDATE admin_sessions s
@@ -126,12 +128,6 @@ async function cleanupStalePages(client, userId) {
           AND (
               s.expires_at <= now()
               OR s.logged_out_at IS NOT NULL
-              OR NOT EXISTS (
-                  SELECT 1
-                  FROM admin_session_pages p
-                  WHERE p.session_id = s.session_id
-                    AND p.is_active = true
-              )
           )
         `,
         [userId]
@@ -603,30 +599,9 @@ async function releaseAdminPage({ decoded, pageId }) {
             [decoded.sid, cleanPageId]
         );
 
-        const activePageResult = await client.query(
-            `
-            SELECT 1
-            FROM admin_session_pages
-            WHERE session_id = $1
-              AND is_active = true
-            LIMIT 1
-            `,
-            [decoded.sid]
-        );
-
-        if (!activePageResult.rows[0]) {
-            await client.query(
-                `
-                UPDATE admin_sessions
-                SET is_active = false,
-                    released_at = now(),
-                    last_seen_at = now()
-                WHERE session_id = $1
-                  AND logged_out_at IS NULL
-                `,
-                [decoded.sid]
-            );
-        }
+        // Releasing a browser page only updates page-level tracking.
+        // It must not invalidate the 30-day Admin session. Explicit logout
+        // is handled separately by logoutAdminSession().
 
         await client.query('COMMIT');
     } catch (error) {

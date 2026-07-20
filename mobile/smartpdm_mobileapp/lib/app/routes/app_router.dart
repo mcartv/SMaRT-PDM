@@ -22,6 +22,7 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/screens/success_s
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/messaging_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
+import 'package:smartpdm_mobileapp/features/profile/presentation/screens/about_pdm_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/chat_list_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/report_ticket_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
@@ -154,7 +155,7 @@ class AppRouter {
       case AppRoutes.about:
         return _buildProtectedRoute(
           settings,
-          (_) => const _PlaceholderScreen(title: 'About PDM/OSFA'),
+          (_) => const AboutPdmScreen(),
         );
 
       case AppRoutes.faqs:
@@ -276,3 +277,4 @@ class _PlaceholderScreen extends StatelessWidget {
     );
   }
 }
+

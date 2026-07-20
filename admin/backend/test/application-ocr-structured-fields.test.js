@@ -288,3 +288,57 @@ test('indigency review-only contract persists without fabricated fields', () => 
   assert.equal(document.url, null);
   assert.equal(document.file_url, null);
 });
+
+test('approved indigency fields persist provisionally without applicant fallback', () => {
+  const extractedFields = {
+    document_type: 'certificate_of_indigency',
+    review_required: true,
+    contract_status: 'approved',
+    fields: {
+      certificate_subject_name: {
+        raw_text: 'SUBJECT OCR',
+        success: true,
+        review_required: true,
+      },
+      issue_date: {
+        raw_text: '',
+        success: false,
+        review_required: true,
+      },
+      issuing_barangay: {
+        raw_text: 'SAMPLE BARANGAY',
+        success: true,
+        review_required: true,
+      },
+    },
+  };
+  const persistence = buildStructuredOcrPersistence({
+    documentKey: 'certificate_of_indigency',
+    extractedFields,
+    sourcePayload: {
+      worker_status: 'review_required',
+      ocr_status: 'review_required',
+      ocr_issue_codes: ['ISSUE_DATE_NOT_EXTRACTED'],
+      structured_field_keys: [
+        'certificate_subject_name',
+        'issue_date',
+        'issuing_barangay',
+      ],
+    },
+  });
+
+  assert.deepEqual(persistence.ocr_structured_fields, extractedFields);
+  assert.equal(persistence.ocr_review_required, true);
+  assert.deepEqual(
+    persistence.ocr_processing_metadata.structured_field_keys,
+    ['certificate_subject_name', 'issue_date', 'issuing_barangay']
+  );
+  assert.equal(
+    persistence.ocr_structured_fields.fields.issue_date.raw_text,
+    ''
+  );
+  assert.equal(
+    Object.hasOwn(persistence.ocr_structured_fields.fields, 'applicant_name'),
+    false
+  );
+});

@@ -125,3 +125,68 @@ test('grade-form review-only behavior remains unchanged', () => {
   assert.equal(buildRawOcrSnapshot(activeDoc), 'GRADE FORM RAW OCR');
   assert.equal(activeDoc.status, 'pending');
 });
+
+test('structured indigency fields render provisionally without identity matching', () => {
+  const activeDoc = {
+    id: 'certificate_of_indigency',
+    document_key: 'certificate_of_indigency',
+    status: 'pending',
+    ocr: {
+      raw_text: 'RAW DOCUMENT OCR',
+      extracted_name: null,
+      confidence: null,
+      review_required: true,
+      structured_fields: {
+        document_type: 'certificate_of_indigency',
+        review_required: true,
+        contract_status: 'approved',
+        fields: {
+          certificate_subject_name: {
+            raw_text: 'SUBJECT OCR',
+            success: true,
+          },
+          issue_date: {
+            raw_text: '',
+            success: false,
+          },
+          issuing_barangay: {
+            raw_text: 'SAMPLE BARANGAY',
+            success: true,
+          },
+        },
+      },
+    },
+  };
+
+  const mapped = buildExtractedData(activeDoc, {
+    student: { name: 'APPLICATION PROFILE NAME' },
+  });
+
+  assert.equal(mapped.manualReviewRequired, true);
+  assert.equal(mapped.identityReview, null);
+  assert.equal(mapped.reviewOnly, true);
+  assert.deepEqual(mapped.extractedFields, [
+    {
+      label: 'Certificate Subject Name',
+      value: 'SUBJECT OCR',
+      badge: 'Provisional OCR',
+    },
+    {
+      label: 'Issue Date',
+      value: 'Not extracted',
+      badge: 'Provisional OCR',
+    },
+    {
+      label: 'Issuing Barangay',
+      value: 'SAMPLE BARANGAY',
+      badge: 'Provisional OCR',
+    },
+  ]);
+  assert.equal(mapped.applicationMetadata[0].value, 'APPLICATION PROFILE NAME');
+  assert.ok(
+    mapped.extractedFields.every(
+      (field) => field.value !== 'APPLICATION PROFILE NAME'
+    )
+  );
+  assert.equal(activeDoc.status, 'pending');
+});

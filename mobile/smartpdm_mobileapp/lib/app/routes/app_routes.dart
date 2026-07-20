@@ -14,6 +14,7 @@ class AppRoutes {
   static const home = '/home';
   static const payouts = '/payouts';
   static const notifications = '/notifications';
+  static const menu = '/menu';
   static const profile = '/profile';
 
   // Dashboard detail routes
@@ -37,7 +38,13 @@ class AppRoutes {
   static const success = '/success';
   static const scholarshipOpenings = '/scholarship-openings';
 
-  static const topLevel = <String>{home, notifications, profile};
+  static const topLevel = <String>{
+    home,
+    payouts,
+    roAssignment,
+    renewalDocuments,
+    menu,
+  };
 
   static bool isTopLevel(String route) => topLevel.contains(route);
 }

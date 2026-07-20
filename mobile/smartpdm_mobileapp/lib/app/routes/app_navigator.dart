@@ -1,72 +1,46 @@
 import 'package:flutter/material.dart';
+
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
-import 'package:smartpdm_mobileapp/app/shell/presentation/screens/top_level_shell_screen.dart';
-import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
 
 class AppNavigator {
-  static int? _topLevelIndexForRoute(String route) {
-    switch (route) {
-      case AppRoutes.home:
-        return 0;
-      case AppRoutes.notifications:
-        return 1;
-      case AppRoutes.profile:
-        return 2;
-      default:
-        return null;
-    }
-  }
+  const AppNavigator._();
 
-  static Future<void> goToTopLevel(
-    BuildContext context,
-    String route, {
-    Object? arguments,
-  }) async {
-    final hasAccess = await ScholarAccessService.ensureRouteAccess(
-      context,
-      route,
-    );
+  /// Opens one of the root destinations used by the mobile shell.
+  ///
+  /// This clears old detail routes so the user returns to a clean root stack.
+  static void goToTopLevel(BuildContext context, String route) {
+    final targetRoute = AppRoutes.isTopLevel(route) ? route : AppRoutes.home;
 
-    if (!hasAccess || !context.mounted) return;
+    final currentRoute = ModalRoute.of(context)?.settings.name;
 
-    final shellState = TopLevelShellScreen.maybeOf(context);
-    final targetIndex = _topLevelIndexForRoute(route);
-
-    if (shellState != null && targetIndex != null) {
-      shellState.switchToIndex(targetIndex, animated: false);
+    if (currentRoute == targetRoute) {
       return;
     }
 
-    await Navigator.of(context).pushNamedAndRemoveUntil(
-      route,
-      (previousRoute) => false,
-      arguments: arguments,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(targetRoute, (existingRoute) => false);
   }
 
-  static Future<void> pushDetail(
+  /// Opens a detail page without clearing the existing navigation stack.
+  static Future<T?> pushDetail<T>(
     BuildContext context,
     String route, {
     Object? arguments,
-  }) async {
-    final hasAccess = await ScholarAccessService.ensureRouteAccess(
-      context,
-      route,
-    );
-
-    if (!hasAccess || !context.mounted) return;
-
-    await Navigator.of(context).pushNamed(route, arguments: arguments);
+  }) {
+    return Navigator.of(context).pushNamed<T>(route, arguments: arguments);
   }
 
-  static Future<void> goBackOrHome(BuildContext context) {
+  /// Goes back when a previous page exists.
+  /// Otherwise, it returns to the Dashboard.
+  static void goBackOrHome(BuildContext context) {
     final navigator = Navigator.of(context);
 
     if (navigator.canPop()) {
       navigator.pop();
-      return Future.value();
+      return;
     }
 
-    return goToTopLevel(context, AppRoutes.home);
+    navigator.pushNamedAndRemoveUntil(AppRoutes.home, (existingRoute) => false);
   }
 }

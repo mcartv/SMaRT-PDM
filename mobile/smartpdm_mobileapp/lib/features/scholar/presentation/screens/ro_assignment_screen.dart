@@ -13,7 +13,14 @@ import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class ROAssignmentScreen extends StatefulWidget {
-  const ROAssignmentScreen({super.key});
+  final bool showBottomNav;
+  final bool showTopBar;
+
+  const ROAssignmentScreen({
+    super.key,
+    this.showBottomNav = true,
+    this.showTopBar = true,
+  });
 
   @override
   State<ROAssignmentScreen> createState() => _ROAssignmentScreenState();
@@ -1101,15 +1108,19 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   @override
   Widget build(BuildContext context) {
     return SmartPdmPageScaffold(
-      selectedIndex: 1,
-      appBar: AppBar(
-        backgroundColor: AppColors.darkBrown,
-        foregroundColor: Colors.white,
-        title: const Text(
-          'Return of Obligation',
-          style: TextStyle(fontWeight: FontWeight.w900),
-        ),
-      ),
+      selectedIndex: 2,
+      showBottomNav: widget.showBottomNav,
+      showDrawer: false,
+      appBar: widget.showTopBar
+          ? AppBar(
+              backgroundColor: AppColors.darkBrown,
+              foregroundColor: Colors.white,
+              title: const Text(
+                'Return of Obligation',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            )
+          : null,
       child: _buildContent(),
     );
   }

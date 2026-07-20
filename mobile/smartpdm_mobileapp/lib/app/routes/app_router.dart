@@ -5,7 +5,6 @@ import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/annou
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/applicant_access_gate.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/applicant_documents_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/new_applicant_screen.dart';
-import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholar_renewal_requirements_screen.dart';
 import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholarship_openings_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/change_email_screen.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/profile_completion_gate.dart';
@@ -22,9 +21,9 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/screens/status_tr
 import 'package:smartpdm_mobileapp/features/forms/presentation/screens/success_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/messaging_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/screens/notifications_screen.dart';
+import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
 import 'package:smartpdm_mobileapp/features/messaging/presentation/screens/chat_list_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/report_ticket_screen.dart';
-import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
 import 'package:smartpdm_mobileapp/features/auth/presentation/screens/student_lookup_screen.dart';
 
@@ -81,10 +80,16 @@ class AppRouter {
           (_) => const NotificationsScreen(showBottomNav: false),
         );
 
+      case AppRoutes.menu:
+        return _buildProtectedRoute(
+          settings,
+          (_) => const TopLevelShellScreen(initialIndex: 4),
+        );
+
       case AppRoutes.profile:
         return _buildProtectedRoute(
           settings,
-          (_) => const TopLevelShellScreen(initialIndex: 2),
+          (_) => const ProfileScreen(showBottomNav: false),
         );
 
       case AppRoutes.newApplicant:
@@ -117,7 +122,9 @@ class AppRouter {
       case AppRoutes.renewalDocuments:
         return _buildProtectedRoute(
           settings,
-          (_) => const ScholarRenewalRequirementsScreen(),
+          (_) => const ScholarAccessGate(
+            child: TopLevelShellScreen(initialIndex: 3),
+          ),
         );
 
       case AppRoutes.status:
@@ -165,7 +172,9 @@ class AppRouter {
       case AppRoutes.roAssignment:
         return _buildProtectedRoute(
           settings,
-          (_) => const ScholarAccessGate(child: ROAssignmentScreen()),
+          (_) => const ScholarAccessGate(
+            child: TopLevelShellScreen(initialIndex: 2),
+          ),
         );
 
       case AppRoutes.tickets:

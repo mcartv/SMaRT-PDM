@@ -10,8 +10,13 @@ import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 
 class PayoutScheduleScreen extends StatefulWidget {
   final bool showBottomNav;
+  final bool showTopBar;
 
-  const PayoutScheduleScreen({super.key, this.showBottomNav = true});
+  const PayoutScheduleScreen({
+    super.key,
+    this.showBottomNav = true,
+    this.showTopBar = true,
+  });
 
   @override
   State<PayoutScheduleScreen> createState() => _PayoutScheduleScreenState();
@@ -151,13 +156,16 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
     final subtitleColor = isDark ? Colors.white70 : Colors.black54;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(
-        title: Text('Payout Schedule'),
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-        foregroundColor: isDark ? Colors.white : textColor,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-      ),
+      appBar: widget.showTopBar
+          ? AppBar(
+              title: const Text('Payout Schedule'),
+              backgroundColor:
+                  isDark ? const Color(0xFF24180F) : Colors.white,
+              foregroundColor: isDark ? Colors.white : textColor,
+              elevation: 0,
+              automaticallyImplyLeading: false,
+            )
+          : null,
       selectedIndex: 1,
       showBottomNav: widget.showBottomNav,
       showDrawer: false,
@@ -169,7 +177,8 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ScholarNavChips(
+              if (widget.showTopBar)
+                ScholarNavChips(
                 selectedLabel: _selectedScholarView,
                 hasNewPayouts: context.select<NotificationProvider, bool>(
                   (provider) => provider.unreadPayoutCount > 0,
@@ -189,7 +198,7 @@ class _PayoutScheduleScreenState extends State<PayoutScheduleScreen> {
                   }
                 },
               ),
-              const SizedBox(height: 20),
+              if (widget.showTopBar) const SizedBox(height: 20),
               Text(
                 'Payment Schedule',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(

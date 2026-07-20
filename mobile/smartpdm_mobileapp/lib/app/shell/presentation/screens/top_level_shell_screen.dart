@@ -6,19 +6,24 @@ import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/config/app_config.dart';
 import 'package:smartpdm_mobileapp/core/realtime/mobile_realtime_service.dart';
+import 'package:smartpdm_mobileapp/features/applicant/presentation/screens/scholar_renewal_requirements_screen.dart';
 import 'package:smartpdm_mobileapp/features/dashboard/presentation/screens/dashboard_screen.dart';
-import 'package:smartpdm_mobileapp/features/messaging/presentation/providers/messaging_provider.dart';
+import 'package:smartpdm_mobileapp/features/menu/presentation/screens/mobile_menu_screen.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
-import 'package:smartpdm_mobileapp/features/profile/presentation/screens/profile_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/data/services/scholar_access_service.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/payout_schedule_screen.dart';
+import 'package:smartpdm_mobileapp/features/scholar/presentation/screens/ro_assignment_screen.dart';
 import 'package:smartpdm_mobileapp/features/scholar/presentation/widgets/scholar_access_gate.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/notification_bell_button.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_bottom_nav.dart';
 
 class TopLevelShellScreen extends StatefulWidget {
   final int initialIndex;
 
-  const TopLevelShellScreen({super.key, required this.initialIndex});
+  const TopLevelShellScreen({
+    super.key,
+    required this.initialIndex,
+  });
 
   static TopLevelShellScreenState? maybeOf(BuildContext context) {
     return context.findAncestorStateOfType<TopLevelShellScreenState>();
@@ -29,24 +34,46 @@ class TopLevelShellScreen extends StatefulWidget {
 }
 
 class TopLevelShellScreenState extends State<TopLevelShellScreen> {
+  static const Set<int> _scholarOnlyIndexes = <int>{1, 2, 3};
+
   late final PageController _pageController;
   late int _currentIndex;
 
   bool _isVerifiedScholar = false;
   bool _isRevertingLockedSwipe = false;
 
-  late final List<Widget> _pages = [
-    const DashboardScreen(showBottomNav: false),
-    const ScholarAccessGate(child: PayoutScheduleScreen(showBottomNav: false)),
-    const ProfileScreen(showBottomNav: false),
+  late final List<Widget> _pages = <Widget>[
+    const DashboardScreen(
+      showBottomNav: false,
+      showTopBar: false,
+    ),
+    const ScholarAccessGate(
+      child: PayoutScheduleScreen(
+        showBottomNav: false,
+        showTopBar: false,
+      ),
+    ),
+    const ScholarAccessGate(
+      child: ROAssignmentScreen(
+        showBottomNav: false,
+        showTopBar: false,
+      ),
+    ),
+    const ScholarAccessGate(
+      child: ScholarRenewalRequirementsScreen(
+        showBottomNav: false,
+        showTopBar: false,
+      ),
+    ),
+    const MobileMenuScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
 
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
+    _currentIndex = widget.initialIndex.clamp(0, 4);
+    _pageController = PageController(initialPage: _currentIndex);
 
     _loadScholarState();
 
@@ -58,9 +85,7 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
       );
 
       if (!mounted) return;
-
       context.read<NotificationProvider>().initialize();
-      // context.read<MessagingProvider>().initializeChat();
     });
   }
 
@@ -70,7 +95,8 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     if (!mounted) return;
 
     setState(() {
-      _isVerifiedScholar = prefs.getBool('user_has_scholar_access') ?? false;
+      _isVerifiedScholar =
+          prefs.getBool('user_has_scholar_access') ?? false;
     });
   }
 
@@ -83,10 +109,21 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     }
   }
 
-  void switchToIndex(int index, {bool animated = true}) {
+  Future<void> switchToIndex(
+    int index, {
+    bool animated = true,
+  }) async {
     if (!mounted) return;
 
+    final notificationProvider = context.read<NotificationProvider>();
+    final hasScholarAccess =
+        notificationProvider.hasScholarAccess || _isVerifiedScholar;
     final targetIndex = index.clamp(0, _pages.length - 1);
+
+    if (_scholarOnlyIndexes.contains(targetIndex) && !hasScholarAccess) {
+      ScholarAccessService.showLockedMessage(context);
+      return;
+    }
 
     if (targetIndex == _currentIndex) return;
 
@@ -95,9 +132,9 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     });
 
     if (animated) {
-      _pageController.animateToPage(
+      await _pageController.animateToPage(
         targetIndex,
-        duration: const Duration(milliseconds: 280),
+        duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
       );
       return;
@@ -106,12 +143,14 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
     _pageController.jumpToPage(targetIndex);
   }
 
-  Future<void> _handlePageChanged(int index, bool hasScholarAccess) async {
+  Future<void> _handlePageChanged(
+    int index,
+    bool hasScholarAccess,
+  ) async {
     if (_isRevertingLockedSwipe) return;
 
-    if (index == 1 && !hasScholarAccess) {
+    if (_scholarOnlyIndexes.contains(index) && !hasScholarAccess) {
       _isRevertingLockedSwipe = true;
-
       ScholarAccessService.showLockedMessage(context);
 
       await _pageController.animateToPage(
@@ -140,113 +179,110 @@ class TopLevelShellScreenState extends State<TopLevelShellScreen> {
   @override
   Widget build(BuildContext context) {
     final notificationProvider = context.watch<NotificationProvider>();
-    final messagingProvider = context.watch<MessagingProvider>();
-
     final hasScholarAccess =
         notificationProvider.hasScholarAccess || _isVerifiedScholar;
-
-    final shouldShowMessagingFab = _currentIndex != 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      floatingActionButton: shouldShowMessagingFab
-          ? _MessagingFab(
-              unreadCount: messagingProvider.unreadCount,
-              onPressed: () =>
-                  Navigator.of(context).pushNamed(AppRoutes.messaging),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        toolbarHeight: 76,
+        titleSpacing: 18,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        backgroundColor:
+            isDark ? const Color(0xFF24180F) : AppColors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
+        shape: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : AppColors.brown.withValues(alpha: 0.10),
+          ),
+        ),
+        title: Row(
+          children: [
+            SizedBox(
+              width: 52,
+              height: 52,
+              child: Image.asset(
+                'assets/images/school_logo.png',
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SMaRT-PDM',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: isDark ? Colors.white : AppColors.darkBrown,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _pageLabel(_currentIndex),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: isDark
+                          ? Colors.white70
+                          : AppColors.brown.withValues(alpha: 0.78),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: const [
+          NotificationBellButton(
+            padding: EdgeInsets.only(right: 12),
+            iconSize: 27,
+          ),
+        ],
+      ),
       bottomNavigationBar: SmartPdmBottomNav(
         selectedIndex: _currentIndex,
         isVerifiedScholar: hasScholarAccess,
         unreadNotifications: notificationProvider.unreadCount,
         unreadPayoutNotifications: notificationProvider.unreadPayoutCount,
+        onTap: (index) => switchToIndex(index),
       ),
       body: PageView(
         controller: _pageController,
         physics: const PageScrollPhysics(),
-        onPageChanged: (index) => _handlePageChanged(index, hasScholarAccess),
+        onPageChanged: (index) =>
+            _handlePageChanged(index, hasScholarAccess),
         children: _pages,
       ),
     );
   }
-}
 
-class _MessagingFab extends StatelessWidget {
-  const _MessagingFab({required this.unreadCount, required this.onPressed});
-
-  final int unreadCount;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final fabBackgroundColor = isDark
-        ? AppColors.gold
-        : const Color(0xFFF4E1B8);
-
-    final fabForegroundColor = isDark ? AppColors.darkBrown : AppColors.brown;
-
-    final fabBorderColor = isDark
-        ? AppColors.gold.withOpacity(0.2)
-        : AppColors.gold.withOpacity(0.55);
-
-    final badgeBorderColor = isDark
-        ? Colors.black.withOpacity(0.35)
-        : Colors.white.withOpacity(0.9);
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: fabBackgroundColor,
-            border: Border.all(color: fabBorderColor),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? AppColors.brown.withOpacity(0.28)
-                    : AppColors.brown.withOpacity(0.16),
-                blurRadius: isDark ? 18 : 14,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: FloatingActionButton(
-            heroTag: 'messaging-fab',
-            onPressed: onPressed,
-            elevation: 0,
-            highlightElevation: 0,
-            backgroundColor: Colors.transparent,
-            foregroundColor: fabForegroundColor,
-            child: const Icon(Icons.forum_rounded, size: 28),
-          ),
-        ),
-        if (unreadCount > 0)
-          Positioned(
-            right: -2,
-            top: -4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-              decoration: BoxDecoration(
-                color: AppColors.darkBrown,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: badgeBorderColor, width: 2),
-              ),
-              child: Text(
-                unreadCount > 99 ? '99+' : '$unreadCount',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
+  String _pageLabel(int index) {
+    switch (index) {
+      case 1:
+        return 'Payout Schedule';
+      case 2:
+        return 'Return of Obligation';
+      case 3:
+        return 'Renewal Requirements';
+      case 4:
+        return 'Menu';
+      case 0:
+      default:
+        return 'Dashboard';
+    }
   }
 }

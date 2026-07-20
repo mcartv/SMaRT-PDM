@@ -29,15 +29,21 @@ enum _DashboardSection { all, openings, updates, requirements }
 
 class DashboardScreen extends StatelessWidget {
   final bool showBottomNav;
+  final bool showTopBar;
 
-  const DashboardScreen({super.key, this.showBottomNav = true});
+  const DashboardScreen({
+    super.key,
+    this.showBottomNav = true,
+    this.showTopBar = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(
+      appBar: showTopBar
+          ? AppBar(
         toolbarHeight: 74,
         titleSpacing: 18,
         title: Row(
@@ -67,7 +73,8 @@ class DashboardScreen extends StatelessWidget {
         backgroundColor: isDark ? const Color(0xFF17110B) : Colors.white,
         foregroundColor: isDark ? Colors.white : textColor,
         actions: const [NotificationBellButton()],
-      ),
+      )
+          : null,
       selectedIndex: 0,
       showDrawer: false,
       showBottomNav: showBottomNav,

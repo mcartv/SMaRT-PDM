@@ -13,7 +13,14 @@ import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ScholarRenewalRequirementsScreen extends StatefulWidget {
-  const ScholarRenewalRequirementsScreen({super.key});
+  final bool showBottomNav;
+  final bool showTopBar;
+
+  const ScholarRenewalRequirementsScreen({
+    super.key,
+    this.showBottomNav = true,
+    this.showTopBar = true,
+  });
 
   @override
   State<ScholarRenewalRequirementsScreen> createState() =>
@@ -295,24 +302,31 @@ class _ScholarRenewalRequirementsScreenState
         : _sortedDocuments(_renewalPackage!.documents);
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(
-        title: Text('Renewal Documents'),
-        backgroundColor: isDark ? const Color(0xFF24180F) : Colors.white,
-        foregroundColor: isDark ? Colors.white : AppColors.darkBrown,
-        elevation: 0,
-      ),
-      selectedIndex: 1,
+      appBar: widget.showTopBar
+          ? AppBar(
+              title: const Text('Renewal Documents'),
+              backgroundColor:
+                  isDark ? const Color(0xFF24180F) : Colors.white,
+              foregroundColor:
+                  isDark ? Colors.white : AppColors.darkBrown,
+              elevation: 0,
+            )
+          : null,
+      selectedIndex: 3,
+      showBottomNav: widget.showBottomNav,
       showDrawer: false,
       child: RefreshIndicator(
         onRefresh: _loadRenewal,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            ScholarNavChips(
-              selectedLabel: 'Renewal Documents',
-              onTap: _handleScholarChipTap,
-            ),
-            const SizedBox(height: 20),
+            if (widget.showTopBar) ...[
+              ScholarNavChips(
+                selectedLabel: 'Renewal Documents',
+                onTap: _handleScholarChipTap,
+              ),
+              const SizedBox(height: 20),
+            ],
             if (_isLoading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 80),

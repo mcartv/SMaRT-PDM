@@ -14,11 +14,14 @@ class MessagingProvider extends ChangeNotifier {
   MessagingProvider({
     MessageService? messageService,
     SessionService? sessionService,
+    bool enableRealtime = true,
   }) : _messageService = messageService ?? MessageService(),
-       _sessionService = sessionService ?? const SessionService();
+       _sessionService = sessionService ?? const SessionService(),
+       _enableRealtime = enableRealtime;
 
   final MessageService _messageService;
   final SessionService _sessionService;
+  final bool _enableRealtime;
 
   List<ChatMessage> _messages = [];
   List<ChatRoom> _rooms = [];
@@ -96,12 +99,16 @@ class MessagingProvider extends ChangeNotifier {
     _currentUserId = session.userId;
     _isInitialized = true;
 
-    await MobileRealtimeService.instance.connectFromPrefs(
-      backendBaseUrl: AppConfig.apiBaseUrl,
-    );
+    if (_enableRealtime) {
+      await MobileRealtimeService.instance.connectFromPrefs(
+        backendBaseUrl: AppConfig.apiBaseUrl,
+      );
 
-    _isRealtimeConnected = true;
-    _ensureRealtimeListener();
+      _isRealtimeConnected = true;
+      _ensureRealtimeListener();
+    } else {
+      _isRealtimeConnected = false;
+    }
 
     if (!sameUser) {
       _messages = [];
@@ -120,10 +127,17 @@ class MessagingProvider extends ChangeNotifier {
   }
 
   Future<void> enterThread() async {
+    // Initialize first because the first initialization resets the current
+    // conversation state for a newly authenticated user.
+    await initializeChat();
+
+    if (_isDisposed) {
+      return;
+    }
+
     _isViewingThread = true;
     _activeGroupId = null;
 
-    await initializeChat();
     await _refreshThread();
     await markThreadRead();
   }
@@ -135,10 +149,17 @@ class MessagingProvider extends ChangeNotifier {
       return;
     }
 
+    // Initialize first. initializeChat() resets _activeGroupId when the provider
+    // is initialized for a new user, so the room must be selected afterward.
+    await initializeChat();
+
+    if (_isDisposed) {
+      return;
+    }
+
     _isViewingThread = true;
     _activeGroupId = normalizedRoomId;
 
-    await initializeChat();
     await _refreshThread();
     await markThreadRead();
   }

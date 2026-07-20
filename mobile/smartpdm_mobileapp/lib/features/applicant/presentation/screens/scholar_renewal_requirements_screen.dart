@@ -100,7 +100,7 @@ class _ScholarRenewalRequirementsScreenState
   void _handleScholarChipTap(String label) {
     switch (label) {
       case 'Payout Schedule':
-        AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+        Navigator.pop(context);
         break;
       case 'Renewal Documents':
         break;
@@ -183,7 +183,7 @@ class _ScholarRenewalRequirementsScreenState
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                AppNavigator.goToTopLevel(context, AppRoutes.payouts);
+                Navigator.pop(context);
               },
               child: Text('OK'),
             ),

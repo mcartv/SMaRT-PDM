@@ -4,6 +4,7 @@ const rateLimit = require('express-rate-limit');
 
 const routes = require('./routes');
 const { getSafeStatusCode } = require('./utils/httpStatus');
+const renewalRoutes = require('./routes/renewalRoutes');
 
 const forgotPasswordLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -57,11 +58,8 @@ function createApp() {
     app.use('/api/auth/forgot-password', forgotPasswordLimiter);
     app.use('/api/auth/register', registrationLimiter);
     app.use('/api/auth/verify-otp', otpLimiter);
+    app.use('/api/renewals', renewalRoutes);
     app.use(routes);
-
-
-
-
 
 
     app.use((req, res) => {

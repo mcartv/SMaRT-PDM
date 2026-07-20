@@ -115,7 +115,10 @@ class ApiClient:
         if (
             transport_status == "review_required"
             and isinstance(payload["source_payload"], dict)
-            and payload["source_payload"].get("mode") == "birth_certificate_pipeline"
+            and payload["source_payload"].get("mode") in {
+                "birth_certificate_pipeline",
+                "indigency_structured_pipeline",
+            }
             and payload["source_payload"].get("manual_review_required") is True
         ):
             transport_status = "completed"

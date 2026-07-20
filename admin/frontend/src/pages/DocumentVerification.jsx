@@ -350,10 +350,14 @@ export function buildExtractedData(activeDoc, application) {
   const hasStructuredBirthFields =
     activeDoc.id === 'birth_certificate' &&
     Object.keys(structuredFields).length > 0;
+  const hasStructuredIndigencyFields =
+    documentKey === 'certificate_of_indigency' &&
+    Object.keys(structuredFields).length > 0;
   const manualReviewRequired =
     ocr.review_required === true ||
     ocr.structured_fields?.review_required === true ||
-    hasStructuredBirthFields;
+    hasStructuredBirthFields ||
+    hasStructuredIndigencyFields;
   const identityReview = hasStructuredBirthFields
     ? reviewBirthApplicantIdentity({
       applicantName: student.name,
@@ -379,6 +383,29 @@ export function buildExtractedData(activeDoc, application) {
     ];
 
     birthFieldDefinitions.forEach(([fieldKey, label]) => {
+      const field = structuredFields[fieldKey];
+      const rawText =
+        field && typeof field === 'object'
+          ? field.raw_text
+          : field;
+
+      extractedFields.push({
+        label,
+        value:
+          typeof rawText === 'string' && rawText.trim()
+            ? rawText.trim()
+            : 'Not extracted',
+        badge: 'Provisional OCR',
+      });
+    });
+  } else if (hasStructuredIndigencyFields) {
+    const indigencyFieldDefinitions = [
+      ['certificate_subject_name', 'Certificate Subject Name'],
+      ['issue_date', 'Issue Date'],
+      ['issuing_barangay', 'Issuing Barangay'],
+    ];
+
+    indigencyFieldDefinitions.forEach(([fieldKey, label]) => {
       const field = structuredFields[fieldKey];
       const rawText =
         field && typeof field === 'object'
@@ -1062,12 +1089,7 @@ function OCRPanel({
             </div>
           ) : null}
 
-          {extractedData.reviewOnly ? (
-            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 space-y-1">
-              <p className="font-medium">{REVIEW_ONLY_MESSAGES[0]}</p>
-              <p>{REVIEW_ONLY_MESSAGES[1]}</p>
-            </div>
-          ) : extractedData.extractedFields.length ? (
+          {extractedData.extractedFields.length ? (
             <div className="space-y-2">
               {extractedData.extractedFields.map((item, index) => (
                 <div
@@ -1093,6 +1115,11 @@ function OCRPanel({
                   </span>
                 </div>
               ))}
+            </div>
+          ) : extractedData.reviewOnly ? (
+            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800 space-y-1">
+              <p className="font-medium">{REVIEW_ONLY_MESSAGES[0]}</p>
+              <p>{REVIEW_ONLY_MESSAGES[1]}</p>
             </div>
           ) : (
             <p className="text-xs text-stone-500">No structured fields extracted.</p>

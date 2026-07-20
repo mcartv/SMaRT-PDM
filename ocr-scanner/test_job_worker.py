@@ -114,35 +114,77 @@ def _birth_ocr_result(status="review_required", success=True, texts=None, issues
     )
 
 
+def _indigency_result(
+    status="review_required",
+    success=True,
+    issue_code=None,
+    values=None,
+):
+    resolved_values = values or {
+        "certificate_subject_name": "SUBJECT OCR",
+        "issue_date": "16th day of July 2026",
+        "issuing_barangay": "SAMPLE BARANGAY",
+    }
+    fields = tuple(
+        SimpleNamespace(
+            name=name,
+            raw_text=value if success else "",
+            success=success and bool(value),
+            review_required=True,
+            issue_codes=(
+                ()
+                if success and value
+                else (issue_code or "FIELD_NOT_EXTRACTED",)
+            ),
+            detection_variant="otsu_threshold",
+            anchor="synthetic anchor",
+            normalized_bounds=(0.1, 0.2, 0.3, 0.1) if success and value else None,
+        )
+        for name, value in resolved_values.items()
+    )
+    return _stage_result(
+        status=status,
+        success=success,
+        data=(
+            SimpleNamespace(
+                fields=fields,
+                field_count=3,
+                detection_variant="otsu_threshold",
+            )
+            if success
+            else None
+        ),
+        issues=[{"code": issue_code}] if issue_code else [],
+        metrics={"field_count": 3, "manual_review_required": True},
+    )
+
+
 class JobWorkerTest(unittest.TestCase):
+    @patch("job_worker.extract_indigency_core_fields")
+    @patch("job_worker._load_registered_image")
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
     @patch("job_worker.register_psa_birth_form")
-    @patch("job_worker.build_extracted_fields")
     @patch("job_worker.clear_tmp_files")
     @patch("job_worker.read_text_file")
     @patch("job_worker.subprocess.run")
-    def test_indigency_uses_legacy_raw_text_review_only_flow(
+    def test_indigency_uses_interactive_capture_then_structured_review_flow(
         self,
         mock_run,
         mock_read_text_file,
         mock_clear_tmp_files,
-        mock_build_extracted_fields,
         mock_register,
         mock_crop,
         mock_birth_ocr,
+        mock_load_image,
+        mock_extract_indigency,
     ):
         raw_text = "CERTIFICATE OCR TEXT"
-        extracted_fields = {
-            "document_type": "certificate_of_indigency",
-            "review_required": True,
-            "contract_status": "pending_approval",
-            "source_regions": ["Applicant name", "Address", "Issue date"],
-            "fields": {},
-        }
         mock_run.return_value.returncode = 0
         mock_read_text_file.side_effect = [raw_text, "CORRECTED METADATA ONLY"]
-        mock_build_extracted_fields.return_value = extracted_fields
+        source_image = np.full((1200, 900, 3), 240, dtype=np.uint8)
+        mock_load_image.return_value = source_image
+        mock_extract_indigency.return_value = _indigency_result()
 
         success, payload = job_worker.run_scan(
             {
@@ -156,33 +198,242 @@ class JobWorkerTest(unittest.TestCase):
         )
 
         self.assertTrue(success)
-        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["status"], "review_required")
         self.assertEqual(payload["raw_text"], raw_text)
-        self.assertEqual(payload["ocr_confidence"], 0.99)
-        self.assertIs(payload["extracted_fields"], extracted_fields)
+        self.assertIsNone(payload["ocr_confidence"])
         self.assertTrue(payload["extracted_fields"]["review_required"])
         self.assertEqual(
             payload["extracted_fields"]["contract_status"],
-            "pending_approval",
+            "approved",
         )
-        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        self.assertEqual(
+            set(payload["extracted_fields"]["fields"]),
+            {"certificate_subject_name", "issue_date", "issuing_barangay"},
+        )
+        self.assertNotIn("applicant_name", payload["extracted_fields"]["fields"])
         self.assertEqual(
             payload["source_payload"]["corrected_text"],
             "CORRECTED METADATA ONLY",
         )
         self.assertEqual(
             payload["source_payload"]["document_contract_status"],
-            "pending_approval",
+            "approved",
         )
+        self.assertEqual(payload["source_payload"]["worker_status"], "review_required")
+        self.assertEqual(payload["source_payload"]["ocr_status"], "review_required")
         self.assertNotIn("extracted_name", payload["extracted_fields"])
         mock_clear_tmp_files.assert_called_once()
-        mock_build_extracted_fields.assert_called_once_with(
-            "certificate_of_indigency",
-            raw_text,
-        )
+        mock_load_image.assert_called_once_with("/tmp/raw_capture.jpg")
+        mock_extract_indigency.assert_called_once_with(source_image)
         mock_register.assert_not_called()
         mock_crop.assert_not_called()
         mock_birth_ocr.assert_not_called()
+
+    @patch("job_worker.extract_indigency_core_fields")
+    @patch("job_worker._load_registered_image")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_missing_field_keeps_usable_raw_ocr_review_required(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_load_image,
+        mock_extract_indigency,
+    ):
+        mock_run.return_value.returncode = 0
+        mock_read_text_file.side_effect = ["RAW OCR", "CORRECTED OCR"]
+        mock_load_image.return_value = np.full((1200, 900, 3), 240, dtype=np.uint8)
+        mock_extract_indigency.return_value = _indigency_result(
+            values={
+                "certificate_subject_name": "SUBJECT OCR",
+                "issue_date": "",
+                "issuing_barangay": "SAMPLE BARANGAY",
+            }
+        )
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-partial",
+                "document_key": "certificate_of_indigency",
+            }
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertEqual(
+            payload["extracted_fields"]["fields"]["issue_date"]["raw_text"],
+            "",
+        )
+        self.assertIsNone(payload["error_message"])
+
+    @patch("job_worker.extract_indigency_core_fields")
+    @patch("job_worker._load_registered_image")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_all_empty_fields_keep_usable_raw_ocr_review_required(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_load_image,
+        mock_extract_indigency,
+    ):
+        mock_run.return_value.returncode = 0
+        mock_read_text_file.side_effect = ["RAW OCR", "CORRECTED OCR"]
+        mock_load_image.return_value = np.full((1200, 900, 3), 240, dtype=np.uint8)
+        mock_extract_indigency.return_value = _indigency_result(
+            values={
+                "certificate_subject_name": "",
+                "issue_date": "",
+                "issuing_barangay": "",
+            }
+        )
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-empty-fields",
+                "document_key": "certificate_of_indigency",
+            }
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertTrue(
+            all(
+                field["raw_text"] == "" and field["review_required"] is True
+                for field in payload["extracted_fields"]["fields"].values()
+            )
+        )
+        self.assertIsNone(payload["error_message"])
+
+    @patch("job_worker.extract_indigency_core_fields")
+    @patch("job_worker._load_registered_image")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_extraction_failure_submits_empty_fields_and_issue_codes(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_load_image,
+        mock_extract_indigency,
+    ):
+        mock_run.return_value.returncode = 0
+        mock_read_text_file.side_effect = ["RAW OCR", "CORRECTED OCR"]
+        mock_load_image.return_value = np.full((1200, 900, 3), 240, dtype=np.uint8)
+        mock_extract_indigency.return_value = _indigency_result(
+            status="failed",
+            success=False,
+            issue_code="INDIGENCY_DOCUMENT_NOT_DETECTED",
+        )
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-failed",
+                "document_key": "certificate_of_indigency",
+                "document_type": "Certificate of Indigency",
+            }
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertIsNone(payload["error_message"])
+        self.assertEqual(payload["source_payload"]["worker_status"], "review_required")
+        self.assertEqual(payload["source_payload"]["ocr_status"], "failed")
+        self.assertEqual(
+            payload["source_payload"]["ocr_issue_codes"],
+            ["INDIGENCY_DOCUMENT_NOT_DETECTED"],
+        )
+        self.assertTrue(
+            all(
+                field["raw_text"] == "" and field["success"] is False
+                for field in payload["extracted_fields"]["fields"].values()
+            )
+        )
+        self.assertNotIn("applicant_name", payload["extracted_fields"]["fields"])
+
+    @patch("job_worker.extract_indigency_core_fields")
+    @patch("job_worker._load_registered_image")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_extractor_exception_keeps_raw_ocr_and_safe_issue_code(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_load_image,
+        mock_extract_indigency,
+    ):
+        mock_run.return_value.returncode = 0
+        mock_read_text_file.side_effect = ["RAW OCR", "CORRECTED OCR"]
+        mock_load_image.return_value = np.full((1200, 900, 3), 240, dtype=np.uint8)
+        mock_extract_indigency.side_effect = RuntimeError("sensitive OCR details")
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-exception",
+                "document_key": "certificate_of_indigency",
+            }
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertIsNone(payload["error_message"])
+        self.assertEqual(payload["source_payload"]["ocr_status"], "failed")
+        self.assertEqual(
+            payload["source_payload"]["ocr_issue_codes"],
+            ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"],
+        )
+        self.assertTrue(
+            all(
+                field["raw_text"] == ""
+                for field in payload["extracted_fields"]["fields"].values()
+            )
+        )
+
+    @patch("job_worker.extract_indigency_core_fields")
+    @patch("job_worker._load_registered_image")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_missing_source_image_keeps_usable_raw_ocr(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_load_image,
+        mock_extract_indigency,
+    ):
+        mock_run.return_value.returncode = 0
+        mock_read_text_file.side_effect = ["RAW OCR", "CORRECTED OCR"]
+        mock_load_image.return_value = None
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-no-image",
+                "document_key": "certificate_of_indigency",
+            }
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "review_required")
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertIsNone(payload["error_message"])
+        self.assertEqual(payload["source_payload"]["ocr_status"], "failed")
+        self.assertEqual(
+            payload["source_payload"]["ocr_issue_codes"],
+            ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"],
+        )
+        mock_extract_indigency.assert_not_called()
 
     @patch("job_worker.extract_psa_birth_row_text")
     @patch("job_worker.crop_psa_birth_name_rows")
@@ -214,7 +465,16 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["status"], "cancelled")
         self.assertEqual(payload["raw_text"], "")
         self.assertTrue(payload["source_payload"]["cancelled"])
-        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        self.assertEqual(
+            set(payload["extracted_fields"]["fields"]),
+            {"certificate_subject_name", "issue_date", "issuing_barangay"},
+        )
+        self.assertTrue(
+            all(
+                not field["success"]
+                for field in payload["extracted_fields"]["fields"].values()
+            )
+        )
         mock_register.assert_not_called()
         mock_crop.assert_not_called()
         mock_birth_ocr.assert_not_called()
@@ -249,10 +509,43 @@ class JobWorkerTest(unittest.TestCase):
         self.assertEqual(payload["status"], "failed")
         self.assertEqual(payload["raw_text"], "")
         self.assertIsNone(payload["ocr_confidence"])
-        self.assertEqual(payload["extracted_fields"]["fields"], {})
+        self.assertEqual(
+            set(payload["extracted_fields"]["fields"]),
+            {"certificate_subject_name", "issue_date", "issuing_barangay"},
+        )
         mock_register.assert_not_called()
         mock_crop.assert_not_called()
         mock_birth_ocr.assert_not_called()
+
+    @patch("job_worker.extract_indigency_core_fields")
+    @patch("job_worker._load_registered_image")
+    @patch("job_worker.clear_tmp_files")
+    @patch("job_worker.read_text_file")
+    @patch("job_worker.subprocess.run")
+    def test_indigency_subprocess_failure_remains_failed(
+        self,
+        mock_run,
+        mock_read_text_file,
+        _mock_clear_tmp_files,
+        mock_load_image,
+        mock_extract_indigency,
+    ):
+        mock_run.return_value.returncode = 1
+        mock_read_text_file.side_effect = ["", ""]
+
+        success, payload = job_worker.run_scan(
+            {
+                "request_id": "req-indigency-subprocess-failed",
+                "document_key": "certificate_of_indigency",
+            }
+        )
+
+        self.assertFalse(success)
+        self.assertEqual(payload["status"], "failed")
+        self.assertEqual(payload["raw_text"], "")
+        self.assertEqual(payload["source_payload"]["ocr_status"], "not_started")
+        mock_load_image.assert_not_called()
+        mock_extract_indigency.assert_not_called()
 
     @patch("job_worker.build_extracted_fields")
     @patch("job_worker.clear_tmp_files")

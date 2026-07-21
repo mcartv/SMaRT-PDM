@@ -93,8 +93,8 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Text(
-              notification.officeUpdateLabel == 'SCHOLARSHIP'
-                  ? 'Scholarship'
+              notification.officeUpdateLabel == 'SCHOLARSHIP OPENING'
+                  ? 'Scholarship Opening'
                   : 'Office Update',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -144,7 +144,7 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'View available scholarships and continue your application flow from there.',
+                                'View available scholarship openings and continue your application flow from there.',
                                 style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(color: bodyColor, height: 1.45),
                               ),
@@ -178,7 +178,7 @@ class OfficeUpdateArticleScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(999),
                           ),
                         ),
-                        child: const Text('View Scholarships'),
+                        child: const Text('View Scholarship Openings'),
                       ),
                     ),
                   ],

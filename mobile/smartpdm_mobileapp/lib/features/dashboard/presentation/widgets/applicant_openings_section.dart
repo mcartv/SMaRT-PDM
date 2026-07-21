@@ -35,7 +35,7 @@ class ApplicantOpeningsSection extends StatelessWidget {
               child: Semantics(
                 header: true,
                 child: Text(
-                  'Available scholarships',
+                  'Scholarship openings',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -58,12 +58,12 @@ class ApplicantOpeningsSection extends StatelessWidget {
           hasContent: openings.isNotEmpty,
           isEmpty: section.hasLoaded && openings.isEmpty,
           hasError: section.hasError,
-          loadingLabel: 'Loading available scholarships',
-          emptyTitle: 'No scholarships right now',
+          loadingLabel: 'Loading scholarship openings',
+          emptyTitle: 'No openings right now',
           emptyMessage:
               'New scholarship opportunities will appear here when available.',
-          errorTitle: 'Scholarships are unavailable',
-          errorMessage: 'We could not refresh available scholarships.',
+          errorTitle: 'Openings are unavailable',
+          errorMessage: 'We could not refresh scholarship openings.',
           onRetry: onRetry,
           child: Column(
             children: [

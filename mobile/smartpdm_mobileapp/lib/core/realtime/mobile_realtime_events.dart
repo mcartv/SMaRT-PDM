@@ -25,7 +25,7 @@ class MobileRealtimeEvents {
   static const announcementDeleted = 'announcement:deleted';
   static const announcementRefresh = 'announcement:refresh';
 
-  // Scholarships
+  // Scholarship Openings
   static const openingCreated = 'opening:created';
   static const openingUpdated = 'opening:updated';
   static const openingClosed = 'opening:closed';

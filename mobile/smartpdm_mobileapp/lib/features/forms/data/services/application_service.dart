@@ -15,7 +15,7 @@ class ApplicationService {
 
     if (openingId.isEmpty) {
       throw Exception(
-        'Choose a scholarship before submitting your application.',
+        'Choose a scholarship opening before submitting your application.',
       );
     }
 

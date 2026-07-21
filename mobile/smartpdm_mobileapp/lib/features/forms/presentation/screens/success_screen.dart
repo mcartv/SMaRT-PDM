@@ -172,7 +172,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
 
     final message =
         payload['message']?.toString() ??
-        'Your scholarship application was submitted.\nYou can continue in Documents to upload\nthe required files for this scholarship.';
+        'Your scholarship application was submitted.\nYou can continue in Documents to upload\nthe required files for this opening.';
     final appBarTitle =
         payload['appBarTitle']?.toString() ?? 'Application Submitted';
     final applicationId = payload['applicationId']?.toString() ?? '';

@@ -1,5 +1,84 @@
 const supabase = require('../config/supabase');
 
+const REQUIRED_APPLICATION_UPLOADS = Object.freeze([
+  'certificate of registration',
+  'grade report',
+  'certificate of indigency',
+  'letter of request',
+]);
+
+function normalizeDocumentType(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeRequiredDocumentType(value = '') {
+  const normalized = normalizeDocumentType(value);
+
+  if (['cor', 'registration', 'registration form'].includes(normalized)) {
+    return 'certificate of registration';
+  }
+
+  if (
+    [
+      'student grade forms',
+      'grade forms',
+      'grade form',
+      'grades',
+      'grade card',
+      'report card',
+    ].includes(normalized)
+  ) {
+    return 'grade report';
+  }
+
+  if (normalized === 'indigency') return 'certificate of indigency';
+  if (['request letter', 'lor'].includes(normalized)) return 'letter of request';
+
+  return normalized;
+}
+
+async function getApplicationDocumentSummary(applicationId) {
+  if (!applicationId) {
+    return {
+      uploadedDocumentCount: 0,
+      requiredDocumentCount: REQUIRED_APPLICATION_UPLOADS.length,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('application_documents')
+    .select('document_type, is_submitted, file_path, file_url')
+    .eq('application_id', applicationId);
+
+  if (error) throw error;
+
+  const submittedTypes = new Set();
+  for (const document of data || []) {
+    const normalizedType = normalizeRequiredDocumentType(document.document_type);
+    const hasFile =
+      String(document.file_path || '').trim() !== '' ||
+      String(document.file_url || '').trim() !== '';
+
+    if (
+      REQUIRED_APPLICATION_UPLOADS.includes(normalizedType) &&
+      document.is_submitted === true &&
+      hasFile
+    ) {
+      submittedTypes.add(normalizedType);
+    }
+  }
+
+  return {
+    uploadedDocumentCount: submittedTypes.size,
+    requiredDocumentCount: REQUIRED_APPLICATION_UPLOADS.length,
+  };
+}
+
+
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -130,6 +209,14 @@ async function getOpeningsForMobile(userId) {
     }
   }
 
+  const applicationDocumentSummaries = new Map();
+  await Promise.all(
+    applications.map(async (application) => {
+      const summary = await getApplicationDocumentSummary(application.application_id);
+      applicationDocumentSummaries.set(String(application.application_id), summary);
+    })
+  );
+
   const scholar = isApprovedScholar(student);
   const items = (data || [])
     .filter((row) => {
@@ -165,6 +252,9 @@ async function getOpeningsForMobile(userId) {
         String(row.posting_status || '').toLowerCase() === 'open';
 
       const hasApplied = !!existing;
+      const documentSummary = existing
+        ? applicationDocumentSummaries.get(String(existing.application_id))
+        : null;
       // Reapplication is supported through a new application period (a new
       // program_openings record). Reusing the same application would inherit
       // old documents and review history, so it is intentionally blocked.
@@ -207,6 +297,9 @@ async function getOpeningsForMobile(userId) {
         can_apply: canApply,
         can_join_waiting_list: waitingListAvailable && canApply,
         apply_label: applyLabel,
+        uploaded_document_count: documentSummary?.uploadedDocumentCount || 0,
+        required_document_count:
+          documentSummary?.requiredDocumentCount || REQUIRED_APPLICATION_UPLOADS.length,
         existing_application_id: existing?.application_id || null,
         existing_application_status: existing?.application_status || null,
         existing_selection_status: existing?.selection_status || null,

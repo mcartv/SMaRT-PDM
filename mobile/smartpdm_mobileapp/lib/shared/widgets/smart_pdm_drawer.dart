@@ -48,7 +48,7 @@ class SmartPdmDrawer extends StatelessWidget {
             _DrawerMenuItem(
               icon: Icons.assignment,
               title: 'Apply for Scholarship',
-              subtitle: 'Browse and apply for scholarships',
+              subtitle: 'Browse and apply for openings',
               isDark: isDark,
               onTap: () => _openRoute(context, AppRoutes.scholarshipOpenings),
             ),

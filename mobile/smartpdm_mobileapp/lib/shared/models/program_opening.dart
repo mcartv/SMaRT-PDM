@@ -12,23 +12,22 @@ class ProgramOpening {
     required this.hasApplied,
     required this.canReapply,
     required this.canApply,
-    required this.canJoinWaitingList,
     required this.applyLabel,
     required this.uploadedDocumentCount,
     required this.requiredDocumentCount,
-    required this.allocatedSlots,
-    required this.filledSlots,
-    required this.availableSlots,
-    required this.waitingListEnabled,
-    required this.waitingListLimit,
-    required this.waitingListCount,
-    required this.selectionStatus,
-    this.existingSelectionStatus,
-    this.queuePosition,
-    this.waitlistPosition,
     this.benefactorName,
     this.existingApplicationId,
+    this.allocatedSlots = 0,
+    this.filledSlots = 0,
+    this.availableSlots = 0,
+    this.waitingListEnabled = false,
+    this.waitingListLimit = 0,
+    this.waitingListCount = 0,
+    this.canJoinWaitingList = false,
+    this.selectionStatus = 'Unranked',
   });
+
+  static const int applicationUploadRequirementCount = 4;
 
   final String openingId;
   final String programId;
@@ -42,31 +41,39 @@ class ProgramOpening {
   final bool hasApplied;
   final bool canReapply;
   final bool canApply;
-  final bool canJoinWaitingList;
   final String applyLabel;
   final int uploadedDocumentCount;
   final int requiredDocumentCount;
+  final String? benefactorName;
+  final String? existingApplicationId;
+
   final int allocatedSlots;
   final int filledSlots;
   final int availableSlots;
   final bool waitingListEnabled;
   final int waitingListLimit;
   final int waitingListCount;
+  final bool canJoinWaitingList;
   final String selectionStatus;
-  final String? existingSelectionStatus;
-  final int? queuePosition;
-  final int? waitlistPosition;
-  final String? benefactorName;
-  final String? existingApplicationId;
-
-  bool get regularSlotsFull => allocatedSlots > 0 && availableSlots <= 0;
 
   factory ProgramOpening.fromJson(Map<String, dynamic> json) {
+    final rawRequiredCount =
+        (json['required_document_count'] as num?)?.toInt() ??
+        applicationUploadRequirementCount;
+    final requiredCount = rawRequiredCount <= 0 ||
+            rawRequiredCount > applicationUploadRequirementCount
+        ? applicationUploadRequirementCount
+        : rawRequiredCount;
+
+    final rawUploadedCount =
+        (json['uploaded_document_count'] as num?)?.toInt() ?? 0;
+    final uploadedCount = rawUploadedCount.clamp(0, requiredCount).toInt();
+
     return ProgramOpening(
       openingId: json['opening_id']?.toString() ?? '',
       programId: json['program_id']?.toString() ?? '',
       openingTitle: json['opening_title']?.toString() ?? 'Scholarship',
-      programName: json['program_name']?.toString() ?? 'Scholarship Program',
+      programName: json['program_name']?.toString() ?? 'Unknown Program',
       applicationStart: json['application_start']?.toString() ?? '',
       applicationEnd: json['application_end']?.toString() ?? '',
       postingStatus: json['posting_status']?.toString() ?? '',
@@ -75,25 +82,22 @@ class ProgramOpening {
       hasApplied: json['has_applied'] == true,
       canReapply: json['can_reapply'] == true,
       canApply: json['can_apply'] == true,
-      canJoinWaitingList: json['can_join_waiting_list'] == true,
       applyLabel: json['apply_label']?.toString() ?? 'Apply for Scholarship',
-      uploadedDocumentCount:
-          (json['uploaded_document_count'] as num?)?.toInt() ?? 0,
-      requiredDocumentCount:
-          (json['required_document_count'] as num?)?.toInt() ?? 0,
+      uploadedDocumentCount: uploadedCount,
+      requiredDocumentCount: requiredCount,
+      benefactorName: json['benefactor_name']?.toString(),
+      existingApplicationId: json['existing_application_id']?.toString(),
       allocatedSlots: (json['allocated_slots'] as num?)?.toInt() ?? 0,
       filledSlots: (json['filled_slots'] as num?)?.toInt() ?? 0,
       availableSlots: (json['available_slots'] as num?)?.toInt() ?? 0,
       waitingListEnabled: json['waiting_list_enabled'] == true,
       waitingListLimit: (json['waiting_list_limit'] as num?)?.toInt() ?? 0,
       waitingListCount: (json['waiting_list_count'] as num?)?.toInt() ?? 0,
-      selectionStatus: json['selection_status']?.toString() ?? 'Not Started',
-      existingSelectionStatus:
-          json['existing_selection_status']?.toString(),
-      queuePosition: (json['queue_position'] as num?)?.toInt(),
-      waitlistPosition: (json['waitlist_position'] as num?)?.toInt(),
-      benefactorName: json['benefactor_name']?.toString(),
-      existingApplicationId: json['existing_application_id']?.toString(),
+      canJoinWaitingList: json['can_join_waiting_list'] == true,
+      selectionStatus:
+          json['existing_selection_status']?.toString().trim().isNotEmpty == true
+              ? json['existing_selection_status'].toString()
+              : json['selection_status']?.toString() ?? 'Unranked',
     );
   }
 }

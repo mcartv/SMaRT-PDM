@@ -2,15 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
-import 'package:smartpdm_mobileapp/core/constants/app_terms.dart';
-import 'package:smartpdm_mobileapp/core/constants/module_guidance_content.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/module_guidance_card.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/status_badge.dart';
 
 class ScholarshipOpeningsScreen extends StatefulWidget {
   const ScholarshipOpeningsScreen({super.key});
@@ -21,7 +17,7 @@ class ScholarshipOpeningsScreen extends StatefulWidget {
 }
 
 class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
-  static const int _defaultRequiredDocumentCount = 8;
+  static const int _defaultRequiredDocumentCount = ProgramOpening.applicationUploadRequirementCount;
   final ProgramOpeningService _programOpeningService = ProgramOpeningService();
 
   bool _isLoading = true;
@@ -201,7 +197,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final requiredCount = opening.requiredDocumentCount > 0
         ? opening.requiredDocumentCount
         : _defaultRequiredDocumentCount;
-    final uploadedCount = opening.uploadedDocumentCount;
+    final uploadedCount = opening.uploadedDocumentCount.clamp(0, requiredCount).toInt();
     final progress = requiredCount <= 0
         ? 0.0
         : (uploadedCount / requiredCount).clamp(0.0, 1.0);
@@ -261,7 +257,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final result = _result;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: Text(AppTerms.availableScholarships)),
+      appBar: AppBar(title: const Text('Available Scholarships')),
       selectedIndex: 0,
       showDrawer: false,
       child: RefreshIndicator(
@@ -280,7 +276,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    AppTerms.availableScholarships,
+                    'Available Scholarships',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
 
                       fontWeight: FontWeight.w800,
@@ -289,7 +285,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Select a scholarship to start or continue your application. Review the available slots and waiting-list status before applying.',
+                    'Select a scholarship to start or continue your application. One active application is allowed at a time.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
                       height: 1.45,
@@ -298,11 +294,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
-            const ModuleGuidanceCard(
-              title: ModuleGuidanceContent.scholarshipsTitle,
-              message: ModuleGuidanceContent.scholarshipsBody,
             ),
             const SizedBox(height: 16),
             if (result?.hasSavedDraft == true)
@@ -326,7 +317,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'} or choose a different scholarship to replace it.',
+                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'} or choose a different opening to replace it.',
                       style: TextStyle(color: subtitleColor, height: 1.4),
                     ),
                     const SizedBox(height: 12),
@@ -346,7 +337,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  'You are already an approved scholar. Only eligible TES scholarships are shown here.',
+                  'You are already an approved scholar. Only TES scholarships are shown here.',
                   style: TextStyle(color: subtitleColor, height: 1.4),
                 ),
               ),
@@ -469,26 +460,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                             color: titleColor,
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            StatusBadge(
-                              label: opening.allocatedSlots > 0
-                                  ? '${opening.availableSlots} ${AppTerms.availableSlots}'
-                                  : 'Slots to be announced',
-                            ),
-                            if (opening.regularSlotsFull && opening.waitingListEnabled)
-                              StatusBadge(
-                                label: opening.waitlistPosition != null
-                                    ? '${AppTerms.waitingList} #${opening.waitlistPosition}'
-                                    : 'Waiting List Available',
-                              ),
-                            if (opening.existingSelectionStatus?.trim().isNotEmpty == true)
-                              StatusBadge(label: opening.existingSelectionStatus!),
-                          ],
-                        ),
                         if (opening.announcementText.trim().isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Text(
@@ -498,18 +469,6 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                               height: 1.4,
                               color: subtitleColor
 ),
-                          ),
-                        ],
-                        if (!opening.hasApplied && opening.canApply) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            opening.canJoinWaitingList
-                                ? 'Regular slots are filled. Complete all valid requirements to receive a first-come, first-served waiting-list position.'
-                                : 'Qualified applicants are ordered by the date and time their last valid required document is submitted.',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: subtitleColor,
-                                  height: 1.4,
-                                ),
                           ),
                         ],
                         if (showUploadProgress) ...[

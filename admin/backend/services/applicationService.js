@@ -73,23 +73,6 @@ const APPLICATION_DOCUMENT_DEFINITIONS = [
         name: 'Application Form',
         aliases: ['application form', 'application'],
     },
-    {
-        id: 'birth_certificate',
-        name: 'Birth Certificate / PSA',
-        aliases: [
-            'birth certificate',
-            'birth certificate psa',
-            'psa birth certificate',
-            'certificate of live birth',
-            'certificate of live birth psa',
-            'psa',
-            'nso',
-            'civil registry',
-            'civil registrar',
-            'philippine statistics authority',
-            'national statistics office',
-        ],
-    },
 ];
 
 const DOCUMENT_TYPE_ALIASES = {
@@ -115,13 +98,6 @@ const DOCUMENT_TYPE_ALIASES = {
     application_form: 'application_form',
     application: 'application_form',
 
-    birth_certificate: 'birth_certificate',
-    birth_certificate_psa: 'birth_certificate',
-    psa_birth_certificate: 'birth_certificate',
-    certificate_of_live_birth: 'birth_certificate',
-    certificate_of_live_birth_psa: 'birth_certificate',
-    psa: 'birth_certificate',
-    nso: 'birth_certificate',
 };
 
 const DOCUMENT_TYPE_TO_NAME = {
@@ -130,7 +106,6 @@ const DOCUMENT_TYPE_TO_NAME = {
     certificate_of_indigency: 'Certificate of Indigency',
     letter_of_request: 'Letter of Request',
     application_form: 'Application Form',
-    birth_certificate: 'Birth Certificate / PSA',
 };
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
@@ -1313,7 +1288,9 @@ async function buildApplicationDetails(applicationId) {
     const rawDocuments = documentsResult.data || [];
 
     const normalizedDocuments = await Promise.all(
-        rawDocuments.map(async (document) => {
+        rawDocuments
+            .filter((document) => getDocumentKey(document) !== 'birth_certificate')
+            .map(async (document) => {
             const documentKey = getDocumentKey(document);
             const review = reviewByKey.get(documentKey) || null;
             const ocr = ocrByKey.get(documentKey) || null;
@@ -1349,7 +1326,11 @@ async function buildApplicationDetails(applicationId) {
     );
 
     for (const [documentKey, ocr] of ocrByKey) {
-        if (!documentKey || projectedDocumentKeys.has(documentKey)) continue;
+        if (
+            !documentKey ||
+            documentKey === 'birth_certificate' ||
+            projectedDocumentKeys.has(documentKey)
+        ) continue;
 
         normalizedDocuments.push(buildOcrOnlyDocument({
             documentKey,
@@ -2263,7 +2244,9 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
     }
     const reviewedAt = new Date().toISOString();
 
-    const reviewRows = document_reviews.map((doc) => ({
+    const reviewRows = document_reviews
+        .filter((doc) => normalizeDocumentType(doc.document_key || doc.document_id || doc.id) !== 'birth_certificate')
+        .map((doc) => ({
         application_id: applicationId,
         document_key: doc.document_key || doc.document_id || doc.id,
         document_name: doc.name,
@@ -2293,7 +2276,10 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
             doc.document_key || doc.document_type || doc.id || doc.name
         );
 
-        if (normalizedDocumentType === 'application_form') {
+        if (
+            normalizedDocumentType === 'application_form' ||
+            normalizedDocumentType === 'birth_certificate'
+        ) {
             continue;
         }
 

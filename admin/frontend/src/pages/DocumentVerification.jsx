@@ -103,28 +103,7 @@ const REQUIRED_DOCUMENTS = [
   },
 ];
 
-const OPTIONAL_OCR_DOCUMENTS = [
-  {
-    id: 'birth_certificate',
-    name: 'Birth Certificate / PSA',
-    aliases: [
-      'birth certificate',
-      'birth_certificate',
-      'birth certificate psa',
-      'psa birth certificate',
-      'certificate of live birth',
-      'certificate of live birth psa',
-      'psa',
-      'nso',
-      'civil registry',
-      'civil registrar',
-      'philippine statistics authority',
-      'national statistics office',
-    ],
-  },
-];
-
-const OCR_DOCUMENTS = [...REQUIRED_DOCUMENTS, ...OPTIONAL_OCR_DOCUMENTS];
+const OCR_DOCUMENTS = REQUIRED_DOCUMENTS;
 
 // Transitional until document contract status is persisted with OCR snapshots.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -200,7 +179,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       file_path: rawDoc.file_path || '',
       submitted_at: rawDoc.submitted_at || rawDoc.uploaded_at || null,
       reviewed_at: rawDoc.reviewed_at || null,
-      is_optional_ocr_document: OPTIONAL_OCR_DOCUMENTS.some((doc) => doc.id === config.id),
+      is_optional_ocr_document: false,
     });
   });
 
@@ -219,7 +198,7 @@ function normalizeRequiredDocuments(rawDocs = []) {
       file_path: '',
       submitted_at: null,
       reviewed_at: null,
-      is_optional_ocr_document: OPTIONAL_OCR_DOCUMENTS.some((doc) => doc.id === cfg.id),
+      is_optional_ocr_document: false,
     }
   );
 }

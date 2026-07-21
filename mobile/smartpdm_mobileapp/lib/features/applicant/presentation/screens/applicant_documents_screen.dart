@@ -8,13 +8,11 @@ import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
-import 'package:smartpdm_mobileapp/core/constants/module_guidance_content.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/applicant_documents_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/applicant_documents_package.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/module_guidance_card.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ApplicantDocumentsScreen extends StatefulWidget {
@@ -335,12 +333,6 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
               totalCount: documents.length,
             ),
             const SizedBox(height: 12),
-            const ModuleGuidanceCard(
-              title: ModuleGuidanceContent.requirementsTitle,
-              message: ModuleGuidanceContent.requirementsBody,
-              initiallyExpanded: true,
-            ),
-            const SizedBox(height: 12),
             _ActionPanel(
               onBackToApplication: () {
                 Navigator.pushNamed(context, AppRoutes.newApplicant);
@@ -568,7 +560,7 @@ class _NeedApplicationCard extends StatelessWidget {
       message:
           message ??
           'You need a submitted scholarship application before document upload becomes available.',
-      buttonLabel: 'View Scholarships',
+      buttonLabel: 'View Scholarship Openings',
       onPressed: onOpenOpenings,
     );
   }

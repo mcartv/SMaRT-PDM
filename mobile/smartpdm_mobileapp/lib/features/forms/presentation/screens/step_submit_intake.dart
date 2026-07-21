@@ -133,7 +133,7 @@ class _StepSubmitState extends State<StepSubmit> {
         const IntakeInfoCard(
           title: 'Before you submit',
           message:
-              'Submitting this form creates your application for the selected scholarship. After submission, upload the required documents to continue the review process.',
+              'Submitting this form creates your scholarship application for the selected opening. After submission, upload the required documents to continue the review process.',
           icon: Icons.assignment_turned_in_outlined,
         ),
         const SizedBox(height: 16),

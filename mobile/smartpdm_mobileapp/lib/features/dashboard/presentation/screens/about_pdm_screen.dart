@@ -15,12 +15,12 @@ class AboutPdmScreen extends StatelessWidget {
       (
         title: 'What OSFA Handles',
         body:
-            'OSFA coordinates scholarship application periods, applicant review, scholar monitoring, renewal requirements, and communication with beneficiaries.',
+            'OSFA coordinates scholarship openings, applicant review, scholar monitoring, renewal requirements, and communication with beneficiaries.',
       ),
       (
         title: 'Core Process',
         body:
-            'Applicants complete their profile, apply to an available scholarship, upload the required documents, and track the review status from the app.',
+            'Applicants complete their profile, apply to an active scholarship opening, upload the required documents, and track the review status from the app.',
       ),
       (
         title: 'Contact Flow',

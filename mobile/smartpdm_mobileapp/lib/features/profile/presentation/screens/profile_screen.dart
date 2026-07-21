@@ -9,11 +9,9 @@ import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
-import 'package:smartpdm_mobileapp/core/constants/module_guidance_content.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
 import 'package:smartpdm_mobileapp/features/profile/data/services/profile_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/module_guidance_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -415,11 +413,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 34),
                 children: [
                   _buildProfileHeader(),
-                  const SizedBox(height: 12),
-                  const ModuleGuidanceCard(
-                    title: ModuleGuidanceContent.profileTitle,
-                    message: ModuleGuidanceContent.profileBody,
-                  ),
                   if (_avatarReviewStatus == 'pending' ||
                       _avatarReviewStatus == 'rejected') ...[
                     const SizedBox(height: 12),

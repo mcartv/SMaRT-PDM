@@ -7,14 +7,10 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/shared/models/application_status_summary.dart';
-import 'package:smartpdm_mobileapp/core/constants/app_terms.dart';
-import 'package:smartpdm_mobileapp/core/constants/module_guidance_content.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/forms/data/services/application_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/module_guidance_card.dart';
-import 'package:smartpdm_mobileapp/shared/widgets/status_badge.dart';
 
 class StatusTrackingScreen extends StatefulWidget {
   const StatusTrackingScreen({super.key});
@@ -151,11 +147,6 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const ModuleGuidanceCard(
-              title: ModuleGuidanceContent.statusTitle,
-              message: ModuleGuidanceContent.statusBody,
-            ),
-            const SizedBox(height: 16),
             if (_isLoading)
               const Padding(
                 padding: EdgeInsets.only(top: 64),
@@ -175,7 +166,7 @@ class _StatusTrackingScreenState extends State<StatusTrackingScreen> {
                 title: 'No application status yet',
                 message:
                     'You have not submitted a scholarship application yet, so there is no application status to track.',
-                primaryActionLabel: AppTerms.viewAvailableScholarships,
+                primaryActionLabel: 'View Scholarship Openings',
                 onPrimaryAction: () =>
                     Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
               )
@@ -220,8 +211,7 @@ class _StatusSummaryView extends StatelessWidget {
     }
     if (normalized.contains('held') ||
         normalized.contains('reupload') ||
-        normalized.contains('missing') ||
-        normalized.contains('waiting')) {
+        normalized.contains('missing')) {
       return Colors.orange;
     }
     if (normalized.contains('verified') ||
@@ -246,8 +236,6 @@ class _StatusSummaryView extends StatelessWidget {
       return Icons.cancel;
     }
     if (normalized.contains('held')) return Icons.pause_circle_filled;
-    if (normalized.contains('waiting')) return Icons.hourglass_top_rounded;
-    if (normalized.contains('not selected')) return Icons.person_off_rounded;
     if (normalized.contains('missing') || normalized.contains('reupload')) {
       return Icons.upload_file;
     }
@@ -285,8 +273,8 @@ class _StatusSummaryView extends StatelessWidget {
     if (workflow?.stage == 'scholar_activated') {
       return 'Your application is the active scholar application and scholar access is enabled.';
     }
-    if (workflow?.stage == 'ready_for_selection') {
-      return 'Your requirements and endorsement are complete. Wait for OSFA to finalize the selected applicant list before scholar activation.';
+    if (workflow?.stage == 'ready_for_activation') {
+      return 'Your requirements and endorsement are complete. OSFA still needs to run explicit scholar activation.';
     }
     return 'Your application is currently being processed.';
   }
@@ -312,17 +300,8 @@ class _StatusSummaryView extends StatelessWidget {
         blockerCode == 'requirements.rejected') {
       return 'Review the rejection details';
     }
-    if (blockerCode == 'waitlisted') {
-      return 'Wait for an available scholarship slot';
-    }
-    if (blockerCode == 'not_selected') {
-      return 'Apply again in a future application period';
-    }
-    if (blockerCode == 'selected_for_activation') {
-      return 'Wait for scholar access activation';
-    }
-    if (workflow?.stage == 'ready_for_selection') {
-      return 'Wait for final selection and scholar activation';
+    if (workflow?.stage == 'ready_for_activation') {
+      return 'Wait for final scholar activation';
     }
     if (workflow?.stage == 'scholar_activated') {
       return 'Scholar access is already active';
@@ -342,8 +321,8 @@ class _StatusSummaryView extends StatelessWidget {
       return blocker.message;
     }
 
-    if (workflow?.stage == 'ready_for_selection') {
-      return 'Your requirements and endorsement are complete. OSFA still needs to finalize the selected applicant list and activate the selected scholars.';
+    if (workflow?.stage == 'ready_for_activation') {
+      return 'Your requirements and endorsement are complete. OSFA still needs to perform the final scholar activation step.';
     }
     if (workflow?.stage == 'scholar_activated') {
       return 'You already completed the application flow and your scholar access is now active in the system.';
@@ -404,51 +383,13 @@ class _StatusSummaryView extends StatelessWidget {
       );
     }
 
-    if (blockerCode == 'waitlisted') {
-      return _PriorityActionCard(
-        color: const Color(0xFFC76917),
-        icon: Icons.hourglass_top_rounded,
-        title: 'You are on the waiting list',
-        message:
-            'Your FCFS waiting-list position is shown above. You will be notified automatically if a scholarship slot becomes available.',
-        primaryLabel: 'View Notifications',
-        onPrimaryAction: () =>
-            Navigator.pushNamed(context, AppRoutes.notifications),
-      );
-    }
-
-    if (blockerCode == 'not_selected') {
-      return _PriorityActionCard(
-        color: const Color(0xFFD14343),
-        icon: Icons.person_off_rounded,
-        title: 'Not selected for this application period',
-        message:
-            'All available slots and waiting-list positions were assigned. You may apply again when a new eligible application period is posted.',
-        primaryLabel: 'View Scholarships',
-        onPrimaryAction: () =>
-            Navigator.pushNamed(context, AppRoutes.scholarshipOpenings),
-      );
-    }
-
-    if (blockerCode == 'selected_for_activation') {
-      return _PriorityActionCard(
-        color: const Color(0xFF2E8B57),
-        icon: Icons.workspace_premium_outlined,
-        title: 'Selected for scholar activation',
-        message:
-            'OSFA finalized your selection. Scholar access will be available after the activation record is completed.',
-        primaryLabel: 'Go to Dashboard',
-        onPrimaryAction: () => Navigator.pushNamed(context, AppRoutes.home),
-      );
-    }
-
-    if (workflow.stage == 'ready_for_selection') {
+    if (workflow.stage == 'ready_for_activation') {
       return _PriorityActionCard(
         color: const Color(0xFF2E8B57),
         icon: Icons.verified_rounded,
-        title: 'Ready for final selection',
+        title: 'Requirements and endorsement are complete',
         message:
-            'Everything needed from you is done. OSFA still needs to finalize the applicant list before scholar activation.',
+            'Everything needed from you is done. OSFA only needs to perform the final scholar activation step.',
         primaryLabel: 'Open Endorsement',
         onPrimaryAction: () =>
             Navigator.pushNamed(context, AppRoutes.endorsement),
@@ -516,7 +457,7 @@ class _StatusSummaryView extends StatelessWidget {
                     const _MiniTag(label: 'Live updates enabled'),
                     _MiniTag(
                       label:
-                          'Scholarship: ${summary.openingTitle?.trim().isNotEmpty == true ? summary.openingTitle! : _title()}',
+                          'Opening: ${summary.openingTitle?.trim().isNotEmpty == true ? summary.openingTitle! : _title()}',
                     ),
                     if (summary.programName?.trim().isNotEmpty == true)
                       _MiniTag(label: 'Program: ${summary.programName!}'),
@@ -528,10 +469,6 @@ class _StatusSummaryView extends StatelessWidget {
             ),
           ),
         ),
-        if (summary.selection != null) ...[
-          const SizedBox(height: 16),
-          _SelectionCard(selection: summary.selection!, formatDate: _formatDate),
-        ],
         const SizedBox(height: 16),
         _WorkflowStageTracker(
           activeStage: workflow?.stage ?? _fallbackStage(),
@@ -599,7 +536,7 @@ class _StatusSummaryView extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Text(
-                'Use these three checks first: finish requirements, finish endorsement, then wait for final selection and scholar activation.',
+                'Use these three checks first: finish requirements, finish endorsement, then wait for final scholar activation.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   height: 1.4,
                   fontWeight: FontWeight.w600,
@@ -719,13 +656,6 @@ class _StatusSummaryView extends StatelessWidget {
   }
 
   String _fallbackStage() {
-    final selectionStatus = summary.selection?.status.toLowerCase() ?? '';
-    if (selectionStatus == 'waitlisted') return 'waitlisted';
-    if (selectionStatus == 'not selected') return 'not_selected';
-    if (selectionStatus == 'selected' || selectionStatus == 'promoted') {
-      return 'selected_for_activation';
-    }
-
     final appStatus = (summary.applicationStatus ?? '').toLowerCase();
     final documentStatus = (summary.documentStatus ?? '').toLowerCase();
 
@@ -735,91 +665,6 @@ class _StatusSummaryView extends StatelessWidget {
     if (documentStatus.contains('ready')) return 'endorsement_review';
 
     return 'application_submitted';
-  }
-}
-
-class _SelectionCard extends StatelessWidget {
-  const _SelectionCard({required this.selection, required this.formatDate});
-
-  final ApplicationSelectionSummary selection;
-  final String Function(DateTime?) formatDate;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = selection.status.trim().isEmpty
-        ? 'Unranked'
-        : selection.status.trim();
-    final details = <Widget>[
-      _StatusDetailRow(label: 'Selection Status', value: status),
-      if (selection.queuePosition != null)
-        _StatusDetailRow(
-          label: 'Qualified Queue',
-          value: '#${selection.queuePosition}',
-        ),
-      if (selection.waitlistPosition != null)
-        _StatusDetailRow(
-          label: 'Waiting List',
-          value: '#${selection.waitlistPosition}',
-        ),
-      _StatusDetailRow(
-        label: 'Requirements Completed',
-        value: formatDate(selection.requirementsCompletedAt),
-      ),
-      if (selection.availableSlots != null)
-        _StatusDetailRow(
-          label: 'Available Slots',
-          value: '${selection.availableSlots}',
-        ),
-    ];
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.format_list_numbered_rounded),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Final Selection and Queue',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                ),
-                StatusBadge(label: status),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Queue positions follow the date and time the last valid required document was submitted. Administrator review time does not change the order.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.45),
-            ),
-            const SizedBox(height: 14),
-            ...details,
-            if (selection.canReapply) ...[
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  selection.reapplicationReason?.trim().isNotEmpty == true
-                      ? selection.reapplicationReason!
-                      : 'Reapplication is available for this scholarship.',
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -846,8 +691,8 @@ class _WorkflowStageTracker extends StatelessWidget {
       icon: Icons.groups_2_outlined,
     ),
     _WorkflowStep(
-      key: 'ready_for_selection',
-      label: 'Selection',
+      key: 'ready_for_activation',
+      label: 'Ready',
       icon: Icons.verified_user_outlined,
     ),
     _WorkflowStep(
@@ -869,14 +714,7 @@ class _WorkflowStageTracker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trackerStage = <String>{
-      'waitlisted',
-      'not_selected',
-      'selected_for_activation',
-    }.contains(activeStage)
-        ? 'ready_for_selection'
-        : activeStage;
-    final activeIndex = _steps.indexWhere((step) => step.key == trackerStage);
+    final activeIndex = _steps.indexWhere((step) => step.key == activeStage);
     final resolvedIndex = activeIndex < 0 ? 0 : activeIndex;
     final activeColor = _isStopped
         ? Colors.red

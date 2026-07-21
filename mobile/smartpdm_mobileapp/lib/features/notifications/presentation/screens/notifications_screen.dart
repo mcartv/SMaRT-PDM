@@ -607,7 +607,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _MetaChip(
-                          label: notification.badgeLabel,
+                          label: notification.type.trim().isEmpty
+                              ? 'General'
+                              : notification.type.trim(),
                           color: accent,
                         ),
                         Text(

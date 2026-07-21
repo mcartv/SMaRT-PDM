@@ -86,6 +86,9 @@ class IndigencyExtractionOutput:
     fields: tuple[IndigencyFieldResult, ...]
     field_count: int
     detection_variant: str
+    selected_orientation: str
+    selected_detection_variant: str
+    candidate_count: int
     deskew_angle_degrees: float
     title_anchor: str
     anchor_metadata: Mapping[str, Mapping[str, Any]]
@@ -131,10 +134,18 @@ def _validate_image(image: Any) -> np.ndarray:
     return np.ascontiguousarray(image.copy())
 
 
-def _orient_portrait(image: np.ndarray) -> np.ndarray:
-    if image.shape[1] <= image.shape[0]:
-        return image.copy()
-    return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+def _orientation_candidates(
+    image: np.ndarray,
+) -> tuple[tuple[str, np.ndarray], ...]:
+    return (
+        ("original", image.copy()),
+        ("clockwise_90", cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)),
+        (
+            "counterclockwise_90",
+            cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE),
+        ),
+        ("180", cv2.rotate(image, cv2.ROTATE_180)),
+    )
 
 
 def _grayscale(image: np.ndarray) -> np.ndarray:
@@ -305,17 +316,30 @@ def _title_candidate(
     return min(candidates, key=lambda candidate: min(word.top for word in candidate))
 
 
-def _variant_score(words: Sequence[PositionalWord], image_height: int, config: IndigencyExtractionConfig) -> int:
-    score = 0
-    if _title_candidate(words, image_height, config.title_maximum_y):
-        score += 1000
+def _variant_score(
+    words: Sequence[PositionalWord],
+    image_height: int,
+    config: IndigencyExtractionConfig,
+) -> tuple[int, int, int, int]:
+    title_present = int(
+        _title_candidate(words, image_height, config.title_maximum_y) is not None
+    )
     paragraphs = _group_paragraphs(words)
-    if any(_find_phrase(paragraph, SUBJECT_ANCHOR) for paragraph in paragraphs):
-        score += 100
-    if any(any(_find_phrase(paragraph, anchor) for anchor in DATE_ANCHORS) for paragraph in paragraphs):
-        score += 50
-    score += min(len(words), 200)
-    return score
+    subject_present = int(
+        any(_find_phrase(paragraph, SUBJECT_ANCHOR) for paragraph in paragraphs)
+    )
+    date_present = int(
+        any(
+            any(_find_phrase(paragraph, anchor) for anchor in DATE_ANCHORS)
+            for paragraph in paragraphs
+        )
+    )
+    return (
+        title_present,
+        subject_present,
+        date_present,
+        len(words),
+    )
 
 
 def _bounds(words: Sequence[PositionalWord], image_shape: tuple[int, ...]) -> tuple[int, int, int, int]:
@@ -546,7 +570,7 @@ def extract_indigency_core_fields(
 ) -> StageResult[IndigencyExtractionOutput]:
     resolved = config or IndigencyExtractionConfig()
     try:
-        source = _orient_portrait(_validate_image(image))
+        source = _validate_image(image)
     except (OCRInputError, TypeError, ValueError):
         return StageResult(
             stage=STAGE_NAME,
@@ -557,27 +581,58 @@ def extract_indigency_core_fields(
             metrics={"manual_review_required": True},
         )
 
-    angle = _estimate_deskew_angle(source, resolved.maximum_deskew_degrees)
-    transformed_source = _deskew(source, -angle)
     detection_reader = word_reader or _default_word_reader
     ocr_reader = field_reader or _default_field_reader
-    candidates: list[tuple[int, str, tuple[PositionalWord, ...]]] = []
-    for variant, detection_image in _detection_variants(transformed_source):
-        try:
-            words = _parse_words(detection_reader(detection_image.copy(), variant, resolved), resolved)
-            candidates.append((_variant_score(words, transformed_source.shape[0], resolved), variant, words))
-        except (
-            pytesseract.TesseractNotFoundError,
-            OCRBinaryUnavailableError,
-            OCRExecutionError,
-            ValueError,
-            TypeError,
-            KeyError,
-            IndexError,
-        ):
-            continue
-        except Exception:
-            continue
+    candidates: list[
+        tuple[
+            tuple[int, int, int, int],
+            str,
+            str,
+            tuple[PositionalWord, ...],
+            np.ndarray,
+            float,
+        ]
+    ] = []
+    candidate_count = 0
+    for orientation, oriented_source in _orientation_candidates(source):
+        angle = _estimate_deskew_angle(
+            oriented_source,
+            resolved.maximum_deskew_degrees,
+        )
+        transformed_candidate = _deskew(oriented_source, -angle)
+        for variant, detection_image in _detection_variants(transformed_candidate):
+            candidate_count += 1
+            try:
+                words = _parse_words(
+                    detection_reader(detection_image.copy(), variant, resolved),
+                    resolved,
+                )
+                candidates.append(
+                    (
+                        _variant_score(
+                            words,
+                            transformed_candidate.shape[0],
+                            resolved,
+                        ),
+                        orientation,
+                        variant,
+                        words,
+                        transformed_candidate,
+                        angle,
+                    )
+                )
+            except (
+                pytesseract.TesseractNotFoundError,
+                OCRBinaryUnavailableError,
+                OCRExecutionError,
+                ValueError,
+                TypeError,
+                KeyError,
+                IndexError,
+            ):
+                continue
+            except Exception:
+                continue
 
     if not candidates:
         return StageResult(
@@ -586,9 +641,19 @@ def extract_indigency_core_fields(
             status="failed",
             data=None,
             issues=[_issue("INDIGENCY_WORD_DATA_UNAVAILABLE")],
-            metrics={"manual_review_required": True},
+            metrics={
+                "manual_review_required": True,
+                "candidate_count": candidate_count,
+            },
         )
-    _, variant, words = max(candidates, key=lambda candidate: candidate[0])
+    (
+        _,
+        selected_orientation,
+        variant,
+        words,
+        transformed_source,
+        angle,
+    ) = max(candidates, key=lambda candidate: candidate[0])
     title = _title_candidate(words, transformed_source.shape[0], resolved.title_maximum_y)
     if title is None:
         return StageResult(
@@ -601,6 +666,9 @@ def extract_indigency_core_fields(
                 "manual_review_required": True,
                 "word_count": len(words),
                 "deskew_angle_degrees": abs(angle),
+                "selected_orientation": selected_orientation,
+                "selected_detection_variant": variant,
+                "candidate_count": candidate_count,
             },
         )
 
@@ -686,6 +754,9 @@ def extract_indigency_core_fields(
         fields=fields,
         field_count=len(fields),
         detection_variant=variant,
+        selected_orientation=selected_orientation,
+        selected_detection_variant=variant,
+        candidate_count=candidate_count,
         deskew_angle_degrees=float(angle),
         title_anchor=" ".join(word.text for word in title),
         anchor_metadata=metadata,
@@ -702,6 +773,9 @@ def extract_indigency_core_fields(
             "failed_field_count": sum(not field.success for field in fields),
             "word_count": len(words),
             "deskew_angle_degrees": abs(angle),
+            "selected_orientation": selected_orientation,
+            "selected_detection_variant": variant,
+            "candidate_count": candidate_count,
             "manual_review_required": True,
         },
     )

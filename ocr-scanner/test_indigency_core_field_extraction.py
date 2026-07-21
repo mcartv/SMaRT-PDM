@@ -108,6 +108,27 @@ def _field_reader(_crop, field_name):
     }[field_name]
 
 
+ORIENTATION_ORDER = (
+    "original",
+    "clockwise_90",
+    "counterclockwise_90",
+    "180",
+)
+
+
+def _orientation_reader(winner, *, winner_data=None, other_data=None):
+    calls = []
+
+    def reader(_image, variant, _config):
+        orientation = ORIENTATION_ORDER[len(calls) // 2]
+        calls.append((orientation, variant))
+        if orientation == winner:
+            return winner_data if winner_data is not None else _valid_word_data()
+        return other_data if other_data is not None else _empty_data()
+
+    return reader, calls
+
+
 class IndigencyCoreFieldExtractionTest(unittest.TestCase):
     def setUp(self):
         self.image = np.full((2000, 1600, 3), 240, dtype=np.uint8)
@@ -293,9 +314,154 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
             field_reader=_field_reader,
         )
 
-        self.assertEqual(calls, ["grayscale", "otsu_threshold"])
+        self.assertEqual(
+            calls,
+            ["grayscale", "otsu_threshold"] * len(ORIENTATION_ORDER),
+        )
         self.assertEqual(result.data.detection_variant, "otsu_threshold")
         self.assertTrue(all(field.detection_variant == "otsu_threshold" for field in result.data.fields))
+
+    def test_landscape_sensor_image_with_upright_content_selects_original(self):
+        image = np.full((1944, 2592, 3), 240, dtype=np.uint8)
+        reader, calls = _orientation_reader("original")
+
+        result = extract_indigency_core_fields(
+            image,
+            word_reader=reader,
+            field_reader=_field_reader,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.data.selected_orientation, "original")
+        self.assertEqual(result.data.candidate_count, 8)
+        self.assertEqual(len(calls), 8)
+
+    def test_clockwise_document_selects_counterclockwise_correction(self):
+        reader, _calls = _orientation_reader("counterclockwise_90")
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=reader,
+            field_reader=_field_reader,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.data.selected_orientation, "counterclockwise_90")
+
+    def test_counterclockwise_document_selects_clockwise_correction(self):
+        reader, _calls = _orientation_reader("clockwise_90")
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=reader,
+            field_reader=_field_reader,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.data.selected_orientation, "clockwise_90")
+
+    def test_upside_down_document_selects_180(self):
+        reader, _calls = _orientation_reader("180")
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=reader,
+            field_reader=_field_reader,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.data.selected_orientation, "180")
+
+    def test_upper_zone_title_outranks_rotated_false_positive(self):
+        false_positive = _valid_word_data(title_y=1200)
+        for index in range(30):
+            _add_line(
+                false_positive,
+                f"ADDITIONAL OCR WORDS {index}",
+                y=1300 + index,
+                block=20 + index,
+                paragraph=1,
+                line=1,
+            )
+        reader, _calls = _orientation_reader(
+            "original",
+            other_data=false_positive,
+        )
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=reader,
+            field_reader=_field_reader,
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.data.selected_orientation, "original")
+
+    def test_no_valid_orientation_returns_document_not_detected(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _empty_data(),
+            field_reader=_field_reader,
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.issues[0]["code"], "INDIGENCY_DOCUMENT_NOT_DETECTED")
+        self.assertEqual(result.metrics["candidate_count"], 8)
+
+    def test_fields_are_read_once_from_selected_orientation(self):
+        reader, _calls = _orientation_reader("counterclockwise_90")
+        rows, columns = np.indices(self.image.shape[:2])
+        image = np.stack(
+            (rows % 251, columns % 251, (rows + columns) % 251),
+            axis=-1,
+        ).astype(np.uint8)
+        field_calls = []
+
+        def field_reader(crop, field_name):
+            field_calls.append((field_name, crop.copy()))
+            return _field_reader(crop, field_name)
+
+        with patch(
+            "extraction.indigency_core_field_extraction._estimate_deskew_angle",
+            return_value=0.0,
+        ):
+            result = extract_indigency_core_fields(
+                image,
+                word_reader=reader,
+                field_reader=field_reader,
+            )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.data.selected_orientation, "counterclockwise_90")
+        self.assertEqual(
+            [name for name, _crop in field_calls],
+            ["certificate_subject_name", "issue_date", "issuing_barangay"],
+        )
+        selected_image = np.rot90(image, 1)
+        selected_height, selected_width = selected_image.shape[:2]
+        subject = result.data.fields[0]
+        left = round(subject.normalized_bounds[0] * selected_width)
+        top = round(subject.normalized_bounds[1] * selected_height)
+        expected_top_left = selected_image[max(0, top - 4), max(0, left - 4)]
+        np.testing.assert_array_equal(field_calls[0][1][0, 0], expected_top_left)
+        self.assertEqual(result.metrics["selected_orientation"], "counterclockwise_90")
+        self.assertEqual(
+            result.metrics["selected_detection_variant"],
+            result.data.selected_detection_variant,
+        )
+
+    def test_orientation_metadata_is_immutable_and_non_textual(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(),
+            field_reader=_field_reader,
+        )
+
+        with self.assertRaisesRegex(Exception, "cannot assign"):
+            result.data.selected_orientation = "180"
+        self.assertEqual(result.metrics["candidate_count"], 8)
+        self.assertNotIn("raw_text", result.metrics)
+        self.assertNotIn("field_values", result.metrics)
 
     def test_one_failed_detection_variant_does_not_discard_valid_variant(self):
         def word_reader(_image, variant, _config):

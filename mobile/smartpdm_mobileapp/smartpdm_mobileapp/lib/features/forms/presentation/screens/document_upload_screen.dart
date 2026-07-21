@@ -1,0 +1,84 @@
+import 'package:flutter/material.dart';
+import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_navigator.dart';
+import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+
+class DocumentUploadScreen extends StatefulWidget {
+  const DocumentUploadScreen({super.key});
+
+  @override
+  State<DocumentUploadScreen> createState() => _DocumentUploadScreenState();
+}
+
+class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return SmartPdmPageScaffold(
+      appBar: AppBar(
+        title: Text('Document Upload'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+      ),
+      selectedIndex: 1,
+      showDrawer: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: primaryColor.withOpacity(0.12)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Scholarship requirement uploads now live in Documents.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This legacy screen is no longer used for the active applicant document flow.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.black54,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.documents),
+              icon: const Icon(Icons.folder_open),
+              label: Text('Open Scholarship Documents'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: () =>
+                  AppNavigator.goToTopLevel(context, AppRoutes.payouts),
+              child: Text('Back to Scholar Tab'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

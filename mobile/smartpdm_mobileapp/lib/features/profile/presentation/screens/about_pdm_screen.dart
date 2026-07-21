@@ -227,7 +227,7 @@ class _ProductionInformationCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
-                  Icons.deployed_code_outlined,
+                  Icons.code_rounded,
                   color: AppColors.gold,
                   size: 22,
                 ),

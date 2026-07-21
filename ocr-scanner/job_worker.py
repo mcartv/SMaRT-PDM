@@ -5,19 +5,17 @@ job_worker.py - Pull-based Pi worker for SMaRT-PDM IoT OCR.
 Flow:
 1. Poll GET /api/pi/iot-ocr/next
 2. Claim one pending request
-3. Run main.py interactive preview
-4. LEFT inside main.py = scan/OCR/save
-5. RIGHT inside main.py = cancel
-6. Worker reads /tmp/ocr_raw.txt and /tmp/ocr_result.txt
-7. Worker submits result to POST /api/pi/iot-ocr/:requestId/result
+3. Run one shared preview-first capture session
+4. LEFT captures once; RIGHT cancels before capture
+5. Route the captured image to one document pipeline
+6. Submit the result to POST /api/pi/iot-ocr/:requestId/result
 """
 
 import logging
 import os
-import subprocess
-import sys
+import signal
+import threading
 import time
-from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import cv2
@@ -29,7 +27,7 @@ except ImportError:  # pragma: no cover - test/runtime fallback
         return False
 
 from api import ApiClient
-from camera import CameraController
+from capture_session import CANCELLED, CAPTURED, CaptureSessionResult, run_capture_session
 from document_contracts import (
     build_birth_extracted_fields_from_ocr_result,
     build_extracted_fields,
@@ -40,15 +38,11 @@ from extraction.indigency_core_field_extraction import extract_indigency_core_fi
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import register_psa_birth_form
+from ocr import extract_text
 
 load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parent
-MAIN_PY = BASE_DIR / "main.py"
-
 POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "1"))
-QUEUE_MODE = os.getenv("QUEUE_MODE", "1")
-VERBOSE_MAIN = os.getenv("VERBOSE_MAIN", "1") == "1"
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -57,17 +51,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("iot-worker")
-
-
-def read_text_file(path: str) -> str:
-    try:
-        with open(path, "r", encoding="utf-8") as file:
-            return file.read().strip()
-    except FileNotFoundError:
-        return ""
-    except Exception as exc:
-        log.warning("Failed reading %s: %s", path, exc)
-        return ""
+_shutdown_requested = threading.Event()
 
 
 def clear_tmp_files() -> None:
@@ -79,12 +63,58 @@ def clear_tmp_files() -> None:
             log.warning("Failed clearing %s: %s", path, exc)
 
 
+def write_text_file(path: str, text: str) -> None:
+    try:
+        with open(path, "w", encoding="utf-8") as file:
+            file.write(text or "")
+    except Exception:
+        log.warning("Failed writing OCR compatibility output")
+
+
+def _run_generic_ocr(
+    capture_path: str,
+    *,
+    text_reader=None,
+    text_corrector=None,
+) -> Tuple[str, str]:
+    clear_tmp_files()
+    resolved_reader = text_reader if text_reader is not None else extract_text
+    try:
+        raw_text = (resolved_reader(capture_path) or "").strip()
+    except Exception:
+        raw_text = ""
+    if not raw_text:
+        return "", ""
+
+    try:
+        if text_corrector is None:
+            from spell_check import correct_ocr_text
+
+            text_corrector = correct_ocr_text
+
+        corrected_text = (
+            (text_corrector(raw_text, aggressive=False) or raw_text).strip()
+            or raw_text
+        )
+    except Exception:
+        corrected_text = raw_text
+
+    write_text_file("/tmp/ocr_raw.txt", raw_text)
+    write_text_file("/tmp/ocr_result.txt", corrected_text)
+    return raw_text, corrected_text
+
+
 def build_document_type(request: Dict) -> str:
     return request.get("document_type") or request.get("document_key") or "Document"
 
 
 def get_request_id(request: Dict) -> str:
     return str(request.get("request_id") or request.get("id") or "")
+
+
+def _safe_request_ref(request_id: str) -> str:
+    normalized = str(request_id or "")
+    return f"{normalized[:8]}..." if len(normalized) > 8 else normalized or "missing"
 
 
 def _issue_codes(stage_result) -> list[str]:
@@ -135,7 +165,10 @@ def _registration_context(registration_result: Any) -> Dict[str, Any]:
     }
 
 
-def _run_birth_certificate_scan(request: Dict) -> Tuple[bool, Dict]:
+def _run_birth_certificate_scan(
+    request: Dict,
+    capture_path: str,
+) -> Tuple[bool, Dict]:
     request_id = get_request_id(request)
     application_id = str(request.get("application_id") or "")
     student_id = str(request.get("student_id") or "")
@@ -143,8 +176,6 @@ def _run_birth_certificate_scan(request: Dict) -> Tuple[bool, Dict]:
     document_key = str(request.get("document_key") or "")
     document_type = str(build_document_type(request))
 
-    camera = CameraController()
-    raw_capture_path = camera.capture_file
     registration_result = None
     crop_result = None
     ocr_result = None
@@ -155,116 +186,43 @@ def _run_birth_certificate_scan(request: Dict) -> Tuple[bool, Dict]:
     ocr_attempts = 0
     preprocessing_variant = "registered_whole_row_ocr"
 
+    source_image = _load_registered_image(capture_path)
+    if source_image is None:
+        error_message = "Captured birth certificate image is unavailable."
+        return False, {
+            "status": status,
+            "raw_text": raw_text,
+            "ocr_confidence": None,
+            "document_type": "birth_certificate",
+            "manual_review_required": True,
+            "ocr_attempts": ocr_attempts,
+            "preprocessing_variant": preprocessing_variant,
+            "extracted_fields": extracted_fields,
+            "source_payload": {
+                "source": "pi-worker-iot-ocr-request",
+                "mode": "birth_certificate_pipeline",
+                "request_id": request_id,
+                "application_id": application_id,
+                "student_id": student_id,
+                "student_name": student_name,
+                "document_key": document_key,
+                "document_type": document_type,
+                "document_contract_status": "approved",
+                "registration_status": "failed",
+                "registration_issue_codes": [],
+                "cropper_status": "not_started",
+                "cropper_issue_codes": [],
+                "ocr_status": "not_started",
+                "ocr_issue_codes": [],
+                "manual_review_required": True,
+                "worker_status": "failed",
+                "ocr_attempts": ocr_attempts,
+                "preprocessing_variant": preprocessing_variant,
+                "structured_field_keys": [],
+            },
+            "error_message": error_message,
+        }
     try:
-        if not camera.check_available():
-            error_message = "Camera unavailable."
-            return False, {
-                "status": status,
-                "raw_text": raw_text,
-                "ocr_confidence": None,
-                "document_type": "birth_certificate",
-                "manual_review_required": True,
-                "ocr_attempts": ocr_attempts,
-                "preprocessing_variant": preprocessing_variant,
-                "extracted_fields": extracted_fields,
-                "source_payload": {
-                    "source": "pi-worker-iot-ocr-request",
-                    "mode": "birth_certificate_pipeline",
-                    "request_id": request_id,
-                    "application_id": application_id,
-                    "student_id": student_id,
-                    "student_name": student_name,
-                    "document_key": document_key,
-                    "document_type": document_type,
-                    "document_contract_status": "approved",
-                    "registration_status": "failed",
-                    "registration_issue_codes": [],
-                    "cropper_status": "not_started",
-                    "cropper_issue_codes": [],
-                    "ocr_status": "not_started",
-                    "ocr_issue_codes": [],
-                    "manual_review_required": True,
-                    "worker_status": "failed",
-                    "ocr_attempts": ocr_attempts,
-                    "preprocessing_variant": preprocessing_variant,
-                    "structured_field_keys": [],
-                },
-                "error_message": error_message,
-            }
-
-        if not camera.capture_image():
-            error_message = "Birth certificate capture failed."
-            return False, {
-                "status": status,
-                "raw_text": raw_text,
-                "ocr_confidence": None,
-                "document_type": "birth_certificate",
-                "manual_review_required": True,
-                "ocr_attempts": ocr_attempts,
-                "preprocessing_variant": preprocessing_variant,
-                "extracted_fields": extracted_fields,
-                "source_payload": {
-                    "source": "pi-worker-iot-ocr-request",
-                    "mode": "birth_certificate_pipeline",
-                    "request_id": request_id,
-                    "application_id": application_id,
-                    "student_id": student_id,
-                    "student_name": student_name,
-                    "document_key": document_key,
-                    "document_type": document_type,
-                    "document_contract_status": "approved",
-                    "registration_status": "failed",
-                    "registration_issue_codes": [],
-                    "cropper_status": "not_started",
-                    "cropper_issue_codes": [],
-                    "ocr_status": "not_started",
-                    "ocr_issue_codes": [],
-                    "manual_review_required": True,
-                    "worker_status": "failed",
-                    "ocr_attempts": ocr_attempts,
-                    "preprocessing_variant": preprocessing_variant,
-                    "structured_field_keys": [],
-                },
-                "error_message": error_message,
-            }
-
-        source_image = _load_registered_image(raw_capture_path)
-        if source_image is None:
-            error_message = "Captured birth certificate image is unavailable."
-            return False, {
-                "status": status,
-                "raw_text": raw_text,
-                "ocr_confidence": None,
-                "document_type": "birth_certificate",
-                "manual_review_required": True,
-                "ocr_attempts": ocr_attempts,
-                "preprocessing_variant": preprocessing_variant,
-                "extracted_fields": extracted_fields,
-                "source_payload": {
-                    "source": "pi-worker-iot-ocr-request",
-                    "mode": "birth_certificate_pipeline",
-                    "request_id": request_id,
-                    "application_id": application_id,
-                    "student_id": student_id,
-                    "student_name": student_name,
-                    "document_key": document_key,
-                    "document_type": document_type,
-                    "document_contract_status": "approved",
-                    "registration_status": "failed",
-                    "registration_issue_codes": [],
-                    "cropper_status": "not_started",
-                    "cropper_issue_codes": [],
-                    "ocr_status": "not_started",
-                    "ocr_issue_codes": [],
-                    "manual_review_required": True,
-                    "worker_status": "failed",
-                    "ocr_attempts": ocr_attempts,
-                    "preprocessing_variant": preprocessing_variant,
-                    "structured_field_keys": [],
-                },
-                "error_message": error_message,
-            }
-
         registration_result = register_psa_birth_form(source_image)
         if not registration_result.success:
             error_message = "Birth registration failed."
@@ -387,20 +345,147 @@ def _run_birth_certificate_scan(request: Dict) -> Tuple[bool, Dict]:
             "error_message": error_message,
         }
         return status != "failed", payload
-    finally:
-        try:
-            camera.cleanup()
-        except Exception as exc:
-            log.warning("Failed cleaning up camera: %s", exc)
+    except Exception:
+        return False, {
+            "status": "failed",
+            "raw_text": "",
+            "ocr_confidence": None,
+            "document_type": "birth_certificate",
+            "manual_review_required": True,
+            "ocr_attempts": 0,
+            "preprocessing_variant": preprocessing_variant,
+            "extracted_fields": _empty_birth_extracted_fields(),
+            "source_payload": {
+                "source": "pi-worker-iot-ocr-request",
+                "mode": "birth_certificate_pipeline",
+                "request_id": request_id,
+                "document_key": document_key,
+                "worker_status": "failed",
+                "registration_status": "failed",
+                "registration_issue_codes": ["BIRTH_PIPELINE_FAILED"],
+                "cropper_status": "not_started",
+                "cropper_issue_codes": [],
+                "ocr_status": "not_started",
+                "ocr_issue_codes": [],
+                "manual_review_required": True,
+                "structured_field_keys": [],
+            },
+            "error_message": "Birth pipeline failed.",
+        }
 
 
-def run_scan(request: Dict) -> Tuple[bool, Dict]:
+def _capture_outcome_payload(
+    request: Dict,
+    capture_result: CaptureSessionResult,
+) -> Tuple[bool, Dict]:
+    request_id = get_request_id(request)
+    application_id = str(request.get("application_id") or "")
+    student_id = str(request.get("student_id") or "")
+    student_name = str(request.get("student_name") or "")
+    document_key = str(request.get("document_key") or "")
+    document_type = str(build_document_type(request))
+    cancelled = capture_result.status == CANCELLED
+    status = "cancelled" if cancelled else "failed"
+    error_message = (
+        "IoT OCR was cancelled on the Pi."
+        if cancelled
+        else "Document capture failed."
+    )
+
     if _is_birth_certificate_job(request):
-        return _run_birth_certificate_scan(request)
+        extracted_fields = _empty_birth_extracted_fields()
+        source_payload = {
+            "source": "pi-worker-iot-ocr-request",
+            "mode": "birth_certificate_pipeline",
+            "request_id": request_id,
+            "application_id": application_id,
+            "student_id": student_id,
+            "student_name": student_name,
+            "document_key": document_key,
+            "document_type": document_type,
+            "document_contract_status": "approved",
+            "capture_status": capture_result.status,
+            "capture_error_code": capture_result.error_code,
+            "registration_status": "not_started",
+            "registration_issue_codes": [],
+            "cropper_status": "not_started",
+            "cropper_issue_codes": [],
+            "ocr_status": "not_started",
+            "ocr_issue_codes": [],
+            "manual_review_required": True,
+            "worker_status": status,
+            "ocr_attempts": 0,
+            "preprocessing_variant": "registered_whole_row_ocr",
+            "structured_field_keys": [],
+        }
+        return False, {
+            "status": status,
+            "raw_text": "",
+            "ocr_confidence": None,
+            "document_type": "birth_certificate",
+            "manual_review_required": True,
+            "ocr_attempts": 0,
+            "preprocessing_variant": "registered_whole_row_ocr",
+            "extracted_fields": extracted_fields,
+            "source_payload": source_payload,
+            "error_message": error_message,
+        }
 
-    env = os.environ.copy()
-    env["QUEUE_MODE"] = QUEUE_MODE
+    extracted_fields = (
+        build_indigency_extracted_fields_from_result("", None)
+        if _is_indigency_job(request)
+        else build_extracted_fields(document_key, "")
+    )
+    contract = get_contract(document_key)
+    mode = (
+        "indigency_structured_pipeline"
+        if _is_indigency_job(request)
+        else "shared_capture_generic_ocr"
+    )
+    source_payload = {
+        "source": "pi-worker-iot-ocr-request",
+        "mode": mode,
+        "request_id": request_id,
+        "application_id": application_id,
+        "student_id": student_id,
+        "student_name": student_name,
+        "document_key": document_key,
+        "document_type": document_type,
+        "document_contract_status": contract.status if contract else "missing",
+        "capture_status": capture_result.status,
+        "capture_error_code": capture_result.error_code,
+        "cancelled": cancelled,
+        "returncode": 2 if cancelled else 1,
+    }
+    if _is_indigency_job(request):
+        source_payload.update(
+            {
+                "ocr_status": "not_started",
+                "ocr_issue_codes": [],
+                "manual_review_required": True,
+                "worker_status": status,
+                "preprocessing_variant": "positional_ocr",
+                "structured_field_keys": sorted(extracted_fields["fields"]),
+            }
+        )
+    return False, {
+        "status": status,
+        "raw_text": "",
+        "ocr_confidence": None,
+        "document_type": (
+            "certificate_of_indigency" if _is_indigency_job(request) else document_type
+        ),
+        "manual_review_required": True,
+        "extracted_fields": extracted_fields,
+        "source_payload": source_payload,
+        "error_message": error_message,
+    }
 
+
+def _run_generic_document_scan(
+    request: Dict,
+    capture_path: str,
+) -> Tuple[bool, Dict]:
     request_id = get_request_id(request)
     application_id = str(request.get("application_id") or "")
     student_id = str(request.get("student_id") or "")
@@ -408,46 +493,10 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
     document_key = str(request.get("document_key") or "")
     document_type = str(build_document_type(request))
 
-    clear_tmp_files()
-
-    command = [
-        sys.executable,
-        str(MAIN_PY),
-        "--application-id",
-        application_id,
-        "--student-id",
-        student_id,
-        "--student-name",
-        student_name,
-        "--document-key",
-        document_key,
-        "--document-type",
-        document_type,
-    ]
-
-    log.info("Running scan for request %s", request_id)
-
-    if VERBOSE_MAIN:
-        result = subprocess.run(command, cwd=str(BASE_DIR), env=env)
-    else:
-        result = subprocess.run(
-            command,
-            cwd=str(BASE_DIR),
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-    raw_text = read_text_file("/tmp/ocr_raw.txt")
-    corrected_text = read_text_file("/tmp/ocr_result.txt")
-    was_cancelled = result.returncode == 2
+    raw_text, corrected_text = _run_generic_ocr(capture_path)
     extracted_fields = build_extracted_fields(document_key, raw_text)
     contract = get_contract(document_key)
-
-    if was_cancelled:
-        status = "cancelled"
-        error_message = "IoT OCR was cancelled on the Pi."
-    elif result.returncode == 0 and raw_text:
+    if raw_text:
         status = "completed"
         error_message = None
     else:
@@ -460,7 +509,7 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
         extraction_issue_codes: list[str] = []
         if status == "completed":
             try:
-                source_image = _load_registered_image("/tmp/raw_capture.jpg")
+                source_image = _load_registered_image(capture_path)
                 if source_image is None:
                     extraction_status = "failed"
                     extraction_issue_codes = ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"]
@@ -505,8 +554,10 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
                 "document_type": document_type,
                 "document_contract_status": "approved",
                 "corrected_text": corrected_text,
-                "cancelled": was_cancelled,
-                "returncode": result.returncode,
+                "capture_status": CAPTURED,
+                "capture_error_code": None,
+                "cancelled": False,
+                "returncode": 0 if raw_text else 1,
                 "ocr_status": extraction_status,
                 "ocr_issue_codes": extraction_issue_codes,
                 "manual_review_required": True,
@@ -536,8 +587,10 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
             "document_type": document_type,
             "document_contract_status": contract.status if contract else "missing",
             "corrected_text": corrected_text,
-            "cancelled": was_cancelled,
-            "returncode": result.returncode,
+            "capture_status": CAPTURED,
+            "capture_error_code": None,
+            "cancelled": False,
+            "returncode": 0 if raw_text else 1,
         },
         "error_message": error_message,
     }
@@ -545,8 +598,31 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
     return status == "completed", payload
 
 
+def run_scan(request: Dict) -> Tuple[bool, Dict]:
+    request_ref = _safe_request_ref(get_request_id(request))
+    document_key = str(request.get("document_key") or "unknown")
+    log.info("Starting capture request=%s document=%s", request_ref, document_key)
+
+    capture_result = run_capture_session(
+        should_stop=_shutdown_requested.is_set,
+    )
+    if capture_result.status != CAPTURED:
+        log.info(
+            "Capture finished request=%s status=%s code=%s",
+            request_ref,
+            capture_result.status,
+            capture_result.error_code or "none",
+        )
+        return _capture_outcome_payload(request, capture_result)
+
+    if _is_birth_certificate_job(request):
+        return _run_birth_certificate_scan(request, capture_result.capture_path)
+    return _run_generic_document_scan(request, capture_result.capture_path)
+
+
 def submit_and_verify(api: ApiClient, request_id: str, payload: Dict) -> bool:
-    log.info("Submitting result %s (status=%s)", request_id, payload.get("status"))
+    request_ref = _safe_request_ref(request_id)
+    log.info("Submitting result request=%s status=%s", request_ref, payload.get("status"))
 
     response = api.submit_result(
         job_id=request_id,
@@ -559,10 +635,10 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict) -> bool:
     )
 
     if not response:
-        log.error("Failed submitting result for request %s", request_id)
+        log.error("Result submission failed request=%s", request_ref)
         return False
 
-    log.info("Result submitted for request %s", request_id)
+    log.info("Result submitted request=%s", request_ref)
     return True
 
 
@@ -575,7 +651,13 @@ def main():
     api = ApiClient()
     last_idle_log = 0.0
 
-    while True:
+    def request_shutdown(_signal_number, _frame) -> None:
+        _shutdown_requested.set()
+
+    signal.signal(signal.SIGINT, request_shutdown)
+    signal.signal(signal.SIGTERM, request_shutdown)
+
+    while not _shutdown_requested.is_set():
         try:
             request = api.get_next_job()
 
@@ -593,17 +675,20 @@ def main():
                 time.sleep(POLL_INTERVAL_SECONDS)
                 continue
 
-            log.info("Claimed request %s", request_id)
+            log.info("Claimed request=%s", _safe_request_ref(request_id))
             _success, payload = run_scan(request)
             submit_and_verify(api, request_id, payload)
 
         except KeyboardInterrupt:
-            log.info("Worker stopped by user")
+            _shutdown_requested.set()
             break
         except Exception:
-            log.exception("Unexpected worker error")
+            log.error("Unexpected worker error")
 
-        time.sleep(POLL_INTERVAL_SECONDS)
+        if not _shutdown_requested.is_set():
+            time.sleep(POLL_INTERVAL_SECONDS)
+
+    log.info("Worker stopped")
 
 
 if __name__ == "__main__":

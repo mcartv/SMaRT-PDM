@@ -71,7 +71,7 @@ class CameraController:
         self.is_previewing = False
         time.sleep(1)
 
-    def capture_image(self):
+    def capture_image(self, *, restart_preview=True):
         was_previewing = self.is_previewing
 
         print("\nStopping preview...")
@@ -96,14 +96,14 @@ class CameraController:
 
         if result.returncode != 0 or not os.path.exists(self.capture_file):
             print(f"Capture failed:\n{result.stderr}")
-            if was_previewing:
+            if was_previewing and restart_preview:
                 self.start_preview()
             return False
 
         size_kb = os.path.getsize(self.capture_file) // 1024
         print(f"Captured ({size_kb} KB) -> {self.capture_file}")
 
-        if was_previewing:
+        if was_previewing and restart_preview:
             print("Restarting preview...")
             self.start_preview()
 

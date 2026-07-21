@@ -107,6 +107,8 @@ class AboutPdmScreen extends StatelessWidget {
               body:
                   'Use only your registered account and keep your password private. Uploaded documents and profile details are used for scholarship-related processing within the system.',
             ),
+            const SizedBox(height: 12),
+            const _ProductionInformationCard(),
           ],
         ),
       ),
@@ -182,3 +184,176 @@ class _AboutSection extends StatelessWidget {
     );
   }
 }
+
+class _ProductionInformationCard extends StatelessWidget {
+  const _ProductionInformationCard();
+
+  static const _developers = <String>[
+    'Jerry Geoff Bho',
+    'Carl Arthur Buenavidez',
+    'Leo Lawrence Galve',
+    'Venice Eve Pelima',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = isDark ? Colors.white : AppColors.darkBrown;
+    final secondaryText = isDark
+        ? Colors.white60
+        : AppColors.brown.withValues(alpha: 0.68);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2B1D13) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.brown.withValues(alpha: 0.09),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: isDark ? 0.18 : 0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.deployed_code_outlined,
+                  color: AppColors.gold,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Text(
+                  'Production Information',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: primaryText,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _InformationRow(
+            label: 'Production Version',
+            value: 'Version 1.0.0 • Build 2',
+            primaryText: primaryText,
+            secondaryText: secondaryText,
+          ),
+          const SizedBox(height: 14),
+          _InformationRow(
+            label: 'Developed by',
+            value: 'GALE (SMaRT-PDM Developers)',
+            primaryText: primaryText,
+            secondaryText: secondaryText,
+          ),
+          const SizedBox(height: 10),
+          ..._developers.map(
+            (developer) => Padding(
+              padding: const EdgeInsets.only(left: 2, bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 5,
+                    height: 5,
+                    margin: const EdgeInsets.only(top: 7),
+                    decoration: const BoxDecoration(
+                      color: AppColors.gold,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      developer,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: secondaryText,
+                            height: 1.45,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Divider(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : AppColors.brown.withValues(alpha: 0.10),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Developed for Pambayang Dalubhasaan ng Marilao — Office for Scholarship and Financial Assistance.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: secondaryText,
+                  height: 1.5,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '© 2026 GALE. All rights reserved.',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: secondaryText,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InformationRow extends StatelessWidget {
+  const _InformationRow({
+    required this.label,
+    required this.value,
+    required this.primaryText,
+    required this.secondaryText,
+  });
+
+  final String label;
+  final String value;
+  final Color primaryText;
+  final Color secondaryText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: secondaryText,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.25,
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: primaryText,
+                fontWeight: FontWeight.w800,
+                height: 1.35,
+              ),
+        ),
+      ],
+    );
+  }
+}
+

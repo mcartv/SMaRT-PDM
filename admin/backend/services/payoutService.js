@@ -717,3 +717,141 @@ module.exports = {
   fetchAcademicYears,
   fetchMyPayouts,
 };
+
+// =========================
+// PAYOUT PROOF REVIEW
+// =========================
+const supabase = require('../config/supabase');
+const PAYOUT_PROOF_BUCKET = process.env.PAYOUT_PROOF_BUCKET || 'payout-proofs';
+
+async function signPayoutProofPath(filePath) {
+  const normalized = String(filePath || '').trim();
+  if (!normalized) return null;
+
+  const { data, error } = await supabase.storage
+    .from(PAYOUT_PROOF_BUCKET)
+    .createSignedUrl(normalized, 60 * 60);
+
+  if (error) {
+    console.error('PAYOUT PROOF SIGNED URL ERROR:', error.message);
+    return null;
+  }
+
+  return data?.signedUrl || null;
+}
+
+async function fetchPayoutProofs(query = {}) {
+  const status = String(query.status || '').trim();
+  const params = [];
+  let where = 'WHERE 1 = 1';
+
+  if (status && status.toLowerCase() !== 'all') {
+    params.push(status);
+    where += ` AND pp.proof_status = $${params.length}`;
+  }
+
+  const result = await pool.query(
+    `
+      SELECT
+        pp.*,
+        st.pdm_id,
+        st.first_name,
+        st.middle_name,
+        st.last_name,
+        pb.payout_title,
+        pb.payout_date,
+        pbs.amount_received,
+        pbs.release_status,
+        sp.program_name,
+        reviewer.username AS reviewer_username,
+        CONCAT(ap.first_name, ' ', ap.last_name) AS reviewer_name
+      FROM payout_proofs pp
+      INNER JOIN students st ON st.student_id = pp.student_id
+      INNER JOIN payout_batch_students pbs ON pbs.payout_entry_id = pp.payout_entry_id
+      INNER JOIN payout_batches pb ON pb.payout_batch_id = pp.payout_batch_id
+      LEFT JOIN scholarship_program sp ON sp.program_id = pb.program_id
+      LEFT JOIN users reviewer ON reviewer.user_id = pp.reviewed_by
+      LEFT JOIN admin_profiles ap ON ap.user_id = reviewer.user_id
+      ${where}
+      ORDER BY pp.submitted_at DESC, pp.created_at DESC
+    `,
+    params
+  );
+
+  return Promise.all(
+    result.rows.map(async (row) => ({
+      ...row,
+      student_name: [row.first_name, row.middle_name, row.last_name]
+        .filter(Boolean)
+        .join(' '),
+      file_url: (await signPayoutProofPath(row.file_path)) || row.file_url || null,
+    }))
+  );
+}
+
+async function reviewPayoutProof({ proofId, status, comment = '', actorUserId = null }) {
+  const allowed = ['Verified', 'Rejected', 'Resubmission Required'];
+  if (!allowed.includes(status)) {
+    const error = new Error(`Invalid proof status. Allowed: ${allowed.join(', ')}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `
+        UPDATE payout_proofs pp
+        SET proof_status = $2,
+            reviewed_by = $3,
+            reviewed_at = now(),
+            admin_comment = $4,
+            rejection_reason = CASE WHEN $2 IN ('Rejected', 'Resubmission Required') THEN $4 ELSE NULL END,
+            updated_at = now()
+        WHERE pp.payout_proof_id = $1
+        RETURNING pp.*
+      `,
+      [proofId, status, actorUserId, String(comment || '').trim() || null]
+    );
+
+    if (!result.rows.length) {
+      const error = new Error('Payout proof not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const proof = result.rows[0];
+    const userResult = await client.query(
+      `SELECT user_id FROM students WHERE student_id = $1 LIMIT 1`,
+      [proof.student_id]
+    );
+
+    await client.query('COMMIT');
+
+    const targetUserId = userResult.rows[0]?.user_id;
+    if (targetUserId) {
+      const verified = status === 'Verified';
+      await notificationService.createUserNotification({
+        userId: targetUserId,
+        type: verified ? 'payout_proof_verified' : 'payout_proof_rejected',
+        title: verified ? 'Payout Proof Verified' : 'Payout Proof Requires Attention',
+        message: verified
+          ? 'Your proof of payout was verified by OSFA.'
+          : `Your proof of payout requires a new submission.${comment ? ` Comment: ${comment}` : ''}`,
+        referenceId: proof.payout_entry_id,
+        referenceType: 'payout_proof',
+      }).catch((error) => console.error('PAYOUT PROOF REVIEW NOTIFICATION ERROR:', error.message));
+    }
+
+    return proof;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports.fetchPayoutProofs = fetchPayoutProofs;
+module.exports.reviewPayoutProof = reviewPayoutProof;

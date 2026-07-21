@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import FinalSelectionPanel from '@/components/selection/FinalSelectionPanel';
 
 const C = {
     green: '#16a34a',
@@ -38,6 +39,7 @@ const C = {
 const VIEW_MODES = {
     current: 'current',
     approved: 'approved',
+    finalSelection: 'final-selection',
 };
 
 const PAGE_SIZE = 10;
@@ -46,7 +48,7 @@ const APP_STATUS = {
     pending: { label: 'Pending', bg: '#f5f5f4', color: '#57534e' },
     submitted: { label: 'Submitted', bg: '#f5f5f4', color: '#57534e' },
     review: { label: 'Under Review', bg: C.blueSoft, color: C.blueMid },
-    qualified: { label: 'Approved', bg: C.greenSoft, color: C.green },
+    qualified: { label: 'Qualified', bg: C.greenSoft, color: C.green },
     approved: { label: 'Approved', bg: C.greenSoft, color: C.green },
     accepted: { label: 'Approved', bg: C.greenSoft, color: C.green },
     disqualified: { label: 'Rejected', bg: '#fee2e2', color: '#991b1b' },
@@ -70,7 +72,8 @@ function normalizeAppStatus(status) {
 
 function isApprovedCandidate(app) {
     const raw = normalizeAppStatus(app?.application_status);
-    return ['approved', 'qualified', 'accepted'].includes(raw) || !!app?.is_scholar;
+    const selection = normalizeAppStatus(app?.selection_status);
+    return ['approved', 'accepted'].includes(raw) || ['selected', 'promoted'].includes(selection) || !!app?.is_scholar;
 }
 
 function getAppStatusMeta(status) {
@@ -103,46 +106,63 @@ function formatDate(value) {
     });
 }
 
-function buildApplicantState(app, openingFilled) {
+function buildApplicantState(app) {
     const normalizedStatus = normalizeAppStatus(app.application_status || 'pending');
+    const selectionStatus = normalizeAppStatus(app.selection_status);
     const isApproved = isApprovedCandidate(app);
-    const isDisqualified = !!app.disqualified || normalizedStatus === 'disqualified';
-    const verificationStatus = String(app.verification_status || '').toLowerCase();
-    const isInReviewStage = ['review', 'submitted', 'pending'].includes(normalizedStatus);
+    const isQualified = selectionStatus === 'qualified';
+    const isDisqualified =
+        !!app.disqualified ||
+        !!app.is_disqualified ||
+        ['disqualified', 'rejected'].includes(normalizedStatus);
+    const verificationStatus = normalizeAppStatus(app.verification_status);
+    const endorsementStatus = normalizeAppStatus(
+        app.endorsement_status || app.normalized_endorsement_status
+    );
+    const isInReviewStage = ['review', 'submitted', 'pending', 'pending review'].includes(
+        normalizedStatus
+    );
     const isVerified = verificationStatus === 'verified';
-    const hasRemarks = !!app.remarks;
+    const isEndorsementComplete = endorsementStatus === 'completed';
+    const hasRemarks = String(app.remarks || '').trim().length > 0;
 
     const canApprove =
         !isApproved &&
+        !isQualified &&
         !isDisqualified &&
         isInReviewStage &&
         isVerified &&
-        hasRemarks &&
-        !openingFilled;
+        isEndorsementComplete &&
+        hasRemarks;
 
     let decisionHint = '';
-    if (!isApproved && !canApprove) {
-        decisionHint = openingFilled
-            ? 'Filled / closed.'
-            : !isInReviewStage
-                ? 'Move to review.'
-                : !isVerified
-                    ? 'Verify docs first.'
+    if (!isApproved && !isQualified && !canApprove) {
+        decisionHint = !isInReviewStage
+            ? 'Move to review.'
+            : !isVerified
+                ? 'Verify requirements first.'
+                : !isEndorsementComplete
+                    ? 'Complete endorsement first.'
                     : !hasRemarks
                         ? 'Add remarks first.'
                         : 'Not ready.';
     }
 
+    const displayedStatus = isQualified ? 'qualified' : normalizedStatus;
+
     return {
         normalizedStatus,
+        selectionStatus,
         isApproved,
+        isQualified,
         isDisqualified,
         isInReviewStage,
         isVerified,
+        isEndorsementComplete,
         hasRemarks,
         canApprove,
         decisionHint,
-        appMeta: getAppStatusMeta(normalizedStatus),
+        appMeta: getAppStatusMeta(displayedStatus),
         gwaMeta: getGwaMeta(app.gwa),
     };
 }
@@ -363,7 +383,7 @@ function ApplicantTable({
 
                 <tbody>
                     {pageData.map((app) => {
-                        const state = buildApplicantState(app, openingFilled);
+                        const state = buildApplicantState(app);
 
                         return (
                             <tr
@@ -373,12 +393,13 @@ function ApplicantTable({
                             >
                                 {viewMode === VIEW_MODES.current && (
                                     <td className="px-4 py-4">
-                                        {!state.isApproved && (
+                                        {!state.isApproved && !state.isQualified && (
                                             <input
                                                 type="checkbox"
                                                 checked={selected.has(app.id)}
                                                 onChange={() => onToggleSelect(app.id)}
-                                                className="accent-stone-700"
+                                                disabled={!state.canApprove}
+                                                className="accent-stone-700 disabled:opacity-40"
                                             />
                                         )}
                                     </td>
@@ -456,7 +477,7 @@ function ApplicantTable({
                                             </Button>
                                         )}
 
-                                        {!state.isApproved && (
+                                        {!state.isApproved && !state.isQualified && (
                                             <Button
                                                 size="sm"
                                                 variant="outline"
@@ -469,7 +490,7 @@ function ApplicantTable({
                                                 ) : (
                                                     <ShieldCheck className="mr-1 h-3 w-3" />
                                                 )}
-                                                Approve
+                                                Mark Qualified
                                             </Button>
                                         )}
 
@@ -484,7 +505,7 @@ function ApplicantTable({
                                         )}
                                     </div>
 
-                                    {!state.isApproved && !state.canApprove && (
+                                    {!state.isApproved && !state.isQualified && !state.canApprove && (
                                         <p className="mt-2 text-[11px] text-stone-400 text-right">
                                             {state.decisionHint}
                                         </p>
@@ -604,7 +625,7 @@ export default function OpeningApplications() {
         return apps
             .filter((a) => {
                 const approved = isApprovedCandidate(a);
-                return viewMode === VIEW_MODES.current ? !approved : approved;
+                return viewMode === VIEW_MODES.current ? !approved : viewMode === VIEW_MODES.approved ? approved : true;
             })
             .filter((a) => {
                 if (!q) return true;
@@ -638,7 +659,7 @@ export default function OpeningApplications() {
     );
 
     const openingSlotCount = Number(opening?.allocated_slots ?? opening?.slot_count ?? 0);
-    const openingFilledCount = Number(opening?.qualified_count ?? opening?.filled_slots ?? 0);
+    const openingFilledCount = Number(opening?.filled_slots ?? 0);
     const remainingSlots = Math.max(0, openingSlotCount - openingFilledCount);
 
     const openingFilled =
@@ -647,9 +668,16 @@ export default function OpeningApplications() {
             String(opening?.status || opening?.posting_status || '').toLowerCase()
         );
 
+    const selectablePageData = useMemo(
+        () => pageData.filter((application) => buildApplicantState(application).canApprove),
+        [pageData]
+    );
+
     const allVisibleSelected = useMemo(
-        () => pageData.length > 0 && pageData.every((a) => selected.has(a.id) || isApprovedCandidate(a)),
-        [pageData, selected]
+        () =>
+            selectablePageData.length > 0 &&
+            selectablePageData.every((application) => selected.has(application.id)),
+        [selectablePageData, selected]
     );
 
     const toggleOne = (id) => {
@@ -665,11 +693,9 @@ export default function OpeningApplications() {
             const next = new Set(prev);
 
             if (allVisibleSelected) {
-                pageData.forEach((a) => next.delete(a.id));
+                selectablePageData.forEach((application) => next.delete(application.id));
             } else {
-                pageData.forEach((a) => {
-                    if (!isApprovedCandidate(a)) next.add(a.id);
-                });
+                selectablePageData.forEach((application) => next.add(application.id));
             }
 
             return next;
@@ -740,9 +766,9 @@ export default function OpeningApplications() {
                     a.id === id
                         ? {
                             ...a,
-                            application_status: 'qualified',
+                            selection_status: 'Qualified',
                             is_reconsideration_candidate: false,
-                            is_scholar: true,
+                            is_scholar: false,
                         }
                         : a
                 )
@@ -751,7 +777,7 @@ export default function OpeningApplications() {
             await reloadApplications({ soft: true });
         } catch (err) {
             console.error('APPLICATION DECISION ERROR:', err);
-            alert(err.message || 'Failed to update application');
+            alert(err.message || 'Failed to update applicant qualification');
         } finally {
             setDecisionLoading(null);
         }
@@ -821,7 +847,7 @@ export default function OpeningApplications() {
             <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
                 <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
                 <p className="text-xs uppercase tracking-widest text-stone-400">
-                    Loading opening applicants...
+                    Loading scholarship applicants...
                 </p>
             </div>
         );
@@ -883,7 +909,7 @@ export default function OpeningApplications() {
                     {openingFilled && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
                             <CircleOff className="h-3.5 w-3.5" />
-                            Opening Filled / Closed
+                            Slots Filled / Applications Closed
                         </span>
                     )}
                 </div>
@@ -892,11 +918,11 @@ export default function OpeningApplications() {
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div className="min-w-0">
                             <h1 className="truncate text-xl font-semibold text-stone-900">
-                                {opening?.title || opening?.opening_title || 'Untitled Opening'}
+                                {opening?.program_name || opening?.title || opening?.opening_title || 'Scholarship Program'}
                             </h1>
 
                             <p className="mt-1 text-sm text-stone-500">
-                                {opening?.program_name || 'No Program'}
+                                {opening?.opening_title || 'Application period'}
                                 {opening?.benefactor_name ? ` · ${opening.benefactor_name}` : ''}
                             </p>
 
@@ -964,6 +990,16 @@ export default function OpeningApplications() {
                                 Approved
                                 <span className="text-xs">{approvedCount}</span>
                             </button>
+
+                            <button
+                                onClick={() => setViewMode(VIEW_MODES.finalSelection)}
+                                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === VIEW_MODES.finalSelection
+                                    ? 'bg-white text-stone-900 shadow-sm'
+                                    : 'text-stone-600'
+                                    }`}
+                            >
+                                Final Selection
+                            </button>
                         </div>
 
                         {search && (
@@ -983,6 +1019,12 @@ export default function OpeningApplications() {
                 </div>
             </section>
 
+            {viewMode === VIEW_MODES.finalSelection ? (
+                <FinalSelectionPanel
+                    openingId={openingId}
+                    onFinalized={() => reloadApplications({ soft: true })}
+                />
+            ) : (
             <section
                 className="overflow-hidden rounded-2xl border bg-white"
                 style={{ borderColor: C.border }}
@@ -993,8 +1035,8 @@ export default function OpeningApplications() {
                             <h2 className="text-sm font-semibold text-stone-800">Applicant Registry</h2>
                             <p className="mt-1 text-xs text-stone-500">
                                 {viewMode === VIEW_MODES.current
-                                    ? 'Applicants under this selected scholarship opening'
-                                    : 'Applicants already approved and assigned to a slot'}
+                                    ? 'Applicants under this scholarship'
+                                    : 'Applicants activated after final selection'}
                                 {' · '}
                                 Table view
                             </p>
@@ -1013,7 +1055,7 @@ export default function OpeningApplications() {
                         )}
                     </div>
 
-                    {selected.size > 0 && viewMode === VIEW_MODES.current && !openingFilled && (
+                    {selected.size > 0 && viewMode === VIEW_MODES.current && (
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2">
                             <span className="text-xs font-medium text-amber-700">
                                 {selected.size} selected
@@ -1025,7 +1067,7 @@ export default function OpeningApplications() {
                                     style={{ background: C.green }}
                                     onClick={handleBulkApprove}
                                 >
-                                    Approve All
+                                    Mark Qualified
                                 </Button>
 
                                 <Button
@@ -1104,6 +1146,7 @@ export default function OpeningApplications() {
                     </div>
                 </div>
             </section>
+            )}
         </div>
     );
 }

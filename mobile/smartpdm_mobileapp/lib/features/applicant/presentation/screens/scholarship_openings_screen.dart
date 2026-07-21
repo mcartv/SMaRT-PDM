@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/core/constants/app_terms.dart';
+import 'package:smartpdm_mobileapp/core/constants/module_guidance_content.dart';
 import 'package:smartpdm_mobileapp/shared/models/program_opening.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/features/applicant/data/services/program_opening_service.dart';
 import 'package:smartpdm_mobileapp/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/smart_pdm_page_scaffold.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/module_guidance_card.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/status_badge.dart';
 
 class ScholarshipOpeningsScreen extends StatefulWidget {
   const ScholarshipOpeningsScreen({super.key});
@@ -158,7 +162,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
           return AlertDialog(
             title: Text('Existing draft found'),
             content: Text(
-              'You already have a saved draft for ${result.draftOpeningTitle.isNotEmpty ? result.draftOpeningTitle : 'another scholarship opening'}. Continue that draft or replace it with ${opening.openingTitle}?',
+              'You already have a saved draft for ${result.draftOpeningTitle.isNotEmpty ? result.draftOpeningTitle : 'another scholarship'}. Continue that draft or replace it with ${opening.openingTitle}?',
             ),
             actions: [
               TextButton(
@@ -257,7 +261,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final result = _result;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: Text('Scholarship Openings')),
+      appBar: AppBar(title: Text(AppTerms.availableScholarships)),
       selectedIndex: 0,
       showDrawer: false,
       child: RefreshIndicator(
@@ -276,7 +280,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Available Scholarship Openings',
+                    AppTerms.availableScholarships,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
 
                       fontWeight: FontWeight.w800,
@@ -285,7 +289,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Select an admin-posted scholarship opening to start or continue your application. One active application is allowed at a time.',
+                    'Select a scholarship to start or continue your application. Review the available slots and waiting-list status before applying.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
                       height: 1.45,
@@ -294,6 +298,11 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 12),
+            const ModuleGuidanceCard(
+              title: ModuleGuidanceContent.scholarshipsTitle,
+              message: ModuleGuidanceContent.scholarshipsBody,
             ),
             const SizedBox(height: 16),
             if (result?.hasSavedDraft == true)
@@ -317,7 +326,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship opening'} or choose a different opening to replace it.',
+                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'} or choose a different scholarship to replace it.',
                       style: TextStyle(color: subtitleColor, height: 1.4),
                     ),
                     const SizedBox(height: 12),
@@ -337,7 +346,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  'You are already an approved scholar. Only TES scholarship openings are shown here.',
+                  'You are already an approved scholar. Only eligible TES scholarships are shown here.',
                   style: TextStyle(color: subtitleColor, height: 1.4),
                 ),
               ),
@@ -369,8 +378,8 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                 padding: const EdgeInsets.only(top: 32),
                 child: Text(
                   result?.isApprovedScholar == true
-                      ? 'No TES scholarship openings are currently available.'
-                      : 'No scholarship openings are currently available.',
+                      ? 'No TES scholarships are currently available.'
+                      : 'No scholarships are currently available.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: subtitleColor),
                 ),
@@ -460,6 +469,26 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                             color: titleColor,
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            StatusBadge(
+                              label: opening.allocatedSlots > 0
+                                  ? '${opening.availableSlots} ${AppTerms.availableSlots}'
+                                  : 'Slots to be announced',
+                            ),
+                            if (opening.regularSlotsFull && opening.waitingListEnabled)
+                              StatusBadge(
+                                label: opening.waitlistPosition != null
+                                    ? '${AppTerms.waitingList} #${opening.waitlistPosition}'
+                                    : 'Waiting List Available',
+                              ),
+                            if (opening.existingSelectionStatus?.trim().isNotEmpty == true)
+                              StatusBadge(label: opening.existingSelectionStatus!),
+                          ],
+                        ),
                         if (opening.announcementText.trim().isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Text(
@@ -469,6 +498,18 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                               height: 1.4,
                               color: subtitleColor
 ),
+                          ),
+                        ],
+                        if (!opening.hasApplied && opening.canApply) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            opening.canJoinWaitingList
+                                ? 'Regular slots are filled. Complete all valid requirements to receive a first-come, first-served waiting-list position.'
+                                : 'Qualified applicants are ordered by the date and time their last valid required document is submitted.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: subtitleColor,
+                                  height: 1.4,
+                                ),
                           ),
                         ],
                         if (showUploadProgress) ...[

@@ -63,6 +63,8 @@ const INITIAL_FORM = {
     academic_year: '',
     allocated_slots: '',
     filled_slots_preview: 0,
+    waiting_list_enabled: true,
+    waiting_list_limit: 0,
     financial_allocation: '',
     announcement_text: '',
     posting_status: 'draft',
@@ -574,6 +576,54 @@ function OpeningModal({
                                     placeholder="0"
                                     className="h-10 rounded-lg border-stone-200 text-sm"
                                 />
+                            </div>
+
+                            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
+                                <label className="flex cursor-pointer items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.waiting_list_enabled !== false}
+                                        onChange={(e) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                waiting_list_enabled: e.target.checked,
+                                            }))
+                                        }
+                                        className="mt-0.5 h-4 w-4 rounded border-stone-300"
+                                    />
+                                    <span>
+                                        <span className="block text-sm font-semibold text-stone-800">
+                                            Enable Waiting List
+                                        </span>
+                                        <span className="mt-1 block text-xs leading-relaxed text-stone-500">
+                                            Applicants who complete valid requirements after the available slots are filled will be queued in first-come, first-served order.
+                                        </span>
+                                    </span>
+                                </label>
+
+                                {form.waiting_list_enabled !== false ? (
+                                    <div className="mt-3 space-y-1.5">
+                                        <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
+                                            Waiting List Limit
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            value={form.waiting_list_limit ?? 0}
+                                            onChange={(e) =>
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    waiting_list_limit: e.target.value,
+                                                }))
+                                            }
+                                            placeholder="0 = no limit"
+                                            className="h-10 rounded-lg border-stone-200 bg-white text-sm"
+                                        />
+                                        <p className="text-[11px] text-stone-400">
+                                            Enter 0 to accept all qualified applicants into the waiting list.
+                                        </p>
+                                    </div>
+                                ) : null}
                             </div>
 
                             <div className="space-y-1.5">
@@ -1413,6 +1463,8 @@ export default function ScholarshipOpenings() {
                     existingDraft.qualified_count ??
                     existingDraft.filled_slots ??
                     0,
+                waiting_list_enabled: existingDraft.waiting_list_enabled !== false,
+                waiting_list_limit: existingDraft.waiting_list_limit ?? 0,
                 financial_allocation: existingDraft.financial_allocation ?? '',
                 announcement_text:
                     existingDraft.announcement_text ??
@@ -1435,6 +1487,8 @@ export default function ScholarshipOpenings() {
             academic_year: defaultAcademicYear?.label || '',
             allocated_slots: '',
             filled_slots_preview: 0,
+            waiting_list_enabled: true,
+            waiting_list_limit: 0,
             financial_allocation: '',
             announcement_text: template.description || '',
             posting_status: 'draft',
@@ -1460,6 +1514,8 @@ export default function ScholarshipOpenings() {
                 opening.qualified_count ??
                 opening.filled_slots ??
                 0,
+            waiting_list_enabled: opening.waiting_list_enabled !== false,
+            waiting_list_limit: opening.waiting_list_limit ?? 0,
             financial_allocation: opening.financial_allocation ?? '',
             announcement_text: opening.announcement_text || '',
             posting_status: opening.posting_status || 'draft',
@@ -1515,6 +1571,8 @@ export default function ScholarshipOpenings() {
                 opening_title: form.opening_title.trim(),
                 academic_year_id: form.academic_year_id || null,
                 allocated_slots: allocatedSlots,
+                waiting_list_enabled: form.waiting_list_enabled !== false,
+                waiting_list_limit: Math.max(0, Number(form.waiting_list_limit || 0)),
                 financial_allocation: financialAllocation,
                 per_scholar_amount: perScholarAmount,
                 announcement_text: form.announcement_text?.trim() || null,

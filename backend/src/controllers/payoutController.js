@@ -87,9 +87,39 @@ async function updatePayoutEntryStatus(req, res) {
     }
 }
 
+
+async function uploadMyPayoutProof(req, res) {
+    try {
+        const userId = getRequestUserId(req);
+        const result = await payoutService.uploadMyPayoutProof(
+            userId,
+            req.params.payoutEntryId,
+            req.file
+        );
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('payout:proof-submitted', {
+                payout_entry_id: req.params.payoutEntryId,
+                payout_proof_id: result.proof?.payout_proof_id || null,
+                proof_status: result.proof?.proof_status || 'Pending Review',
+                updated_at: new Date().toISOString(),
+            });
+        }
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('UPLOAD MY PAYOUT PROOF ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to upload payout proof.',
+        });
+    }
+}
+
 module.exports = {
     createPayoutBatch,
     schedulePayoutBatch,
     getMyPayouts,
-    updatePayoutEntryStatus
+    updatePayoutEntryStatus,
+    uploadMyPayoutProof
 };

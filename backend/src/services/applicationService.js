@@ -24,7 +24,10 @@ const WORKFLOW_STAGE_LABELS = Object.freeze({
     application_submitted: 'Application Submitted',
     requirements_review: 'Requirements Review',
     endorsement_review: 'Endorsement Review',
-    ready_for_activation: 'Ready for Activation',
+    ready_for_selection: 'Ready for Final Selection',
+    waitlisted: 'Waiting List',
+    not_selected: 'Not Selected',
+    selected_for_activation: 'Selected for Activation',
     scholar_activated: 'Scholar Activated',
 });
 
@@ -66,8 +69,14 @@ const BLOCKER_MESSAGES = Object.freeze({
     pending_sdo: 'Your endorsement slip is waiting for SDO review.',
     pending_guidance: 'Your endorsement slip is waiting for Guidance review.',
     pending_pd: 'Your endorsement slip is waiting for Program Director review.',
-    ready_for_activation:
-        'Requirements and endorsement are complete. Explicit admin activation is still required.',
+    ready_for_selection:
+        'Requirements and endorsement are complete. Your application is waiting for the final FCFS selection list.',
+    waitlisted:
+        'You are on the finalized waiting list and will be notified if a scholarship slot becomes available.',
+    not_selected:
+        'You were not selected for this application period. You may apply again in a future eligible application period.',
+    selected_for_activation:
+        'You were selected. Scholar activation is being completed by OSFA.',
     activated: 'Your scholar access has been activated.',
 });
 
@@ -1336,6 +1345,19 @@ async function fetchLatestApplication(studentId) {
       application_status,
       document_status,
       verification_status,
+      requirements_completed_at,
+      requirements_verified_at,
+      selection_status,
+      queue_position,
+      waitlist_position,
+      selection_batch_id,
+      selected_at,
+      waitlisted_at,
+      finalized_at,
+      activation_status,
+      activated_at,
+      can_reapply,
+      reapplication_reason,
       rejection_reason,
       remarks,
       is_disqualified,
@@ -1473,7 +1495,7 @@ async function fetchApplicationProgramContext(application = {}) {
         application.opening_id
             ? supabase
                 .from('program_openings')
-                .select('opening_id, opening_title')
+                .select('opening_id, opening_title, allocated_slots, filled_slots, waiting_list_enabled, selection_status, selection_finalized_at')
                 .eq('opening_id', application.opening_id)
                 .maybeSingle()
             : Promise.resolve({ data: null, error: null }),
@@ -1755,6 +1777,7 @@ function buildWorkflowSummary({
     documents = [],
 }) {
     const applicationStatus = normalizeWorkflowKey(application.application_status);
+    const selectionStatus = normalizeWorkflowKey(application.selection_status);
     const explicitActivationSucceeded =
         applicationStatus === 'approved' &&
         student.is_active_scholar === true &&
@@ -1764,10 +1787,17 @@ function buildWorkflowSummary({
         explicitActivationSucceeded &&
         requirements.status === 'verified' &&
         endorsement.status === 'completed';
-    const readyForActivation =
+    const isWaitlisted = selectionStatus === 'waitlisted';
+    const isNotSelected = selectionStatus === 'not selected';
+    const isSelected = selectionStatus === 'selected' || selectionStatus === 'promoted';
+    const readyForSelection =
         !activated &&
+        !isWaitlisted &&
+        !isNotSelected &&
+        !isSelected &&
         requirements.status === 'verified' &&
         endorsement.status === 'completed';
+    const selectedForActivation = !activated && isSelected;
     const gradeDocumentUploaded = (documents || []).some((document) => {
         const type = safeText(document?.document_type).toLowerCase();
         return (
@@ -1813,24 +1843,47 @@ function buildWorkflowSummary({
     if (['pending_sdo', 'pending_guidance', 'pending_pd'].includes(endorsement.status)) {
         candidates.push(buildWorkflowBlocker(endorsement.status, 'endorsement'));
     }
-    if (readyForActivation) {
-        candidates.push(buildWorkflowBlocker('ready_for_activation', 'scholar_activation'));
+    if (isWaitlisted) {
+        candidates.push(buildWorkflowBlocker('waitlisted', 'selection'));
+    } else if (isNotSelected) {
+        candidates.push(buildWorkflowBlocker('not_selected', 'selection'));
+    } else if (selectedForActivation) {
+        candidates.push(buildWorkflowBlocker('selected_for_activation', 'selection'));
+    } else if (readyForSelection) {
+        candidates.push(buildWorkflowBlocker('ready_for_selection', 'selection'));
     }
     if (activated) {
         candidates.push(buildWorkflowBlocker('activated', 'scholar_activation'));
     }
 
     const primary = candidates[0] || null;
-    const stage =
-        activated
-            ? 'scholar_activated'
-            : readyForActivation
-                ? 'ready_for_activation'
-                : primary?.source === 'requirements'
-                    ? 'requirements_review'
-                    : primary?.source === 'endorsement'
-                        ? 'endorsement_review'
-                        : 'application_submitted';
+    const stage = activated
+        ? 'scholar_activated'
+        : isWaitlisted
+            ? 'waitlisted'
+            : isNotSelected
+                ? 'not_selected'
+                : selectedForActivation
+                    ? 'selected_for_activation'
+                    : readyForSelection
+                        ? 'ready_for_selection'
+                        : primary?.source === 'requirements'
+                            ? 'requirements_review'
+                            : primary?.source === 'endorsement'
+                                ? 'endorsement_review'
+                                : 'application_submitted';
+
+    const activationStatus = activated
+        ? 'activated'
+        : selectedForActivation
+            ? 'selected_for_activation'
+            : isWaitlisted
+                ? 'waitlisted'
+                : isNotSelected
+                    ? 'not_selected'
+                    : readyForSelection
+                        ? 'ready_for_selection'
+                        : 'not_ready';
 
     return {
         stage,
@@ -1838,13 +1891,19 @@ function buildWorkflowSummary({
         requirements,
         endorsement,
         scholar_activation: {
-            status: activated ? 'activated' : readyForActivation ? 'ready_for_activation' : 'not_ready',
+            status: activationStatus,
             status_label: activated
                 ? 'Activated'
-                : readyForActivation
-                    ? 'Ready for Activation'
-                    : 'Not Ready',
-            activated_at: activated ? student.date_awarded || null : null,
+                : selectedForActivation
+                    ? 'Selected for Activation'
+                    : isWaitlisted
+                        ? 'Waiting List'
+                        : isNotSelected
+                            ? 'Not Selected'
+                            : readyForSelection
+                                ? 'Ready for Final Selection'
+                                : 'Not Ready',
+            activated_at: activated ? student.date_awarded || application.activated_at || null : null,
             explicit_activation_succeeded: explicitActivationSucceeded,
             active_current_application:
                 safeText(student.current_application_id) === safeText(application.application_id),
@@ -1914,6 +1973,43 @@ async function getMyApplicationStatusSummary(userId) {
             submission_date: application.submission_date || null,
             created_at: application.created_at || null,
             updated_at: application.updated_at || null,
+            requirements_completed_at: application.requirements_completed_at || null,
+            requirements_verified_at: application.requirements_verified_at || null,
+            selection_status: application.selection_status || 'Unranked',
+            queue_position: application.queue_position ?? null,
+            waitlist_position: application.waitlist_position ?? null,
+            selection_batch_id: application.selection_batch_id || null,
+            selected_at: application.selected_at || null,
+            waitlisted_at: application.waitlisted_at || null,
+            finalized_at: application.finalized_at || null,
+            activation_status: application.activation_status || 'Not Activated',
+            activated_at: application.activated_at || null,
+            can_reapply: application.can_reapply === true,
+            reapplication_reason: application.reapplication_reason || null,
+        },
+        selection: {
+            status: application.selection_status || 'Unranked',
+            queue_position: application.queue_position ?? null,
+            waitlist_position: application.waitlist_position ?? null,
+            requirements_completed_at: application.requirements_completed_at || null,
+            requirements_verified_at: application.requirements_verified_at || null,
+            selected_at: application.selected_at || null,
+            waitlisted_at: application.waitlisted_at || null,
+            finalized_at: application.finalized_at || null,
+            activation_status: application.activation_status || 'Not Activated',
+            activated_at: application.activated_at || null,
+            can_reapply: application.can_reapply === true,
+            reapplication_reason: application.reapplication_reason || null,
+            allocated_slots: Number(context.opening?.allocated_slots || 0),
+            filled_slots: Number(context.opening?.filled_slots || 0),
+            available_slots: Math.max(
+                Number(context.opening?.allocated_slots || 0) -
+                Number(context.opening?.filled_slots || 0),
+                0
+            ),
+            waiting_list_enabled: context.opening?.waiting_list_enabled !== false,
+            application_period_status: context.opening?.selection_status || 'Not Started',
+            selection_finalized_at: context.opening?.selection_finalized_at || null,
         },
         workflow,
     };

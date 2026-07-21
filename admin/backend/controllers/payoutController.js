@@ -432,3 +432,47 @@ exports.restorePayoutBatch = async (req, res) => {
         sendError(res, err, 'Failed to restore payout batch');
     }
 };
+
+
+exports.getPayoutProofs = async (req, res) => {
+  try {
+    const items = await payoutService.fetchPayoutProofs(req.query || {});
+    res.status(200).json({ items });
+  } catch (err) {
+    console.error('GET PAYOUT PROOFS ERROR:', err.message);
+    res.status(err.statusCode || 500).json({
+      message: err.message || 'Failed to load payout proofs.',
+    });
+  }
+};
+
+exports.reviewPayoutProof = async (req, res) => {
+  try {
+    const proof = await payoutService.reviewPayoutProof({
+      proofId: req.params.proofId,
+      status: req.body?.status,
+      comment: req.body?.comment || '',
+      actorUserId: req.user?.user_id || req.user?.userId || req.user?.sub || null,
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('payout:proof-reviewed', {
+        payout_proof_id: proof.payout_proof_id,
+        payout_entry_id: proof.payout_entry_id,
+        proof_status: proof.proof_status,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      message: 'Payout proof review saved.',
+      proof,
+    });
+  } catch (err) {
+    console.error('REVIEW PAYOUT PROOF ERROR:', err.message);
+    res.status(err.statusCode || 500).json({
+      message: err.message || 'Failed to review payout proof.',
+    });
+  }
+};

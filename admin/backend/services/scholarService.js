@@ -943,3 +943,17 @@ async function getLatestRenewalByStudentId(studentId) {
 }
 
 exports.getLatestRenewalByStudentId = getLatestRenewalByStudentId;
+
+// Releases the scholar's occupied slot and promotes the next eligible
+// waiting applicant, when one exists. The detailed selection logic is kept
+// in selectionService to ensure the same FCFS ordering is used everywhere.
+exports.archiveScholarAndReleaseSlot = async (studentId, payload = {}, actor = {}) => {
+  const selectionService = require('./selectionService');
+  return selectionService.releaseScholarSlotAndPromote({
+    studentId,
+    actor,
+    reason: payload.reason || 'Removed from scholarship',
+    notes: payload.notes || '',
+    archiveStudent: payload.archive_student === true,
+  });
+};

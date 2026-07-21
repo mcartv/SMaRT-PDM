@@ -199,6 +199,61 @@ exports.updateSdoStatus = async (req, res) => {
     }
 };
 
+
+exports.archiveScholar = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await scholarService.archiveScholarAndReleaseSlot(
+            id,
+            req.body || {},
+            req.user
+        );
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('scholar:archived', {
+                scholar_id: id,
+                student_id: id,
+                opening_id: result.opening_id,
+                promotion: result.promotion || null,
+                updated_at: new Date().toISOString(),
+            });
+            if (result.promotion?.promoted) {
+                io.emit('selection:waitlist-promoted', {
+                    opening_id: result.opening_id,
+                    ...result.promotion,
+                    updated_at: new Date().toISOString(),
+                });
+            }
+        }
+
+        await writeScholarAudit(
+            req,
+            'ARCHIVE_SCHOLAR_RELEASE_SLOT',
+            `Archived scholar and released a scholarship slot: ${id}.`,
+            null,
+            {
+                student_id: id,
+                changes: req.body || {},
+                promotion: result.promotion || null,
+            }
+        );
+
+        res.status(200).json({
+            message: result.promotion?.promoted
+                ? `Scholar archived. ${result.promotion.applicant_name || 'The next applicant'} was promoted from the waiting list.`
+                : 'Scholar archived and the scholarship slot was released.',
+            data: result,
+        });
+    } catch (err) {
+        console.error('ARCHIVE SCHOLAR ERROR:', err.message);
+        res.status(err.statusCode || 500).json({
+            message: err.message || 'Failed to archive scholar.',
+            error: err.message || 'Unknown backend error',
+        });
+    }
+};
+
 exports.verifyScholarRenewalDocument = async (req, res) => {
     try {
         const { id, renewalDocumentId } = req.params;

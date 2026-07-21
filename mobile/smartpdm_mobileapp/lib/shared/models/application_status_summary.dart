@@ -9,6 +9,7 @@ class ApplicationStatusSummary {
     this.programId,
     this.programName,
     this.submissionDate,
+    this.selection,
     this.workflow,
   });
 
@@ -21,6 +22,7 @@ class ApplicationStatusSummary {
   final String? programId;
   final String? programName;
   final DateTime? submissionDate;
+  final ApplicationSelectionSummary? selection;
   final ApplicationWorkflowSummary? workflow;
 
   factory ApplicationStatusSummary.fromJson(Map<String, dynamic> json) {
@@ -39,9 +41,83 @@ class ApplicationStatusSummary {
       submissionDate: DateTime.tryParse(
         application['submission_date']?.toString() ?? '',
       ),
+      selection: ApplicationSelectionSummary.fromJson(
+        _asMap(json['selection']).isNotEmpty
+            ? _asMap(json['selection'])
+            : application,
+      ),
       workflow: json['workflow'] is Map
           ? ApplicationWorkflowSummary.fromJson(_asMap(json['workflow']))
           : null,
+    );
+  }
+}
+
+class ApplicationSelectionSummary {
+  const ApplicationSelectionSummary({
+    required this.status,
+    required this.canReapply,
+    this.queuePosition,
+    this.waitlistPosition,
+    this.requirementsCompletedAt,
+    this.requirementsVerifiedAt,
+    this.finalizedAt,
+    this.activatedAt,
+    this.reapplicationReason,
+    this.availableSlots,
+    this.allocatedSlots,
+    this.waitingListEnabled = false,
+    this.applicationPeriodStatus,
+  });
+
+  final String status;
+  final int? queuePosition;
+  final int? waitlistPosition;
+  final DateTime? requirementsCompletedAt;
+  final DateTime? requirementsVerifiedAt;
+  final DateTime? finalizedAt;
+  final DateTime? activatedAt;
+  final bool canReapply;
+  final String? reapplicationReason;
+  final int? availableSlots;
+  final int? allocatedSlots;
+  final bool waitingListEnabled;
+  final String? applicationPeriodStatus;
+
+  bool get isWaitlisted => status.trim().toLowerCase() == 'waitlisted';
+  bool get isSelected {
+    final value = status.trim().toLowerCase();
+    return value == 'selected' || value == 'promoted';
+  }
+
+  factory ApplicationSelectionSummary.fromJson(Map<String, dynamic> json) {
+    int? toInt(dynamic value) => value is num
+        ? value.toInt()
+        : int.tryParse(value?.toString() ?? '');
+
+    return ApplicationSelectionSummary(
+      status: _stringValue(
+        json['status'] ?? json['selection_status'],
+        fallback: 'Unranked',
+      ),
+      queuePosition: toInt(json['queue_position']),
+      waitlistPosition: toInt(json['waitlist_position']),
+      requirementsCompletedAt: DateTime.tryParse(
+        json['requirements_completed_at']?.toString() ?? '',
+      ),
+      requirementsVerifiedAt: DateTime.tryParse(
+        json['requirements_verified_at']?.toString() ?? '',
+      ),
+      finalizedAt: DateTime.tryParse(json['finalized_at']?.toString() ?? ''),
+      activatedAt: DateTime.tryParse(json['activated_at']?.toString() ?? ''),
+      canReapply: json['can_reapply'] == true,
+      reapplicationReason: _nullableString(json['reapplication_reason']),
+      availableSlots: toInt(json['available_slots']),
+      allocatedSlots: toInt(json['allocated_slots']),
+      waitingListEnabled: json['waiting_list_enabled'] == true,
+      applicationPeriodStatus: _nullableString(
+        json['application_period_status'],
+      ),
     );
   }
 }

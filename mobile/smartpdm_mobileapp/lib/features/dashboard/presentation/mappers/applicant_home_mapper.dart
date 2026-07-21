@@ -93,7 +93,7 @@ class ApplicantHomeMapper {
       summary: summary,
       publishedLabel: _dateFormat.format(notification.createdAt.toLocal()),
       categoryLabel: notification.isOpeningUpdate
-          ? 'Scholarship opening'
+          ? 'Scholarship'
           : notification.isAnnouncementNotification
           ? 'Announcement'
           : 'Office update',
@@ -385,19 +385,19 @@ class ApplicantHomeMapper {
             target: ApplicantHomeActionTarget.documents,
             openingId: openingId.isEmpty ? null : openingId,
             applicationId: _opaqueIdentifier(opening.existingApplicationId),
-            openingTitle: title.isEmpty ? 'Scholarship opening' : title,
+            openingTitle: title.isEmpty ? 'Scholarship' : title,
             programName: programName.isEmpty
                 ? 'Scholarship program'
                 : programName,
           )
         : ApplicantHomeActionPresentation(
             label: opening.canApply || opening.canReapply
-                ? 'Review opening'
-                : 'View opening',
+                ? 'Review scholarship'
+                : 'View scholarship',
             target: ApplicantHomeActionTarget.scholarships,
             openingId: openingId.isEmpty ? null : openingId,
             applicationId: _opaqueIdentifier(opening.existingApplicationId),
-            openingTitle: title.isEmpty ? 'Scholarship opening' : title,
+            openingTitle: title.isEmpty ? 'Scholarship' : title,
             programName: programName.isEmpty
                 ? 'Scholarship program'
                 : programName,
@@ -405,7 +405,7 @@ class ApplicantHomeMapper {
 
     return ApplicantHomeOpeningPresentation(
       openingId: openingId,
-      title: title.isEmpty ? 'Scholarship opening' : title,
+      title: title.isEmpty ? 'Scholarship' : title,
       programName: programName.isEmpty ? 'Scholarship program' : programName,
       applicationPeriod: _applicationPeriod(opening),
       canApply: opening.canApply || opening.canReapply,

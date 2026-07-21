@@ -46,4 +46,8 @@ router.patch(
     payoutController.restorePayoutBatch
 );
 
+
+router.get('/proofs', protect, payoutController.getPayoutProofs);
+router.patch('/proofs/:proofId/review', protect, payoutController.reviewPayoutProof);
+
 module.exports = router;

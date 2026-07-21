@@ -1,4 +1,5 @@
 const applicationService = require('../services/applicationService');
+const selectionService = require('../services/selectionService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const ExcelJS = require('exceljs');
@@ -327,41 +328,35 @@ exports.approveApplication = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const updated = await applicationService.approveApplicationWithSlotCheck(id);
+        // Compatibility route: the previous Approve action now places the
+        // applicant in the FCFS qualified queue. Scholar activation happens
+        // only after the opening's final applicant list is finalized.
+        const updated = await selectionService.markApplicationQualified(id, req.user);
 
         const io = req.app.get('io');
-        socketEvents.applicationApproved(io, {
-            application_id: id,
-            status: 'approved',
-            updated_at: new Date().toISOString()
-        });
-        if (updated?.scholar) {
-            socketEvents.scholarCreated(io, {
-                scholar_id:
-                    updated.scholar.scholar_id?.toString?.() ||
-                    updated.scholar.student_id?.toString?.() ||
-                    id,
-                student_id:
-                    updated.scholar.student_id?.toString?.() ||
-                    updated.scholar.scholar_id?.toString?.() ||
-                    id,
+        if (io) {
+            io.emit('selection:queue-updated', {
+                application_id: id,
+                opening_id: updated.application?.opening_id || null,
+                queue_position: updated.queue_position || null,
                 updated_at: new Date().toISOString(),
             });
         }
 
         res.status(200).json({
-            message: 'Application approved successfully',
-            application: updated.application || updated,
-            scholar: updated.scholar || null,
-            outcome: updated.outcome || null,
+            message: updated.message,
+            application: updated.application,
+            scholar: null,
+            outcome: 'qualified_for_final_selection',
+            queue_position: updated.queue_position,
         });
     } catch (err) {
-        console.error('APPROVE APPLICATION CONTROLLER ERROR:', err.message);
+        console.error('QUALIFY APPLICATION CONTROLLER ERROR:', err.message);
 
         const statusCode = err.statusCode || (isApprovalStateError(err.message) ? 400 : 500);
 
         res.status(statusCode).json({
-            message: statusCode >= 500 ? 'Failed to approve application' : err.message,
+            message: statusCode >= 500 ? 'Failed to qualify application' : err.message,
             error: err.message,
         });
     }

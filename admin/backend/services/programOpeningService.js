@@ -93,6 +93,12 @@ function mapOpening(opening, counts = {}) {
         allocated_slots: allocatedSlots,
         filled_slots: effectiveFilledSlots,
         remaining_slots: Math.max(allocatedSlots - effectiveFilledSlots, 0),
+        waiting_list_enabled: opening.waiting_list_enabled !== false,
+        waiting_list_limit: toRequiredNumber(opening.waiting_list_limit, 0),
+        selection_status: opening.selection_status || 'Not Started',
+        selection_started_at: opening.selection_started_at || null,
+        selection_finalized_at: opening.selection_finalized_at || null,
+        selection_finalized_by: opening.selection_finalized_by || null,
 
         financial_allocation: opening.financial_allocation ?? null,
         per_scholar_amount:
@@ -200,6 +206,12 @@ function baseOpeningSelectQuery() {
       financial_allocation,
       per_scholar_amount,
       posting_status,
+      waiting_list_enabled,
+      waiting_list_limit,
+      selection_status,
+      selection_started_at,
+      selection_finalized_at,
+      selection_finalized_by,
       created_at,
       updated_at,
       is_archived,
@@ -334,6 +346,16 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
       application_status,
       document_status,
       verification_status,
+      selection_status,
+      requirements_completed_at,
+      requirements_verified_at,
+      queue_position,
+      waitlist_position,
+      selection_batch_id,
+      activation_status,
+      activated_at,
+      can_reapply,
+      reapplication_reason,
       submission_date,
       is_disqualified,
       rejection_reason,
@@ -414,6 +436,16 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             application_status: normalizeStatus(app.application_status || 'pending'),
             document_status: normalizeStatus(app.document_status || 'missing docs'),
             verification_status: normalizeStatus(app.verification_status || 'pending'),
+            selection_status: app.selection_status || 'Unranked',
+            requirements_completed_at: app.requirements_completed_at || null,
+            requirements_verified_at: app.requirements_verified_at || null,
+            queue_position: app.queue_position ?? null,
+            waitlist_position: app.waitlist_position ?? null,
+            selection_batch_id: app.selection_batch_id || null,
+            activation_status: app.activation_status || 'Not Activated',
+            activated_at: app.activated_at || null,
+            can_reapply: app.can_reapply === true,
+            reapplication_reason: app.reapplication_reason || null,
             ocr_status: '',
             remarks: app.remarks || '',
             submitted: app.submission_date || null,
@@ -422,9 +454,9 @@ exports.fetchApplicationsByOpeningId = async (openingId) => {
             is_disqualified: !!app.is_disqualified,
             disqReason: app.rejection_reason || null,
             rejection_reason: app.rejection_reason || null,
-            is_scholar: ['qualified', 'approved', 'accepted'].includes(
-                normalizeStatus(app.application_status)
-            ),
+            is_scholar:
+                ['approved', 'accepted'].includes(normalizeStatus(app.application_status)) ||
+                ['selected', 'promoted'].includes(normalizeStatus(app.selection_status)),
         }));
 };
 
@@ -440,6 +472,8 @@ exports.createProgramOpening = async (payload = {}) => {
         per_scholar_amount,
         posting_status,
         period_id,
+        waiting_list_enabled = true,
+        waiting_list_limit = 0,
     } = payload;
 
     if (!program_id) throw new Error('Program ID is required');
@@ -471,6 +505,9 @@ exports.createProgramOpening = async (payload = {}) => {
                 ? Number(per_scholar_amount)
                 : 0,
         posting_status: isArchived ? 'archived' : normalizedStatus || 'draft',
+        waiting_list_enabled: waiting_list_enabled !== false,
+        waiting_list_limit: Math.max(0, Number(waiting_list_limit || 0)),
+        selection_status: 'Not Started',
         is_archived: isArchived,
     };
 
@@ -497,6 +534,12 @@ exports.createProgramOpening = async (payload = {}) => {
       financial_allocation,
       per_scholar_amount,
       posting_status,
+      waiting_list_enabled,
+      waiting_list_limit,
+      selection_status,
+      selection_started_at,
+      selection_finalized_at,
+      selection_finalized_by,
       created_at,
       updated_at,
       is_archived,
@@ -574,6 +617,10 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
         financial_allocation: payload.financial_allocation ?? existing.financial_allocation,
         per_scholar_amount: payload.per_scholar_amount ?? existing.per_scholar_amount,
         posting_status: payload.posting_status ?? existing.posting_status,
+        waiting_list_enabled:
+            payload.waiting_list_enabled ?? existing.waiting_list_enabled ?? true,
+        waiting_list_limit:
+            payload.waiting_list_limit ?? existing.waiting_list_limit ?? 0,
         is_archived: payload.is_archived ?? existing.is_archived ?? false,
     };
 
@@ -627,6 +674,8 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
                 ? Number(merged.per_scholar_amount)
                 : 0,
         posting_status: effectiveStatus,
+        waiting_list_enabled: merged.waiting_list_enabled !== false,
+        waiting_list_limit: Math.max(0, Number(merged.waiting_list_limit || 0)),
         is_archived: effectiveArchived,
         updated_at: new Date().toISOString(),
     };
@@ -655,6 +704,12 @@ exports.updateProgramOpening = async (openingId, payload = {}) => {
       financial_allocation,
       per_scholar_amount,
       posting_status,
+      waiting_list_enabled,
+      waiting_list_limit,
+      selection_status,
+      selection_started_at,
+      selection_finalized_at,
+      selection_finalized_by,
       created_at,
       updated_at,
       is_archived,
@@ -725,6 +780,12 @@ exports.closeProgramOpening = async (openingId) => {
       financial_allocation,
       per_scholar_amount,
       posting_status,
+      waiting_list_enabled,
+      waiting_list_limit,
+      selection_status,
+      selection_started_at,
+      selection_finalized_at,
+      selection_finalized_by,
       created_at,
       updated_at,
       is_archived,

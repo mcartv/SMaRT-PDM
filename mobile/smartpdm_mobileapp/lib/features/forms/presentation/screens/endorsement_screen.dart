@@ -162,7 +162,7 @@ class _EndorsementScreenState extends State<EndorsementScreen> {
                 title: 'No endorsement yet',
                 message:
                     'Submit a scholarship application first before endorsement tracking becomes available.',
-                primaryActionLabel: 'View Scholarship Openings',
+                primaryActionLabel: 'View Scholarships',
                 onPrimaryAction: () => Navigator.pushNamed(
                   context,
                   AppRoutes.scholarshipOpenings,

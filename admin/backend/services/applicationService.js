@@ -148,6 +148,25 @@ const REQUIRED_UPLOAD_DOCUMENT_NAMES = Object.freeze([
     'letter of request',
 ]);
 
+async function resolveRequirementsCompletedAt(applicationId) {
+    const result = await pool.query(
+        `
+        SELECT MAX(COALESCE(ad.submitted_at, ad.updated_at, ad.created_at)) AS completed_at
+        FROM application_documents ad
+        WHERE ad.application_id = $1
+          AND COALESCE(ad.is_submitted, false) = true
+          AND lower(trim(COALESCE(ad.document_type, ''))) = ANY($2::text[])
+          AND (
+            NULLIF(trim(COALESCE(ad.file_path, '')), '') IS NOT NULL
+            OR NULLIF(trim(COALESCE(ad.file_url, '')), '') IS NOT NULL
+          )
+        `,
+        [applicationId, REQUIRED_UPLOAD_DOCUMENT_NAMES]
+    );
+
+    return result.rows[0]?.completed_at || null;
+}
+
 function buildHttpError(statusCode, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -2338,6 +2357,29 @@ exports.saveApplicationVerification = async (applicationId, payload, user) => {
     let activation = null;
 
     if (verification_status === 'verified') {
+        const requirementsCompletedAt = await resolveRequirementsCompletedAt(applicationId);
+
+        const { data: qualifiedApplication, error: qualifiedUpdateError } = await supabase
+            .from('applications')
+            .update({
+                requirements_completed_at:
+                    requirementsCompletedAt || updatedApplication?.submission_date || reviewedAt,
+                requirements_verified_at: reviewedAt,
+                selection_status: 'Requirements Verified',
+                queue_position: null,
+                waitlist_position: null,
+                activation_status: 'Not Activated',
+            })
+            .eq('application_id', applicationId)
+            .select()
+            .single();
+
+        if (qualifiedUpdateError) {
+            console.error('SUPABASE QUALIFIED APPLICATION UPDATE ERROR:', qualifiedUpdateError);
+            throw new Error(qualifiedUpdateError.message);
+        }
+
+        finalizedApplication = qualifiedApplication;
         finalOutcome = 'requirements_complete';
     } else if (verification_status === 'rejected') {
         if (updatedApplication?.student_id) {
@@ -2439,303 +2481,11 @@ exports.moveApplicationToWaiting = async (_applicationId) => {
     throw new Error('Waiting status is not supported by the current applications schema');
 };
 
-exports.approveApplicationWithSlotCheck = async (applicationId) => {
-    const client = await pool.connect();
-
-    try {
-        await client.query('BEGIN');
-
-        const applicationQuery = `
-            SELECT
-                a.application_id,
-                a.student_id,
-                a.program_id,
-                a.opening_id,
-                a.application_status,
-                a.submission_date,
-                st.user_id AS student_user_id,
-                st.scholarship_status,
-                st.current_application_id,
-                po.allocated_slots,
-                po.filled_slots,
-                po.posting_status,
-                po.is_archived AS opening_is_archived,
-                po.academic_year_id,
-                po.period_id,
-                COUNT(a2.application_id) FILTER (
-                    WHERE LOWER(COALESCE(a2.application_status, '')) = 'approved'
-                )::int AS approved_count
-            FROM applications a
-            INNER JOIN students st
-                ON st.student_id = a.student_id
-            INNER JOIN program_openings po
-                ON po.opening_id = a.opening_id
-            LEFT JOIN applications a2
-                ON a2.opening_id = po.opening_id
-            WHERE a.application_id = $1
-            GROUP BY
-                a.application_id,
-                a.student_id,
-                a.program_id,
-                a.opening_id,
-                a.application_status,
-                a.submission_date,
-                st.user_id,
-                st.scholarship_status,
-                st.current_application_id,
-                po.allocated_slots,
-                po.filled_slots,
-                po.posting_status,
-                po.is_archived,
-                po.academic_year_id,
-                po.period_id
-        `;
-
-        const { rows } = await client.query(applicationQuery, [applicationId]);
-
-        if (!rows.length) {
-            throw new Error('Application not found');
-        }
-
-        const row = rows[0];
-
-        const slotCount = Number(row.allocated_slots || 0);
-        const approvedCount = Number(row.approved_count || 0);
-        const openingStatus = String(row.posting_status || '').toLowerCase();
-        const currentApplicationStatus = String(row.application_status || '').toLowerCase();
-        const openingIsArchived = !!row.opening_is_archived;
-
-        if (!row.student_id || !row.program_id) {
-            throw new Error('Application is missing student_id or program_id');
-        }
-
-        if (openingIsArchived) {
-            throw new Error('This opening is already archived.');
-        }
-
-        const readinessResult = await client.query(
-            `
-            with latest_application as (
-                select latest.application_id
-                from applications latest
-                where latest.student_id = $4
-                order by latest.submission_date desc nulls last,
-                         latest.created_at desc nulls last
-                limit 1
-            ),
-            review_summary as (
-                select
-                    adr.application_id,
-                    count(distinct case
-                        when lower(coalesce(adr.document_key, '')) = any($2::text[])
-                         and lower(coalesce(adr.review_status, '')) = 'verified'
-                        then lower(adr.document_key)
-                    end) as verified_review_count
-                from application_document_reviews adr
-                where adr.application_id = $1
-                group by adr.application_id
-            ),
-            upload_summary as (
-                select
-                    ad.application_id,
-                    count(distinct case
-                        when lower(coalesce(ad.document_type, '')) = any($3::text[])
-                         and coalesce(ad.is_submitted, false) = true
-                         and (
-                            nullif(trim(coalesce(ad.file_path, '')), '') is not null
-                            or nullif(trim(coalesce(ad.file_url, '')), '') is not null
-                         )
-                        then lower(ad.document_type)
-                    end) as uploaded_required_count
-                from application_documents ad
-                where ad.application_id = $1
-                group by ad.application_id
-            )
-            select
-                la.application_id as latest_application_id,
-                a.application_status,
-                a.verification_status,
-                coalesce(rs.verified_review_count, 0) as verified_review_count,
-                coalesce(us.uploaded_required_count, 0) as uploaded_required_count,
-                es.overall_status as endorsement_overall_status
-            from applications a
-            left join latest_application la on true
-            left join review_summary rs on rs.application_id = a.application_id
-            left join upload_summary us on us.application_id = a.application_id
-            left join endorsement_slips es on es.application_id = a.application_id
-            where a.application_id = $1
-            limit 1
-            `,
-            [
-                applicationId,
-                REQUIRED_REVIEW_DOCUMENT_KEYS,
-                REQUIRED_UPLOAD_DOCUMENT_NAMES,
-                row.student_id,
-            ]
-        );
-        const readiness = readinessResult.rows[0] || {};
-        const isLatestSubmittedApplication =
-            String(readiness.latest_application_id || '') === String(applicationId);
-        const readinessApplicationStatus = normalizeLookupValue(readiness.application_status);
-        const readinessVerificationStatus = normalizeLookupValue(readiness.verification_status);
-        const requirementsRejected =
-            readinessVerificationStatus === 'rejected' ||
-            readinessApplicationStatus === 'rejected' ||
-            readinessApplicationStatus === 'disqualified';
-        const requirementsVerified =
-            !requirementsRejected &&
-            Number(readiness.verified_review_count || 0) >= REQUIRED_REVIEW_DOCUMENT_KEYS.length &&
-            Number(readiness.uploaded_required_count || 0) >= REQUIRED_UPLOAD_DOCUMENT_NAMES.length;
-        const endorsementCompleted =
-            String(readiness.endorsement_overall_status || '').trim().toLowerCase() === 'completed';
-
-        if (!isLatestSubmittedApplication) {
-            throw buildHttpError(
-                409,
-                'Only the latest submitted application can be activated as the current scholar application.'
-            );
-        }
-
-        if (!requirementsVerified) {
-            throw buildHttpError(
-                409,
-                'Application is not ready for scholar activation: requirements.status must be verified.'
-            );
-        }
-
-        if (!endorsementCompleted) {
-            throw buildHttpError(
-                409,
-                'Application is not ready for scholar activation: endorsement.status must be completed.'
-            );
-        }
-
-        // ✅ STUDENT-BASED EXISTING SCHOLAR CHECK
-        if (
-            row.scholarship_status === 'Active' &&
-            row.current_application_id &&
-            row.current_application_id !== applicationId
-        ) {
-            await client.query('COMMIT');
-
-            return {
-                application: row,
-                scholar: null,
-                outcome: 'already_approved',
-                notificationShouldSend: false,
-                student_user_id: row.student_user_id || null,
-            };
-        }
-
-        // already approved safeguard
-        if (currentApplicationStatus === 'approved') {
-            await client.query('COMMIT');
-
-            return {
-                application: row,
-                scholar: null,
-                outcome: 'already_approved',
-                notificationShouldSend: false,
-                student_user_id: row.student_user_id || null,
-            };
-        }
-
-        // opening closed manually
-        if (openingStatus === 'closed') {
-            throw new Error('This opening is already closed.');
-        }
-
-        // slots exhausted
-        if (slotCount > 0 && approvedCount >= slotCount) {
-            await client.query(
-                `
-                UPDATE program_openings
-                SET posting_status = 'closed',
-                    filled_slots = GREATEST(COALESCE(filled_slots, 0), $2),
-                    updated_at = NOW()
-                WHERE opening_id = $1
-                `,
-                [row.opening_id, approvedCount]
-            );
-
-            throw new Error('No available slots left for this opening.');
-        }
-
-        // ✅ APPROVE APPLICATION
-        const updateApplicationResult = await client.query(
-            `
-            UPDATE applications
-            SET application_status = 'Approved',
-                is_disqualified = FALSE,
-                rejection_reason = NULL
-            WHERE application_id = $1
-            RETURNING *
-            `,
-            [applicationId]
-        );
-
-        const approvedApplication = updateApplicationResult.rows[0];
-
-        // ✅ ACTIVATE STUDENT (REPLACES scholars table)
-        await client.query(
-            `
-            UPDATE students
-            SET
-                is_active_scholar = TRUE,
-                scholarship_status = 'Active',
-                current_program_id = $2,
-                current_application_id = $3,
-                active_academic_year_id = $4,
-                active_period_id = $5,
-                date_awarded = CURRENT_DATE,
-                ro_status = 'Pending',
-                updated_at = NOW()
-            WHERE student_id = $1
-            `,
-            [
-                row.student_id,
-                row.program_id,
-                applicationId,
-                row.academic_year_id,
-                row.period_id
-            ]
-        );
-
-        const newApprovedCount = approvedCount + 1;
-        const shouldClose = slotCount > 0 && newApprovedCount >= slotCount;
-
-        // ✅ UPDATE OPENING
-        await client.query(
-            `
-            UPDATE program_openings
-            SET filled_slots = $2,
-                posting_status = CASE
-                    WHEN $3 = TRUE THEN 'closed'
-                    ELSE posting_status
-                END,
-                updated_at = NOW()
-            WHERE opening_id = $1
-            `,
-            [row.opening_id, newApprovedCount, shouldClose]
-        );
-
-        await client.query('COMMIT');
-
-        return {
-            application: approvedApplication,
-            scholar: null, // 🚫 removed
-            outcome: 'approved',
-            notificationShouldSend: true,
-            student_user_id: row.student_user_id || null,
-            opening_auto_closed: shouldClose,
-        };
-
-    } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-    } finally {
-        client.release();
-    }
+exports.approveApplicationWithSlotCheck = async (_applicationId) => {
+    throw buildHttpError(
+        409,
+        'Direct scholar activation is disabled. Mark the applicant as qualified, review the FCFS final list, and finalize the scholarship selection instead.'
+    );
 };
 
 module.exports = {

@@ -36,6 +36,13 @@ router.patch(
     scholarController.updateSdoStatus
 );
 
+router.patch(
+    '/:id/archive',
+    protect,
+    authorizeRoles('admin'),
+    scholarController.archiveScholar
+);
+
 router.get(
     '/:id/renewal-documents',
     protect,

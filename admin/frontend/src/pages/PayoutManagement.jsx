@@ -24,6 +24,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import PayoutProofReviewPanel from '@/components/payout/PayoutProofReviewPanel';
 
 const API_BASE = buildApiUrl('/api');
 const PAGE_SIZE = 6;
@@ -1081,6 +1082,8 @@ export default function PayoutManagement() {
         }}
         onCreateAnnouncement={handleCreatePayoutAnnouncementRedirect}
       />
+
+      <PayoutProofReviewPanel />
 
       <section
         className="rounded-2xl border bg-white p-3 sm:p-4"

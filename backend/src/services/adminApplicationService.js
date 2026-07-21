@@ -37,6 +37,13 @@ async function getApplications(query = {}) {
       application_status,
       document_status,
       verification_status,
+      requirements_completed_at,
+      requirements_verified_at,
+      selection_status,
+      queue_position,
+      waitlist_position,
+      can_reapply,
+      reapplication_reason,
       deficiency_status,
       rejection_reason,
       remarks,
@@ -138,7 +145,6 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
     }
 
     const adminId = await getAdminProfileId(adminUserId);
-
     const { data: application, error: appError } = await supabase
         .from('applications')
         .select(`
@@ -147,6 +153,8 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
       opening_id,
       program_id,
       application_status,
+      verification_status,
+      requirements_completed_at,
       students (
         student_id,
         user_id,
@@ -158,21 +166,23 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
         .maybeSingle();
 
     if (appError) throw appError;
+    if (!application) throw createHttpError(404, 'Application not found.');
 
-    if (!application) {
-        throw createHttpError(404, 'Application not found.');
+    if (safeText(application.verification_status).toLowerCase() !== 'verified') {
+        throw createHttpError(
+            409,
+            'Complete document verification before marking this applicant qualified.'
+        );
     }
 
     const now = new Date().toISOString();
-
     const { data: updatedApplication, error: updateAppError } = await supabase
         .from('applications')
         .update({
-            application_status: 'Approved',
-            verification_status: 'verified',
-            document_status: 'Documents Ready',
+            selection_status: 'Qualified',
+            requirements_verified_at: now,
             evaluator_id: adminId,
-            remarks: safeText(remarks) || 'Approved',
+            remarks: safeText(remarks) || 'Qualified for final selection',
             updated_at: now,
         })
         .eq('application_id', application.application_id)
@@ -181,22 +191,6 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
 
     if (updateAppError) throw updateAppError;
 
-    const { data: updatedStudent, error: updateStudentError } = await supabase
-        .from('students')
-        .update({
-            is_active_scholar: true,
-            scholarship_status: 'Active',
-            current_program_id: application.program_id,
-            current_application_id: application.application_id,
-            date_awarded: now.slice(0, 10),
-            updated_at: now,
-        })
-        .eq('student_id', application.student_id)
-        .select('*')
-        .single();
-
-    if (updateStudentError) throw updateStudentError;
-
     if (application.students?.user_id) {
         const { error: notificationError } = await supabase
             .from('notifications')
@@ -204,9 +198,9 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
                 {
                     user_id: application.students.user_id,
                     type: 'Application',
-                    title: 'Scholarship Application Approved',
+                    title: 'Application Qualified',
                     message:
-                        'Congratulations! Your scholarship application has been approved. Scholar features are now available in your account.',
+                        'Your application is qualified for the final applicant list. Qualification does not activate scholar access until OSFA finalizes the selected list.',
                     reference_id: application.application_id,
                     reference_type: 'application',
                     is_read: false,
@@ -215,14 +209,14 @@ async function approveApplication({ applicationId, adminUserId, remarks }) {
             ]);
 
         if (notificationError) {
-            console.warn('APPROVAL NOTIFICATION INSERT WARNING:', notificationError);
+            console.warn('QUALIFICATION NOTIFICATION INSERT WARNING:', notificationError);
         }
     }
 
     return {
-        message: 'Application approved successfully.',
+        message: 'Applicant marked as qualified for final selection.',
         application: updatedApplication,
-        student: updatedStudent,
+        student: null,
     };
 }
 

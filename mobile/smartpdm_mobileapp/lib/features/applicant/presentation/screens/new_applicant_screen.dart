@@ -15,6 +15,9 @@ import 'package:smartpdm_mobileapp/features/forms/presentation/screens/step_subm
 import 'package:smartpdm_mobileapp/features/forms/domain/validation/application_submission_validator.dart';
 import 'package:smartpdm_mobileapp/features/forms/presentation/providers/new_scholar_provider.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/core/constants/app_terms.dart';
+import 'package:smartpdm_mobileapp/core/constants/module_guidance_content.dart';
+import 'package:smartpdm_mobileapp/shared/widgets/module_guidance_card.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
 
 class NewApplicantScreen extends StatefulWidget {
@@ -221,7 +224,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     if (!_hasSelectedOpening) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Choose a scholarship opening before submitting.'),
+          content: Text('Choose a scholarship before submitting.'),
         ),
       );
       return;
@@ -595,6 +598,12 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                               Column(
                                 children: [
                                   _buildSelectedOpeningCard(context),
+                                  const SizedBox(height: 12),
+                                  const ModuleGuidanceCard(
+                                    title: ModuleGuidanceContent.requirementsTitle,
+                                    message: ModuleGuidanceContent.requirementsBody,
+                                  ),
+                                  const SizedBox(height: 12),
                                   AnimatedSwitcher(
                                     duration: const Duration(milliseconds: 220),
                                     child: KeyedSubtree(
@@ -633,7 +642,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Choose an opening first',
+            'Choose a scholarship first',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
               color: AppColors.darkBrown,
@@ -641,7 +650,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'This application form is tied to one scholarship opening. Select the opening you want to apply for before continuing.',
+            'This application form is tied to one scholarship. Select the scholarship you want to apply for before continuing.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               height: 1.45,
               color: AppColors.brown,
@@ -651,7 +660,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           SizedBox(
             width: double.infinity,
             child: GoldButton(
-              label: 'View Scholarship Openings',
+              label: AppTerms.viewAvailableScholarships,
               onTap: () => Navigator.pushReplacementNamed(
                 context,
                 AppRoutes.scholarshipOpenings,
@@ -688,7 +697,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  'Selected Opening',
+                  'Selected Scholarship',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.brown,
@@ -701,7 +710,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
           Text(
             _data.openingTitle.isNotEmpty
                 ? _data.openingTitle
-                : 'Scholarship Opening',
+                : 'Scholarship',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
               color: AppColors.darkBrown,

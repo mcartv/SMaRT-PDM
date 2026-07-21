@@ -146,7 +146,7 @@ class AppNotification {
     final openingTitle =
         json['opening_title']?.toString().trim().isNotEmpty == true
         ? json['opening_title']!.toString().trim()
-        : 'Scholarship Opening';
+        : 'Scholarship';
 
     final programName = json['program_name']?.toString().trim() ?? '';
     final body = json['announcement_text']?.toString().trim() ?? '';
@@ -161,8 +161,8 @@ class AppNotification {
       message: body.isNotEmpty
           ? body
           : programName.isNotEmpty
-          ? 'A new scholarship opening is now available for $programName applicants.'
-          : 'A new scholarship opening is now available for applicants.',
+          ? 'A new scholarship is now available for $programName applicants.'
+          : 'A new scholarship is now available for applicants.',
       referenceId: openingId.isNotEmpty ? openingId : null,
       referenceType: 'program_opening',
       isRead: true,
@@ -234,7 +234,7 @@ class AppNotification {
   }
 
   String get officeUpdateLabel {
-    if (isOpeningUpdate) return 'SCHOLARSHIP OPENING';
+    if (isOpeningUpdate) return 'SCHOLARSHIP';
     return 'ANNOUNCEMENT';
   }
 
@@ -247,7 +247,7 @@ class AppNotification {
       return 'PAYOUT';
     }
 
-    if (isOpeningUpdate) return 'SCHOLARSHIP OPENING';
+    if (isOpeningUpdate) return 'SCHOLARSHIP';
     if (isAnnouncementNotification) return 'ANNOUNCEMENT';
     if (isApplicationNotification) return 'APPLICATION';
     if (isDocumentNotification) return 'DOCUMENT';
@@ -265,7 +265,7 @@ class AppNotification {
     }
 
     if (isOpeningUpdate) {
-      return 'A scholarship opening has been posted for applicants.';
+      return 'A scholarship has been posted for applicants.';
     }
 
     if (isPayoutNotification) {

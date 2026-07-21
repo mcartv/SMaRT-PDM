@@ -1355,6 +1355,13 @@ function ArchiveScholarModal({ scholar, onClose, onConfirm, saving }) {
         </div>
 
         <CardContent className="p-5 space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-semibold text-amber-800">Scholarship slot will be released</p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-700">
+              Removing, graduating, or withdrawing this scholar releases one occupied slot. The next eligible applicant on the finalized waiting list will be promoted automatically when available.
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
               Removal Reason
@@ -1639,6 +1646,9 @@ export default function ScholarMonitoring() {
       }
 
       setArchiveModalScholar(null);
+      alert(data.message || (data.promotion?.promoted
+        ? `Scholar removed. ${data.promotion.applicant_name || 'The next waiting applicant'} was promoted automatically.`
+        : 'Scholar removed and the scholarship slot was released.'));
     } catch (err) {
       console.error('ARCHIVE SCHOLAR ERROR:', err);
       alert(err.message || 'Failed to archive scholar');

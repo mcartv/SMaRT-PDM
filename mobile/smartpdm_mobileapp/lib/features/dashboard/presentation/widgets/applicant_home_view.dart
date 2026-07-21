@@ -203,7 +203,7 @@ class _ApplicationStatusSection extends StatelessWidget {
       hasError: section.hasError,
       loadingLabel: 'Loading application status',
       emptyTitle: 'Application status is not available yet',
-      emptyMessage: 'Choose a scholarship opening to get started.',
+      emptyMessage: 'Choose a scholarship to get started.',
       errorTitle: 'Application status is unavailable',
       errorMessage: 'We could not refresh your application status.',
       onRetry: onRetry,

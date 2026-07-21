@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Card, CardContent } from '@/components/ui/card';
@@ -151,7 +151,7 @@ function getDocumentStatusMeta(row) {
   }
 
   return {
-    label: row?.document_status || 'â€”',
+    label: row?.document_status || '—',
     bg: '#f5f5f4',
     color: '#57534e',
   };
@@ -212,22 +212,17 @@ function normalizeApplicantRow(app) {
       app.student_name ||
       [app.first_name, app.last_name].filter(Boolean).join(' ') ||
       'Unnamed Applicant',
-    pdm_id: app.pdm_id || 'â€”',
+    pdm_id: app.pdm_id || '—',
     program_name: app.program_name || 'No Program',
     application_status: app.application_status || 'Pending',
-    document_status: app.document_status || app.deficiency_status || 'â€”',
+    document_status: app.document_status || app.deficiency_status || '—',
     submitted_at: app.submission_date || null,
     opening_title: app.opening_title || 'Untitled Opening',
-    academic_year: app.academic_year || 'â€”',
+    academic_year: app.academic_year || '—',
     posting_status: app.posting_status || app.opening_status || 'open',
     allocated_slots: app.allocated_slots || 0,
     filled_slots: app.filled_slots || 0,
     requirements_complete: app.requirements_complete === true,
-    documents_ready:
-      app.documents_ready === true ||
-      Number(app.uploaded_required_count || 0) >= 4,
-    uploaded_required_count: Number(app.uploaded_required_count || 0),
-    requirements_status: app.requirements_status || null,
     endorsement_complete: app.endorsement_complete === true,
     scholar_activation_ready: app.scholar_activation_ready === true,
     requirements_incomplete: app.requirements_incomplete !== false,
@@ -576,7 +571,7 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                     </h2>
                     <p className="mt-1 text-sm text-stone-500">
                       {opening.program_name || 'No Program'}
-                      {opening.academic_year ? ` â€¢ ${opening.academic_year}` : ''}
+                      {opening.academic_year ? ` • ${opening.academic_year}` : ''}
                     </p>
                   </div>
 
@@ -675,13 +670,9 @@ function RegistryTable({
 
               <tbody className="divide-y divide-stone-100 bg-white">
                 {rows.map((row) => {
-                  const documentsReady =
-                    row.documents_ready === true ||
-                    Number(row.uploaded_required_count || 0) >= 4;
-
                   const requirementsMeta = getReadinessMeta(
-                    documentsReady,
-                    'Documents Ready',
+                    row.requirements_complete,
+                    'Complete',
                     'Incomplete'
                   );
                   const endorsementMeta = getReadinessMeta(
@@ -853,7 +844,7 @@ function Pagination({ page, totalPages, totalItems, onPrev, onNext }) {
   return (
     <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-sm text-stone-500">
-        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}â€“
+        Showing {totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–
         {Math.min(page * PAGE_SIZE, totalItems)} of {totalItems}
       </span>
 
@@ -1080,7 +1071,7 @@ export default function ApplicationReview() {
       opening_id: opening.opening_id,
       opening_title: opening.opening_title || opening.title || 'Untitled Opening',
       program_name: opening.program_name || 'No Program',
-      academic_year: opening.academic_year || opening.academic_year_label || opening.label || 'â€”',
+      academic_year: opening.academic_year || opening.academic_year_label || opening.label || '—',
       posting_status: opening.posting_status || opening.status || 'open',
       allocated_slots: Number(opening.allocated_slots || opening.slot_count || 0),
       filled_slots: Number(opening.filled_slots || 0),
@@ -1342,7 +1333,7 @@ export default function ApplicationReview() {
             onApproveScholar={approveScholar}
             approvalLoadingId={approvalLoadingId}
             title="Applicant Registry"
-            subtitle="Applicants with incomplete documents or pending endorsement before moving to readiness."
+            subtitle="Applicants still completing requirements or endorsement before moving to readiness."
             mode="registry"
             page={page}
             totalPages={tableTotalPages}
@@ -1355,4 +1346,3 @@ export default function ApplicationReview() {
     </div>
   );
 }
-

@@ -45,6 +45,7 @@ def _valid_word_data(
     title_y=120,
     duplicate_subject=False,
     header_text="SANGGUNIANG BARANGAY OF SAMPLE II",
+    date_text="Given this 16th day of July 2026 at the barangay office.",
 ):
     data = _empty_data()
     _add_line(
@@ -91,7 +92,7 @@ def _valid_word_data(
         )
     _add_line(
         data,
-        "Given this 16th day of July 2026 at the barangay office.",
+        date_text,
         y=680,
         block=5,
         paragraph=1,
@@ -284,7 +285,145 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
             ambiguous,
         )
 
-    def test_malformed_date_is_not_repaired_or_returned(self):
+    def test_valid_positional_day_of_month_date_does_not_use_crop_ocr(self):
+        calls = []
+
+        def reader(crop, field_name):
+            calls.append(field_name)
+            if field_name == "issue_date":
+                raise AssertionError("valid positional date must not be re-read")
+            return _field_reader(crop, field_name)
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                date_text="Given this 16 day of July 2026 at the barangay office."
+            ),
+            field_reader=reader,
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertTrue(issue_date.success)
+        self.assertEqual(issue_date.raw_text, "16 day of July 2026")
+        self.assertNotIn("issue_date", calls)
+
+    def test_valid_positional_month_day_year_does_not_use_crop_ocr(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                date_text="Issued this July 16, 2026 at the barangay office."
+            ),
+            field_reader=lambda crop, field_name: (
+                "invalid crop date"
+                if field_name == "issue_date"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertTrue(issue_date.success)
+        self.assertEqual(issue_date.raw_text, "July 16 2026")
+
+    def test_positional_date_strips_trailing_month_or_year_commas(self):
+        cases = (
+            (
+                "Given this 16th day of July, 2026 at the barangay office.",
+                "16th day of July 2026",
+            ),
+            (
+                "Given this 16th day of July 2026, at the barangay office.",
+                "16th day of July 2026",
+            ),
+        )
+        for positional_line, expected in cases:
+            with self.subTest(positional_line=positional_line):
+                result = extract_indigency_core_fields(
+                    self.image,
+                    word_reader=lambda *_args, value=positional_line: (
+                        _valid_word_data(date_text=value)
+                    ),
+                    field_reader=lambda crop, field_name: (
+                        "invalid crop date"
+                        if field_name == "issue_date"
+                        else _field_reader(crop, field_name)
+                    ),
+                )
+                issue_date = next(
+                    field
+                    for field in result.data.fields
+                    if field.name == "issue_date"
+                )
+
+                self.assertTrue(issue_date.success)
+                self.assertEqual(issue_date.raw_text, expected)
+
+    def test_positional_date_strips_only_leading_and_trailing_punctuation(self):
+        calls = []
+
+        def reader(crop, field_name):
+            calls.append(field_name)
+            if field_name == "issue_date":
+                raise AssertionError("sanitized positional date must be primary")
+            return _field_reader(crop, field_name)
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                date_text=(
+                    "Given this [16th] /day/ (of) 'JuLy' <2026> "
+                    "at the barangay office."
+                )
+            ),
+            field_reader=reader,
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertTrue(issue_date.success)
+        self.assertEqual(issue_date.raw_text, "16th day of JuLy 2026")
+        self.assertNotIn("issue_date", calls)
+
+    def test_internal_invalid_date_characters_are_not_corrected(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                date_text="Given this 16th day of July 20-26 at the office."
+            ),
+            field_reader=lambda crop, field_name: (
+                "still invalid"
+                if field_name == "issue_date"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertFalse(issue_date.success)
+        self.assertEqual(issue_date.raw_text, "")
+        self.assertEqual(issue_date.issue_codes, ("ISSUE_DATE_NOT_EXTRACTED",))
+
+    def test_invalid_positional_date_uses_valid_crop_ocr_fallback(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                date_text="Given this unreadable date at the barangay office."
+            ),
+            field_reader=_field_reader,
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertTrue(issue_date.success)
+        self.assertEqual(issue_date.raw_text, "16th day of July 2026")
+
+    def test_both_positional_and_crop_dates_invalid_remains_unextracted(self):
         def reader(crop, field_name):
             if field_name == "issue_date":
                 return "32nd day of Smarch 20X6"
@@ -292,14 +431,113 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
 
         result = extract_indigency_core_fields(
             self.image,
-            word_reader=lambda *_args: _valid_word_data(),
+            word_reader=lambda *_args: _valid_word_data(
+                date_text="Given this unreadable date at the barangay office."
+            ),
             field_reader=reader,
         )
-        issue_date = next(field for field in result.data.fields if field.name == "issue_date")
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
 
         self.assertFalse(issue_date.success)
         self.assertEqual(issue_date.raw_text, "")
         self.assertEqual(issue_date.issue_codes, ("ISSUE_DATE_NOT_EXTRACTED",))
+
+    def test_invalid_calendar_date_is_rejected_from_both_sources(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                date_text="Given this 31st day of February 2026 at the office."
+            ),
+            field_reader=lambda crop, field_name: (
+                "February 31, 2026"
+                if field_name == "issue_date"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertFalse(issue_date.success)
+        self.assertEqual(issue_date.issue_codes, ("ISSUE_DATE_NOT_EXTRACTED",))
+
+    def test_multiple_date_anchors_remain_ambiguous(self):
+        data = _valid_word_data()
+        _add_line(
+            data,
+            "Issued this July 17 2026 at the barangay office.",
+            y=740,
+            block=6,
+            paragraph=1,
+            line=1,
+        )
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: data,
+            field_reader=_field_reader,
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertFalse(issue_date.success)
+        self.assertIn(
+            {
+                "code": "FIELD_ANCHOR_AMBIGUOUS",
+                "stage": "indigency_core_field_extraction",
+                "field": "issue_date",
+            },
+            result.issues,
+        )
+
+    def test_positional_date_preserves_selected_orientation_metadata(self):
+        reader, _calls = _orientation_reader("180")
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=reader,
+            field_reader=_field_reader,
+        )
+        issue_date = next(
+            field for field in result.data.fields if field.name == "issue_date"
+        )
+
+        self.assertTrue(issue_date.success)
+        self.assertEqual(result.data.selected_orientation, "180")
+        self.assertEqual(result.data.candidate_count, 8)
+        self.assertEqual(issue_date.anchor, "given this")
+        self.assertIsNotNone(issue_date.normalized_bounds)
+        self.assertEqual(
+            issue_date.detection_variant,
+            result.data.selected_detection_variant,
+        )
+
+    def test_positional_date_does_not_change_subject_or_barangay_reading(self):
+        calls = []
+
+        def reader(crop, field_name):
+            calls.append(field_name)
+            return _field_reader(crop, field_name)
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(),
+            field_reader=reader,
+        )
+        fields = {field.name: field for field in result.data.fields}
+
+        self.assertEqual(
+            calls,
+            ["certificate_subject_name", "issuing_barangay"],
+        )
+        self.assertEqual(
+            fields["certificate_subject_name"].raw_text,
+            "SAMPLE SUBJECT,",
+        )
+        self.assertEqual(fields["issuing_barangay"].raw_text, "SAMPLE II")
 
     def test_detection_variant_with_anchor_evidence_wins(self):
         calls = []
@@ -435,7 +673,7 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertEqual(result.data.selected_orientation, "counterclockwise_90")
         self.assertEqual(
             [name for name, _crop in field_calls],
-            ["certificate_subject_name", "issue_date", "issuing_barangay"],
+            ["certificate_subject_name", "issuing_barangay"],
         )
         selected_image = np.rot90(image, 1)
         selected_height, selected_width = selected_image.shape[:2]

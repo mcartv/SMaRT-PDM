@@ -524,6 +524,17 @@ def _valid_visible_date(text: str) -> bool:
     return False
 
 
+def _sanitize_positional_date_token(value: Any) -> str:
+    text = "" if value is None else str(value)
+    start = 0
+    stop = len(text)
+    while start < stop and not text[start].isalnum():
+        start += 1
+    while stop > start and not text[stop - 1].isalnum():
+        stop -= 1
+    return text[start:stop]
+
+
 def _read_field(
     name: str,
     words: Sequence[PositionalWord] | None,
@@ -552,6 +563,60 @@ def _read_field(
         return _empty_field(name, variant, issue_code)
     return IndigencyFieldResult(
         name=name,
+        raw_text=raw_text,
+        success=True,
+        review_required=True,
+        issue_codes=(),
+        detection_variant=variant,
+        anchor=anchor,
+        normalized_bounds=_normalized_bounds(bounds, source_image.shape),
+    )
+
+
+def _read_date_field(
+    words: Sequence[PositionalWord] | None,
+    anchor: str,
+    source_image: np.ndarray,
+    variant: str,
+    reader: FieldReader,
+    config: IndigencyExtractionConfig,
+) -> IndigencyFieldResult:
+    if not words:
+        return _empty_field("issue_date", variant, "ISSUE_DATE_NOT_EXTRACTED")
+
+    ordered_words = tuple(sorted(words, key=lambda word: word.order))
+    bounds = _bounds(ordered_words, source_image.shape)
+    positional_text = " ".join(
+        token
+        for token in (
+            _sanitize_positional_date_token(word.text)
+            for word in ordered_words
+        )
+        if token
+    )
+    if _valid_visible_date(positional_text):
+        raw_text = positional_text
+    else:
+        crop = _crop(source_image, bounds, config.crop_padding_pixels)
+        if crop.size == 0:
+            return _empty_field(
+                "issue_date",
+                variant,
+                "ISSUE_DATE_NOT_EXTRACTED",
+            )
+        try:
+            raw_text = _normalize_field_text(reader(crop.copy(), "issue_date"))
+        except Exception:
+            raw_text = ""
+        if not _valid_visible_date(raw_text):
+            return _empty_field(
+                "issue_date",
+                variant,
+                "ISSUE_DATE_NOT_EXTRACTED",
+            )
+
+    return IndigencyFieldResult(
+        name="issue_date",
         raw_text=raw_text,
         success=True,
         review_required=True,
@@ -712,8 +777,7 @@ def extract_indigency_core_fields(
             ocr_reader,
             resolved,
         ),
-        _read_field(
-            "issue_date",
+        _read_date_field(
             date_selection,
             date_anchor,
             transformed_source,

@@ -385,10 +385,12 @@ function mapQueueRow(row) {
             url: row.grade_document_url || '',
             file_name: row.grade_document_name || '',
             submitted_at: row.grade_document_submitted_at || null,
-            is_uploaded: Boolean(
-                safeText(row.grade_document_path) ||
-                safeText(row.grade_document_url)
-            ),
+            is_uploaded:
+                row.grade_document_is_submitted === true &&
+                Boolean(
+                    safeText(row.grade_document_path) ||
+                    safeText(row.grade_document_url)
+                ),
         },
         pd_decision: row.pd_status || null,
         guidance_decision: row.guidance_status || null,
@@ -472,7 +474,8 @@ async function loadSlipRows({ stage = null, stages = null } = {}) {
             grade_doc.file_path as grade_document_path,
             grade_doc.file_url as grade_document_url,
             grade_doc.file_name as grade_document_name,
-            grade_doc.submitted_at as grade_document_submitted_at
+            grade_doc.submitted_at as grade_document_submitted_at,
+            grade_doc.is_submitted as grade_document_is_submitted
         from endorsement_slips es
         join applications a on a.application_id = es.application_id
         join students st on st.student_id = es.student_id
@@ -482,10 +485,15 @@ async function loadSlipRows({ stage = null, stages = null } = {}) {
         left join academic_years ay on ay.academic_year_id = po.academic_year_id
         left join academic_period ap on ap.period_id = po.period_id
         left join lateral (
-            select ad.file_path, ad.file_url, ad.file_name, ad.submitted_at
+            select ad.file_path, ad.file_url, ad.file_name, ad.submitted_at, ad.is_submitted
             from application_documents ad
             where ad.application_id = a.application_id
               and lower(coalesce(ad.document_type, '')) = 'grade report'
+              and coalesce(ad.is_submitted, false) = true
+              and (
+                nullif(trim(coalesce(ad.file_path, '')), '') is not null
+                or nullif(trim(coalesce(ad.file_url, '')), '') is not null
+              )
             order by ad.submitted_at desc nulls last
             limit 1
         ) grade_doc on true

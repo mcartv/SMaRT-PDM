@@ -15,7 +15,7 @@ exports.getRegistry = async (req, res) => {
   } catch (err) {
     console.error('STUDENT REGISTRY LIST ERROR:', err.message);
     res.status(err.statusCode || 500).json({
-      message: 'Failed to load registrar records',
+      message: req.user?.role === 'sdo' ? 'Failed to load SDO disciplinary records' : 'Failed to load registrar records',
       error: err.message,
     });
   }
@@ -23,18 +23,21 @@ exports.getRegistry = async (req, res) => {
 
 exports.importRegistry = async (req, res) => {
   try {
-    const result = await studentRegistryService.importStudentRegistryFile({
-      file: req.file,
-      adminId: req.user?.admin_id || req.user?.adminId || null,
-    });
+    const isSdo = req.user?.role === 'sdo';
+    const actorId = req.user?.admin_id || req.user?.adminId || req.user?.userId || null;
+    const result = isSdo
+      ? await studentRegistryService.importSdoDisciplinaryRecordsFile({ file: req.file, actorId })
+      : await studentRegistryService.importStudentRegistryFile({ file: req.file, adminId: actorId });
 
     await auditLogService.logAudit({
       req,
-      actionTaken: 'IMPORT_STUDENT_REGISTRY',
-      module: 'Student Registry',
-      entityType: 'student_registry_import',
+      actionTaken: isSdo ? 'IMPORT_SDO_DISCIPLINARY_RECORDS' : 'IMPORT_STUDENT_REGISTRY',
+      module: isSdo ? 'SDO Records' : 'Student Registry',
+      entityType: isSdo ? 'sdo_record_import' : 'student_registry_import',
       entityId: result?.import_batch_id || null,
-      description: `Imported registrar file with ${result?.imported || 0} successful records.`,
+      description: isSdo
+        ? `Imported SDO file with ${result?.imported || 0} disciplinary records.`
+        : `Imported registrar file with ${result?.imported || 0} successful records.`,
       metadata: {
         imported: result?.imported || 0,
         total: result?.total || 0,
@@ -53,7 +56,7 @@ exports.importRegistry = async (req, res) => {
     });
 
     res.status(200).json({
-      message: 'Registrar file imported successfully',
+      message: isSdo ? 'SDO disciplinary records imported successfully' : 'Registrar file imported successfully',
       ...result,
     });
   } catch (err) {

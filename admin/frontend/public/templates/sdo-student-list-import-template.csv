@@ -1,2 +1,2 @@
-PDM ID,Given Name,Middle Name,Last Name,Course,Year Level,Has Disciplinary Action,Offense Type,Date of Incident
-PDM-2026-000001,Juan,A,Dela Cruz,BSIT,1,Yes,Minor Offense,2026-07-15
+PDM ID,Offense Type,Date of Incident,Case Note/Reference Number,Remarks
+PDM-2026-000001,Minor Offense,2026-07-15,SDO-2026-001,Late attendance record

@@ -162,7 +162,7 @@ function getDocumentPreviewType(row = {}) {
 }
 
 function hasUploadedGrade(row) {
-  return Boolean(row?.grade_document?.is_uploaded || row?.grade_document?.url);
+  return row?.grade_document?.is_uploaded === true;
 }
 
 function GradePreviewModal({ row, open, onClose }) {
@@ -518,7 +518,7 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
         ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
           <Button
-            className="h-10 bg-green-700 text-white hover:bg-green-800"
+            className="h-10 bg-green-700 text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500 disabled:opacity-100"
             disabled={loading || !hasGradeDocument}
             title={!hasGradeDocument ? 'Grade document is required before PD approval' : undefined}
             onClick={() => onSubmit(row, 'approve')}

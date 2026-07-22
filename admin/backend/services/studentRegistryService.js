@@ -1,5 +1,6 @@
 const ExcelJS = require('exceljs');
 const JSZip = require('jszip');
+const crypto = require('crypto');
 const supabase = require('../config/supabase');
 
 const IMPORT_BATCH_TABLE = 'student_import_batches';
@@ -7,6 +8,7 @@ const IMPORT_ROW_TABLE = 'student_import_rows';
 const MASTER_TABLE = 'student_master_records';
 const REGISTRY_VIEW = 'student_registry';
 const COURSE_TABLE = 'academic_course';
+const SDO_RECORD_TABLE = 'sdo_student_records';
 
 function buildError(message, statusCode = 500, details = null) {
   const err = new Error(message);
@@ -494,9 +496,6 @@ async function upsertMasterRows(importBatchId, importRows, courseMap) {
     financial_support_loan: row.financial_support_loan,
     financial_support_other: row.financial_support_other,
     has_been_scholar: row.has_been_scholar,
-    has_disciplinary_action: row.has_disciplinary_action,
-    offense_type: row.offense_type || null,
-    offense_incident_date: row.offense_incident_date || null,
     date_of_birth: row.date_of_birth || null,
     place_of_birth: row.place_of_birth || null,
     civil_status: row.civil_status || null,
@@ -606,31 +605,189 @@ async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
   };
 }
 
+async function importSdoDisciplinaryRecordsFile({ file, actorId = null }) {
+  if (!file || !file.buffer) {
+    throw buildError('No file uploaded.', 400);
+  }
+
+  const rawRows = await readWorkbookRows(file);
+  const parsedRows = parseSdoRecordRows(rawRows);
+  if (!parsedRows.length) {
+    throw buildError('No disciplinary records were found in the file.', 400);
+  }
+
+  const invalidRows = parsedRows.filter((row) => !row.student_number || !row.offense_type);
+  const validRows = parsedRows.filter((row) => row.student_number && row.offense_type);
+  const studentNumbers = [...new Set(validRows.map((row) => row.student_number))];
+  let students = [];
+  if (studentNumbers.length) {
+    const { data, error: studentError } = await supabase
+      .from(MASTER_TABLE)
+      .select('master_student_id, student_number')
+      .in('student_number', studentNumbers)
+      .eq('is_archived', false);
+    if (studentError) throw studentError;
+    students = data || [];
+  }
+
+  const knownStudents = new Map((students || []).map((row) => [row.student_number, row]));
+  const matchedRows = validRows.filter((row) => knownStudents.has(row.student_number));
+  const unmatchedRows = validRows.filter((row) => !knownStudents.has(row.student_number));
+  const payload = matchedRows.map((row) => ({
+    student_number: row.student_number,
+    offense_type: row.offense_type,
+    offense_incident_date: row.offense_incident_date,
+    case_reference_number: row.case_reference_number,
+    remarks: row.remarks,
+    source_file_name: file.originalname || 'uploaded-file',
+    recorded_by: actorId ? String(actorId) : null,
+    record_fingerprint: buildSdoRecordFingerprint(row),
+  }));
+
+  let importedRows = [];
+  if (payload.length) {
+    const { data, error } = await supabase
+      .from(SDO_RECORD_TABLE)
+      .upsert(payload, { onConflict: 'record_fingerprint', ignoreDuplicates: true })
+      .select('record_id, student_number, offense_type, offense_incident_date');
+
+    if (error) {
+      if (['42P01', 'PGRST205'].includes(error.code)) {
+        throw buildError('SDO records table is missing. Run the SDO disciplinary records migration first.', 503);
+      }
+      throw error;
+    }
+    importedRows = data || [];
+  }
+
+  const latestByStudent = new Map();
+  matchedRows.forEach((row) => {
+    const current = latestByStudent.get(row.student_number);
+    if (!current || String(row.offense_incident_date || '') >= String(current.offense_incident_date || '')) {
+      latestByStudent.set(row.student_number, row);
+    }
+  });
+
+  for (const [studentNumber, row] of latestByStudent.entries()) {
+    const { error } = await supabase
+      .from(MASTER_TABLE)
+      .update({
+        has_disciplinary_action: true,
+        offense_type: row.offense_type,
+        offense_incident_date: row.offense_incident_date,
+      })
+      .eq('student_number', studentNumber);
+    if (error) throw error;
+  }
+
+  return {
+    imported: importedRows.length,
+    total: parsedRows.length,
+    duplicate_rows: Math.max(matchedRows.length - importedRows.length, 0),
+    invalid_rows: invalidRows.map((row) => row.row_number),
+    unmatched_rows: unmatchedRows.map((row) => ({
+      row_number: row.row_number,
+      student_number: row.student_number,
+    })),
+  };
+}
+
+function parseSdoRecordRows(rows) {
+  if (!rows.length) return [];
+
+  const headerMap = new Map();
+  rows[0].forEach((rawHeader, index) => {
+    const header = normalizeLookupValue(rawHeader);
+    if (['pdm id', 'pdm_id', 'student number', 'student_number'].includes(header)) {
+      headerMap.set(index, 'student_number');
+    } else if (['offense type', 'offence type', 'disciplinary offense type'].includes(header)) {
+      headerMap.set(index, 'offense_type');
+    } else if (['incident date', 'date of incident', 'offense date', 'offence date'].includes(header)) {
+      headerMap.set(index, 'offense_incident_date');
+    } else if (['case note/reference number', 'case reference number', 'reference number', 'case number'].includes(header)) {
+      headerMap.set(index, 'case_reference_number');
+    } else if (['remarks', 'notes', 'case note'].includes(header)) {
+      headerMap.set(index, 'remarks');
+    }
+  });
+
+  const records = [];
+  for (let index = 1; index < rows.length; index += 1) {
+    const values = rows[index];
+    const record = { row_number: index + 1 };
+    values.forEach((value, columnIndex) => {
+      const key = headerMap.get(columnIndex);
+      if (key) record[key] = value;
+    });
+
+    const studentNumber = normalizeText(record.student_number).toUpperCase();
+    const offenseType = normalizeText(record.offense_type);
+    if (!studentNumber && !offenseType) continue;
+
+    records.push({
+      row_number: record.row_number,
+      student_number: studentNumber,
+      offense_type: offenseType,
+      offense_incident_date: parseExcelDate(record.offense_incident_date),
+      case_reference_number: normalizeText(record.case_reference_number) || null,
+      remarks: normalizeText(record.remarks) || null,
+    });
+  }
+
+  return records;
+}
+
+function buildSdoRecordFingerprint(record) {
+  return crypto
+    .createHash('md5')
+    .update([
+      record.student_number,
+      normalizeLookupValue(record.offense_type),
+      record.offense_incident_date || '',
+      normalizeLookupValue(record.case_reference_number),
+    ].join('|'))
+    .digest('hex');
+}
+
 async function listSdoStudentRegistry({ limit = 100, offset = 0 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const safeOffset = Math.max(Number(offset) || 0, 0);
 
-  const { data, error, count } = await supabase
-    .from(MASTER_TABLE)
+  const { data: records, error, count } = await supabase
+    .from(SDO_RECORD_TABLE)
     .select(`
-      master_student_id,
+      record_id,
       student_number,
-      first_name,
-      middle_name,
-      last_name,
-      course_id,
-      year_level,
-      has_disciplinary_action,
       offense_type,
-      offense_incident_date
+      offense_incident_date,
+      case_reference_number,
+      remarks,
+      created_at
     `, { count: 'exact' })
     .eq('is_archived', false)
-    .order('student_number', { ascending: true })
+    .order('offense_incident_date', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
     .range(safeOffset, safeOffset + safeLimit - 1);
 
-  if (error) throw error;
+  if (error) {
+    if (['42P01', 'PGRST205'].includes(error.code)) {
+      throw buildError('SDO records table is missing. Run the SDO disciplinary records migration first.', 503);
+    }
+    throw error;
+  }
 
-  const courseIds = [...new Set((data || []).map((row) => row.course_id).filter(Boolean))];
+  const studentNumbers = [...new Set((records || []).map((row) => row.student_number).filter(Boolean))];
+  let studentsByNumber = new Map();
+  if (studentNumbers.length) {
+    const { data: students, error: studentError } = await supabase
+      .from(MASTER_TABLE)
+      .select('master_student_id, student_number, first_name, middle_name, last_name, course_id, year_level')
+      .in('student_number', studentNumbers);
+    if (studentError) throw studentError;
+    studentsByNumber = new Map((students || []).map((student) => [student.student_number, student]));
+  }
+
+  const courseIds = [...new Set([...studentsByNumber.values()].map((row) => row.course_id).filter(Boolean))];
   let courseById = new Map();
 
   if (courseIds.length) {
@@ -647,15 +804,22 @@ async function listSdoStudentRegistry({ limit = 100, offset = 0 } = {}) {
     total: count || 0,
     limit: safeLimit,
     offset: safeOffset,
-    items: (data || []).map((row) => ({
-      ...row,
-      course_code: courseById.get(row.course_id) || null,
-    })),
+    items: (records || []).map((record) => {
+      const student = studentsByNumber.get(record.student_number) || {};
+      return {
+        ...record,
+        ...student,
+        student_number: record.student_number,
+        has_disciplinary_action: true,
+        course_code: courseById.get(student.course_id) || null,
+      };
+    }),
   };
 }
 
 module.exports = {
   importStudentRegistryFile,
+  importSdoDisciplinaryRecordsFile,
   listStudentRegistry,
   listSdoStudentRegistry,
 };

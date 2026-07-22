@@ -12,6 +12,7 @@ import {
     AlertTriangle,
     Archive,
     ArchiveRestore,
+    ChevronDown,
     Edit,
     Loader2,
     Mail,
@@ -24,6 +25,19 @@ import {
     UsersRound,
     X,
 } from 'lucide-react';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { C, EmptyState, FieldLabel } from './components/MaintenanceShared';
@@ -70,44 +84,108 @@ const DEFAULT_FORM = {
 };
 
 function CourseAssignmentField({ form, setField, courses, currentUserId = null, disabled = false }) {
+    const [open, setOpen] = useState(false);
     if (form.role !== 'pd') return null;
     const selected = new Set(form.course_ids || []);
+    const selectedCourses = courses.filter((course) => selected.has(course.course_id));
+
+    const toggleCourse = (courseId) => {
+        setField('course_ids', selected.has(courseId)
+            ? [...selected].filter((id) => id !== courseId)
+            : [...selected, courseId]);
+    };
 
     return (
-        <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3">
-            <div className="flex items-start justify-between gap-3">
+        <div className="rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50/70 to-white p-4">
+            <div className="flex items-start justify-between gap-4">
                 <div>
-                    <p className="text-xs font-semibold text-stone-800">Assigned Courses</p>
-                    <p className="mt-0.5 text-[11px] text-stone-500">Choose one or more active courses from Courses Maintenance.</p>
+                    <p className="text-sm font-semibold text-stone-900">Assigned Courses</p>
+                    <p className="mt-1 text-xs leading-5 text-stone-500">Select the courses whose endorsement applicants this Program Director will handle.</p>
                 </div>
-                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-violet-700">{selected.size} selected</span>
+                <span className="shrink-0 rounded-full border border-violet-100 bg-white px-2.5 py-1 text-xs font-semibold text-violet-700">
+                    {selected.size} selected
+                </span>
             </div>
-            <div className="mt-3 grid max-h-36 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                {courses.map((course) => {
-                    const ownedByAnother = course.assigned_pd?.user_id && course.assigned_pd.user_id !== currentUserId;
-                    const isSelected = selected.has(course.course_id);
-                    return (
+
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                    <button
+                        type="button"
+                        disabled={disabled || !courses.length}
+                        aria-expanded={open}
+                        className="mt-3 flex min-h-11 w-full items-center justify-between rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-left text-sm text-stone-700 shadow-sm outline-none transition hover:border-violet-300 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <span className={selected.size ? 'font-medium text-stone-800' : 'text-stone-500'}>
+                            {selected.size ? `${selected.size} course${selected.size === 1 ? '' : 's'} assigned` : 'Choose courses'}
+                        </span>
+                        <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+                    </button>
+                </PopoverTrigger>
+                <PopoverContent
+                    align="start"
+                    className="w-[var(--radix-popover-trigger-width)] gap-0 border border-stone-200 bg-white p-1.5 shadow-xl"
+                >
+                    <Command>
+                        <CommandInput placeholder="Search course code or name..." />
+                        <CommandList className="max-h-64">
+                            <CommandEmpty>No matching course found.</CommandEmpty>
+                            <CommandGroup heading="Active courses">
+                                {courses.map((course) => {
+                                    const ownedByAnother = course.assigned_pd?.user_id && course.assigned_pd.user_id !== currentUserId;
+                                    const isSelected = selected.has(course.course_id);
+                                    const ownerName = course.assigned_pd?.name || course.assigned_pd?.email;
+
+                                    return (
+                                        <CommandItem
+                                            key={course.course_id}
+                                            value={`${course.course_code} ${course.course_name} ${ownerName || ''}`}
+                                            disabled={disabled || ownedByAnother}
+                                            data-checked={isSelected}
+                                            onSelect={() => toggleCourse(course.course_id)}
+                                            className="items-start px-3 py-2.5"
+                                        >
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-sm font-semibold text-stone-800">{course.course_code}</span>
+                                                <span className="mt-0.5 block text-xs leading-4 text-stone-500">
+                                                    {course.course_name}
+                                                </span>
+                                                {ownedByAnother ? (
+                                                    <span className="mt-1 block text-xs font-medium text-amber-700">Assigned to {ownerName}</span>
+                                                ) : null}
+                                            </span>
+                                        </CommandItem>
+                                    );
+                                })}
+                            </CommandGroup>
+                        </CommandList>
+                    </Command>
+                </PopoverContent>
+            </Popover>
+
+            <div className="mt-3 flex min-h-7 flex-wrap gap-2">
+                {selectedCourses.map((course) => (
+                    <span
+                        key={course.course_id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white py-1 pl-2.5 pr-1.5 text-xs font-semibold text-violet-800 shadow-sm"
+                        title={course.course_name}
+                    >
+                        {course.course_code}
                         <button
-                            key={course.course_id}
                             type="button"
-                            disabled={disabled || ownedByAnother}
-                            onClick={() => setField('course_ids', isSelected
-                                ? [...selected].filter((id) => id !== course.course_id)
-                                : [...selected, course.course_id])}
-                            className={`rounded-lg border px-3 py-2 text-left transition ${isSelected
-                                ? 'border-violet-400 bg-white ring-1 ring-violet-200'
-                                : ownedByAnother
-                                    ? 'cursor-not-allowed border-stone-200 bg-stone-100 opacity-60'
-                                    : 'border-stone-200 bg-white hover:border-violet-300'}`}
+                            onClick={() => toggleCourse(course.course_id)}
+                            disabled={disabled}
+                            aria-label={`Remove ${course.course_code}`}
+                            className="rounded-full p-0.5 text-violet-500 transition hover:bg-violet-100 hover:text-violet-800 disabled:opacity-50"
                         >
-                            <span className="block text-xs font-semibold text-stone-800">{course.course_code}</span>
-                            <span className="mt-0.5 block truncate text-[10px] text-stone-500">
-                                {ownedByAnother ? `Assigned to ${course.assigned_pd.name || course.assigned_pd.email}` : course.course_name}
-                            </span>
+                            <X className="h-3 w-3" />
                         </button>
-                    );
-                })}
-                {!courses.length ? <p className="text-xs text-stone-500">No active courses are available.</p> : null}
+                    </span>
+                ))}
+                {!selectedCourses.length ? (
+                    <p className="self-center text-xs text-stone-500">
+                        {courses.length ? 'No courses selected yet.' : 'No active courses are available.'}
+                    </p>
+                ) : null}
             </div>
         </div>
     );
@@ -1172,16 +1250,17 @@ export default function AccountsPanel() {
                                                         </div>
 
                                                         {account.role === 'pd' ? (
-                                                            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-stone-100 pt-3">
+                                                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
+                                                                <span className="text-xs font-medium text-stone-500">Courses</span>
                                                                 {(account.assigned_courses || []).slice(0, 4).map((course) => (
-                                                                    <span key={course.course_id} className="rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                                                                    <span key={course.course_id} className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700" title={course.course_name}>
                                                                         {course.course_code}
                                                                     </span>
                                                                 ))}
                                                                 {(account.assigned_courses || []).length > 4 ? (
-                                                                    <span className="text-[10px] font-medium text-stone-400">+{account.assigned_courses.length - 4} more</span>
+                                                                    <span className="text-xs font-medium text-stone-500">+{account.assigned_courses.length - 4} more</span>
                                                                 ) : null}
-                                                                {!account.assigned_courses?.length ? <span className="text-[10px] font-medium text-amber-700">No courses assigned</span> : null}
+                                                                {!account.assigned_courses?.length ? <span className="text-xs font-medium text-amber-700">No courses assigned</span> : null}
                                                             </div>
                                                         ) : null}
 

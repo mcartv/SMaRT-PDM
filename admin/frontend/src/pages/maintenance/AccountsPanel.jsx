@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,8 +13,10 @@ import {
     AlertTriangle,
     Archive,
     ArchiveRestore,
+    Building2,
     ChevronDown,
     Edit,
+    Eye,
     Loader2,
     Mail,
     Phone,
@@ -694,6 +697,130 @@ function StaffEditModal({
     );
 }
 
+function StaffProfileModal({ account, onClose, onEdit }) {
+    if (!account) return null;
+
+    const roleLabel = ROLE_OPTIONS.find((role) => role.value === account.role)?.label || account.role;
+    const initials = `${account.first_name?.[0] || ''}${account.last_name?.[0] || ''}`.toUpperCase() || account.name?.[0]?.toUpperCase() || 'S';
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
+                    <div>
+                        <p className="text-sm font-semibold text-stone-900">Staff Profile</p>
+                        <p className="mt-0.5 text-xs text-stone-500">Account and assignment information</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close staff profile"
+                        className="rounded-md p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+
+                <div className="p-4">
+                    <div className="flex items-center gap-3 border-b border-stone-100 pb-4">
+                        <Avatar className="h-12 w-12">
+                            <AvatarImage
+                                src={account.avatar_url || account.profile_photo_url || undefined}
+                                alt={`${account.name} profile`}
+                            />
+                            <AvatarFallback className="bg-stone-900 text-sm font-bold text-white">
+                                {initials}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="truncate text-base font-semibold text-stone-900">{account.name}</h3>
+                                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${roleTone(account.role)}`}>
+                                    {roleLabel}
+                                </span>
+                            </div>
+                            <p className="mt-1 truncate text-sm text-stone-500">{account.email}</p>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${account.is_archived ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                            {account.is_archived ? 'Archived' : 'Active'}
+                        </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
+                            <div className="flex items-center gap-2 text-stone-400">
+                                <Building2 className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-semibold uppercase tracking-wide">Department</span>
+                            </div>
+                            <p className="mt-1.5 text-sm font-medium text-stone-800">{account.department || 'Not provided'}</p>
+                        </div>
+                        <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">Position</p>
+                            <p className="mt-1.5 text-sm font-medium text-stone-800">{account.position || 'Not provided'}</p>
+                        </div>
+                        <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
+                            <div className="flex items-center gap-2 text-stone-400">
+                                <Mail className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-semibold uppercase tracking-wide">Email Address</span>
+                            </div>
+                            <p className="mt-1.5 break-all text-sm font-medium text-stone-800">{account.email}</p>
+                        </div>
+                        <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-3">
+                            <div className="flex items-center gap-2 text-stone-400">
+                                <Phone className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-semibold uppercase tracking-wide">Phone Number</span>
+                            </div>
+                            <p className="mt-1.5 text-sm font-medium text-stone-800">{account.phone_number || 'Not provided'}</p>
+                        </div>
+                    </div>
+
+                    {account.role === 'pd' ? (
+                        <div className="mt-4 rounded-lg border border-stone-200 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-semibold text-stone-800">Assigned Courses</p>
+                                <span className="text-xs text-stone-500">{account.assigned_courses?.length || 0} total</span>
+                            </div>
+                            <div className="mt-2 space-y-1.5">
+                                {(account.assigned_courses || []).map((course) => (
+                                    <div key={course.course_id} className="flex items-center gap-3 rounded-md bg-violet-50 px-2.5 py-2">
+                                        <span className="shrink-0 text-xs font-bold text-violet-700">{course.course_code}</span>
+                                        <span className="min-w-0 truncate text-xs text-stone-600">{course.course_name}</span>
+                                    </div>
+                                ))}
+                                {!account.assigned_courses?.length ? (
+                                    <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">No courses are currently assigned.</p>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-4 py-3">
+                    <Button variant="outline" onClick={onClose} className="h-8 rounded-lg border-stone-200 text-xs">
+                        Close
+                    </Button>
+                    {!account.is_archived ? (
+                        <Button
+                            onClick={() => onEdit(account)}
+                            className="h-8 rounded-lg border-none px-3 text-xs text-white"
+                            style={{ background: C.brownMid }}
+                        >
+                            <Edit className="mr-1.5 h-3.5 w-3.5" />
+                            Edit Account
+                        </Button>
+                    ) : null}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function AccountsPanel() {
     const [accounts, setAccounts] = useState([]);
     const [courses, setCourses] = useState([]);
@@ -708,6 +835,7 @@ export default function AccountsPanel() {
     const [createOpen, setCreateOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [editingAccountId, setEditingAccountId] = useState(null);
+    const [profileAccount, setProfileAccount] = useState(null);
 
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
@@ -1048,6 +1176,15 @@ export default function AccountsPanel() {
                 currentUserId={editingAccountId}
             />
 
+            <StaffProfileModal
+                account={profileAccount}
+                onClose={() => setProfileAccount(null)}
+                onEdit={(account) => {
+                    setProfileAccount(null);
+                    openEditModal(account);
+                }}
+            />
+
             <div className="space-y-3">
                 <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
                     <div className="flex flex-col gap-4">
@@ -1203,14 +1340,25 @@ export default function AccountsPanel() {
                                             key={account.user_id}
                                             className={`grid gap-3 px-4 py-3 transition-colors lg:grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] lg:items-center lg:gap-4 ${account.is_archived ? 'bg-stone-50/80' : 'hover:bg-stone-50/60'}`}
                                         >
-                                            <div className="min-w-0">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <p className="truncate text-sm font-semibold text-stone-900">{account.name}</p>
-                                                    {account.is_archived ? (
-                                                        <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">Archived</span>
-                                                    ) : null}
+                                            <div className="flex min-w-0 items-center gap-2.5">
+                                                <Avatar className="h-9 w-9">
+                                                    <AvatarImage
+                                                        src={account.avatar_url || account.profile_photo_url || undefined}
+                                                        alt={`${account.name} profile`}
+                                                    />
+                                                    <AvatarFallback className="bg-stone-100 text-xs font-bold text-stone-600">
+                                                        {(account.first_name?.[0] || account.name?.[0] || 'S').toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <p className="truncate text-sm font-semibold text-stone-900">{account.name}</p>
+                                                        {account.is_archived ? (
+                                                            <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">Archived</span>
+                                                        ) : null}
+                                                    </div>
+                                                    <p className="mt-0.5 truncate text-xs text-stone-500">{account.email}</p>
                                                 </div>
-                                                <p className="mt-0.5 truncate text-xs text-stone-500">{account.email}</p>
                                             </div>
 
                                             <div className="flex items-center gap-2 lg:block">
@@ -1254,6 +1402,16 @@ export default function AccountsPanel() {
                                             </div>
 
                                             <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setProfileAccount(account)}
+                                                    disabled={isBusy}
+                                                    className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
+                                                >
+                                                    <Eye className="mr-1.5 h-3.5 w-3.5" />
+                                                    View
+                                                </Button>
                                                 {account.is_archived ? (
                                                     <Button
                                                         size="sm"
@@ -1282,10 +1440,11 @@ export default function AccountsPanel() {
                                                             variant="outline"
                                                             onClick={() => handleArchiveRestore(account)}
                                                             disabled={isBusy}
-                                                            className="h-8 rounded-lg border-red-200 px-2.5 text-xs text-red-700 hover:bg-red-50"
+                                                            aria-label={`Archive ${account.name}`}
+                                                            title="Archive account"
+                                                            className="h-8 w-8 rounded-lg border-red-200 p-0 text-red-700 hover:bg-red-50"
                                                         >
-                                                            {isBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
-                                                            Archive
+                                                            {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
                                                         </Button>
                                                     </>
                                                 )}

@@ -137,6 +137,44 @@ function normalizeKey(value = '') {
     .trim();
 }
 
+function getOcrFailureMessage(error) {
+  const raw = String(error?.message || error || '').trim();
+  const normalized = raw.toLowerCase();
+
+  if (
+    normalized.includes('failed to fetch') ||
+    normalized.includes('network') ||
+    normalized.includes('unreachable') ||
+    normalized.includes('private network') ||
+    normalized.includes('econnrefused')
+  ) {
+    return 'The OCR device is offline or unreachable. Check that the scanner and backend are connected to the same configured network, then retry. You may continue with manual document review.';
+  }
+
+  if (
+    normalized.includes('timeout') ||
+    normalized.includes('timed out')
+  ) {
+    return 'The OCR device did not respond in time. Check the device connection and retry, or continue with manual review.';
+  }
+
+  if (
+    normalized.includes('not configured') ||
+    normalized.includes('endpoint url')
+  ) {
+    return 'The OCR scanner endpoint is not configured on the backend. Set IOT_OCR_ENDPOINT_URL before using the scanner.';
+  }
+
+  if (
+    normalized.includes('queued') ||
+    normalized.includes('in progress')
+  ) {
+    return 'An OCR request for this document is already queued or being processed. Wait for the current request to finish before retrying.';
+  }
+
+  return raw || 'OCR processing failed. Retry the scan or continue with manual review.';
+}
+
 function findRequiredDocConfig(rawDoc = {}) {
   const candidates = [
     rawDoc.id,
@@ -2075,7 +2113,7 @@ export default function DocumentVerification() {
       }, 3000);
     } catch (err) {
       console.error('RUN IOT OCR ERROR:', err);
-      setIotOcrError(err.message);
+      setIotOcrError(getOcrFailureMessage(err));
       setRunningIotOcr(false);
     }
   };
@@ -2111,7 +2149,7 @@ export default function DocumentVerification() {
 
     } catch (err) {
       console.error('SAVE OCR ERROR:', err);
-      setIotOcrError(err.message);
+      setIotOcrError(getOcrFailureMessage(err));
     } finally {
       setSavingRawOcr(false);
     }

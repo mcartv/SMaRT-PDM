@@ -219,52 +219,84 @@ export default function FinalSelectionPanel({ openingId, onFinalized }) {
       </div>
 
       <Card className="overflow-hidden rounded-2xl border-stone-200 shadow-none">
-        <div className="border-b border-stone-100 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-900">Requirements-Completion Queue</h3>
-          <p className="mt-1 text-xs text-stone-500">
-            Tie-breakers: application submission time, then application ID.
-          </p>
+        <div className="flex flex-col gap-2 border-b border-stone-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-900">FCFS Final Applicant List</h3>
+            <p className="mt-1 text-xs text-stone-500">
+              Queue rank is based on requirements completion. Application submission time and application ID are tie-breakers.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit rounded-full border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">
+            {entries.length} eligible applicant(s)
+          </Badge>
         </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead className="bg-stone-50 text-left text-[11px] uppercase tracking-wide text-stone-500">
               <tr>
-                <th className="px-5 py-3">Queue</th>
-                <th className="px-4 py-3">Applicant</th>
-                <th className="px-4 py-3">Course / Year</th>
-                <th className="px-4 py-3">Requirements Completed</th>
-                <th className="px-4 py-3">Result</th>
-                <th className="px-4 py-3">Waiting Position</th>
+                <th className="w-20 px-5 py-3">FCFS Rank</th>
+                <th className="min-w-[220px] px-4 py-3">Applicant</th>
+                <th className="min-w-[150px] px-4 py-3">Course / Year</th>
+                <th className="min-w-[190px] px-4 py-3">Requirements Completed</th>
+                <th className="min-w-[140px] px-4 py-3">Final Result</th>
+                <th className="min-w-[150px] px-4 py-3">Slot Assignment</th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-stone-100">
               {entries.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-14 text-center text-sm text-stone-400">
-                    No applicants have completed both requirements and endorsement yet.
+                    No applicants have completed both verified requirements and endorsement.
                   </td>
                 </tr>
               ) : entries.map((entry) => (
                 <tr key={entry.application_id} className="hover:bg-stone-50/70">
                   <td className="px-5 py-4">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-stone-900 text-xs font-semibold text-white">
-                      {entry.queue_position}
+                    <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-stone-900 px-2 text-xs font-semibold text-white">
+                      #{entry.queue_position}
                     </span>
                   </td>
                   <td className="px-4 py-4">
-                    <p className="font-medium text-stone-900">{entry.applicant_name || 'Applicant'}</p>
-                    <p className="mt-1 text-xs text-stone-500">{entry.pdm_id || 'No PDM ID'}</p>
+                    <p className="font-medium text-stone-900">
+                      {entry.applicant_name || 'Applicant'}
+                    </p>
+                    <p className="mt-1 font-mono text-xs text-stone-500">
+                      {entry.pdm_id || 'No PDM ID'}
+                    </p>
                   </td>
                   <td className="px-4 py-4 text-stone-600">
                     <p>{entry.course_code || entry.course_name || '—'}</p>
-                    <p className="mt-1 text-xs text-stone-400">Year {entry.year_level || '—'}</p>
+                    <p className="mt-1 text-xs text-stone-400">
+                      {entry.year_level ? `Year ${entry.year_level}` : 'Year level unavailable'}
+                    </p>
                   </td>
-                  <td className="px-4 py-4 text-stone-600">
-                    {formatDateTime(entry.requirements_completed_at)}
+                  <td className="px-4 py-4">
+                    <p className="text-sm text-stone-700">
+                      {formatDateTime(entry.requirements_completed_at)}
+                    </p>
+                    <p className="mt-1 text-xs text-stone-400">
+                      Last valid required-document submission
+                    </p>
                   </td>
-                  <td className="px-4 py-4"><DecisionBadge value={entry.decision} /></td>
-                  <td className="px-4 py-4 text-stone-600">
-                    {entry.waitlist_position ? `#${entry.waitlist_position}` : '—'}
+                  <td className="px-4 py-4">
+                    <DecisionBadge value={entry.decision} />
+                  </td>
+                  <td className="px-4 py-4">
+                    {String(entry.decision || '').toLowerCase() === 'selected' ? (
+                      <span className="text-sm font-medium text-green-700">
+                        Scholarship slot
+                      </span>
+                    ) : entry.waitlist_position ? (
+                      <span className="text-sm font-medium text-amber-700">
+                        Waiting list #{entry.waitlist_position}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-stone-500">
+                        No slot assigned
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

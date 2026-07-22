@@ -411,35 +411,191 @@ exports.exportApplicationsExcel = async (req, res) => {
         const applications = await applicationService.fetchApplications();
 
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Applications');
+        workbook.creator = 'SMaRT-PDM';
+        workbook.created = new Date();
 
-        worksheet.columns = [
-            { header: 'Application ID', key: 'application_id', width: 24 },
-            { header: 'Applicant Name', key: 'student_name', width: 30 },
-            { header: 'PDM ID', key: 'pdm_id', width: 18 },
-            { header: 'Scholarship', key: 'program_name', width: 25 },
-            { header: 'Opening', key: 'opening_title', width: 30 },
-            { header: 'Semester', key: 'semester', width: 14 },
-            { header: 'Academic Year', key: 'academic_year', width: 16 },
-            { header: 'Allocated Slots', key: 'allocated_slots', width: 16 },
-            { header: 'Filled Slots', key: 'filled_slots', width: 14 },
-            { header: 'GWA', key: 'gwa', width: 10 },
-            { header: 'Application Status', key: 'application_status', width: 20 },
-            { header: 'Document Status', key: 'document_status', width: 20 },
-            { header: 'Remarks', key: 'remarks', width: 30 },
-            { header: 'Disqualified', key: 'disqualified_label', width: 14 },
-            { header: 'Rejection Reason', key: 'rejection_reason', width: 35 },
-            { header: 'Submitted', key: 'submission_date', width: 20 },
-        ];
-
-        applications.forEach((app) => {
-            worksheet.addRow({
-                ...app,
-                disqualified_label: app.is_disqualified ? 'Yes' : 'No',
-            });
+        const worksheet = workbook.addWorksheet('OSFA Applicant Registry', {
+            views: [{ state: 'frozen', ySplit: 4 }],
+            pageSetup: {
+                orientation: 'landscape',
+                fitToPage: true,
+                fitToWidth: 1,
+                fitToHeight: 0,
+                paperSize: 9,
+                margins: {
+                    left: 0.25,
+                    right: 0.25,
+                    top: 0.5,
+                    bottom: 0.5,
+                    header: 0.2,
+                    footer: 0.2,
+                },
+            },
         });
 
-        worksheet.getRow(1).font = { bold: true };
+        worksheet.mergeCells('A1:Q1');
+        worksheet.getCell('A1').value =
+            'PAMBAYANG DALUBHASAAN NG MARILAO — OFFICE OF STUDENT FINANCIAL ASSISTANCE';
+        worksheet.getCell('A1').font = { bold: true, size: 14 };
+        worksheet.getCell('A1').alignment = {
+            horizontal: 'center',
+            vertical: 'middle',
+        };
+
+        worksheet.mergeCells('A2:Q2');
+        worksheet.getCell('A2').value = 'SCHOLARSHIP APPLICANT REGISTRY';
+        worksheet.getCell('A2').font = { bold: true, size: 12 };
+        worksheet.getCell('A2').alignment = {
+            horizontal: 'center',
+            vertical: 'middle',
+        };
+
+        worksheet.mergeCells('A3:Q3');
+        worksheet.getCell('A3').value =
+            `Generated: ${new Date().toLocaleString('en-PH', {
+                timeZone: 'Asia/Manila',
+            })}`;
+        worksheet.getCell('A3').font = { italic: true, size: 9 };
+        worksheet.getCell('A3').alignment = { horizontal: 'right' };
+
+        const columns = [
+            { header: 'No.', key: 'row_number', width: 7 },
+            { header: 'PDM ID', key: 'pdm_id', width: 18 },
+            { header: 'Applicant Name', key: 'student_name', width: 30 },
+            { header: 'Scholarship Program', key: 'program_name', width: 26 },
+            { header: 'Application Period', key: 'opening_title', width: 28 },
+            { header: 'Academic Year', key: 'academic_year', width: 15 },
+            { header: 'Semester', key: 'semester', width: 14 },
+            { header: 'GWA', key: 'gwa', width: 10 },
+            { header: 'Applied On', key: 'submission_date', width: 18 },
+            { header: 'Requirements Completed', key: 'requirements_completed_at', width: 22 },
+            { header: 'FCFS Rank', key: 'queue_position', width: 12 },
+            { header: 'Document Status', key: 'document_status', width: 18 },
+            { header: 'Verification Status', key: 'verification_status', width: 18 },
+            { header: 'Endorsement Status', key: 'endorsement_status', width: 18 },
+            { header: 'Selection Status', key: 'selection_status', width: 18 },
+            { header: 'Waiting Position', key: 'waitlist_position', width: 16 },
+            { header: 'Remarks / Reason', key: 'remarks_reason', width: 35 },
+        ];
+
+        worksheet.columns = columns;
+        const headerRow = worksheet.getRow(4);
+        columns.forEach((column, index) => {
+            const cell = headerRow.getCell(index + 1);
+            cell.value = column.header;
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF7C4A2E' },
+            };
+            cell.alignment = {
+                horizontal: 'center',
+                vertical: 'middle',
+                wrapText: true,
+            };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFD6D3D1' } },
+                left: { style: 'thin', color: { argb: 'FFD6D3D1' } },
+                bottom: { style: 'thin', color: { argb: 'FFD6D3D1' } },
+                right: { style: 'thin', color: { argb: 'FFD6D3D1' } },
+            };
+        });
+        headerRow.height = 34;
+
+        const sorted = [...applications].sort((a, b) => {
+            const rankA = Number(a.queue_position);
+            const rankB = Number(b.queue_position);
+            const hasRankA = Number.isFinite(rankA) && rankA > 0;
+            const hasRankB = Number.isFinite(rankB) && rankB > 0;
+
+            if (hasRankA && hasRankB && rankA !== rankB) return rankA - rankB;
+            if (hasRankA !== hasRankB) return hasRankA ? -1 : 1;
+
+            const completedA = new Date(
+                a.requirements_completed_at || '9999-12-31'
+            ).getTime();
+            const completedB = new Date(
+                b.requirements_completed_at || '9999-12-31'
+            ).getTime();
+
+            if (completedA !== completedB) return completedA - completedB;
+
+            return new Date(a.submission_date || 0).getTime() -
+                new Date(b.submission_date || 0).getTime();
+        });
+
+        sorted.forEach((app, index) => {
+            const endorsementStatus =
+                app.normalized_endorsement_status ||
+                app.endorsement_status ||
+                app.endorsement_overall_status ||
+                (app.endorsement_complete ? 'Completed' : 'Pending');
+
+            const row = worksheet.addRow({
+                row_number: index + 1,
+                pdm_id: app.pdm_id || '',
+                student_name: app.student_name || app.applicant_name || '',
+                program_name: app.program_name || '',
+                opening_title: app.opening_title || '',
+                academic_year: app.academic_year || '',
+                semester: app.semester || '',
+                gwa: app.gwa ?? '',
+                submission_date: app.submission_date
+                    ? new Date(app.submission_date)
+                    : '',
+                requirements_completed_at: app.requirements_completed_at
+                    ? new Date(app.requirements_completed_at)
+                    : '',
+                queue_position: app.queue_position || '',
+                document_status: app.document_status || '',
+                verification_status: app.verification_status || '',
+                endorsement_status: endorsementStatus,
+                selection_status: app.selection_status || 'Unranked',
+                waitlist_position: app.waitlist_position || '',
+                remarks_reason:
+                    app.remarks ||
+                    app.rejection_reason ||
+                    app.reapplication_reason ||
+                    '',
+            });
+
+            row.alignment = { vertical: 'top', wrapText: true };
+            row.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFE7E5E4' } },
+                    left: { style: 'thin', color: { argb: 'FFE7E5E4' } },
+                    bottom: { style: 'thin', color: { argb: 'FFE7E5E4' } },
+                    right: { style: 'thin', color: { argb: 'FFE7E5E4' } },
+                };
+            });
+
+            row.getCell(9).numFmt = 'mmm d, yyyy h:mm AM/PM';
+            row.getCell(10).numFmt = 'mmm d, yyyy h:mm AM/PM';
+
+            if (index % 2 === 1) {
+                row.eachCell((cell) => {
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: { argb: 'FFFAFAF9' },
+                    };
+                });
+            }
+        });
+
+        worksheet.autoFilter = {
+            from: { row: 4, column: 1 },
+            to: { row: Math.max(4, worksheet.rowCount), column: columns.length },
+        };
+
+        worksheet.getColumn('gwa').numFmt = '0.00';
+        worksheet.getColumn('queue_position').alignment = {
+            horizontal: 'center',
+        };
+        worksheet.getColumn('waitlist_position').alignment = {
+            horizontal: 'center',
+        };
 
         res.setHeader(
             'Content-Type',
@@ -447,7 +603,7 @@ exports.exportApplicationsExcel = async (req, res) => {
         );
         res.setHeader(
             'Content-Disposition',
-            `attachment; filename=applications-${Date.now()}.xlsx`
+            `attachment; filename=OSFA-applicant-registry-${Date.now()}.xlsx`
         );
 
         await workbook.xlsx.write(res);
@@ -457,7 +613,6 @@ exports.exportApplicationsExcel = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
-
 
 /* Realtime + audit wrapper
  * This adds audit trail coverage to controller actions that previously had realtime only,

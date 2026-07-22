@@ -96,6 +96,119 @@ function getGwaMeta(gwa) {
     return { label: `Above Cutoff · ${numeric}`, bg: C.redSoft, color: C.red };
 }
 
+function getRequirementsMeta(app = {}) {
+    const verification = normalizeAppStatus(app.verification_status);
+    const documentStatus = normalizeAppStatus(app.document_status);
+    const completed = Boolean(app.requirements_completed_at);
+
+    if (verification === 'verified') {
+        return {
+            label: 'Verified',
+            detail: completed
+                ? `Completed ${formatDate(app.requirements_completed_at)}`
+                : 'Requirements verified',
+            bg: C.greenSoft,
+            color: C.green,
+        };
+    }
+
+    if (verification === 'rejected') {
+        return {
+            label: 'Rejected',
+            detail: 'Correction or re-upload required',
+            bg: C.redSoft,
+            color: C.red,
+        };
+    }
+
+    if (
+        ['documents ready', 'under review'].includes(documentStatus) ||
+        completed
+    ) {
+        return {
+            label: documentStatus === 'documents ready'
+                ? 'Documents Ready'
+                : 'Under Review',
+            detail: completed
+                ? `Completed ${formatDate(app.requirements_completed_at)}`
+                : 'Awaiting verification',
+            bg: '#FFF7ED',
+            color: '#d97706',
+        };
+    }
+
+    return {
+        label: 'Incomplete',
+        detail: 'Required documents are still missing',
+        bg: '#f5f5f4',
+        color: '#78716c',
+    };
+}
+
+function getEndorsementMeta(app = {}) {
+    const status = normalizeAppStatus(
+        app.endorsement_status ||
+        app.normalized_endorsement_status ||
+        app.endorsement_overall_status
+    );
+
+    if (status === 'completed') {
+        return {
+            label: 'Complete',
+            detail: 'Endorsement cleared',
+            bg: C.greenSoft,
+            color: C.green,
+        };
+    }
+
+    if (['rejected', 'major_offense', 'disqualified_major'].includes(status)) {
+        return {
+            label: 'Blocked',
+            detail: 'Endorsement requires action',
+            bg: C.redSoft,
+            color: C.red,
+        };
+    }
+
+    const stage = String(
+        app.endorsement_current_stage ||
+        app.current_stage ||
+        ''
+    ).replaceAll('_', ' ').trim();
+
+    return {
+        label: 'Pending',
+        detail: stage ? `Current stage: ${stage}` : 'Endorsement is not complete',
+        bg: '#FFF7ED',
+        color: '#d97706',
+    };
+}
+
+function getSelectionMeta(app = {}) {
+    const selection = String(app.selection_status || '').trim();
+    const normalized = normalizeAppStatus(selection);
+
+    if (['selected', 'promoted'].includes(normalized)) {
+        return { label: selection || 'Selected', bg: C.greenSoft, color: C.green };
+    }
+    if (normalized === 'waitlisted') {
+        const position = Number(app.waitlist_position);
+        return {
+            label: position > 0 ? `Waiting #${position}` : 'Waitlisted',
+            bg: '#FFF7ED',
+            color: '#d97706',
+        };
+    }
+    if (normalized === 'qualified') {
+        return { label: 'Qualified', bg: C.blueSoft, color: C.blueMid };
+    }
+    if (normalized === 'not selected') {
+        return { label: 'Not Selected', bg: '#f5f5f4', color: '#57534e' };
+    }
+
+    return getAppStatusMeta(app.application_status);
+}
+
 function formatDate(value) {
     if (!value) return 'No date';
     const d = new Date(value);
@@ -391,45 +504,43 @@ function ApplicantTable({
 }) {
     return (
         <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px]">
+            <table className="w-full min-w-[1180px]">
                 <thead className="bg-stone-50">
                     <tr className="border-b border-stone-200">
-                        {viewMode === VIEW_MODES.current && (
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        {viewMode === VIEW_MODES.current ? (
+                            <th className="w-10 px-3 py-3 text-left">
                                 <input
                                     type="checkbox"
                                     checked={allVisibleSelected}
                                     onChange={onToggleAllVisible}
                                     className="accent-stone-700"
+                                    aria-label="Select all eligible applicants on this page"
                                 />
                             </th>
-                        )}
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Applicant
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Student No.
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Submitted
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        ) : null}
+                        <th className="w-20 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
                             FCFS
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Requirements Completed
+                        <th className="min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Applicant
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Application
+                        <th className="min-w-[170px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Application Timeline
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            GWA
+                        <th className="min-w-[190px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Requirements
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Remarks
+                        <th className="min-w-[180px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Endorsement
                         </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">
-                            Actions
+                        <th className="min-w-[130px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Eligibility
+                        </th>
+                        <th className="min-w-[150px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Selection
+                        </th>
+                        <th className="min-w-[290px] px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Review Actions
                         </th>
                     </tr>
                 </thead>
@@ -437,105 +548,140 @@ function ApplicantTable({
                 <tbody>
                     {pageData.map((app) => {
                         const state = buildApplicantState(app);
+                        const requirementsMeta = getRequirementsMeta(app);
+                        const endorsementMeta = getEndorsementMeta(app);
+                        const selectionMeta = getSelectionMeta(app);
+                        const rank = getFcfsRank(
+                            app,
+                            fcfsOrder.get(app.id) || null
+                        );
+                        const isRanked =
+                            Boolean(app.requirements_completed_at) ||
+                            Number(app.queue_position) > 0;
 
                         return (
                             <tr
                                 key={app.id}
-                                className={`border-b border-stone-100 align-top transition hover:bg-stone-50 ${state.isDisqualified ? 'bg-red-50/20' : ''
-                                    }`}
+                                className={`border-b border-stone-100 align-top transition hover:bg-stone-50 ${
+                                    state.isDisqualified ? 'bg-red-50/20' : ''
+                                }`}
                             >
-                                {viewMode === VIEW_MODES.current && (
-                                    <td className="px-4 py-4">
-                                        {!state.isApproved && !state.isQualified && (
+                                {viewMode === VIEW_MODES.current ? (
+                                    <td className="px-3 py-4">
+                                        {!state.isApproved && !state.isQualified ? (
                                             <input
                                                 type="checkbox"
                                                 checked={selected.has(app.id)}
                                                 onChange={() => onToggleSelect(app.id)}
                                                 disabled={!state.canApprove}
                                                 className="accent-stone-700 disabled:opacity-40"
+                                                aria-label={`Select ${app.name}`}
                                             />
-                                        )}
+                                        ) : null}
                                     </td>
-                                )}
+                                ) : null}
 
-                                <td className="px-4 py-4">
-                                    <div className="max-w-[220px]">
+                                <td className="px-3 py-4">
+                                    {isRanked ? (
+                                        <div className="flex items-center gap-2">
+                                            <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-amber-100 px-2 text-xs font-bold text-amber-800">
+                                                #{rank}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-stone-400">
+                                            Not ranked
+                                        </span>
+                                    )}
+                                </td>
+
+                                <td className="px-3 py-4">
+                                    <div className="max-w-[240px]">
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <p className="text-sm font-semibold text-stone-900">{app.name}</p>
-
-                                            {state.isApproved && (
-                                                <Badge className="border-green-100 bg-green-50 text-[10px] font-medium text-green-700">
-                                                    Got Slot
-                                                </Badge>
-                                            )}
-
-                                            {state.isDisqualified && (
+                                            <p className="text-sm font-semibold text-stone-900">
+                                                {app.name || 'Unnamed Applicant'}
+                                            </p>
+                                            {state.isDisqualified ? (
                                                 <Badge className="border-red-100 bg-red-50 text-[10px] font-medium text-red-600">
                                                     Rejected
                                                 </Badge>
-                                            )}
+                                            ) : null}
                                         </div>
+                                        <p className="mt-1 font-mono text-xs text-stone-500">
+                                            {app.student_number || 'No PDM ID'}
+                                        </p>
+                                        {app.course_code || app.year_level ? (
+                                            <p className="mt-1 text-xs text-stone-400">
+                                                {[app.course_code || app.course_name, app.year_level ? `Year ${app.year_level}` : null]
+                                                    .filter(Boolean)
+                                                    .join(' · ')}
+                                            </p>
+                                        ) : null}
                                     </div>
                                 </td>
 
-                                <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-stone-500">
-                                    {app.student_number || '—'}
+                                <td className="px-3 py-4">
+                                    <p className="text-xs font-medium text-stone-700">
+                                        Applied {formatDate(app.submission_date)}
+                                    </p>
+                                    <p className="mt-1 text-xs text-stone-400">
+                                        {app.requirements_completed_at
+                                            ? `Requirements completed ${formatDate(app.requirements_completed_at)}`
+                                            : 'Requirements completion not recorded'}
+                                    </p>
                                 </td>
 
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-500">
-                                    {formatDate(app.submission_date)}
+                                <td className="px-3 py-4">
+                                    <StatusPill meta={requirementsMeta} />
+                                    <p className="mt-1.5 max-w-[190px] text-xs leading-5 text-stone-400">
+                                        {requirementsMeta.detail}
+                                    </p>
                                 </td>
 
-                                <td className="px-4 py-4">
-                                    {app.requirements_completed_at || Number(app.queue_position) > 0 ? (
-                                        <Badge className="border-amber-200 bg-amber-50 text-[10px] font-semibold text-amber-800">
-                                            #{getFcfsRank(
-                                                app,
-                                                fcfsOrder.get(app.id) || null
-                                            )}
-                                        </Badge>
-                                    ) : (
-                                        <span className="text-xs text-stone-400">Not ranked</span>
-                                    )}
+                                <td className="px-3 py-4">
+                                    <StatusPill meta={endorsementMeta} />
+                                    <p className="mt-1.5 max-w-[180px] text-xs leading-5 text-stone-400">
+                                        {endorsementMeta.detail}
+                                    </p>
                                 </td>
 
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-500">
-                                    {formatDate(app.requirements_completed_at)}
-                                </td>
-
-                                <td className="px-4 py-4">
-                                    <StatusPill meta={state.appMeta} />
-                                </td>
-
-                                <td className="px-4 py-4">
+                                <td className="px-3 py-4">
                                     <StatusPill meta={state.gwaMeta} />
+                                    <p className="mt-1.5 text-xs text-stone-400">
+                                        Based on recorded GWA
+                                    </p>
                                 </td>
 
-                                <td className="px-4 py-4 text-sm text-stone-500">
+                                <td className="px-3 py-4">
+                                    <StatusPill meta={selectionMeta} />
                                     {state.hasRemarks ? (
-                                        <span className="inline-flex items-center gap-1 text-blue-600">
+                                        <button
+                                            type="button"
+                                            onClick={() => onOpenRemarks(app)}
+                                            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline"
+                                        >
                                             <MessageSquare className="h-3 w-3" />
-                                            Has Remarks
-                                        </span>
+                                            View remarks
+                                        </button>
                                     ) : (
-                                        '—'
+                                        <p className="mt-1.5 text-xs text-stone-400">
+                                            No reviewer remarks
+                                        </p>
                                     )}
                                 </td>
 
-                                <td className="px-4 py-4 text-right">
-                                    <div className="flex justify-end gap-2">
-                                        {!state.isApproved && (
-                                            <Button
-                                                size="sm"
-                                                onClick={() => onReviewDocuments(app.id)}
-                                                className="h-8 rounded-lg border border-stone-200 bg-white px-3 text-xs text-stone-600 shadow-none hover:bg-stone-50"
-                                            >
-                                                <FileSearch className="mr-1 h-3 w-3" />
-                                                Documents
-                                            </Button>
-                                        )}
+                                <td className="px-3 py-4 text-right">
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                        <Button
+                                            size="sm"
+                                            onClick={() => onReviewDocuments(app.id)}
+                                            className="h-8 rounded-lg border border-stone-200 bg-white px-3 text-xs text-stone-600 shadow-none hover:bg-stone-50"
+                                        >
+                                            <FileSearch className="mr-1 h-3 w-3" />
+                                            Review
+                                        </Button>
 
-                                        {!state.isApproved && (
+                                        {!state.isApproved ? (
                                             <Button
                                                 size="sm"
                                                 variant="outline"
@@ -545,13 +691,17 @@ function ApplicantTable({
                                                 <MessageSquare className="mr-1 h-3 w-3" />
                                                 Remarks
                                             </Button>
-                                        )}
+                                        ) : null}
 
-                                        {!state.isApproved && !state.isQualified && (
+                                        {!state.isApproved && !state.isQualified ? (
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                disabled={!state.canApprove || decisionLoading === app.id}
+                                                disabled={
+                                                    !state.canApprove ||
+                                                    decisionLoading === app.id ||
+                                                    openingFilled
+                                                }
                                                 onClick={() => onApprove(app.id)}
                                                 className="h-8 rounded-lg border-green-100 px-3 text-xs text-green-700 shadow-none hover:bg-green-50 disabled:opacity-40"
                                             >
@@ -560,26 +710,31 @@ function ApplicantTable({
                                                 ) : (
                                                     <ShieldCheck className="mr-1 h-3 w-3" />
                                                 )}
-                                                Mark Qualified
+                                                Qualify
                                             </Button>
-                                        )}
+                                        ) : null}
 
-                                        {!state.isApproved && !state.isDisqualified && (
+                                        {!state.isApproved && !state.isDisqualified ? (
                                             <Button
                                                 size="sm"
                                                 onClick={() => onDisqualify(app)}
-                                                className="h-8 w-8 rounded-lg border border-red-100 bg-white p-0 text-red-500 shadow-none hover:bg-red-50"
+                                                className="h-8 rounded-lg border border-red-100 bg-white px-3 text-xs text-red-600 shadow-none hover:bg-red-50"
                                             >
-                                                <UserMinus className="h-3 w-3" />
+                                                <UserMinus className="mr-1 h-3 w-3" />
+                                                Reject
                                             </Button>
-                                        )}
+                                        ) : null}
                                     </div>
 
-                                    {!state.isApproved && !state.isQualified && !state.canApprove && (
-                                        <p className="mt-2 text-[11px] text-stone-400 text-right">
-                                            {state.decisionHint}
+                                    {!state.isApproved &&
+                                    !state.isQualified &&
+                                    !state.canApprove ? (
+                                        <p className="mt-2 text-right text-[11px] text-stone-400">
+                                            {openingFilled
+                                                ? 'No available slot for direct qualification.'
+                                                : state.decisionHint}
                                         </p>
-                                    )}
+                                    ) : null}
                                 </td>
                             </tr>
                         );

@@ -28,7 +28,7 @@ const FEATURES = [
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const { theme } = usePortalTheme('admin');
+  const { theme } = usePortalTheme('admin', null, { publicOnly: true });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

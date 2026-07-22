@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BarChart3, CheckCircle2, Loader2, Palette, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, BarChart3, CheckCircle2, Loader2, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,18 +13,28 @@ const PORTAL_LABELS = {
 };
 
 const PORTAL_HELPERS = {
-  admin: 'Admin portal layout, cards, login, and charts',
-  sdo: 'SDO login, queue, dashboard, and reports',
-  guidance: 'Guidance login, queue, dashboard, and reports',
-  pd: 'PD login, queue, dashboard, and reports',
+  admin: 'Your signed-in Admin layout, cards, and charts',
+  sdo: 'Your signed-in SDO queue, dashboard, and reports',
+  guidance: 'Your signed-in Guidance queue, dashboard, and reports',
+  pd: 'Your signed-in PD queue, dashboard, and reports',
 };
 
-function ThemePreviewCard({ portalKey, presetKey }) {
-  const theme = resolvePortalTheme(portalKey, presetKey);
+const CUSTOM_COLOR_FIELDS = [
+  { key: 'base', label: 'Sidebar' },
+  { key: 'active', label: 'Active navigation' },
+  { key: 'mainBg', label: 'Page background' },
+  { key: 'accent', label: 'Accent' },
+  { key: 'accentSoft', label: 'Accent surface' },
+  { key: 'chartTertiary', label: 'Chart color 3' },
+  { key: 'chartQuaternary', label: 'Chart color 4' },
+];
+
+function ThemePreviewCard({ portalKey, presetKey, customColors = null }) {
+  const theme = resolvePortalTheme(portalKey, presetKey, customColors);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
-      <div className="px-4 py-3 text-white" style={{ background: theme.base }}>
+      <div className="px-4 py-3" style={{ background: theme.base, color: theme.text }}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{PORTAL_LABELS[portalKey]}</p>
@@ -72,6 +82,72 @@ function ThemePreviewCard({ portalKey, presetKey }) {
   );
 }
 
+function CustomThemeModal({ portalKey, colors, saving, onChange, onClose, onSave }) {
+  if (!portalKey) return null;
+
+  const previewColors = {
+    ...colors,
+    chartPrimary: colors.base,
+    chartSecondary: colors.accent,
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-stone-200 bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-900">Create Custom Theme</h3>
+            <p className="mt-1 text-xs text-stone-500">Saved only for your {PORTAL_LABELS[portalKey]} account.</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid gap-5 p-5 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Theme Colors</p>
+            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
+              {CUSTOM_COLOR_FIELDS.map((field) => (
+                <label key={field.key} className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 px-3 py-2.5">
+                  <span className="text-xs font-medium text-stone-700">{field.label}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-[10px] font-medium uppercase text-stone-400">{colors[field.key]}</span>
+                    <input
+                      type="color"
+                      value={colors[field.key]}
+                      onChange={(event) => onChange(field.key, event.target.value)}
+                      className="h-7 w-9 cursor-pointer rounded border-0 bg-transparent p-0"
+                    />
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Live Preview</p>
+            <ThemePreviewCard portalKey={portalKey} presetKey="custom" customColors={previewColors} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-3">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="h-9 rounded-xl border-stone-200 text-xs">
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSave} disabled={saving} className="h-9 rounded-xl bg-stone-900 px-4 text-xs text-white hover:bg-stone-800">
+            {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+            Save Custom Theme
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CompactPortalDisplayCard({ portalKey, presetKey }) {
   const theme = resolvePortalTheme(portalKey, presetKey);
 
@@ -107,9 +183,12 @@ export default function ThemePanel({
   allowedPortals = ['admin', 'sdo', 'guidance', 'pd'],
   editablePortals = null,
   title = 'Theme Presets',
-  subtitle = 'Choose a portal color preset for layouts, logins, and dashboard charts.',
+  subtitle = 'Choose a personal color preset for your signed-in layout and dashboard charts.',
 }) {
   const [settings, setSettings] = useState({});
+  const [customColors, setCustomColors] = useState({});
+  const [customPortal, setCustomPortal] = useState('');
+  const [customDraft, setCustomDraft] = useState({});
   const [savingPortal, setSavingPortal] = useState('');
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
@@ -132,7 +211,7 @@ export default function ThemePanel({
     [editablePortalSet, normalizedPortals]
   );
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(buildApiUrl('/api/theme-settings'), {
@@ -148,22 +227,25 @@ export default function ThemePanel({
       }
 
       const nextSettings = {};
+      const nextCustomColors = {};
       const items = Array.isArray(payload?.items) ? payload.items : [];
       normalizedPortals.forEach((portalKey) => {
         const match = items.find((item) => String(item?.portal_key || '').trim().toLowerCase() === portalKey);
         nextSettings[portalKey] = match?.preset_key || 'default';
+        nextCustomColors[portalKey] = match?.custom_colors || null;
       });
       setSettings(nextSettings);
+      setCustomColors(nextCustomColors);
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to load theme settings.' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [normalizedPortals, tokenStorageKey]);
 
   useEffect(() => {
     loadSettings();
-  }, []);
+  }, [loadSettings]);
 
   useEffect(() => {
     if (!feedback.message) return undefined;
@@ -171,7 +253,7 @@ export default function ThemePanel({
     return () => window.clearTimeout(timer);
   }, [feedback]);
 
-  const handleSave = async (portalKey, presetKey = 'default') => {
+  const handleSave = async (portalKey, presetKey = 'default', nextCustomColors = null) => {
     try {
       setSavingPortal(portalKey);
       const response = await fetch(buildApiUrl(`/api/theme-settings/${portalKey}`), {
@@ -180,7 +262,7 @@ export default function ThemePanel({
           Authorization: `Bearer ${sessionStorage.getItem(tokenStorageKey)}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ preset_key: presetKey }),
+        body: JSON.stringify({ preset_key: presetKey, custom_colors: nextCustomColors }),
       });
       const payload = await response.json().catch(() => ({}));
 
@@ -193,17 +275,57 @@ export default function ThemePanel({
         ...current,
         [portalKey]: nextPresetKey,
       }));
+      setCustomColors((current) => ({
+        ...current,
+        [portalKey]: payload?.custom_colors || null,
+      }));
 
-      try {
-        localStorage.setItem(`smartpdm-theme-${portalKey}`, nextPresetKey);
-      } catch {}
+      window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
+        detail: {
+          portal_key: portalKey,
+          preset_key: nextPresetKey,
+          user_id: payload?.user_id || null,
+        },
+      }));
 
       setFeedback({ type: 'success', message: `${PORTAL_LABELS[portalKey]} theme applied.` });
+      return true;
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to save theme setting.' });
+      return false;
     } finally {
       setSavingPortal('');
     }
+  };
+
+  const openCustomTheme = (portalKey) => {
+    const currentTheme = resolvePortalTheme(
+      portalKey,
+      settings[portalKey] || 'default',
+      customColors[portalKey] || null
+    );
+    setCustomDraft({
+      base: currentTheme.base,
+      active: currentTheme.active,
+      mainBg: currentTheme.mainBg,
+      accent: currentTheme.accent,
+      accentSoft: currentTheme.accentSoft,
+      chartPrimary: currentTheme.base,
+      chartSecondary: currentTheme.accent,
+      chartTertiary: currentTheme.chartTertiary,
+      chartQuaternary: currentTheme.chartQuaternary,
+    });
+    setCustomPortal(portalKey);
+  };
+
+  const saveCustomTheme = async () => {
+    const palette = {
+      ...customDraft,
+      chartPrimary: customDraft.base,
+      chartSecondary: customDraft.accent,
+    };
+    const saved = await handleSave(customPortal, 'custom', palette);
+    if (saved) setCustomPortal('');
   };
 
   if (loading) {
@@ -217,6 +339,16 @@ export default function ThemePanel({
 
   return (
     <div className="space-y-5">
+      <CustomThemeModal
+        portalKey={customPortal}
+        colors={customDraft}
+        saving={savingPortal === customPortal}
+        onChange={(key, value) => setCustomDraft((current) => ({ ...current, [key]: value }))}
+        onClose={() => {
+          if (!savingPortal) setCustomPortal('');
+        }}
+        onSave={saveCustomTheme}
+      />
       <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white">
@@ -230,7 +362,7 @@ export default function ThemePanel({
             </p>
             {normalizedEditablePortals.length < normalizedPortals.length ? (
               <p className="mt-1 text-xs text-stone-500">
-                This page can edit only the assigned portal theme. Other office themes are shown for quick reference.
+              This page edits only your signed-in account theme. Other office defaults are shown for reference.
               </p>
             ) : null}
             {feedback.message ? (
@@ -252,6 +384,7 @@ export default function ThemePanel({
       <div className="space-y-5">
         {normalizedEditablePortals.map((portalKey) => {
           const savedPresetKey = settings[portalKey] || 'default';
+          const savedCustomColors = customColors[portalKey] || null;
 
           return (
             <Card key={portalKey} className="overflow-hidden border-stone-200 shadow-none">
@@ -260,25 +393,37 @@ export default function ThemePanel({
                   <div>
                     <h4 className="text-base font-semibold text-stone-900">{PORTAL_LABELS[portalKey]} Theme</h4>
                     <p className="mt-1 text-sm text-stone-500">
-                      Saved preset: <span className="font-medium text-stone-700">{resolvePortalTheme(portalKey, savedPresetKey).label}</span>
+                      Saved preset: <span className="font-medium text-stone-700">{resolvePortalTheme(portalKey, savedPresetKey, savedCustomColors).label}</span>
                     </p>
                     <p className="mt-1 text-xs text-stone-500">{PORTAL_HELPERS[portalKey]}</p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 rounded-xl border-stone-200 text-xs"
-                    onClick={() => handleSave(portalKey, 'default')}
-                    disabled={savingPortal === portalKey}
-                  >
-                    {savingPortal === portalKey ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
-                    {savingPortal === portalKey ? 'Applying...' : 'Restore Default'}
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-xl border-stone-200 text-xs"
+                      onClick={() => openCustomTheme(portalKey)}
+                      disabled={savingPortal === portalKey}
+                    >
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Custom Theme
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-xl border-stone-200 text-xs"
+                      onClick={() => handleSave(portalKey, 'default')}
+                      disabled={savingPortal === portalKey}
+                    >
+                      {savingPortal === portalKey ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
+                      {savingPortal === portalKey ? 'Applying...' : 'Restore Default'}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
               <CardContent className="space-y-4 p-5">
-                <ThemePreviewCard portalKey={portalKey} presetKey={savedPresetKey} />
+                <ThemePreviewCard portalKey={portalKey} presetKey={savedPresetKey} customColors={savedCustomColors} />
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {presetOptions.map((preset) => {
@@ -336,7 +481,7 @@ export default function ThemePanel({
           <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
             <h4 className="text-sm font-semibold text-stone-900">Other Office Themes</h4>
             <p className="mt-1 text-xs text-stone-500">
-              Display only. These office themes are managed in their own maintenance pages.
+              Display only. These are shared login defaults; signed-in staff can choose their own portal theme.
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {readOnlyPortals.map((portalKey) => (

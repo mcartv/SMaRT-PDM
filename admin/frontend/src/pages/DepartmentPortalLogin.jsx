@@ -16,7 +16,7 @@ export default function DepartmentPortalLogin({
   colors: fallbackColors,
 }) {
   const navigate = useNavigate();
-  const { theme: colors } = usePortalTheme(portalKey, fallbackColors);
+  const { theme: colors } = usePortalTheme(portalKey, fallbackColors, { publicOnly: true });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

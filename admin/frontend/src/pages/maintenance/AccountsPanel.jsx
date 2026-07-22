@@ -17,6 +17,7 @@ import {
     ChevronDown,
     Edit,
     Eye,
+    Filter,
     Loader2,
     Mail,
     Phone,
@@ -841,6 +842,7 @@ export default function AccountsPanel() {
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
     const [roleFilter, setRoleFilter] = useState('all');
+    const [courseFilter, setCourseFilter] = useState('all');
 
     const currentCount = useMemo(
         () => accounts.filter((account) => account.is_archived !== true).length,
@@ -870,6 +872,7 @@ export default function AccountsPanel() {
             if (pageTab === 'archived' && !isArchived) return false;
 
             if (!accountMatchesRoleGroup(account, roleFilter)) return false;
+            if (courseFilter !== 'all' && !(account.course_ids || []).includes(courseFilter)) return false;
 
             if (!q) return true;
 
@@ -883,7 +886,7 @@ export default function AccountsPanel() {
                 (account.assigned_courses || []).some((course) => String(course.course_code || '').toLowerCase().includes(q))
             );
         });
-    }, [accounts, search, pageTab, roleFilter]);
+    }, [accounts, search, pageTab, roleFilter, courseFilter]);
 
     const loadAccounts = useCallback(async () => {
         try {
@@ -1238,26 +1241,94 @@ export default function AccountsPanel() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                                    <SelectTrigger className="h-8 w-[185px] rounded-lg border-stone-200 bg-white text-xs">
-                                        <SelectValue placeholder="Filter account type" />
-                                    </SelectTrigger>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="h-8 rounded-lg border-stone-200 px-3 text-xs">
+                                            <Filter className="mr-1.5 h-3.5 w-3.5" />
+                                            Filter
+                                            {(roleFilter !== 'all' || courseFilter !== 'all') ? (
+                                                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-stone-900 px-1 text-[9px] font-bold text-white">
+                                                    {(roleFilter !== 'all' ? 1 : 0) + (courseFilter !== 'all' ? 1 : 0)}
+                                                </span>
+                                            ) : null}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent align="end" className="w-72 gap-0 border border-stone-200 bg-white p-3 shadow-xl">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm font-semibold text-stone-900">Filter Accounts</p>
+                                                <p className="mt-0.5 text-xs text-stone-500">Narrow the staff registry.</p>
+                                            </div>
+                                            {(roleFilter !== 'all' || courseFilter !== 'all') ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setRoleFilter('all');
+                                                        setCourseFilter('all');
+                                                    }}
+                                                    className="text-xs font-semibold text-stone-600 hover:text-stone-900"
+                                                >
+                                                    Clear
+                                                </button>
+                                            ) : null}
+                                        </div>
 
-                                    <SelectContent>
-                                        <SelectItem value="all">All Staff</SelectItem>
-                                        <SelectItem value="admin">Admin</SelectItem>
-                                        <SelectItem value="office">Office (SDO/GCO)</SelectItem>
-                                        <SelectItem value="pd">Program Director</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                        <div className="mt-3 space-y-3 border-t border-stone-100 pt-3">
+                                            <div>
+                                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">Account Role</label>
+                                                <Select
+                                                    value={roleFilter}
+                                                    onValueChange={(value) => {
+                                                        setRoleFilter(value);
+                                                        if (!['all', 'pd'].includes(value)) setCourseFilter('all');
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 bg-white text-xs">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="all">All Staff</SelectItem>
+                                                        <SelectItem value="admin">Admin</SelectItem>
+                                                        <SelectItem value="office">Office (SDO/GCO)</SelectItem>
+                                                        <SelectItem value="pd">Program Director</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
 
-                                {(search || roleFilter !== 'all') && (
+                                            <div>
+                                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-stone-400">Assigned PD Course</label>
+                                                <Select
+                                                    value={courseFilter}
+                                                    onValueChange={(value) => {
+                                                        setCourseFilter(value);
+                                                        if (value !== 'all') setRoleFilter('pd');
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 bg-white text-xs">
+                                                        <SelectValue placeholder="All courses" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="all">All Courses</SelectItem>
+                                                        {courses.map((course) => (
+                                                            <SelectItem key={course.course_id} value={course.course_id}>
+                                                                {course.course_code} - {course.course_name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+
+                                {(search || roleFilter !== 'all' || courseFilter !== 'all') && (
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() => {
                                             setSearch('');
                                             setRoleFilter('all');
+                                            setCourseFilter('all');
                                         }}
                                         className="h-8 rounded-lg border-stone-200 text-xs"
                                     >

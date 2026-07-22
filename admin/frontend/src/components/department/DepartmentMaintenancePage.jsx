@@ -967,7 +967,7 @@ export default function DepartmentMaintenancePage({
               tokenStorageKey={tokenStorageKey}
               allowedPortals={[config.themePortalKey]}
               title={`${config.shortName} Theme`}
-              subtitle={`Choose a preset for the ${config.shortName} login, module shell, and dashboard colors.`}
+              subtitle={`Choose a personal preset for your ${config.shortName} module shell and dashboard colors.`}
             />
           )}
           {tab === 'audit' && <AuditPanel config={config} palette={palette} />}

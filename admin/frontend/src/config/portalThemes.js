@@ -290,10 +290,31 @@ export function getPortalDefaultTheme(portalKey) {
   return DEFAULT_THEMES[portalKey] || DEFAULT_THEMES.admin;
 }
 
-export function resolvePortalTheme(portalKey, presetKey = 'default') {
+function readableTextColor(hexColor) {
+  const value = String(hexColor || '').replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(value)) return '#ffffff';
+  const [red, green, blue] = [0, 2, 4].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16));
+  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+  return luminance > 0.58 ? '#1c1917' : '#ffffff';
+}
+
+export function resolvePortalTheme(portalKey, presetKey = 'default', customColors = null) {
   const normalizedPortal = String(portalKey || 'admin').trim().toLowerCase();
   const normalizedPreset = String(presetKey || 'default').trim().toLowerCase();
   const fallback = getPortalDefaultTheme(normalizedPortal);
+
+  if (normalizedPreset === 'custom' && customColors && typeof customColors === 'object') {
+    return {
+      ...fallback,
+      ...customColors,
+      text: readableTextColor(customColors.base || fallback.base),
+      sub: readableTextColor(customColors.base || fallback.base),
+      chartPositive: fallback.chartPositive,
+      chartNegative: fallback.chartNegative,
+      presetKey: 'custom',
+      label: 'Custom',
+    };
+  }
 
   if (normalizedPreset === 'default' || !PRESET_OVERRIDES[normalizedPreset]) {
     return {

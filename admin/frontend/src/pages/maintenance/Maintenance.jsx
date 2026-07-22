@@ -136,7 +136,7 @@ export default function Maintenance() {
                 allowedPortals={['admin', 'sdo', 'guidance', 'pd']}
                 editablePortals={['admin']}
                 title="Admin Theme"
-                subtitle="Manage the admin portal theme here. Other office themes are shown as quick previews only."
+                subtitle="Manage your personal Admin theme here. Other office login defaults are shown as quick previews only."
               />
             )}
           </div>

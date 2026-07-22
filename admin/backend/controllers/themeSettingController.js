@@ -49,12 +49,27 @@ async function getPublicThemeSetting(req, res) {
 
 async function getThemeSettings(req, res) {
   try {
-    const result = await themeSettingService.getThemeSettings();
+    const result = await themeSettingService.getThemeSettings(req.user || {});
     return res.status(200).json(result);
   } catch (error) {
     console.error('GET THEME SETTINGS ERROR:', error);
     return res.status(getSafeStatusCode(error)).json({
       error: error.message || 'Failed to load theme settings.',
+    });
+  }
+}
+
+async function getCurrentThemeSetting(req, res) {
+  try {
+    const result = await themeSettingService.getPersonalThemeSetting(
+      req.params.portalKey,
+      req.user || {}
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('GET PERSONAL THEME SETTING ERROR:', error);
+    return res.status(getSafeStatusCode(error)).json({
+      error: error.message || 'Failed to load personal theme setting.',
     });
   }
 }
@@ -74,6 +89,8 @@ async function updateThemeSetting(req, res) {
       portal_key: result.portal_key,
       preset_key: result.preset_key,
       custom_colors: result.custom_colors || null,
+      user_id: result.user_id || getActorUserId(req),
+      is_personal: result.is_personal === true,
       updated_at: result.updated_at || new Date().toISOString(),
     });
 
@@ -98,6 +115,7 @@ async function updateThemeSetting(req, res) {
 
 module.exports = {
   getPublicThemeSetting,
+  getCurrentThemeSetting,
   getThemeSettings,
   updateThemeSetting,
 };

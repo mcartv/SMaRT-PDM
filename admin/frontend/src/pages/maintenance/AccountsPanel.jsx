@@ -21,7 +21,6 @@ import {
     RefreshCw,
     Save,
     Search,
-    ShieldCheck,
     UsersRound,
     X,
 } from 'lucide-react';
@@ -88,6 +87,9 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
     if (form.role !== 'pd') return null;
     const selected = new Set(form.course_ids || []);
     const selectedCourses = courses.filter((course) => selected.has(course.course_id));
+    const isOwnedByAnother = (course) => course.assigned_pd?.user_id && course.assigned_pd.user_id !== currentUserId;
+    const availableCourses = courses.filter((course) => !isOwnedByAnother(course));
+    const unavailableCourses = courses.filter(isOwnedByAnother);
 
     const toggleCourse = (courseId) => {
         setField('course_ids', selected.has(courseId)
@@ -96,13 +98,10 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
     };
 
     return (
-        <div className="rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50/70 to-white p-4">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <p className="text-sm font-semibold text-stone-900">Assigned Courses</p>
-                    <p className="mt-1 text-xs leading-5 text-stone-500">Select the courses whose endorsement applicants this Program Director will handle.</p>
-                </div>
-                <span className="shrink-0 rounded-full border border-violet-100 bg-white px-2.5 py-1 text-xs font-semibold text-violet-700">
+        <div>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+                <label className="text-xs font-semibold text-stone-700">Assigned courses</label>
+                <span className="text-xs text-stone-500">
                     {selected.size} selected
                 </span>
             </div>
@@ -113,11 +112,9 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
                         type="button"
                         disabled={disabled || !courses.length}
                         aria-expanded={open}
-                        className="mt-3 flex min-h-11 w-full items-center justify-between rounded-lg border border-stone-200 bg-white px-3.5 py-2 text-left text-sm text-stone-700 shadow-sm outline-none transition hover:border-violet-300 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="flex h-10 w-full items-center justify-between rounded-lg border border-stone-200 bg-white px-3 text-left text-sm shadow-sm outline-none transition hover:border-stone-300 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:cursor-not-allowed disabled:bg-stone-50 disabled:opacity-60"
                     >
-                        <span className={selected.size ? 'font-medium text-stone-800' : 'text-stone-500'}>
-                            {selected.size ? `${selected.size} course${selected.size === 1 ? '' : 's'} assigned` : 'Choose courses'}
-                        </span>
+                        <span className="text-stone-500">Select courses</span>
                         <ChevronDown className={`h-4 w-4 text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`} />
                     </button>
                 </PopoverTrigger>
@@ -129,44 +126,62 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
                         <CommandInput placeholder="Search course code or name..." />
                         <CommandList className="max-h-64">
                             <CommandEmpty>No matching course found.</CommandEmpty>
-                            <CommandGroup heading="Active courses">
-                                {courses.map((course) => {
-                                    const ownedByAnother = course.assigned_pd?.user_id && course.assigned_pd.user_id !== currentUserId;
+                            <CommandGroup heading="Available courses">
+                                {availableCourses.map((course) => {
                                     const isSelected = selected.has(course.course_id);
-                                    const ownerName = course.assigned_pd?.name || course.assigned_pd?.email;
 
                                     return (
                                         <CommandItem
                                             key={course.course_id}
-                                            value={`${course.course_code} ${course.course_name} ${ownerName || ''}`}
-                                            disabled={disabled || ownedByAnother}
+                                            value={`${course.course_code} ${course.course_name}`}
+                                            disabled={disabled}
                                             data-checked={isSelected}
                                             onSelect={() => toggleCourse(course.course_id)}
-                                            className="items-start px-3 py-2.5"
+                                            className="px-3 py-2.5"
                                         >
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block text-sm font-semibold text-stone-800">{course.course_code}</span>
-                                                <span className="mt-0.5 block text-xs leading-4 text-stone-500">
-                                                    {course.course_name}
-                                                </span>
-                                                {ownedByAnother ? (
-                                                    <span className="mt-1 block text-xs font-medium text-amber-700">Assigned to {ownerName}</span>
-                                                ) : null}
+                                            <span className="min-w-0 flex-1 truncate">
+                                                <span className="font-semibold text-stone-800">{course.course_code}</span>
+                                                <span className="ml-2 text-xs text-stone-500">{course.course_name}</span>
                                             </span>
                                         </CommandItem>
                                     );
                                 })}
+                                {!availableCourses.length ? (
+                                    <p className="px-3 py-2 text-xs text-stone-500">No courses are available for assignment.</p>
+                                ) : null}
                             </CommandGroup>
+                            {unavailableCourses.length ? (
+                                <CommandGroup heading="Assigned to another Program Director">
+                                    {unavailableCourses.map((course) => (
+                                        <CommandItem
+                                            key={course.course_id}
+                                            value={`${course.course_code} ${course.course_name} ${course.assigned_pd?.name || course.assigned_pd?.email || ''}`}
+                                            disabled
+                                            className="px-3 py-2.5"
+                                        >
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-sm font-semibold text-stone-600">
+                                                    {course.course_code}
+                                                    <span className="ml-2 text-xs font-normal text-stone-400">{course.course_name}</span>
+                                                </span>
+                                                <span className="block truncate text-xs text-amber-700">
+                                                    Assigned to {course.assigned_pd?.name || course.assigned_pd?.email}
+                                                </span>
+                                            </span>
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            ) : null}
                         </CommandList>
                     </Command>
                 </PopoverContent>
             </Popover>
 
-            <div className="mt-3 flex min-h-7 flex-wrap gap-2">
+            <div className="mt-2 flex min-h-6 flex-wrap gap-1.5">
                 {selectedCourses.map((course) => (
                     <span
                         key={course.course_id}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-white py-1 pl-2.5 pr-1.5 text-xs font-semibold text-violet-800 shadow-sm"
+                        className="inline-flex items-center gap-1 rounded-md border border-stone-200 bg-stone-50 py-1 pl-2 pr-1 text-xs font-medium text-stone-700"
                         title={course.course_name}
                     >
                         {course.course_code}
@@ -175,18 +190,19 @@ function CourseAssignmentField({ form, setField, courses, currentUserId = null, 
                             onClick={() => toggleCourse(course.course_id)}
                             disabled={disabled}
                             aria-label={`Remove ${course.course_code}`}
-                            className="rounded-full p-0.5 text-violet-500 transition hover:bg-violet-100 hover:text-violet-800 disabled:opacity-50"
+                            className="rounded p-0.5 text-stone-400 transition hover:bg-stone-200 hover:text-stone-700 disabled:opacity-50"
                         >
                             <X className="h-3 w-3" />
                         </button>
                     </span>
                 ))}
                 {!selectedCourses.length ? (
-                    <p className="self-center text-xs text-stone-500">
+                    <p className="self-center text-xs text-stone-400">
                         {courses.length ? 'No courses selected yet.' : 'No active courses are available.'}
                     </p>
                 ) : null}
             </div>
+            <p className="mt-1.5 text-[11px] text-stone-400">Course options are managed in Maintenance &gt; Courses.</p>
         </div>
     );
 }
@@ -741,29 +757,6 @@ export default function AccountsPanel() {
         });
     }, [accounts, search, pageTab, roleFilter]);
 
-    const visibleRoleOptions = useMemo(() => {
-        if (roleFilter === 'admin') {
-            return ROLE_OPTIONS.filter((role) => role.value === 'admin');
-        }
-
-        if (roleFilter === 'office') {
-            return ROLE_OPTIONS.filter((role) => ['sdo', 'guidance'].includes(role.value));
-        }
-
-        if (roleFilter === 'pd') {
-            return ROLE_OPTIONS.filter((role) => role.value === 'pd');
-        }
-
-        return ROLE_OPTIONS;
-    }, [roleFilter]);
-
-    const groupedAccounts = useMemo(() => {
-        return visibleRoleOptions.map((role) => ({
-            ...role,
-            accounts: filteredAccounts.filter((account) => account.role === role.value),
-        }));
-    }, [filteredAccounts, visibleRoleOptions]);
-
     const loadAccounts = useCallback(async () => {
         try {
             setLoading(true);
@@ -1163,164 +1156,144 @@ export default function AccountsPanel() {
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white p-4">
+                <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                     {loading ? (
                         <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 text-xs text-stone-400">
                             <Loader2 className="h-5 w-5 animate-spin" />
                             Loading staff accounts...
                         </div>
                     ) : error ? (
-                        <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-4 py-6 text-center text-xs text-red-700">
+                        <div className="m-4 flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-4 py-6 text-center text-xs text-red-700">
                             <AlertTriangle className="h-5 w-5" />
                             {error}
                         </div>
                     ) : filteredAccounts.length === 0 ? (
-                        <EmptyState
-                            icon={UsersRound}
-                            title={
-                                pageTab === 'archived'
-                                    ? 'No archived staff accounts'
-                                    : 'No staff accounts found'
-                            }
-                            subtitle={
-                                pageTab === 'archived'
-                                    ? 'Archived staff accounts will appear here.'
-                                    : 'Create the first role-based account using the Add button.'
-                            }
-                        />
+                        <div className="p-4">
+                            <EmptyState
+                                icon={UsersRound}
+                                title={
+                                    pageTab === 'archived'
+                                        ? 'No archived staff accounts'
+                                        : 'No staff accounts found'
+                                }
+                                subtitle={
+                                    pageTab === 'archived'
+                                        ? 'Archived staff accounts will appear here.'
+                                        : 'Create the first role-based account using the Add button.'
+                                }
+                            />
+                        </div>
                     ) : (
-                        <div className="space-y-4">
-                            {groupedAccounts.map((group) => (
-                                <div key={group.value} className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <span
-                                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${roleTone(group.value)}`}
+                        <div>
+                            <div className="hidden grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] gap-4 border-b border-stone-200 bg-stone-50 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500 lg:grid">
+                                <span>Account</span>
+                                <span>Access</span>
+                                <span>Office / Position</span>
+                                <span>Assigned Courses</span>
+                                <span className="text-right">Actions</span>
+                            </div>
+
+                            <div className="divide-y divide-stone-100">
+                                {filteredAccounts.map((account) => {
+                                    const isBusy = actionLoadingId === account.user_id;
+                                    const roleLabel = ROLE_OPTIONS.find((role) => role.value === account.role)?.label || account.role;
+
+                                    return (
+                                        <div
+                                            key={account.user_id}
+                                            className={`grid gap-3 px-4 py-3 transition-colors lg:grid-cols-[minmax(210px,1.35fr)_145px_minmax(180px,1fr)_minmax(220px,1.25fr)_150px] lg:items-center lg:gap-4 ${account.is_archived ? 'bg-stone-50/80' : 'hover:bg-stone-50/60'}`}
                                         >
-                                            {group.label}
-                                        </span>
-                                        <span className="text-[11px] text-stone-400">
-                                            {group.accounts.length} account
-                                            {group.accounts.length === 1 ? '' : 's'}
-                                        </span>
-                                    </div>
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="truncate text-sm font-semibold text-stone-900">{account.name}</p>
+                                                    {account.is_archived ? (
+                                                        <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700">Archived</span>
+                                                    ) : null}
+                                                </div>
+                                                <p className="mt-0.5 truncate text-xs text-stone-500">{account.email}</p>
+                                            </div>
 
-                                    {group.accounts.length ? (
-                                        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                                            {group.accounts.map((account) => {
-                                                const isBusy =
-                                                    actionLoadingId === account.user_id;
+                                            <div className="flex items-center gap-2 lg:block">
+                                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400 lg:hidden">Access</span>
+                                                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${roleTone(account.role)}`}>
+                                                    {roleLabel}
+                                                </span>
+                                            </div>
 
-                                                return (
-                                                    <div
-                                                        key={account.user_id}
-                                                        className={`rounded-xl border px-3 py-3 ${account.is_archived
-                                                                ? 'border-stone-200 bg-stone-50'
-                                                                : 'border-stone-200 bg-white'
-                                                            }`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="min-w-0">
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <p className="truncate text-sm font-semibold text-stone-900">
-                                                                        {account.name}
-                                                                    </p>
+                                            <div className="flex min-w-0 gap-2 text-xs lg:block">
+                                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400 lg:hidden">Office</span>
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-medium text-stone-700">{account.department || 'No department'}</p>
+                                                    <p className="mt-0.5 truncate text-stone-500">{account.position || 'No position'}</p>
+                                                </div>
+                                            </div>
 
-                                                                    {account.is_archived && (
-                                                                        <span className="rounded bg-red-50 px-2 py-0.5 text-[10px] text-red-700">
-                                                                            Archived
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-
-                                                                <p className="truncate text-xs text-stone-500">
-                                                                    {account.email}
-                                                                </p>
-                                                            </div>
-
-                                                            <ShieldCheck className="h-4 w-4 shrink-0 text-stone-300" />
-                                                        </div>
-
-                                                        <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-stone-500 sm:grid-cols-2">
-                                                            <span className="truncate">
-                                                                {account.department || 'No department'}
+                                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                                <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-stone-400 lg:hidden">Courses</span>
+                                                {account.role === 'pd' ? (
+                                                    <>
+                                                        {(account.assigned_courses || []).slice(0, 3).map((course) => (
+                                                            <span
+                                                                key={course.course_id}
+                                                                className="rounded-md border border-violet-100 bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700"
+                                                                title={course.course_name}
+                                                            >
+                                                                {course.course_code}
                                                             </span>
-                                                            <span className="truncate">
-                                                                {account.position || 'No position'}
-                                                            </span>
-                                                        </div>
-
-                                                        {account.role === 'pd' ? (
-                                                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3">
-                                                                <span className="text-xs font-medium text-stone-500">Courses</span>
-                                                                {(account.assigned_courses || []).slice(0, 4).map((course) => (
-                                                                    <span key={course.course_id} className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700" title={course.course_name}>
-                                                                        {course.course_code}
-                                                                    </span>
-                                                                ))}
-                                                                {(account.assigned_courses || []).length > 4 ? (
-                                                                    <span className="text-xs font-medium text-stone-500">+{account.assigned_courses.length - 4} more</span>
-                                                                ) : null}
-                                                                {!account.assigned_courses?.length ? <span className="text-xs font-medium text-amber-700">No courses assigned</span> : null}
-                                                            </div>
+                                                        ))}
+                                                        {(account.assigned_courses || []).length > 3 ? (
+                                                            <span className="text-xs font-medium text-stone-500">+{account.assigned_courses.length - 3} more</span>
                                                         ) : null}
+                                                        {!account.assigned_courses?.length ? (
+                                                            <span className="text-xs font-medium text-amber-700">Not assigned</span>
+                                                        ) : null}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-xs text-stone-400">Not applicable</span>
+                                                )}
+                                            </div>
 
-                                                        <div className="mt-3 flex flex-wrap justify-end gap-1.5">
-                                                            {account.is_archived ? (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleArchiveRestore(account)}
-                                                                    disabled={isBusy}
-                                                                    className="h-7 rounded-lg border-green-200 px-2 text-xs text-green-700 hover:bg-green-50"
-                                                                >
-                                                                    {isBusy ? (
-                                                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                                    ) : (
-                                                                        <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />
-                                                                    )}
-                                                                    Restore
-                                                                </Button>
-                                                            ) : (
-                                                                <>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        onClick={() => openEditModal(account)}
-                                                                        disabled={isBusy}
-                                                                        className="h-7 rounded-lg border-stone-200 px-2 text-xs"
-                                                                    >
-                                                                        <Edit className="mr-1.5 h-3.5 w-3.5" />
-                                                                        Edit
-                                                                    </Button>
-
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        onClick={() => handleArchiveRestore(account)}
-                                                                        disabled={isBusy}
-                                                                        className="h-7 rounded-lg border-red-200 px-2 text-xs text-red-700 hover:bg-red-50"
-                                                                    >
-                                                                        {isBusy ? (
-                                                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                                                        ) : (
-                                                                            <Archive className="mr-1.5 h-3.5 w-3.5" />
-                                                                        )}
-                                                                        Archive
-                                                                    </Button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                            <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                                                {account.is_archived ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleArchiveRestore(account)}
+                                                        disabled={isBusy}
+                                                        className="h-8 rounded-lg border-green-200 px-2.5 text-xs text-green-700 hover:bg-green-50"
+                                                    >
+                                                        {isBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />}
+                                                        Restore
+                                                    </Button>
+                                                ) : (
+                                                    <>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => openEditModal(account)}
+                                                            disabled={isBusy}
+                                                            className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
+                                                        >
+                                                            <Edit className="mr-1.5 h-3.5 w-3.5" />
+                                                            Edit
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleArchiveRestore(account)}
+                                                            disabled={isBusy}
+                                                            className="h-8 rounded-lg border-red-200 px-2.5 text-xs text-red-700 hover:bg-red-50"
+                                                        >
+                                                            {isBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
+                                                            Archive
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <div className="rounded-lg border border-dashed border-stone-200 bg-stone-50 px-3 py-4 text-center text-xs text-stone-400">
-                                            No {group.label} accounts.
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>

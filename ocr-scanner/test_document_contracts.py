@@ -130,8 +130,11 @@ class DocumentContractsTest(unittest.TestCase):
             candidate_token_count=2,
             candidate_word_confidences=(91.25, 43.5),
             candidate_horizontal_gaps=(37,),
+            candidate_gap_ratios=(1.321,),
             candidate_word_count_before_filter=2,
             candidate_word_count_after_filter=2,
+            token_filter_status="unchanged",
+            removed_token_count=0,
             candidate_source="pre_title_header",
             anchor_found=True,
             bounds_present=True,
@@ -173,8 +176,11 @@ class DocumentContractsTest(unittest.TestCase):
                 "candidate_token_count",
                 "candidate_word_confidences",
                 "candidate_horizontal_gaps",
+                "candidate_gap_ratios",
                 "candidate_word_count_before_filter",
                 "candidate_word_count_after_filter",
+                "token_filter_status",
+                "removed_token_count",
                 "candidate_source",
                 "anchor_found",
                 "bounds_present",
@@ -192,6 +198,7 @@ class DocumentContractsTest(unittest.TestCase):
         numeric_arrays = {
             "candidate_word_confidences",
             "candidate_horizontal_gaps",
+            "candidate_gap_ratios",
         }
         self.assertTrue(
             all(
@@ -209,6 +216,7 @@ class DocumentContractsTest(unittest.TestCase):
                     "positional",
                     "valid",
                     "not_attempted",
+                    "unchanged",
                     "none",
                 }
                 for key, value in persisted.items()
@@ -223,8 +231,11 @@ class DocumentContractsTest(unittest.TestCase):
             "candidate_token_count": 2,
             "candidate_word_confidences": (91.25, 43.5),
             "candidate_horizontal_gaps": (37,),
+            "candidate_gap_ratios": (1.321,),
             "candidate_word_count_before_filter": 2,
             "candidate_word_count_after_filter": 2,
+            "token_filter_status": "unchanged",
+            "removed_token_count": 0,
             "candidate_source": "pre_title_header",
             "anchor_found": True,
             "bounds_present": True,
@@ -259,6 +270,9 @@ class DocumentContractsTest(unittest.TestCase):
         self.assertEqual(persisted["positional_validation_status"], "valid")
         self.assertEqual(persisted["candidate_word_confidences"], [91.25, 43.5])
         self.assertEqual(persisted["candidate_horizontal_gaps"], [37])
+        self.assertEqual(persisted["candidate_gap_ratios"], [1.321])
+        self.assertEqual(persisted["token_filter_status"], "unchanged")
+        self.assertEqual(persisted["removed_token_count"], 0)
 
     def test_indigency_legacy_barangay_diagnostic_enums_remain_persistable(self):
         diagnostics = SimpleNamespace(

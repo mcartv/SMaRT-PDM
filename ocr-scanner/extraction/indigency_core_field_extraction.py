@@ -46,6 +46,10 @@ class IndigencyExtractionConfig:
     maximum_deskew_degrees: float = 7.0
     crop_padding_pixels: int = 4
     maximum_barangay_length: int = 80
+    minimum_leading_word_confidence: float = 70.0
+    maximum_trailing_noise_confidence: float = 40.0
+    minimum_detached_gap_ratio: float = 3.0
+    maximum_detached_tokens_removed: int = 1
 
 
 @dataclass(frozen=True)
@@ -78,8 +82,11 @@ class IndigencyFieldDiagnostics:
     candidate_token_count: int
     candidate_word_confidences: tuple[float, ...]
     candidate_horizontal_gaps: tuple[int, ...]
+    candidate_gap_ratios: tuple[float, ...]
     candidate_word_count_before_filter: int
     candidate_word_count_after_filter: int
+    token_filter_status: str
+    removed_token_count: int
     candidate_source: str
     anchor_found: bool
     bounds_present: bool
@@ -657,8 +664,11 @@ def _barangay_diagnostics(
     candidate_token_count: int,
     candidate_word_confidences: tuple[float, ...],
     candidate_horizontal_gaps: tuple[int, ...],
+    candidate_gap_ratios: tuple[float, ...],
     candidate_word_count_before_filter: int,
     candidate_word_count_after_filter: int,
+    token_filter_status: str,
+    removed_token_count: int,
     candidate_source: str,
     anchor_found: bool,
     bounds_present: bool,
@@ -675,8 +685,11 @@ def _barangay_diagnostics(
         candidate_token_count=candidate_token_count,
         candidate_word_confidences=candidate_word_confidences,
         candidate_horizontal_gaps=candidate_horizontal_gaps,
+        candidate_gap_ratios=candidate_gap_ratios,
         candidate_word_count_before_filter=candidate_word_count_before_filter,
         candidate_word_count_after_filter=candidate_word_count_after_filter,
+        token_filter_status=token_filter_status,
+        removed_token_count=removed_token_count,
         candidate_source=candidate_source,
         anchor_found=anchor_found,
         bounds_present=bounds_present,
@@ -704,17 +717,60 @@ def _normalize_barangay_value(value: Any) -> tuple[str, bool]:
 
 def _barangay_word_metrics(
     words: Sequence[PositionalWord],
-) -> tuple[tuple[float, ...], tuple[int, ...], int, int]:
+) -> tuple[tuple[float, ...], tuple[int, ...], tuple[float, ...]]:
     ordered = tuple(sorted(words, key=lambda word: word.left))
     confidences = tuple(round(float(word.confidence), 3) for word in ordered)
     gaps = tuple(
         int(current.left - previous.right)
         for previous, current in zip(ordered, ordered[1:])
     )
-    filtered_count = sum(
-        bool(_sanitize_positional_date_token(word.text)) for word in ordered
+    gap_ratios = tuple(
+        round(gap / max(previous.height, current.height, 1), 3)
+        for gap, (previous, current) in zip(
+            gaps,
+            zip(ordered, ordered[1:]),
+        )
     )
-    return confidences, gaps, len(ordered), filtered_count
+    return confidences, gaps, gap_ratios
+
+
+def _filter_detached_barangay_noise(
+    words: Sequence[PositionalWord],
+    config: IndigencyExtractionConfig,
+) -> tuple[tuple[PositionalWord, ...], str, int]:
+    ordered = tuple(sorted(words, key=lambda word: word.left))
+    if len(ordered) < 2:
+        return ordered, "unchanged", 0
+
+    previous = ordered[-2]
+    trailing = ordered[-1]
+    gap = trailing.left - previous.right
+    gap_ratio = gap / max(previous.height, trailing.height, 1)
+    low_confidence = (
+        trailing.confidence < config.maximum_trailing_noise_confidence
+    )
+    detached = gap_ratio > config.minimum_detached_gap_ratio
+    strong_predecessor = (
+        previous.confidence >= config.minimum_leading_word_confidence
+    )
+    removal_allowed = config.maximum_detached_tokens_removed >= 1
+
+    if low_confidence and detached and strong_predecessor and removal_allowed:
+        return ordered[:-1], "detached_low_confidence_removed", 1
+
+    all_words_strong = all(
+        word.confidence >= config.minimum_leading_word_confidence
+        for word in ordered
+    )
+    all_gaps_connected = all(
+        (current.left - previous.right)
+        / max(previous.height, current.height, 1)
+        <= config.minimum_detached_gap_ratio
+        for previous, current in zip(ordered, ordered[1:])
+    )
+    if all_words_strong and all_gaps_connected:
+        return ordered, "unchanged", 0
+    return ordered, "unsafe_to_filter", 0
 
 
 def _valid_barangay_value(
@@ -746,8 +802,11 @@ def _read_issuing_barangay_field(
             candidate_token_count=0,
             candidate_word_confidences=(),
             candidate_horizontal_gaps=(),
+            candidate_gap_ratios=(),
             candidate_word_count_before_filter=0,
             candidate_word_count_after_filter=0,
+            token_filter_status="not_attempted",
+            removed_token_count=0,
             candidate_source="ambiguous" if candidate_count > 1 else "none",
             anchor_found=candidate_count > 0,
             bounds_present=False,
@@ -774,28 +833,35 @@ def _read_issuing_barangay_field(
     anchor = " ".join(word.text for word in selected)
     bounds = _bounds(selected, source_image.shape)
     normalized_bounds = _normalized_bounds(bounds, source_image.shape)
-    (
-        candidate_word_confidences,
-        candidate_horizontal_gaps,
-        candidate_word_count_before_filter,
-        candidate_word_count_after_filter,
-    ) = _barangay_word_metrics(selected)
+    candidate_word_confidences, candidate_horizontal_gaps, candidate_gap_ratios = (
+        _barangay_word_metrics(selected)
+    )
+    filtered_words, token_filter_status, removed_token_count = (
+        _filter_detached_barangay_noise(selected, config)
+    )
+    candidate_word_count_before_filter = len(selected)
+    candidate_word_count_after_filter = sum(
+        bool(_sanitize_positional_date_token(word.text)) for word in filtered_words
+    )
     base_diagnostics = {
         "candidate_found": True,
         "candidate_count": 1,
         "candidate_token_count": len(selected),
         "candidate_word_confidences": candidate_word_confidences,
         "candidate_horizontal_gaps": candidate_horizontal_gaps,
+        "candidate_gap_ratios": candidate_gap_ratios,
         "candidate_word_count_before_filter": candidate_word_count_before_filter,
         "candidate_word_count_after_filter": candidate_word_count_after_filter,
+        "token_filter_status": token_filter_status,
+        "removed_token_count": removed_token_count,
         "candidate_source": "pre_title_header",
         "anchor_found": True,
         "bounds_present": True,
     }
     positional_text, positional_has_control = _normalize_barangay_value(
-        " ".join(word.text for word in selected)
+        " ".join(word.text for word in filtered_words)
     )
-    if _valid_barangay_value(
+    if token_filter_status != "unsafe_to_filter" and _valid_barangay_value(
         positional_text,
         contains_control=positional_has_control,
         maximum_length=config.maximum_barangay_length,

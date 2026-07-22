@@ -177,6 +177,12 @@ def build_indigency_extracted_fields_from_result(
         "crop_generation",
         "crop_ocr",
     }
+    token_filter_statuses = {
+        "unchanged",
+        "detached_low_confidence_removed",
+        "unsafe_to_filter",
+        "not_attempted",
+    }
 
     def diagnostic_value(diagnostics: Any, name: str, default: Any) -> Any:
         if isinstance(diagnostics, Mapping):
@@ -233,6 +239,14 @@ def build_indigency_extracted_fields_from_result(
                 )
                 or "not_attempted"
             )
+            token_filter_status = str(
+                diagnostic_value(
+                    diagnostics,
+                    "token_filter_status",
+                    "not_attempted",
+                )
+                or "not_attempted"
+            )
             field_payload["diagnostics"] = {
                 "candidate_found": bool(
                     diagnostic_value(diagnostics, "candidate_found", False)
@@ -256,6 +270,10 @@ def build_indigency_extracted_fields_from_result(
                     diagnostics,
                     "candidate_horizontal_gaps",
                 ),
+                "candidate_gap_ratios": numeric_sequence(
+                    diagnostics,
+                    "candidate_gap_ratios",
+                ),
                 "candidate_word_count_before_filter": max(
                     0,
                     int(
@@ -276,6 +294,25 @@ def build_indigency_extracted_fields_from_result(
                             0,
                         )
                         or 0
+                    ),
+                ),
+                "token_filter_status": (
+                    token_filter_status
+                    if token_filter_status in token_filter_statuses
+                    else "not_attempted"
+                ),
+                "removed_token_count": min(
+                    1,
+                    max(
+                        0,
+                        int(
+                            diagnostic_value(
+                                diagnostics,
+                                "removed_token_count",
+                                0,
+                            )
+                            or 0
+                        ),
                     ),
                 ),
                 "candidate_source": (

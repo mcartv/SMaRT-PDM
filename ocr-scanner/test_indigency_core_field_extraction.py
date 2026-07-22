@@ -658,16 +658,144 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertGreater(diagnostics.candidate_horizontal_gaps[0], 12)
         self.assertEqual(diagnostics.candidate_word_count_before_filter, 2)
         self.assertEqual(diagnostics.candidate_word_count_after_filter, 2)
+        self.assertEqual(len(diagnostics.candidate_gap_ratios), 1)
+        self.assertEqual(diagnostics.token_filter_status, "unsafe_to_filter")
+        self.assertEqual(diagnostics.removed_token_count, 0)
         self.assertTrue(
             all(
                 isinstance(value, (int, float))
                 for values in (
                     diagnostics.candidate_word_confidences,
                     diagnostics.candidate_horizontal_gaps,
+                    diagnostics.candidate_gap_ratios,
                 )
                 for value in values
             )
         )
+
+    def test_detached_low_confidence_trailing_barangay_token_is_removed(self):
+        data = _valid_word_data(header_text="BARANGAY SAMPLE NOISE")
+        indexes = [
+            index
+            for index, block in enumerate(data["block_num"])
+            if block == 2 and data["par_num"][index] == 1
+        ]
+        preceding, trailing = indexes[-2:]
+        data["conf"][preceding] = 95
+        data["conf"][trailing] = 29
+        data["left"][trailing] = (
+            data["left"][preceding] + data["width"][preceding] + 191
+        )
+        calls = []
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: data,
+            field_reader=lambda crop, field_name: (
+                calls.append(field_name) or _field_reader(crop, field_name)
+            ),
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+        diagnostics = field.diagnostics
+
+        self.assertTrue(field.success)
+        self.assertEqual(field.raw_text, "SAMPLE")
+        self.assertNotIn("issuing_barangay", calls)
+        self.assertEqual(diagnostics.candidate_word_count_before_filter, 2)
+        self.assertEqual(diagnostics.candidate_word_count_after_filter, 1)
+        self.assertEqual(diagnostics.removed_token_count, 1)
+        self.assertEqual(
+            diagnostics.token_filter_status,
+            "detached_low_confidence_removed",
+        )
+        self.assertGreater(diagnostics.candidate_gap_ratios[-1], 3.0)
+        self.assertEqual(diagnostics.value_source, "positional")
+        self.assertEqual(diagnostics.positional_validation_status, "valid")
+        self.assertFalse(diagnostics.crop_attempted)
+
+    def test_inconclusive_trailing_noise_uses_validated_crop_fallback(self):
+        cases = (
+            (95.0, 40.0, 4.0),
+            (95.0, 29.0, 3.0),
+            (69.0, 29.0, 4.0),
+        )
+        for preceding_confidence, trailing_confidence, gap_ratio in cases:
+            with self.subTest(
+                preceding_confidence=preceding_confidence,
+                trailing_confidence=trailing_confidence,
+                gap_ratio=gap_ratio,
+            ):
+                data = _valid_word_data(header_text="BARANGAY SAMPLE NOISE")
+                indexes = [
+                    index
+                    for index, block in enumerate(data["block_num"])
+                    if block == 2 and data["par_num"][index] == 1
+                ]
+                preceding, trailing = indexes[-2:]
+                data["conf"][preceding] = preceding_confidence
+                data["conf"][trailing] = trailing_confidence
+                data["left"][trailing] = (
+                    data["left"][preceding]
+                    + data["width"][preceding]
+                    + round(gap_ratio * data["height"][preceding])
+                )
+
+                result = extract_indigency_core_fields(
+                    self.image,
+                    word_reader=lambda *_args, value=data: value,
+                    field_reader=lambda crop, field_name: (
+                        "FALLBACK PLACE"
+                        if field_name == "issuing_barangay"
+                        else _field_reader(crop, field_name)
+                    ),
+                )
+                field = next(
+                    item
+                    for item in result.data.fields
+                    if item.name == "issuing_barangay"
+                )
+
+                self.assertTrue(field.success)
+                self.assertEqual(field.raw_text, "FALLBACK PLACE")
+                self.assertEqual(field.diagnostics.removed_token_count, 0)
+                self.assertEqual(
+                    field.diagnostics.token_filter_status,
+                    "unsafe_to_filter",
+                )
+                self.assertEqual(field.diagnostics.value_source, "crop_ocr")
+
+    def test_multiple_trailing_noise_tokens_are_not_removed(self):
+        data = _valid_word_data(header_text="BARANGAY SAMPLE NOISE EXTRA")
+        indexes = [
+            index
+            for index, block in enumerate(data["block_num"])
+            if block == 2 and data["par_num"][index] == 1
+        ]
+        first_noise, final_noise = indexes[-2:]
+        data["conf"][first_noise] = 29
+        data["conf"][final_noise] = 29
+        data["left"][final_noise] = (
+            data["left"][first_noise] + data["width"][first_noise] + 191
+        )
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: data,
+            field_reader=lambda crop, field_name: (
+                "123"
+                if field_name == "issuing_barangay"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertFalse(field.success)
+        self.assertEqual(field.diagnostics.removed_token_count, 0)
+        self.assertEqual(field.diagnostics.token_filter_status, "unsafe_to_filter")
 
     def test_invalid_positional_barangay_uses_valid_crop_fallback(self):
         result = extract_indigency_core_fields(

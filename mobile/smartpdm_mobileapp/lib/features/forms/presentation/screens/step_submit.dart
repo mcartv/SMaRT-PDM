@@ -386,7 +386,7 @@ class _StepSubmitState extends State<StepSubmit> {
           ),
           padding: const EdgeInsets.all(16),
           child: Text(
-            'Submitting this form will create your scholarship application for the selected opening. After submission, upload the required documents from Documents to continue the review process.',
+            'Submitting this form will create your scholarship application for the selected scholarship. After submission, upload the required documents from Documents to continue the review process.',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: Color(0xFF7A5C2E),
               height: 1.5,

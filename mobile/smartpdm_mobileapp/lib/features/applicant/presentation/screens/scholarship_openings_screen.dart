@@ -82,7 +82,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = error.toString();
+        _error = 'Unable to load scholarships. Check your connection and try again.';
       });
     } finally {
       if (mounted) {
@@ -117,6 +117,26 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
         .trim();
 
     return cleaned.isEmpty ? fallback : cleaned;
+  }
+
+
+  List<String> _scholarshipRules(ProgramOpening opening) {
+    final rules = <String>[];
+    if (opening.gwaThreshold != null) {
+      rules.add('Required GWA: ${opening.gwaThreshold!.toStringAsFixed(2)} or better');
+    }
+    if (opening.targetAudience.trim().isNotEmpty) {
+      rules.add('For: ${opening.targetAudience.trim()}');
+    }
+    if (opening.renewalCycle.trim().isNotEmpty &&
+        opening.renewalCycle.toLowerCase() != 'none') {
+      rules.add('Renewal: ${opening.renewalCycle.trim()}');
+    }
+    rules.add('${opening.availableSlots} slot${opening.availableSlots == 1 ? '' : 's'} available');
+    if (opening.waitingListEnabled) {
+      rules.add('Waiting list available when slots are filled');
+    }
+    return rules;
   }
 
   Future<void> _openApplicationForm({
@@ -334,7 +354,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship opening'} or choose a different opening to replace it.',
+                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'} or choose a different scholarship to replace it.',
                       style: TextStyle(color: subtitleColor, height: 1.4),
                     ),
                     const SizedBox(height: 12),
@@ -488,6 +508,70 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
 ),
                           ),
                         ],
+                        if (opening.programDescription.trim().isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            opening.programDescription.trim(),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              height: 1.4,
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
+                        if ((opening.benefactorName ?? '').trim().isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: accentColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Supported by ${opening.benefactorName}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: titleColor,
+                                  ),
+                                ),
+                                if ((opening.benefactorDescription ?? '').trim().isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    opening.benefactorDescription!.trim(),
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: subtitleColor, height: 1.35),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _scholarshipRules(opening)
+                              .map((rule) => Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: accentColor.withOpacity(0.10),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      rule,
+                                      style: TextStyle(
+                                        color: titleColor,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ))
+                              .toList(),
+                        ),
                         if (showUploadProgress) ...[
                           const SizedBox(height: 14),
                           _buildUploadProgress(

@@ -146,7 +146,7 @@ class AppNotification {
     final openingTitle =
         json['opening_title']?.toString().trim().isNotEmpty == true
         ? json['opening_title']!.toString().trim()
-        : 'Scholarship Opening';
+        : 'Scholarship Program';
 
     final programName = json['program_name']?.toString().trim() ?? '';
     final body = json['announcement_text']?.toString().trim() ?? '';

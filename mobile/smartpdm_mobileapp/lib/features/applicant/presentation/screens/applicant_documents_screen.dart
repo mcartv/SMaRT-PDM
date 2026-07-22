@@ -100,7 +100,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+        _errorMessage = 'Unable to load your documents. Check your connection and try again.';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -163,6 +163,20 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     return 99;
   }
 
+
+  void _showUploadMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade700 : null,
+        action: isError
+            ? SnackBarAction(label: 'Retry', onPressed: _loadPackage)
+            : null,
+      ),
+    );
+  }
+
   Future<void> _pickAndUploadDocument(
     ApplicantRequirementDocument document,
   ) async {
@@ -181,7 +195,13 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     final fileBytes = pickedFile.bytes;
     final extension = fileName.split('.').last.toLowerCase();
 
-    const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png'};
+    const maxFileSizeBytes = 10 * 1024 * 1024;
+    if (pickedFile.size > maxFileSizeBytes) {
+      _showUploadMessage('File is too large. Maximum size is 10 MB.', isError: true);
+      return;
+    }
+
+    const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png', 'webp'};
 
     if (!allowedExtensions.contains(extension)) {
       _showSnackBar('Only PDF, JPG, JPEG, and PNG files are allowed.');

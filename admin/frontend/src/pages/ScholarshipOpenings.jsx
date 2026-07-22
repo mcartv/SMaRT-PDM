@@ -249,9 +249,6 @@ function FilterModal({
                         <h3 className="text-base font-semibold text-stone-800">
                             Filter Openings
                         </h3>
-                        <p className="mt-0.5 text-xs text-stone-500">
-                            Refine the openings and template results
-                        </p>
                     </div>
 
                     <button

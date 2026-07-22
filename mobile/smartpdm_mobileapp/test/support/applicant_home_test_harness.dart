@@ -365,7 +365,7 @@ List<ApplicantHomeOpeningPresentation> _openings({required bool longContent}) {
       title: longContent
           ? 'Community Leadership and Provincial Development Scholarship '
                 'Opening $number'
-          : 'Genmart Scholarship Opening $number',
+          : 'Genmart Scholarship Program $number',
       programName: longContent
           ? 'Student Assistance and Community Development Program'
           : 'Genmart',

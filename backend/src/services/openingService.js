@@ -235,10 +235,16 @@ async function getOpeningsForMobile(userId) {
         visibility_status,
         is_archived,
         benefactor_id,
+        description,
+        target_audience,
+        gwa_threshold,
+        renewal_cycle,
         benefactors (
           benefactor_id,
           benefactor_name,
-          benefactor_type
+          benefactor_type,
+          description,
+          is_archived
         )
       )
     `)
@@ -273,6 +279,7 @@ async function getOpeningsForMobile(userId) {
     .filter((row) => {
       const program = row.scholarship_program;
       if (!program || program.is_archived === true) return false;
+      if (program.benefactors?.is_archived === true) return false;
       if (
         program.visibility_status &&
         String(program.visibility_status).toLowerCase() !== 'published'
@@ -343,6 +350,11 @@ async function getOpeningsForMobile(userId) {
         financial_allocation: row.financial_allocation ?? 0,
         per_scholar_amount: row.per_scholar_amount ?? 0,
         benefactor_name: benefactor?.benefactor_name || null,
+        benefactor_description: benefactor?.description || null,
+        program_description: program.description || '',
+        target_audience: program.target_audience || 'Applicants',
+        gwa_threshold: program.gwa_threshold ?? null,
+        renewal_cycle: program.renewal_cycle || 'None',
         benefactor_type: benefactor?.benefactor_type || null,
         has_applied: hasApplied,
         uploaded_document_count:

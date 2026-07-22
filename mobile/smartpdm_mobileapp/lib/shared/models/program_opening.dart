@@ -16,6 +16,11 @@ class ProgramOpening {
     required this.uploadedDocumentCount,
     required this.requiredDocumentCount,
     this.benefactorName,
+    this.benefactorDescription,
+    this.programDescription = '',
+    this.targetAudience = '',
+    this.renewalCycle = '',
+    this.gwaThreshold,
     this.existingApplicationId,
     this.allocatedSlots = 0,
     this.filledSlots = 0,
@@ -45,6 +50,11 @@ class ProgramOpening {
   final int uploadedDocumentCount;
   final int requiredDocumentCount;
   final String? benefactorName;
+  final String? benefactorDescription;
+  final String programDescription;
+  final String targetAudience;
+  final String renewalCycle;
+  final double? gwaThreshold;
   final String? existingApplicationId;
 
   final int allocatedSlots;
@@ -86,6 +96,11 @@ class ProgramOpening {
       uploadedDocumentCount: uploadedCount,
       requiredDocumentCount: requiredCount,
       benefactorName: json['benefactor_name']?.toString(),
+      benefactorDescription: json['benefactor_description']?.toString(),
+      programDescription: json['program_description']?.toString() ?? '',
+      targetAudience: json['target_audience']?.toString() ?? '',
+      renewalCycle: json['renewal_cycle']?.toString() ?? '',
+      gwaThreshold: (json['gwa_threshold'] as num?)?.toDouble(),
       existingApplicationId: json['existing_application_id']?.toString(),
       allocatedSlots: (json['allocated_slots'] as num?)?.toInt() ?? 0,
       filledSlots: (json['filled_slots'] as num?)?.toInt() ?? 0,

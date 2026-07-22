@@ -46,9 +46,9 @@ void main() {
       );
 
       expect(find.text('Welcome, Teresa Tolentino'), findsOneWidget);
-      expect(find.text('Genmart Scholarship Opening 1'), findsOneWidget);
-      expect(find.text('Genmart Scholarship Opening 3'), findsOneWidget);
-      expect(find.text('Genmart Scholarship Opening 4'), findsNothing);
+      expect(find.text('Genmart Scholarship Program 1'), findsOneWidget);
+      expect(find.text('Genmart Scholarship Program 3'), findsOneWidget);
+      expect(find.text('Genmart Scholarship Program 4'), findsNothing);
 
       await tester.tap(find.text('Open documents'));
       await tester.pump();

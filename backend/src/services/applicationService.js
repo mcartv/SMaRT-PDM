@@ -1095,6 +1095,8 @@ async function getMyDocuments(userId) {
       created_at
     `)
         .eq('student_id', student.student_id)
+        .eq('is_archived', false)
+        .neq('application_status', 'Rejected')
         .order('submission_date', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false, nullsFirst: false })
         .limit(1);
@@ -2094,14 +2096,10 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const allowedExtensions = new Set([
         'pdf',
-        'doc',
-        'docx',
         'jpg',
         'jpeg',
         'png',
         'webp',
-        'heic',
-        'heif',
     ]);
 
     const originalName = file.originalname || '';
@@ -2110,7 +2108,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
     if (!allowedExtensions.has(extension)) {
         throw createHttpError(
             400,
-            'Invalid file type. Allowed files: PDF, DOC, DOCX, JPG, JPEG, PNG, WEBP, HEIC, HEIF.'
+            'Invalid file type. Use PDF, JPG, JPEG, PNG, or WEBP.'
         );
     }
 
@@ -2162,6 +2160,14 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const fileUrl = publicUrlData?.publicUrl || null;
 
+    const { data: previousDocument, error: previousDocumentError } = await supabase
+        .from('application_documents')
+        .select('file_path')
+        .eq('document_id', documentId)
+        .maybeSingle();
+
+    if (previousDocumentError) throw previousDocumentError;
+
     const { error: updateError } = await supabase
         .from('application_documents')
         .update({
@@ -2179,10 +2185,30 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     if (updateError) throw updateError;
 
+    if (previousDocument?.file_path && previousDocument.file_path !== filePath) {
+        await supabase.storage.from('documents').remove([previousDocument.file_path]);
+    }
+
+    const { data: submittedDocuments, error: submittedDocumentsError } = await supabase
+        .from('application_documents')
+        .select('document_type, is_submitted, file_path, file_url')
+        .eq('application_id', application.application_id);
+
+    if (submittedDocumentsError) throw submittedDocumentsError;
+
+    const completedTypes = new Set(
+        (submittedDocuments || [])
+            .filter((row) => row.is_submitted === true && (safeText(row.file_path) || safeText(row.file_url)))
+            .map((row) => normalizeRequiredDocumentType(row.document_type).toLowerCase())
+    );
+    const allRequiredUploaded = REQUIRED_UPLOAD_DOCUMENT_TYPES.every((type) =>
+        completedTypes.has(type.toLowerCase())
+    );
+
     await supabase
         .from('applications')
         .update({
-            document_status: 'Under Review',
+            document_status: allRequiredUploaded ? 'Documents Ready' : 'Missing Docs',
         })
         .eq('application_id', application.application_id);
 
@@ -2373,10 +2399,43 @@ async function ensureApplicationEndorsementSlip(application = {}) {
     throw error;
 }
 
+
+function requireSubmissionText(value, label) {
+    const text = safeText(value);
+    if (!text) throw createHttpError(400, `${label} is required.`);
+    return text;
+}
+
+function validateApplicationSubmissionPayload(payload = {}) {
+    const personal = payload.personal || {};
+    const address = payload.address || {};
+    const contact = payload.contact || {};
+    const academic = payload.academic || {};
+    const essays = payload.essays || {};
+
+    requireSubmissionText(personal.first_name || personal.firstName, 'First name');
+    requireSubmissionText(personal.last_name || personal.lastName, 'Last name');
+    requireSubmissionText(personal.date_of_birth || personal.dateOfBirth, 'Date of birth');
+    requireSubmissionText(personal.place_of_birth || personal.placeOfBirth, 'Place of birth');
+    requireSubmissionText(personal.sex || personal.sex_at_birth, 'Sex');
+    requireSubmissionText(personal.civil_status || personal.civilStatus, 'Civil status');
+    requireSubmissionText(personal.religion, 'Religion');
+    requireSubmissionText(contact.mobile_number || contact.mobile, 'Mobile number');
+    requireSubmissionText(address.barangay, 'Barangay');
+    requireSubmissionText(address.city_municipality || address.city, 'City or municipality');
+    requireSubmissionText(address.province, 'Province');
+    requireSubmissionText(academic.course || academic.current_course, 'Course');
+    requireSubmissionText(academic.year_level || academic.current_year_level, 'Year level');
+    requireSubmissionText(essays.self_description || essays.describe_yourself_essay, 'Self-description');
+    requireSubmissionText(essays.aims_and_ambitions || essays.aims_and_ambition_essay, 'Aims and ambitions');
+}
+
 async function submitMyApplicationForm(userId, payload = {}) {
     if (!userId) {
         throw createHttpError(401, 'Authentication required.');
     }
+
+    validateApplicationSubmissionPayload(payload);
 
     const student = await ensureStudentForUser(userId);
 
@@ -2391,7 +2450,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
         safeText(payload.account?.opening_id);
 
     if (!openingId) {
-        throw createHttpError(400, 'Opening ID is required.');
+        throw createHttpError(400, 'Scholarship selection is required.');
     }
 
     const { data: opening, error: openingError } = await supabase
@@ -2403,11 +2462,11 @@ async function submitMyApplicationForm(userId, payload = {}) {
     if (openingError) throw openingError;
 
     if (!opening) {
-        throw createHttpError(404, 'Opening not found.');
+        throw createHttpError(404, 'Scholarship not found.');
     }
 
     if (opening.is_archived || opening.posting_status !== 'open') {
-        throw createHttpError(400, 'This opening is not accepting applications.');
+        throw createHttpError(400, 'This scholarship is not accepting applications.');
     }
 
     const personal = payload.personal || {};

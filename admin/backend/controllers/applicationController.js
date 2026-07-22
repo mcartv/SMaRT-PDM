@@ -1,5 +1,4 @@
 const applicationService = require('../services/applicationService');
-const selectionService = require('../services/selectionService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
 const ExcelJS = require('exceljs');
@@ -327,36 +326,64 @@ exports.saveApplicationRemarks = async (req, res) => {
 exports.approveApplication = async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Compatibility route: the previous Approve action now places the
-        // applicant in the FCFS qualified queue. Scholar activation happens
-        // only after the opening's final applicant list is finalized.
-        const updated = await selectionService.markApplicationQualified(id, req.user);
+        const updated = await applicationService.approveApplicationWithSlotCheck(id, req.user);
 
         const io = req.app.get('io');
-        if (io) {
-            io.emit('selection:queue-updated', {
-                application_id: id,
-                opening_id: updated.application?.opening_id || null,
-                queue_position: updated.queue_position || null,
-                updated_at: new Date().toISOString(),
-            });
+        socketEvents.applicationApproved(io, {
+            application_id: id,
+            opening_id: updated.opening_id || updated.application?.opening_id || null,
+            student_id: updated.scholar?.student_id || updated.student_id || null,
+            activation_status: updated.outcome,
+            updated_at: new Date().toISOString(),
+            source: 'readiness_activation',
+        });
+        socketEvents.applicationUpdated(io, {
+            application_id: id,
+            application_status: updated.application?.application_status || 'Approved',
+            activation_status: updated.application?.activation_status || 'Activated',
+            updated_at: new Date().toISOString(),
+            source: 'readiness_activation',
+        });
+        if (updated.notification && updated.student_user_id) {
+            socketEvents.notificationCreated(io, updated.student_user_id, updated.notification);
         }
 
+        await auditLogService.logAudit({
+            req,
+            actionTaken: 'ACTIVATE_SCHOLAR',
+            module: 'Application Readiness',
+            entityType: 'application',
+            entityId: id,
+            description: updated.already_activated
+                ? 'Scholar activation was already complete.'
+                : 'Applicant passed final readiness checks and was activated as a scholar.',
+            metadata: {
+                outcome: updated.outcome,
+                opening_id: updated.opening_id || null,
+                student_id: updated.scholar?.student_id || updated.student_id || null,
+                occupied_slots: updated.occupied_slots ?? null,
+                capacity: updated.capacity ?? null,
+            },
+        }).catch((auditError) => {
+            console.error('SCHOLAR ACTIVATION AUDIT ERROR:', auditError.message);
+        });
+
         res.status(200).json({
-            message: updated.message,
+            message: updated.already_activated
+                ? 'Scholar is already activated.'
+                : 'Scholar activated successfully.',
             application: updated.application,
-            scholar: null,
-            outcome: 'qualified_for_final_selection',
-            queue_position: updated.queue_position,
+            scholar: updated.scholar || null,
+            outcome: updated.outcome,
+            readiness: updated.readiness,
         });
     } catch (err) {
-        console.error('QUALIFY APPLICATION CONTROLLER ERROR:', err.message);
+        console.error('ACTIVATE SCHOLAR CONTROLLER ERROR:', err.message);
 
         const statusCode = err.statusCode || (isApprovalStateError(err.message) ? 400 : 500);
 
         res.status(statusCode).json({
-            message: statusCode >= 500 ? 'Failed to qualify application' : err.message,
+            message: statusCode >= 500 ? 'Failed to activate scholar' : err.message,
             error: err.message,
         });
     }

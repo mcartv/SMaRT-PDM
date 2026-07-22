@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -222,26 +224,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return '${value.month.toString().padLeft(2, '0')}/${value.day.toString().padLeft(2, '0')}/${value.year}';
   }
 
-  String _sectionLabel(DateTime value) {
-    final now = DateTime.now();
-
-    final today = DateTime(now.year, now.month, now.day);
-    final itemDay = DateTime(value.year, value.month, value.day);
-    final diff = today.difference(itemDay).inDays;
-
-    if (diff <= 0) return 'Today';
-    if (diff == 1) return 'Yesterday';
-    if (diff <= 7) return 'Earlier';
-
-    return 'Older';
-  }
-
   Map<String, List<AppNotification>> _groupItems(List<AppNotification> items) {
-    final grouped = <String, List<AppNotification>>{};
+    final grouped = <String, List<AppNotification>>{
+      'New': <AppNotification>[],
+      'Earlier': <AppNotification>[],
+    };
 
     for (final item in items) {
-      final label = _sectionLabel(item.createdAt);
-      grouped.putIfAbsent(label, () => []);
+      final label = item.isRead ? 'Earlier' : 'New';
       grouped[label]!.add(item);
     }
 
@@ -266,6 +256,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         context,
         AppRoutes.roAssignment,
         arguments: {'roId': notification.referenceId},
+      );
+      return;
+    }
+
+    if (referenceType.contains('endorsement')) {
+      Navigator.pushNamed(context, AppRoutes.status);
+      return;
+    }
+
+    if ((referenceType.contains('message') || type.contains('message')) &&
+        (notification.referenceId?.isNotEmpty ?? false)) {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.chatThread,
+        arguments: {'roomId': notification.referenceId},
       );
       return;
     }
@@ -677,7 +682,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     final grouped = _groupItems(items);
-    final sectionOrder = ['Today', 'Yesterday', 'Earlier', 'Older'];
+    final sectionOrder = ['New', 'Earlier'];
 
     return RefreshIndicator(
       onRefresh: () => provider.refresh(),

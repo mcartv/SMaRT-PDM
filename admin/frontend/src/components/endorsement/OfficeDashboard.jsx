@@ -64,7 +64,7 @@ const DASHBOARD_CONFIG = {
     title: 'SDO Dashboard',
     subtitle: 'A lighter overview for offense checks, queue review, and recent endorsement actions.',
     queueStage: 'pending_sdo',
-    queueLabel: 'Awaiting SDO',
+    queueLabel: 'Approval Requests',
     trackerPath: '/sdo/tracker',
     reportsPath: '/sdo/reports',
     maintenancePath: '/sdo/maintenance',
@@ -74,7 +74,7 @@ const DASHBOARD_CONFIG = {
     actionTint: 'hover:bg-emerald-50',
     cards: (rows) => [
       {
-        label: 'Awaiting SDO',
+        label: 'Approval Requests',
         value: rows.filter((row) => row.current_stage === 'pending_sdo').length,
         icon: ClipboardList,
         tone: 'bg-orange-50 text-orange-700',
@@ -103,7 +103,7 @@ const DASHBOARD_CONFIG = {
     title: 'Guidance Dashboard',
     subtitle: 'A cleaner daily view for moral standing, counseling holds, and guidance decisions.',
     queueStage: 'pending_guidance',
-    queueLabel: 'Awaiting Guidance',
+    queueLabel: 'Approval Requests',
     trackerPath: '/guidance/tracker',
     reportsPath: '/guidance/reports',
     maintenancePath: '/guidance/maintenance',
@@ -113,7 +113,7 @@ const DASHBOARD_CONFIG = {
     actionTint: 'hover:bg-sky-50',
     cards: (rows) => [
       {
-        label: 'Awaiting Guidance',
+        label: 'Approval Requests',
         value: rows.filter((row) => row.current_stage === 'pending_guidance').length,
         icon: ClipboardList,
         tone: 'bg-blue-50 text-blue-700',
@@ -142,7 +142,7 @@ const DASHBOARD_CONFIG = {
     title: 'PD Dashboard',
     subtitle: 'A simpler endorsement view for pending approvals, rejections, and completed slips.',
     queueStage: 'pending_pd',
-    queueLabel: 'Awaiting PD',
+    queueLabel: 'Approval Requests',
     trackerPath: '/pd/tracker',
     reportsPath: '/pd/reports',
     maintenancePath: '/pd/maintenance',
@@ -152,7 +152,7 @@ const DASHBOARD_CONFIG = {
     actionTint: 'hover:bg-violet-50',
     cards: (rows) => [
       {
-        label: 'Awaiting PD',
+        label: 'Approval Requests',
         value: rows.filter((row) => row.current_stage === 'pending_pd').length,
         icon: ClipboardList,
         tone: 'bg-violet-50 text-violet-700',
@@ -487,7 +487,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                 </p>
                 <p className="mt-2 text-sm font-medium text-stone-800">
                   {pendingCount > 0
-                    ? `${pendingCount} applicant${pendingCount === 1 ? '' : 's'} still waiting for ${config.queueLabel.toLowerCase()} action.`
+                    ? `${pendingCount} applicant${pendingCount === 1 ? '' : 's'} require${pendingCount === 1 ? 's' : ''} your office approval.`
                     : 'Your active queue is clear right now. Review the tracker and recent activity for follow-up items.'}
                 </p>
               </div>

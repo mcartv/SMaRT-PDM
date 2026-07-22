@@ -385,6 +385,10 @@ function mapQueueRow(row) {
             url: row.grade_document_url || '',
             file_name: row.grade_document_name || '',
             submitted_at: row.grade_document_submitted_at || null,
+            is_uploaded: Boolean(
+                safeText(row.grade_document_path) ||
+                safeText(row.grade_document_url)
+            ),
         },
         pd_decision: row.pd_status || null,
         guidance_decision: row.guidance_status || null,

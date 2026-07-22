@@ -327,6 +327,151 @@ function handleOpeningChange(io, payload = {}) {
   });
 }
 
+function handleApplicationChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const applicationId = getRecordId(next, old, ['application_id']);
+
+  if (!applicationId) return;
+
+  const eventPayload = {
+    application_id: applicationId,
+    student_id: row.student_id || null,
+    opening_id: row.opening_id || null,
+    application_status: row.application_status || null,
+    activation_status: row.activation_status || null,
+    updated_at: row.updated_at || row.activated_at || new Date().toISOString(),
+    event_type: eventType,
+  };
+
+  emitGlobal(io, 'application:updated', eventPayload);
+
+  const previousStatus = normalizeText(old.application_status);
+  const nextStatus = normalizeText(next.application_status);
+  const activationChanged =
+    normalizeText(next.activation_status) === 'activated' &&
+    normalizeText(old.activation_status) !== 'activated';
+
+  if ((nextStatus === 'approved' && previousStatus !== 'approved') || activationChanged) {
+    emitGlobal(io, 'application:approved', eventPayload);
+  } else if (
+    ['rejected', 'disqualified', 'declined'].includes(nextStatus) &&
+    previousStatus !== nextStatus
+  ) {
+    emitGlobal(io, 'application:rejected', eventPayload);
+  }
+}
+
+function handleApplicationDocumentChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const applicationId = row.application_id || null;
+
+  if (!applicationId) return;
+
+  const eventPayload = {
+    application_id: applicationId,
+    document_id: row.document_id || null,
+    document_key: row.document_type || null,
+    document_name: row.document_type || null,
+    document_status: row.review_status || null,
+    is_submitted: row.is_submitted === true,
+    updated_at: row.updated_at || row.submitted_at || new Date().toISOString(),
+    event_type: eventType,
+    source: 'application_document',
+  };
+
+  emitGlobal(io, 'application-document:uploaded', eventPayload);
+  emitGlobal(io, 'application:updated', eventPayload);
+}
+
+function handleEndorsementChange(io, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+  const slipId = getRecordId(next, old, ['slip_id']);
+
+  if (!slipId || !row.application_id) return;
+
+  const eventPayload = {
+    slip_id: slipId,
+    application_id: row.application_id,
+    student_id: row.student_id || null,
+    current_stage: row.current_stage || null,
+    overall_status: row.overall_status || null,
+    updated_at: row.updated_at || row.completed_at || new Date().toISOString(),
+    event_type: eventType,
+  };
+
+  emitGlobal(io, 'endorsement:updated', eventPayload);
+  emitGlobal(io, 'application:updated', {
+    ...eventPayload,
+    source: 'endorsement',
+  });
+}
+
+async function handleMessageChange(io, supabase, payload = {}) {
+  const eventType = safeText(payload.eventType).toUpperCase();
+  const next = payload.new || {};
+  const old = payload.old || {};
+  const row = eventType === 'DELETE' ? old : next;
+
+  if (!row.message_id) return;
+
+  const eventPayload = {
+    messageId: row.message_id,
+    message_id: row.message_id,
+    senderId: row.sender_id || '',
+    sender_id: row.sender_id || '',
+    receiverId: row.receiver_id || null,
+    receiver_id: row.receiver_id || null,
+    roomId: row.room_id || null,
+    room_id: row.room_id || null,
+    subject: row.subject || null,
+    messageBody: row.message_body || '',
+    message_body: row.message_body || '',
+    sentAt: row.sent_at || row.created_at || new Date().toISOString(),
+    sent_at: row.sent_at || row.created_at || new Date().toISOString(),
+    isRead: row.is_read === true,
+    is_read: row.is_read === true,
+    attachmentUrl: row.attachment_url || null,
+    attachment_url: row.attachment_url || null,
+  };
+
+  const targetIds = new Set([row.sender_id, row.receiver_id].filter(Boolean));
+
+  if (row.room_id) {
+    const { data, error } = await supabase
+      .from('chat_room_members')
+      .select('user_id')
+      .eq('room_id', row.room_id);
+
+    if (error) console.error('[Realtime Bridge] room member lookup failed:', error.message);
+    (data || []).forEach((member) => {
+      if (member.user_id) targetIds.add(member.user_id);
+    });
+  }
+
+  const eventName = eventType === 'INSERT'
+    ? 'message:new'
+    : row.is_read === true
+      ? 'message:read'
+      : eventType === 'DELETE'
+        ? 'message:deleted'
+        : 'message:updated';
+
+  targetIds.forEach((userId) => emitToUser(io, userId, eventName, eventPayload));
+
+  if (eventType === 'INSERT') {
+    targetIds.forEach((userId) => emitToUser(io, userId, 'message:created', eventPayload));
+  }
+}
+
 function configureRealtimeBridge({ io, supabase }) {
   if (!io) {
     console.warn('[Realtime Bridge] not configured: missing io');
@@ -376,6 +521,32 @@ function configureRealtimeBridge({ io, supabase }) {
         table: 'program_openings',
       },
       (payload) => handleOpeningChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'applications' },
+      (payload) => handleApplicationChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'application_documents' },
+      (payload) => handleApplicationDocumentChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'endorsement_slips' },
+      (payload) => handleEndorsementChange(io, payload)
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'messages' },
+      async (payload) => {
+        try {
+          await handleMessageChange(io, supabase, payload);
+        } catch (error) {
+          console.error('[Realtime Bridge] message handler failed:', error.message);
+        }
+      }
     )
     .subscribe((status, error) => {
       if (error) {

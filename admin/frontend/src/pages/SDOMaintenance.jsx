@@ -11,6 +11,7 @@ const config = {
   featureFieldLabel: 'Review Cycle',
   featureFieldDefault: 'Weekly',
   auditScope: 'SDO',
+  enableStudentRegistryImport: true,
   footerLabel: 'SMaRT PDM · SDO Maintenance Layer',
   account: {
     first_name: 'SDO',

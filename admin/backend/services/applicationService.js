@@ -2484,11 +2484,186 @@ exports.moveApplicationToWaiting = async (_applicationId) => {
     throw new Error('Waiting status is not supported by the current applications schema');
 };
 
-exports.approveApplicationWithSlotCheck = async (_applicationId) => {
-    throw buildHttpError(
-        409,
-        'Direct scholar activation is disabled. Mark the applicant as qualified, review the FCFS final list, and finalize the scholarship selection instead.'
-    );
+exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
+    const readiness = await fetchApplicationReadiness(applicationId);
+    if (!readiness.scholar_activation_ready) {
+        throw buildHttpError(
+            409,
+            `Scholar activation is blocked: ${readiness.blockers.join(', ') || 'requirements or endorsement is incomplete'}.`
+        );
+    }
+
+    const client = await pool.connect();
+    let activationResult;
+
+    try {
+        await client.query('BEGIN');
+
+        const { rows } = await client.query(
+            `
+            SELECT
+                a.application_id,
+                a.student_id,
+                a.program_id,
+                a.opening_id,
+                a.application_status,
+                a.activation_status,
+                st.user_id AS student_user_id,
+                st.is_active_scholar,
+                st.scholarship_status,
+                st.current_application_id,
+                po.allocated_slots,
+                po.posting_status,
+                po.academic_year_id,
+                po.period_id
+            FROM applications a
+            JOIN students st ON st.student_id = a.student_id
+            JOIN program_openings po ON po.opening_id = a.opening_id
+            WHERE a.application_id = $1
+            FOR UPDATE OF a, st, po
+            `,
+            [applicationId]
+        );
+
+        if (!rows.length) throw buildHttpError(404, 'Application not found.');
+        const row = rows[0];
+
+        if (!row.student_id || !row.program_id || !row.opening_id) {
+            throw buildHttpError(409, 'Application is missing its student, program, or opening assignment.');
+        }
+
+        if (
+            String(row.activation_status || '').toLowerCase() === 'activated' ||
+            (row.is_active_scholar === true && String(row.current_application_id || '') === String(applicationId))
+        ) {
+            await client.query('COMMIT');
+            return {
+                activated: false,
+                already_activated: true,
+                outcome: 'already_activated',
+                readiness,
+                application_id: applicationId,
+                student_id: row.student_id,
+            };
+        }
+
+        if (
+            row.is_active_scholar === true ||
+            String(row.scholarship_status || '').toLowerCase() === 'active' ||
+            (row.current_application_id && String(row.current_application_id) !== String(applicationId))
+        ) {
+            throw buildHttpError(409, 'This student already has a different active scholarship record.');
+        }
+
+        const openingStatus = String(row.posting_status || '').toLowerCase();
+        if (['archived', 'filled'].includes(openingStatus)) {
+            throw buildHttpError(409, 'This scholarship opening is no longer available for activation.');
+        }
+
+        const capacity = Number(row.allocated_slots || 0);
+        const countResult = await client.query(
+            `
+            SELECT count(*)::int AS occupied_slots
+            FROM applications
+            WHERE opening_id = $1
+              AND lower(coalesce(activation_status, '')) = 'activated'
+              AND application_id <> $2
+            `,
+            [row.opening_id, applicationId]
+        );
+        const occupiedSlots = Number(countResult.rows[0]?.occupied_slots || 0);
+
+        if (capacity > 0 && occupiedSlots >= capacity) {
+            throw buildHttpError(409, 'No available slots remain for this scholarship opening.');
+        }
+
+        const actorId = actor.user_id || actor.userId || actor.admin_id || actor.id || null;
+        const applicationResult = await client.query(
+            `
+            UPDATE applications
+            SET application_status = 'Approved',
+                selection_status = 'Selected',
+                activation_status = 'Activated',
+                selected_at = coalesce(selected_at, now()),
+                finalized_at = now(),
+                finalized_by = $2,
+                activated_at = now(),
+                is_disqualified = false,
+                rejection_reason = null
+            WHERE application_id = $1
+            RETURNING *
+            `,
+            [applicationId, actorId]
+        );
+
+        const studentResult = await client.query(
+            `
+            UPDATE students
+            SET is_active_scholar = true,
+                scholarship_status = 'Active',
+                current_program_id = $2,
+                current_application_id = $3,
+                active_academic_year_id = $4,
+                active_period_id = $5,
+                date_awarded = CURRENT_DATE,
+                scholar_is_archived = false,
+                updated_at = now()
+            WHERE student_id = $1
+            RETURNING *
+            `,
+            [row.student_id, row.program_id, applicationId, row.academic_year_id, row.period_id]
+        );
+
+        const nextFilledSlots = occupiedSlots + 1;
+        await client.query(
+            `
+            UPDATE program_openings
+            SET filled_slots = $2,
+                posting_status = CASE
+                    WHEN allocated_slots > 0 AND $2 >= allocated_slots THEN 'filled'
+                    ELSE posting_status
+                END,
+                updated_at = now()
+            WHERE opening_id = $1
+            `,
+            [row.opening_id, nextFilledSlots]
+        );
+
+        await client.query('COMMIT');
+        activationResult = {
+            activated: true,
+            already_activated: false,
+            outcome: 'activated',
+            readiness,
+            application: applicationResult.rows[0],
+            scholar: studentResult.rows[0],
+            student_user_id: row.student_user_id || null,
+            opening_id: row.opening_id,
+            occupied_slots: nextFilledSlots,
+            capacity,
+        };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+
+    if (activationResult?.student_user_id) {
+        try {
+            activationResult.notification = await deliverVerificationOutcomeNotification({
+                outcome: 'approved',
+                applicationId,
+                userId: activationResult.student_user_id,
+                scholarId: activationResult.scholar?.student_id || null,
+            });
+        } catch (notificationError) {
+            console.error('SCHOLAR ACTIVATION NOTIFICATION ERROR:', notificationError.message);
+            activationResult.notification_error = notificationError.message;
+        }
+    }
+
+    return activationResult;
 };
 
 module.exports = {

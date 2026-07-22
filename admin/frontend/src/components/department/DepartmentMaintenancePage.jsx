@@ -22,8 +22,10 @@ import {
   Camera,
   Palette,
   PenTool,
+  FileSpreadsheet,
 } from 'lucide-react';
 import ThemePanel from '@/pages/maintenance/ThemePanel';
+import SDOStudentRegistryImport from '@/components/department/SDOStudentRegistryImport';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -910,6 +912,9 @@ export default function DepartmentMaintenancePage({
   const tabs = [
     { key: 'general', label: 'General', icon: SlidersHorizontal },
     { key: 'account', label: 'Account', icon: User },
+    ...(config.enableStudentRegistryImport
+      ? [{ key: 'student-list', label: 'Student List', icon: FileSpreadsheet }]
+      : []),
     { key: 'theme', label: 'Theme', icon: Palette },
     { key: 'audit', label: 'Audit', icon: ClipboardList },
   ];
@@ -956,6 +961,7 @@ export default function DepartmentMaintenancePage({
               profileStorageKey={profileStorageKey}
             />
           )}
+          {tab === 'student-list' && <SDOStudentRegistryImport palette={palette} />}
           {tab === 'theme' && (
             <ThemePanel
               tokenStorageKey={tokenStorageKey}

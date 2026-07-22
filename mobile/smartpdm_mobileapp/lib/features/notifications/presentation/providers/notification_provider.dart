@@ -304,13 +304,6 @@ class NotificationProvider extends ChangeNotifier {
         await _refreshOfficeUpdatesFromRealtime();
         return;
 
-      case MobileRealtimeEvents.notificationUpdated:
-      case MobileRealtimeEvents.notificationsUpdated:
-      case MobileRealtimeEvents.notificationUpdatedLegacy:
-        await _updateNotificationFromEvent(event);
-        await _refreshOfficeUpdatesFromRealtime();
-        return;
-
       case MobileRealtimeEvents.notificationDeleted:
       case MobileRealtimeEvents.notificationArchived:
         _removeNotificationFromEvent(event);

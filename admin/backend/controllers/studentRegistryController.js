@@ -7,10 +7,9 @@ exports.getRegistry = async (req, res) => {
     const limit = req.query.limit;
     const offset = req.query.offset;
 
-    const data = await studentRegistryService.listStudentRegistry({
-      limit,
-      offset,
-    });
+    const data = req.user?.role === 'sdo'
+      ? await studentRegistryService.listSdoStudentRegistry({ limit, offset })
+      : await studentRegistryService.listStudentRegistry({ limit, offset });
 
     res.json(data);
   } catch (err) {
@@ -23,24 +22,26 @@ exports.getRegistry = async (req, res) => {
 };
 
 exports.importRegistry = async (req, res) => {
-  await auditLogService.logAudit({
-    req,
-    actionTaken: 'IMPORT_STUDENT_REGISTRY',
-    module: 'Student Registry',
-    entityType: 'student_registry_import',
-    entityId: result?.import_batch_id || null,
-    description: `Imported registrar file with ${result?.imported || 0} successful records.`,
-    metadata: {
-      imported: result?.imported || 0,
-      total: result?.total || 0,
-      failed_rows: result?.failed_rows || 0,
-    },
-  });
-
   try {
     const result = await studentRegistryService.importStudentRegistryFile({
       file: req.file,
       adminId: req.user?.admin_id || req.user?.adminId || null,
+    });
+
+    await auditLogService.logAudit({
+      req,
+      actionTaken: 'IMPORT_STUDENT_REGISTRY',
+      module: 'Student Registry',
+      entityType: 'student_registry_import',
+      entityId: result?.import_batch_id || null,
+      description: `Imported registrar file with ${result?.imported || 0} successful records.`,
+      metadata: {
+        imported: result?.imported || 0,
+        total: result?.total || 0,
+        failed_rows: result?.failed_rows || 0,
+      },
+    }).catch((auditError) => {
+      console.error('STUDENT REGISTRY IMPORT AUDIT ERROR:', auditError.message);
     });
 
     const io = req.app.get('io');
@@ -48,7 +49,7 @@ exports.importRegistry = async (req, res) => {
       module: 'student_registry',
       action: 'import',
       updated_at: new Date().toISOString(),
-      imported_count: result?.insertedCount ?? result?.updatedCount ?? null,
+      imported_count: result?.imported ?? null,
     });
 
     res.status(200).json({

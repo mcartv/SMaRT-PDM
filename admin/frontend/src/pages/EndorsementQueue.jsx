@@ -161,6 +161,10 @@ function getDocumentPreviewType(row = {}) {
   return 'file';
 }
 
+function hasUploadedGrade(row) {
+  return Boolean(row?.grade_document?.is_uploaded || row?.grade_document?.url);
+}
+
 function GradePreviewModal({ row, open, onClose }) {
   if (!open || !row?.grade_document?.url) return null;
 
@@ -443,7 +447,7 @@ function QueueSummary({ queueKey, rows }) {
       <SummaryCard
         icon={CheckCircle2}
         label="With Grade File"
-        value={rows.filter((row) => row.grade_document?.url).length}
+        value={rows.filter(hasUploadedGrade).length}
         tone="bg-green-50 text-green-700"
       />
       <SummaryCard
@@ -492,6 +496,8 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
   };
 
   if (queueKey === 'pd') {
+    const hasGradeDocument = hasUploadedGrade(row);
+
     return (
       <div className="space-y-4 rounded-[24px] border border-stone-200 bg-stone-50/80 p-4">
         <div>
@@ -505,10 +511,16 @@ function ActionPanel({ queueKey, row, actionState, setActionState, onSubmit, loa
           placeholder="Optional remark"
           className="min-h-[88px] bg-white"
         />
+        {!hasGradeDocument ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+            Approval is disabled until the applicant uploads a grade document.
+          </div>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
           <Button
             className="h-10 bg-green-700 text-white hover:bg-green-800"
-            disabled={loading}
+            disabled={loading || !hasGradeDocument}
+            title={!hasGradeDocument ? 'Grade document is required before PD approval' : undefined}
             onClick={() => onSubmit(row, 'approve')}
           >
             Approve
@@ -739,6 +751,22 @@ export default function EndorsementQueue({
     [queueKey, hasAccess]
   );
 
+  useSocketEvent(
+    'application-document:uploaded',
+    () => {
+      loadQueue({ soft: true });
+    },
+    [queueKey, hasAccess]
+  );
+
+  useSocketEvent(
+    'application:updated',
+    () => {
+      loadQueue({ soft: true });
+    },
+    [queueKey, hasAccess]
+  );
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
@@ -768,6 +796,12 @@ export default function EndorsementQueue({
       queueKey === 'sdo' && !state.remarks
         ? SDO_STANDARD_REASONS[action] || ''
         : state.remarks;
+
+    if (queueKey === 'pd' && action === 'approve' && !hasUploadedGrade(row)) {
+      setError('Program Director approval requires an uploaded grade document.');
+      setConfirmAction(null);
+      return;
+    }
 
     if (queueKey === 'guidance' && ['hold', 'reject'].includes(action) && !remarks.trim()) {
       setError('Guidance hold or rejection requires a reason.');
@@ -849,6 +883,11 @@ export default function EndorsementQueue({
   };
 
   const handleSubmit = (row, action) => {
+    if (queueKey === 'pd' && action === 'approve' && !hasUploadedGrade(row)) {
+      setError('Program Director approval requires an uploaded grade document.');
+      return;
+    }
+
     if (shouldConfirmAction(action)) {
       setConfirmAction({ row, action });
       return;
@@ -948,7 +987,7 @@ export default function EndorsementQueue({
                     <p className="mt-1 text-sm text-stone-700">
                       Grade file:{' '}
                       <span className="font-semibold text-stone-900">
-                        {confirmAction.row.grade_document?.url ? 'Uploaded' : 'Missing'}
+                        {hasUploadedGrade(confirmAction.row) ? 'Uploaded' : 'Missing'}
                       </span>
                     </p>
                     <p className="mt-1 text-sm text-stone-700">
@@ -966,7 +1005,12 @@ export default function EndorsementQueue({
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
-                disabled={Boolean(savingSlipId)}
+                disabled={
+                  Boolean(savingSlipId) ||
+                  (queueKey === 'pd' &&
+                    confirmAction.action === 'approve' &&
+                    !hasUploadedGrade(confirmAction.row))
+                }
                 className={`h-10 min-w-40 border-transparent px-4 font-semibold !text-white shadow-sm ${
                   confirmMeta.tone === 'red'
                     ? '!bg-red-700 hover:!bg-red-800'
@@ -1055,7 +1099,7 @@ export default function EndorsementQueue({
             </span>
             {queueKey === 'pd' ? (
               <span className="rounded-full border border-stone-200 bg-white px-3 py-1">
-                {rows.filter((row) => row.grade_document?.url).length} with grade file
+                {rows.filter(hasUploadedGrade).length} with grade file
               </span>
             ) : null}
           </div>
@@ -1112,11 +1156,11 @@ export default function EndorsementQueue({
                         <div className="rounded-2xl border border-stone-200 bg-white/85 p-4 text-sm text-stone-700">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-stone-500">Quick Grade Status</p>
                           <p className="mt-2">GWA: <span className="font-semibold text-stone-900">{row.grade_summary?.gwa ?? 'N/A'}</span></p>
-                          <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{row.grade_document?.url ? 'Uploaded' : 'Missing'}</span></p>
+                          <p className="mt-1">Grade file: <span className="font-semibold text-stone-900">{hasUploadedGrade(row) ? 'Uploaded' : 'Missing'}</span></p>
                           {row.grade_document?.file_name ? (
                             <p className="mt-1 truncate text-xs text-stone-500">{row.grade_document.file_name}</p>
                           ) : null}
-                          {!row.grade_document?.url ? (
+                          {!hasUploadedGrade(row) ? (
                             <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
                               PD approval is blocked until the applicant uploads the grade document.
                             </p>

@@ -288,6 +288,14 @@ function mapHeaders(headerRow) {
       ].includes(header)
     ) {
       map.set(index, 'has_disciplinary_action');
+    } else if (
+      ['offense type', 'offence type', 'disciplinary offense type'].includes(header)
+    ) {
+      map.set(index, 'offense_type');
+    } else if (
+      ['incident date', 'date of incident', 'offense date', 'offence date'].includes(header)
+    ) {
+      map.set(index, 'offense_incident_date');
     }
   });
 
@@ -357,7 +365,11 @@ function parseRows(rows) {
       financial_support_loan: parseBoolean(obj.financial_support_loan),
       financial_support_other: parseBoolean(obj.financial_support_other),
       has_been_scholar: parseBoolean(obj.has_been_scholar),
-      has_disciplinary_action: parseBoolean(obj.has_disciplinary_action),
+      has_disciplinary_action:
+        parseBoolean(obj.has_disciplinary_action) ||
+        Boolean(normalizeText(obj.offense_type) || parseExcelDate(obj.offense_incident_date)),
+      offense_type: normalizeText(obj.offense_type) || null,
+      offense_incident_date: parseExcelDate(obj.offense_incident_date),
       raw_payload: obj.raw_payload,
     });
   }
@@ -436,6 +448,8 @@ async function insertImportRows(importBatchId, parsedRows) {
     financial_support_other: row.financial_support_other,
     has_been_scholar: row.has_been_scholar,
     has_disciplinary_action: row.has_disciplinary_action,
+    offense_type: row.offense_type,
+    offense_incident_date: row.offense_incident_date,
     date_of_birth: row.date_of_birth,
     place_of_birth: row.place_of_birth,
     civil_status: row.civil_status,
@@ -481,6 +495,8 @@ async function upsertMasterRows(importBatchId, importRows, courseMap) {
     financial_support_other: row.financial_support_other,
     has_been_scholar: row.has_been_scholar,
     has_disciplinary_action: row.has_disciplinary_action,
+    offense_type: row.offense_type || null,
+    offense_incident_date: row.offense_incident_date || null,
     date_of_birth: row.date_of_birth || null,
     place_of_birth: row.place_of_birth || null,
     civil_status: row.civil_status || null,
@@ -590,7 +606,56 @@ async function listStudentRegistry({ limit = 50, offset = 0 } = {}) {
   };
 }
 
+async function listSdoStudentRegistry({ limit = 100, offset = 0 } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const safeOffset = Math.max(Number(offset) || 0, 0);
+
+  const { data, error, count } = await supabase
+    .from(MASTER_TABLE)
+    .select(`
+      master_student_id,
+      student_number,
+      first_name,
+      middle_name,
+      last_name,
+      course_id,
+      year_level,
+      has_disciplinary_action,
+      offense_type,
+      offense_incident_date
+    `, { count: 'exact' })
+    .eq('is_archived', false)
+    .order('student_number', { ascending: true })
+    .range(safeOffset, safeOffset + safeLimit - 1);
+
+  if (error) throw error;
+
+  const courseIds = [...new Set((data || []).map((row) => row.course_id).filter(Boolean))];
+  let courseById = new Map();
+
+  if (courseIds.length) {
+    const { data: courses, error: courseError } = await supabase
+      .from(COURSE_TABLE)
+      .select('course_id, course_code')
+      .in('course_id', courseIds);
+
+    if (courseError) throw courseError;
+    courseById = new Map((courses || []).map((course) => [course.course_id, course.course_code]));
+  }
+
+  return {
+    total: count || 0,
+    limit: safeLimit,
+    offset: safeOffset,
+    items: (data || []).map((row) => ({
+      ...row,
+      course_code: courseById.get(row.course_id) || null,
+    })),
+  };
+}
+
 module.exports = {
   importStudentRegistryFile,
   listStudentRegistry,
+  listSdoStudentRegistry,
 };

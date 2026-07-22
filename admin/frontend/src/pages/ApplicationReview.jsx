@@ -989,6 +989,7 @@ export default function ApplicationReview() {
   const [draftFilters, setDraftFilters] = useState(DEFAULT_FILTERS);
   const [openings, setOpenings] = useState([]);
   const [approvalLoadingId, setApprovalLoadingId] = useState('');
+  const [activationCandidate, setActivationCandidate] = useState(null);
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
@@ -1064,13 +1065,18 @@ export default function ApplicationReview() {
       }
 
       await loadData({ soft: true });
+      setActivationCandidate(null);
       setFeedback({
         tone: 'success',
         title: 'Scholar activation completed',
         message: `${row.applicant_name || 'Applicant'} was moved successfully from Readiness to final scholar handling.`,
       });
     } catch (err) {
-      alert(err.message || 'Failed to finalize scholar activation');
+      setFeedback({
+        tone: 'error',
+        title: 'Scholar activation blocked',
+        message: err.message || 'Failed to finalize scholar activation.',
+      });
     } finally {
       setApprovalLoadingId('');
     }
@@ -1158,6 +1164,8 @@ export default function ApplicationReview() {
   useSocketEvent('application:updated', () => loadData({ soft: true }), []);
   useSocketEvent('application:approved', () => loadData({ soft: true }), []);
   useSocketEvent('application:rejected', () => loadData({ soft: true }), []);
+  useSocketEvent('application-document:uploaded', () => loadData({ soft: true }), []);
+  useSocketEvent('endorsement:updated', () => loadData({ soft: true }), []);
 
   useEffect(() => {
     setPage(1);
@@ -1327,6 +1335,49 @@ export default function ApplicationReview() {
 
   return (
     <div className="space-y-4 px-1 py-3" style={{ background: C.bg }}>
+      <Dialog
+        open={Boolean(activationCandidate)}
+        onOpenChange={(open) => {
+          if (!open && !approvalLoadingId) setActivationCandidate(null);
+        }}
+      >
+        <DialogContent className="max-w-lg rounded-3xl border-stone-200 p-0">
+          <DialogHeader className="border-b border-stone-100 px-6 py-5 text-left">
+            <DialogTitle className="text-lg">Confirm scholar activation</DialogTitle>
+            <p className="mt-1 text-sm leading-6 text-stone-500">
+              Activate {activationCandidate?.applicant_name || 'this applicant'} only after the system passes every final check.
+            </p>
+          </DialogHeader>
+          <div className="space-y-3 px-6 py-5">
+            {[
+              'All required documents are uploaded and verified',
+              'SDO, Guidance, and Program Director endorsement is complete',
+              'The scholarship opening still has an available slot',
+              'The student has no other active scholar record',
+            ].map((label) => (
+              <div key={label} className="flex items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                {label}
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="border-t border-stone-100 px-6 py-4">
+            <Button variant="outline" disabled={Boolean(approvalLoadingId)} onClick={() => setActivationCandidate(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="text-white"
+              style={{ background: C.green }}
+              disabled={!activationCandidate || Boolean(approvalLoadingId)}
+              onClick={() => approveScholar(activationCandidate)}
+            >
+              {approvalLoadingId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+              Run Checks & Activate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {feedback ? (
         <div
           className={`rounded-2xl border px-4 py-4 shadow-sm ${feedback.tone === 'success'
@@ -1414,7 +1465,7 @@ export default function ApplicationReview() {
               rows={readinessPageData}
               navigate={navigate}
               onDownloadSlip={downloadSlipPdf}
-              onApproveScholar={approveScholar}
+              onApproveScholar={setActivationCandidate}
               approvalLoadingId={approvalLoadingId}
               title="Activation Readiness Queue"
               subtitle="FCFS order is based on the last valid required-document submission, then application submission as the tie-breaker."
@@ -1439,7 +1490,7 @@ export default function ApplicationReview() {
             rows={tablePageData}
             navigate={navigate}
             onDownloadSlip={downloadSlipPdf}
-            onApproveScholar={approveScholar}
+            onApproveScholar={setActivationCandidate}
             approvalLoadingId={approvalLoadingId}
             title="Applicant Registry"
             subtitle="Applicants with incomplete documents or pending endorsement before moving to readiness."

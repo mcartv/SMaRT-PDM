@@ -12,11 +12,11 @@ const upload = multer({
   },
 });
 
-router.get('/', protect, authorizeRoles('admin'), studentRegistryController.getRegistry);
+router.get('/', protect, authorizeRoles('admin', 'sdo'), studentRegistryController.getRegistry);
 router.post(
   '/import',
   protect,
-  authorizeRoles('admin'),
+  authorizeRoles('admin', 'sdo'),
   upload.single('file'),
   studentRegistryController.importRegistry
 );

@@ -60,7 +60,7 @@ function buildNotificationTarget(portalRootPath, notification) {
   const referenceType = String(notification.reference_type || '').toLowerCase();
   const referenceId = notification.reference_id;
 
-  if (referenceType === 'endorsement_slip' && referenceId) {
+  if (['endorsement_slip', 'endorsement', 'endorsement_stage'].includes(referenceType) && referenceId) {
     return `${portalRootPath}/endorsements/${referenceId}`;
   }
 
@@ -72,8 +72,20 @@ function buildNotificationTarget(portalRootPath, notification) {
     return portalRootPath === '/admin' ? '/admin/payout' : `${portalRootPath}/dashboard`;
   }
 
-  if (referenceType === 'application' && referenceId && portalRootPath === '/admin') {
+  if (
+    ['application', 'application_document', 'document_review'].includes(referenceType) &&
+    referenceId &&
+    portalRootPath === '/admin'
+  ) {
     return `/admin/applications/${referenceId}/documents`;
+  }
+
+  if (['message', 'message_room', 'chat'].includes(referenceType) && portalRootPath === '/admin') {
+    return '/admin/messages';
+  }
+
+  if (['scholar', 'student'].includes(referenceType) && portalRootPath === '/admin') {
+    return '/admin/scholars';
   }
 
   return null;

@@ -6,6 +6,7 @@ const ENDORSEMENT_SLIP_BUCKET =
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
 
 const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
+    'birth_certificate',
     'certificate_of_registration',
     'student_grade_forms',
     'certificate_of_indigency',
@@ -14,6 +15,7 @@ const REQUIRED_REVIEW_DOCUMENT_KEYS = Object.freeze([
 ]);
 
 const REQUIRED_UPLOAD_DOCUMENT_TYPES = Object.freeze([
+    'birth certificate / psa',
     'certificate of registration',
     'grade report',
     'certificate of indigency',
@@ -1118,6 +1120,7 @@ async function getMyDocuments(userId) {
     }
 
     const requiredDocuments = [
+        'Birth Certificate / PSA',
         'Certificate of Registration',
         'Certificate of Indigency',
         'Grade Report',
@@ -1271,6 +1274,15 @@ function normalizeDocumentReviewKey(value) {
 
 function normalizeUploadDocumentType(value) {
     const normalized = normalizeWorkflowKey(value);
+
+    if (
+        normalized.includes('birth certificate') ||
+        normalized.includes('certificate of live birth') ||
+        normalized === 'psa' ||
+        normalized === 'nso'
+    ) {
+        return 'birth certificate / psa';
+    }
 
     if (normalized === 'cor' || normalized.includes('registration')) {
         return 'certificate of registration';
@@ -2218,6 +2230,15 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 function normalizeRequiredDocumentType(value) {
     const text = String(value || '').trim().toLowerCase();
 
+    if (
+        text.includes('birth certificate') ||
+        text.includes('certificate of live birth') ||
+        text === 'psa' ||
+        text === 'nso'
+    ) {
+        return 'Birth Certificate / PSA';
+    }
+
     if (text === 'cor' || text.includes('registration')) {
         return 'Certificate of Registration';
     }
@@ -2330,6 +2351,7 @@ function familyPayload(studentId, relation, data = {}, extra = {}) {
 
 async function createRequiredDocumentSlots(applicationId, studentId) {
     const requiredDocuments = [
+        'Birth Certificate / PSA',
         'Certificate of Registration',
         'Certificate of Indigency',
         'Grade Report',

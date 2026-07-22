@@ -69,6 +69,18 @@ const DOC_STATUS_META = {
 
 const REQUIRED_DOCUMENTS = [
   {
+    id: 'birth_certificate',
+    name: 'Birth Certificate / PSA',
+    aliases: [
+      'birth certificate',
+      'birth certificate / psa',
+      'psa birth certificate',
+      'certificate of live birth',
+      'psa',
+      'nso',
+    ],
+  },
+  {
     id: 'certificate_of_registration',
     name: 'Certificate of Registration',
     aliases: ['cor', 'certificate of registration', 'registration form', 'registration'],

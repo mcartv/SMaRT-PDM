@@ -43,6 +43,10 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   final Map<String, bool> _uploadingDocuments = <String, bool>{};
 
   static const Set<String> _allowedDocumentTypes = {
+    'birth certificate / psa',
+    'birth certificate',
+    'psa',
+    'certificate of live birth',
     'certificate of registration',
     'cor',
     'certificate of indigency',
@@ -155,10 +159,11 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   int _documentOrder(String type) {
     final text = type.toLowerCase();
 
-    if (text.contains('registration') || text == 'cor') return 1;
-    if (text.contains('indigency')) return 2;
-    if (text.contains('grade')) return 3;
-    if (text.contains('request')) return 4;
+    if (text.contains('birth') || text == 'psa' || text == 'nso') return 1;
+    if (text.contains('registration') || text == 'cor') return 2;
+    if (text.contains('indigency')) return 3;
+    if (text.contains('grade')) return 4;
+    if (text.contains('request')) return 5;
 
     return 99;
   }
@@ -182,7 +187,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
   ) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
       allowMultiple: false,
       withData: kIsWeb,
     );
@@ -204,7 +209,7 @@ class _ApplicantDocumentsScreenState extends State<ApplicantDocumentsScreen> {
     const allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png', 'webp'};
 
     if (!allowedExtensions.contains(extension)) {
-      _showSnackBar('Only PDF, JPG, JPEG, and PNG files are allowed.');
+      _showSnackBar('Only PDF, JPG, JPEG, PNG, and WEBP files are allowed.');
       return;
     }
 

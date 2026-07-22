@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, Loader2, Palette, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, CheckCircle2, Loader2, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -66,12 +66,67 @@ function LandingThemePreview({ theme }) {
   );
 }
 
+function LandingCustomThemeModal({ open, colors, saving, onChange, onClose, onSave }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-stone-200 bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-5 py-4">
+          <div>
+            <h3 className="text-sm font-semibold text-stone-900">Create Landing Page Theme</h3>
+            <p className="mt-1 text-xs text-stone-500">Preview first, then publish these colors to the public landing page.</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Landing Colors</p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              {LANDING_COLOR_FIELDS.map((field) => (
+                <ColorInput
+                  key={field.key}
+                  label={field.label}
+                  value={colors[field.key]}
+                  onChange={(value) => onChange(field.key, value)}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Live Preview</p>
+            <LandingThemePreview theme={resolveLandingTheme('custom', colors)} />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-stone-100 bg-stone-50 px-5 py-3">
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="h-9 rounded-xl border-stone-200 text-xs">
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSave} disabled={saving} className="h-9 rounded-xl bg-stone-900 px-4 text-xs text-white hover:bg-stone-800">
+            {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+            Publish Custom Theme
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
   const [presetKey, setPresetKey] = useState('default');
   const [customColors, setCustomColors] = useState(() => {
     const defaults = getDefaultLandingTheme();
     return Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, defaults[field.key]]));
   });
+  const [customDraft, setCustomDraft] = useState(() => ({ ...customColors }));
+  const [customOpen, setCustomOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
@@ -82,7 +137,7 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     [customColors, presetKey]
   );
 
-  const loadLandingTheme = async () => {
+  const loadLandingTheme = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(buildApiUrl('/api/theme-settings'), {
@@ -111,11 +166,11 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tokenStorageKey]);
 
   useEffect(() => {
     loadLandingTheme();
-  }, []);
+  }, [loadLandingTheme]);
 
   useEffect(() => {
     if (!feedback.message) return undefined;
@@ -155,8 +210,10 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
             ? 'Landing custom colors saved.'
             : 'Landing preset applied.',
       });
+      return true;
     } catch (error) {
       setFeedback({ type: 'error', message: error.message || 'Failed to save landing theme.' });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -170,16 +227,15 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
     saveLandingTheme(nextPresetKey, null);
   };
 
-  const handleCustomColorChange = (key, value) => {
-    setPresetKey('custom');
-    setCustomColors((current) => ({
-      ...current,
-      [key]: value,
-    }));
+  const openCustomTheme = () => {
+    const current = resolveLandingTheme(presetKey, presetKey === 'custom' ? customColors : null);
+    setCustomDraft(Object.fromEntries(LANDING_COLOR_FIELDS.map((field) => [field.key, current[field.key]])));
+    setCustomOpen(true);
   };
 
-  const handleSaveCustom = () => {
-    saveLandingTheme('custom', customColors);
+  const handleSaveCustom = async () => {
+    const saved = await saveLandingTheme('custom', customDraft);
+    if (saved) setCustomOpen(false);
   };
 
   const handleRestoreDefault = () => {
@@ -202,6 +258,16 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
 
   return (
     <div className="space-y-5">
+      <LandingCustomThemeModal
+        open={customOpen}
+        colors={customDraft}
+        saving={saving}
+        onChange={(key, value) => setCustomDraft((current) => ({ ...current, [key]: value }))}
+        onClose={() => {
+          if (!saving) setCustomOpen(false);
+        }}
+        onSave={handleSaveCustom}
+      />
       <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-stone-900 text-white">
@@ -240,7 +306,17 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
                 Current mode: <span className="font-medium text-stone-700">{previewTheme.label}</span>
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-xl border-stone-200 text-xs"
+                onClick={openCustomTheme}
+                disabled={saving}
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Custom Theme
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -250,15 +326,6 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
               >
                 {saving && presetKey === 'default' ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
                 Restore Default
-              </Button>
-              <Button
-                type="button"
-                className="h-9 rounded-xl bg-stone-900 text-xs text-white hover:bg-stone-800"
-                onClick={handleSaveCustom}
-                disabled={saving}
-              >
-                {saving && presetKey === 'custom' ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                Save Custom Colors
               </Button>
             </div>
           </div>
@@ -304,17 +371,6 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
                 </button>
               );
             })}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {LANDING_COLOR_FIELDS.map((field) => (
-              <ColorInput
-                key={field.key}
-                label={field.label}
-                value={customColors[field.key]}
-                onChange={(value) => handleCustomColorChange(field.key, value)}
-              />
-            ))}
           </div>
         </CardContent>
       </Card>

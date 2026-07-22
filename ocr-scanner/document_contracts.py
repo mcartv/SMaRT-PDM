@@ -155,13 +155,26 @@ def build_indigency_extracted_fields_from_result(
         for field in getattr(getattr(extraction_result, "data", None), "fields", ())
     }
     fields: Dict[str, Any] = {}
+    candidate_sources = {"pre_title_header", "none", "ambiguous"}
+    crop_statuses = {
+        "not_attempted",
+        "empty",
+        "non_empty_accepted",
+        "exception",
+    }
+    failure_stages = {
+        "none",
+        "candidate_selection",
+        "crop_generation",
+        "crop_ocr",
+    }
     for field_name in (
         "certificate_subject_name",
         "issue_date",
         "issuing_barangay",
     ):
         field = result_fields.get(field_name)
-        fields[field_name] = {
+        field_payload = {
             "raw_text": str(getattr(field, "raw_text", "") or ""),
             "success": bool(getattr(field, "success", False)),
             "review_required": True,
@@ -172,6 +185,66 @@ def build_indigency_extracted_fields_from_result(
             "anchor": str(getattr(field, "anchor", "") or ""),
             "normalized_bounds": getattr(field, "normalized_bounds", None),
         }
+        diagnostics = getattr(field, "diagnostics", None)
+        if diagnostics is not None:
+            candidate_source = str(
+                getattr(diagnostics, "candidate_source", "none") or "none"
+            )
+            crop_status = str(
+                getattr(
+                    diagnostics,
+                    "crop_validation_status",
+                    "not_attempted",
+                )
+                or "not_attempted"
+            )
+            failure_stage = str(
+                getattr(diagnostics, "failure_stage", "none") or "none"
+            )
+            field_payload["diagnostics"] = {
+                "candidate_found": bool(
+                    getattr(diagnostics, "candidate_found", False)
+                ),
+                "candidate_count": max(
+                    0,
+                    int(getattr(diagnostics, "candidate_count", 0) or 0),
+                ),
+                "candidate_token_count": max(
+                    0,
+                    int(
+                        getattr(diagnostics, "candidate_token_count", 0) or 0
+                    ),
+                ),
+                "candidate_source": (
+                    candidate_source
+                    if candidate_source in candidate_sources
+                    else "none"
+                ),
+                "anchor_found": bool(
+                    getattr(diagnostics, "anchor_found", False)
+                ),
+                "bounds_present": bool(
+                    getattr(diagnostics, "bounds_present", False)
+                ),
+                "crop_attempted": bool(
+                    getattr(diagnostics, "crop_attempted", False)
+                ),
+                "crop_returned_text": bool(
+                    getattr(diagnostics, "crop_returned_text", False)
+                ),
+                "positional_validation_status": "not_implemented",
+                "crop_validation_status": (
+                    crop_status
+                    if crop_status in crop_statuses
+                    else "not_attempted"
+                ),
+                "failure_stage": (
+                    failure_stage
+                    if failure_stage in failure_stages
+                    else "none"
+                ),
+            }
+        fields[field_name] = field_payload
 
     return {
         "document_type": "certificate_of_indigency",

@@ -123,6 +123,76 @@ class DocumentContractsTest(unittest.TestCase):
         self.assertNotIn("applicant_name", payload["fields"])
         self.assertNotIn("extracted_name", payload["fields"])
 
+    def test_indigency_barangay_diagnostics_are_structural_and_text_free(self):
+        diagnostics = SimpleNamespace(
+            candidate_found=True,
+            candidate_count=1,
+            candidate_token_count=2,
+            candidate_source="pre_title_header",
+            anchor_found=True,
+            bounds_present=True,
+            crop_attempted=True,
+            crop_returned_text=True,
+            positional_validation_status="not_implemented",
+            crop_validation_status="non_empty_accepted",
+            failure_stage="none",
+            candidate_text="MUST NOT PERSIST",
+            crop_text="MUST NOT PERSIST",
+            raw_text="MUST NOT PERSIST",
+        )
+        field = SimpleNamespace(
+            name="issuing_barangay",
+            raw_text="SYNTHETIC FIELD OUTPUT",
+            success=True,
+            issue_codes=(),
+            detection_variant="grayscale",
+            anchor="SYNTHETIC ANCHOR",
+            normalized_bounds=(0.1, 0.2, 0.3, 0.1),
+            diagnostics=diagnostics,
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(fields=(field,), detection_variant="grayscale")
+        )
+
+        payload = build_indigency_extracted_fields_from_result(
+            "SYNTHETIC RAW OCR",
+            extraction_result,
+        )
+        persisted = payload["fields"]["issuing_barangay"]["diagnostics"]
+
+        self.assertEqual(
+            set(persisted),
+            {
+                "candidate_found",
+                "candidate_count",
+                "candidate_token_count",
+                "candidate_source",
+                "anchor_found",
+                "bounds_present",
+                "crop_attempted",
+                "crop_returned_text",
+                "positional_validation_status",
+                "crop_validation_status",
+                "failure_stage",
+            },
+        )
+        self.assertNotIn("candidate_text", persisted)
+        self.assertNotIn("crop_text", persisted)
+        self.assertNotIn("raw_text", persisted)
+        self.assertTrue(
+            all(
+                isinstance(value, (bool, int))
+                or value
+                in {
+                    "pre_title_header",
+                    "not_implemented",
+                    "non_empty_accepted",
+                    "none",
+                }
+                for value in persisted.values()
+            )
+        )
+
     def test_mutating_one_result_does_not_affect_next_result(self):
         first = build_extracted_fields("certificate_of_live_birth", "sample text")
         first["source_regions"].append("MUTATED")

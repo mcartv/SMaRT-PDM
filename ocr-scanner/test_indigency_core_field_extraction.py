@@ -182,6 +182,12 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
 
         self.assertTrue(fields["issuing_barangay"].success)
         self.assertEqual(fields["issuing_barangay"].raw_text, "SAMPLE II")
+        diagnostics = fields["issuing_barangay"].diagnostics
+        self.assertTrue(diagnostics.candidate_found)
+        self.assertEqual(diagnostics.candidate_count, 1)
+        self.assertEqual(diagnostics.candidate_source, "pre_title_header")
+        self.assertEqual(diagnostics.crop_validation_status, "non_empty_accepted")
+        self.assertEqual(diagnostics.failure_stage, "none")
 
     def test_known_header_variants_locate_only_the_barangay_name(self):
         variants = (
@@ -233,6 +239,14 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
             field.issue_codes,
             ("ISSUING_BARANGAY_NOT_EXTRACTED",),
         )
+        diagnostics = field.diagnostics
+        self.assertFalse(diagnostics.candidate_found)
+        self.assertEqual(diagnostics.candidate_count, 0)
+        self.assertEqual(diagnostics.candidate_source, "none")
+        self.assertFalse(diagnostics.bounds_present)
+        self.assertFalse(diagnostics.crop_attempted)
+        self.assertEqual(diagnostics.crop_validation_status, "not_attempted")
+        self.assertEqual(diagnostics.failure_stage, "candidate_selection")
 
     def test_conflicting_header_barangays_are_ambiguous(self):
         data = _valid_word_data()
@@ -265,6 +279,14 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
             },
             result.issues,
         )
+        diagnostics = field.diagnostics
+        self.assertTrue(diagnostics.candidate_found)
+        self.assertEqual(diagnostics.candidate_count, 2)
+        self.assertEqual(diagnostics.candidate_token_count, 0)
+        self.assertEqual(diagnostics.candidate_source, "ambiguous")
+        self.assertTrue(diagnostics.anchor_found)
+        self.assertFalse(diagnostics.crop_attempted)
+        self.assertEqual(diagnostics.failure_stage, "candidate_selection")
 
     def test_duplicate_subject_anchors_are_ambiguous_and_empty(self):
         result = extract_indigency_core_fields(
@@ -492,6 +514,94 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
             },
             result.issues,
         )
+
+    def test_barangay_candidate_with_empty_crop_ocr_preserves_context(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(),
+            field_reader=lambda crop, field_name: (
+                ""
+                if field_name == "issuing_barangay"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertFalse(field.success)
+        self.assertTrue(field.anchor)
+        self.assertIsNotNone(field.normalized_bounds)
+        self.assertEqual(field.issue_codes, ("ISSUING_BARANGAY_NOT_EXTRACTED",))
+        diagnostics = field.diagnostics
+        self.assertTrue(diagnostics.candidate_found)
+        self.assertEqual(diagnostics.candidate_count, 1)
+        self.assertGreater(diagnostics.candidate_token_count, 0)
+        self.assertTrue(diagnostics.anchor_found)
+        self.assertTrue(diagnostics.bounds_present)
+        self.assertTrue(diagnostics.crop_attempted)
+        self.assertFalse(diagnostics.crop_returned_text)
+        self.assertEqual(diagnostics.positional_validation_status, "not_implemented")
+        self.assertEqual(diagnostics.crop_validation_status, "empty")
+        self.assertEqual(diagnostics.failure_stage, "crop_ocr")
+
+    def test_barangay_candidate_with_crop_exception_preserves_context(self):
+        def reader(crop, field_name):
+            if field_name == "issuing_barangay":
+                raise RuntimeError("synthetic crop reader failure")
+            return _field_reader(crop, field_name)
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(),
+            field_reader=reader,
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertFalse(field.success)
+        self.assertTrue(field.anchor)
+        self.assertIsNotNone(field.normalized_bounds)
+        diagnostics = field.diagnostics
+        self.assertTrue(diagnostics.crop_attempted)
+        self.assertFalse(diagnostics.crop_returned_text)
+        self.assertEqual(diagnostics.crop_validation_status, "exception")
+        self.assertEqual(diagnostics.failure_stage, "crop_ocr")
+
+    def test_corrupted_non_empty_barangay_crop_remains_accepted(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(),
+            field_reader=lambda crop, field_name: (
+                "synthetic corrupted result"
+                if field_name == "issuing_barangay"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertTrue(field.success)
+        self.assertEqual(field.raw_text, "synthetic corrupted result")
+        diagnostics = field.diagnostics
+        self.assertTrue(diagnostics.crop_returned_text)
+        self.assertEqual(diagnostics.crop_validation_status, "non_empty_accepted")
+        self.assertEqual(diagnostics.failure_stage, "none")
+
+    def test_barangay_diagnostics_are_immutable(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(),
+            field_reader=_field_reader,
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        with self.assertRaisesRegex(Exception, "cannot assign"):
+            field.diagnostics.failure_stage = "crop_ocr"
 
     def test_positional_date_preserves_selected_orientation_metadata(self):
         reader, _calls = _orientation_reader("180")

@@ -723,6 +723,37 @@ class _UnifiedDashboardContentState extends State<_UnifiedDashboardContent> {
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.pushNamed(
+                context,
+                AppRoutes.documents,
+                arguments: <String, dynamic>{
+                  'initialTitle': _safeText(
+                    summary.openingTitle,
+                    fallback: title,
+                  ),
+                  'initialProgramName': _safeText(
+                    summary.programName,
+                    fallback: title,
+                  ),
+                },
+              ),
+              icon: const Icon(Icons.folder_copy_rounded, size: 18),
+              label: const Text('Manage Documents'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: AppColors.darkBrown,
+                elevation: 0,
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

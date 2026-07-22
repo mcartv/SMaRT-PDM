@@ -17,7 +17,7 @@ class ScholarshipOpeningsScreen extends StatefulWidget {
 }
 
 class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
-  static const int _defaultRequiredDocumentCount = ProgramOpening.applicationUploadRequirementCount;
+  static const int _defaultRequiredDocumentCount = 4;
   final ProgramOpeningService _programOpeningService = ProgramOpeningService();
 
   bool _isLoading = true;
@@ -100,6 +100,23 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     }
 
     return '${format(opening.applicationStart)} - ${format(opening.applicationEnd)}';
+  }
+
+  String _displayScholarshipTitle(ProgramOpening opening) {
+    final fallback = opening.programName.trim().isEmpty
+        ? 'Scholarship'
+        : opening.programName.trim();
+
+    final cleaned = opening.openingTitle
+        .replaceAll(
+          RegExp(r'\bscholarship\s+opening\b', caseSensitive: false),
+          '',
+        )
+        .replaceAll(RegExp(r'\bopening\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return cleaned.isEmpty ? fallback : cleaned;
   }
 
   Future<void> _openApplicationForm({
@@ -197,7 +214,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final requiredCount = opening.requiredDocumentCount > 0
         ? opening.requiredDocumentCount
         : _defaultRequiredDocumentCount;
-    final uploadedCount = opening.uploadedDocumentCount.clamp(0, requiredCount).toInt();
+    final uploadedCount = opening.uploadedDocumentCount;
     final progress = requiredCount <= 0
         ? 0.0
         : (uploadedCount / requiredCount).clamp(0.0, 1.0);
@@ -257,7 +274,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
     final result = _result;
 
     return SmartPdmPageScaffold(
-      appBar: AppBar(title: const Text('Available Scholarships')),
+      appBar: AppBar(title: Text('Available Scholarships')),
       selectedIndex: 0,
       showDrawer: false,
       child: RefreshIndicator(
@@ -285,7 +302,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Select a scholarship to start or continue your application. One active application is allowed at a time.',
+                    'Select a scholarship to start your application. After applying, only your selected scholarship will remain visible until that application is completed.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
 
                       height: 1.45,
@@ -317,7 +334,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship'} or choose a different opening to replace it.',
+                      'Continue your draft for ${result?.draftOpeningTitle.isNotEmpty == true ? result!.draftOpeningTitle : 'the selected scholarship opening'} or choose a different opening to replace it.',
                       style: TextStyle(color: subtitleColor, height: 1.4),
                     ),
                     const SizedBox(height: 12),
@@ -337,7 +354,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  'You are already an approved scholar. Only TES scholarships are shown here.',
+                  'You are already an approved scholar. Only eligible TES scholarships are shown here.',
                   style: TextStyle(color: subtitleColor, height: 1.4),
                 ),
               ),
@@ -405,7 +422,7 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    opening.openingTitle,
+                                    _displayScholarshipTitle(opening),
                                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
 
                                       fontWeight: FontWeight.w800,
@@ -479,15 +496,27 @@ class _ScholarshipOpeningsScreenState extends State<ScholarshipOpeningsScreen> {
                             subtitleColor: subtitleColor,
                             titleColor: titleColor,
                           ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Open Manage Documents to upload, replace, or review your submitted requirements.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: subtitleColor,
+                                  height: 1.35,
+                                ),
+                          ),
                         ],
                         const SizedBox(height: 14),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: opening.canApply
+                            onPressed: opening.hasApplied || opening.canApply
                                 ? () => _handleApply(opening)
                                 : null,
-                            child: Text(opening.applyLabel),
+                            child: Text(
+                              opening.hasApplied
+                                  ? 'Manage Documents'
+                                  : opening.applyLabel,
+                            ),
                           ),
                         ),
                       ],

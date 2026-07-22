@@ -576,7 +576,7 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                     </h2>
                     <p className="mt-1 text-sm text-stone-500">
                       {opening.program_name || 'No Program'}
-                      {opening.academic_year ? ` â€¢ ${opening.academic_year}` : ''}
+                      {opening.academic_year ? ` ${opening.academic_year}` : ''}
                     </p>
                   </div>
 

@@ -1,84 +1,5 @@
 const supabase = require('../config/supabase');
 
-const REQUIRED_APPLICATION_UPLOADS = Object.freeze([
-  'certificate of registration',
-  'grade report',
-  'certificate of indigency',
-  'letter of request',
-]);
-
-function normalizeDocumentType(value = '') {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ');
-}
-
-function normalizeRequiredDocumentType(value = '') {
-  const normalized = normalizeDocumentType(value);
-
-  if (['cor', 'registration', 'registration form'].includes(normalized)) {
-    return 'certificate of registration';
-  }
-
-  if (
-    [
-      'student grade forms',
-      'grade forms',
-      'grade form',
-      'grades',
-      'grade card',
-      'report card',
-    ].includes(normalized)
-  ) {
-    return 'grade report';
-  }
-
-  if (normalized === 'indigency') return 'certificate of indigency';
-  if (['request letter', 'lor'].includes(normalized)) return 'letter of request';
-
-  return normalized;
-}
-
-async function getApplicationDocumentSummary(applicationId) {
-  if (!applicationId) {
-    return {
-      uploadedDocumentCount: 0,
-      requiredDocumentCount: REQUIRED_APPLICATION_UPLOADS.length,
-    };
-  }
-
-  const { data, error } = await supabase
-    .from('application_documents')
-    .select('document_type, is_submitted, file_path, file_url')
-    .eq('application_id', applicationId);
-
-  if (error) throw error;
-
-  const submittedTypes = new Set();
-  for (const document of data || []) {
-    const normalizedType = normalizeRequiredDocumentType(document.document_type);
-    const hasFile =
-      String(document.file_path || '').trim() !== '' ||
-      String(document.file_url || '').trim() !== '';
-
-    if (
-      REQUIRED_APPLICATION_UPLOADS.includes(normalizedType) &&
-      document.is_submitted === true &&
-      hasFile
-    ) {
-      submittedTypes.add(normalizedType);
-    }
-  }
-
-  return {
-    uploadedDocumentCount: submittedTypes.size,
-    requiredDocumentCount: REQUIRED_APPLICATION_UPLOADS.length,
-  };
-}
-
-
 function createHttpError(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -90,6 +11,125 @@ function isApprovedScholar(student) {
     student?.is_active_scholar === true ||
     String(student?.scholarship_status || '').toLowerCase() === 'active'
   );
+}
+
+const REQUIRED_APPLICATION_UPLOAD_KEYS = Object.freeze([
+  'certificate_of_registration',
+  'student_grade_forms',
+  'certificate_of_indigency',
+  'letter_of_request',
+]);
+
+function normalizeApplicationDocumentKey(value = '') {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  if (
+    normalized === 'certificate of registration' ||
+    normalized === 'cor' ||
+    normalized === 'registration' ||
+    normalized === 'registration form'
+  ) {
+    return 'certificate_of_registration';
+  }
+
+  if (
+    normalized === 'student grade forms' ||
+    normalized === 'grade forms' ||
+    normalized === 'grade form' ||
+    normalized === 'grade report' ||
+    normalized === 'grades' ||
+    normalized === 'grade card' ||
+    normalized === 'report card'
+  ) {
+    return 'student_grade_forms';
+  }
+
+  if (
+    normalized === 'certificate of indigency' ||
+    normalized === 'indigency'
+  ) {
+    return 'certificate_of_indigency';
+  }
+
+  if (
+    normalized === 'letter of request' ||
+    normalized === 'request letter' ||
+    normalized === 'lor'
+  ) {
+    return 'letter_of_request';
+  }
+
+  return normalized.replace(/\s+/g, '_');
+}
+
+async function getApplicationUploadCounts(applicationIds = []) {
+  const normalizedIds = [
+    ...new Set(
+      (applicationIds || [])
+        .filter(Boolean)
+        .map((value) => String(value))
+    ),
+  ];
+
+  const counts = new Map();
+
+  if (normalizedIds.length === 0) {
+    return counts;
+  }
+
+  const { data, error } = await supabase
+    .from('application_documents')
+    .select(`
+      application_id,
+      document_type,
+      is_submitted,
+      file_path,
+      file_url
+    `)
+    .in('application_id', normalizedIds);
+
+  if (error) throw error;
+
+  const uploadedKeysByApplication = new Map();
+
+  for (const document of data || []) {
+    const applicationId = String(document.application_id || '');
+    if (!applicationId) continue;
+
+    const documentKey = normalizeApplicationDocumentKey(
+      document.document_type
+    );
+
+    const hasFile =
+      String(document.file_path || '').trim() !== '' ||
+      String(document.file_url || '').trim() !== '';
+
+    if (
+      document.is_submitted === true &&
+      hasFile &&
+      REQUIRED_APPLICATION_UPLOAD_KEYS.includes(documentKey)
+    ) {
+      const uploadedKeys =
+        uploadedKeysByApplication.get(applicationId) || new Set();
+
+      uploadedKeys.add(documentKey);
+      uploadedKeysByApplication.set(applicationId, uploadedKeys);
+    }
+  }
+
+  for (const applicationId of normalizedIds) {
+    counts.set(applicationId, {
+      uploadedDocumentCount:
+        uploadedKeysByApplication.get(applicationId)?.size || 0,
+      requiredDocumentCount: REQUIRED_APPLICATION_UPLOAD_KEYS.length,
+    });
+  }
+
+  return counts;
 }
 
 async function getStudentByUserId(userId) {
@@ -153,7 +193,22 @@ function isActiveApplication(application) {
 async function getOpeningsForMobile(userId) {
   const student = await getStudentByUserId(userId);
   const applications = await getStudentApplications(student?.student_id);
-  const latestApplication = applications[0] || null;
+  const activeApplication = applications.find((application) => {
+    const applicationStatus = String(
+      application?.application_status || ''
+    ).trim().toLowerCase();
+    const selectionStatus = String(
+      application?.selection_status || ''
+    ).trim().toLowerCase();
+
+    return (
+      application?.is_disqualified !== true &&
+      !['rejected', 'disqualified'].includes(applicationStatus) &&
+      !['not selected'].includes(selectionStatus)
+    );
+  }) || null;
+
+  const latestApplication = activeApplication || applications[0] || null;
 
   const { data, error } = await supabase
     .from('program_openings')
@@ -209,16 +264,12 @@ async function getOpeningsForMobile(userId) {
     }
   }
 
-  const applicationDocumentSummaries = new Map();
-  await Promise.all(
-    applications.map(async (application) => {
-      const summary = await getApplicationDocumentSummary(application.application_id);
-      applicationDocumentSummaries.set(String(application.application_id), summary);
-    })
+  const applicationUploadCounts = await getApplicationUploadCounts(
+    applications.map((application) => application.application_id)
   );
 
   const scholar = isApprovedScholar(student);
-  const items = (data || [])
+  const allItems = (data || [])
     .filter((row) => {
       const program = row.scholarship_program;
       if (!program || program.is_archived === true) return false;
@@ -252,9 +303,10 @@ async function getOpeningsForMobile(userId) {
         String(row.posting_status || '').toLowerCase() === 'open';
 
       const hasApplied = !!existing;
-      const documentSummary = existing
-        ? applicationDocumentSummaries.get(String(existing.application_id))
+      const documentSummary = existing?.application_id
+        ? applicationUploadCounts.get(String(existing.application_id))
         : null;
+
       // Reapplication is supported through a new application period (a new
       // program_openings record). Reusing the same application would inherit
       // old documents and review history, so it is intentionally blocked.
@@ -268,7 +320,7 @@ async function getOpeningsForMobile(userId) {
       let applyLabel = 'Apply for Scholarship';
       if (scholar) applyLabel = 'Scholar Account';
       else if (existing?.can_reapply === true) applyLabel = 'Apply Again Next Period';
-      else if (hasApplied) applyLabel = 'Application Submitted';
+      else if (hasApplied) applyLabel = 'Manage Documents';
       else if (waitingListAvailable) applyLabel = 'Apply for Waiting List';
       else if (!canApply) applyLabel = 'Applications Closed';
 
@@ -293,13 +345,15 @@ async function getOpeningsForMobile(userId) {
         benefactor_name: benefactor?.benefactor_name || null,
         benefactor_type: benefactor?.benefactor_type || null,
         has_applied: hasApplied,
+        uploaded_document_count:
+          documentSummary?.uploadedDocumentCount || 0,
+        required_document_count:
+          documentSummary?.requiredDocumentCount ||
+          REQUIRED_APPLICATION_UPLOAD_KEYS.length,
         can_reapply: canReapply,
         can_apply: canApply,
         can_join_waiting_list: waitingListAvailable && canApply,
         apply_label: applyLabel,
-        uploaded_document_count: documentSummary?.uploadedDocumentCount || 0,
-        required_document_count:
-          documentSummary?.requiredDocumentCount || REQUIRED_APPLICATION_UPLOADS.length,
         existing_application_id: existing?.application_id || null,
         existing_application_status: existing?.application_status || null,
         existing_selection_status: existing?.selection_status || null,
@@ -310,11 +364,18 @@ async function getOpeningsForMobile(userId) {
       };
     });
 
+  const items = activeApplication?.opening_id
+    ? allItems.filter(
+        (item) =>
+          String(item.opening_id) === String(activeApplication.opening_id)
+      )
+    : allItems;
+
   return {
     hasBaseApplicationProfile: !!student?.student_id,
     isApprovedScholar: scholar,
-    activeApplicationId: latestApplication?.application_id || '',
-    activeOpeningId: latestApplication?.opening_id || '',
+    activeApplicationId: activeApplication?.application_id || '',
+    activeOpeningId: activeApplication?.opening_id || '',
     items,
   };
 }

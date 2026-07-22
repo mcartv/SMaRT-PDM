@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:smartpdm_mobileapp/app/routes/app_routes.dart';
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
+import 'package:smartpdm_mobileapp/shared/formatters/student_id_input_formatter.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_exception.dart';
 import 'package:smartpdm_mobileapp/features/auth/data/services/auth_service.dart';
 import 'package:smartpdm_mobileapp/shared/widgets/shared_widgets.dart';
@@ -104,12 +105,17 @@ By creating an account, you acknowledge that your information may be stored, rev
     _isStudentIdReadOnly = args?['isStudentIdReadOnly'] == true;
 
     if (prefillStudentId.isNotEmpty) {
-      _identifierController.text = prefillStudentId;
+      _identifierController.text = StudentIdInputFormatter.formatVisible(
+        StudentIdInputFormatter.stripPdmPrefix(prefillStudentId),
+      );
     } else if (student != null) {
-      _identifierController.text =
+      final rawStudentId =
           (student['pdm_id'] ?? student['student_number'] ?? '')
               .toString()
               .trim();
+      _identifierController.text = StudentIdInputFormatter.formatVisible(
+        StudentIdInputFormatter.stripPdmPrefix(rawStudentId),
+      );
     }
 
     if (prefillEmail.isNotEmpty) {
@@ -256,7 +262,9 @@ By creating an account, you acknowledge that your information may be stored, rev
     setState(() => _isLoading = true);
 
     try {
-      final identifier = _identifierController.text.trim();
+      final identifier = StudentIdInputFormatter.toFullStudentId(
+        _identifierController.text,
+      );
 
       final registration = await _authService.register(
         email: _emailController.text.trim().toLowerCase(),
@@ -464,7 +472,7 @@ By creating an account, you acknowledge that your information may be stored, rev
     }
 
     final studentIdRegex = RegExp(r'^PDM-\d{4}-\d{6}$');
-    final identifier = value.trim();
+    final identifier = StudentIdInputFormatter.toFullStudentId(value);
 
     if (!studentIdRegex.hasMatch(identifier)) {
       return 'Invalid format. Student ID must be in the format PDM-YYYY-NNNNNN (e.g., PDM-2023-000001).';
@@ -491,7 +499,7 @@ By creating an account, you acknowledge that your information may be stored, rev
         width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [AppColors.gold, AppColors.white],
+            colors: [const Color(0xFFF3E4D5), const Color(0xFFF8F5F0)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -505,8 +513,8 @@ By creating an account, you acknowledge that your information may be stored, rev
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.96),
-                    borderRadius: BorderRadius.circular(22),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.08),
@@ -527,7 +535,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                         ),
                         const SizedBox(height: 18),
                         Text(
-                          'Create an Account',
+                          'Finish account setup',
                           style: titleStyle?.copyWith(
                             color: AppColors.darkBrown,
                           ),
@@ -535,7 +543,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Sign up to apply for and manage your SMaRT-PDM scholarships.',
+                          'Your Student ID was verified. Complete the remaining details to secure your account.',
                           style: bodyStyle,
                           textAlign: TextAlign.center,
                         ),
@@ -684,7 +692,7 @@ By creating an account, you acknowledge that your information may be stored, rev
                           runSpacing: 2,
                           children: [
                             Text(
-                              'Already have an account?',
+                              'Already registered?',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: Colors.grey.shade700),
                             ),
@@ -700,11 +708,17 @@ By creating an account, you acknowledge that your information may be stored, rev
                               ),
                               onPressed: () => Navigator.pushReplacementNamed(
                                 context,
-                                AppRoutes.studentLookup,
-                                arguments: 'existing',
+                                AppRoutes.login,
+                                arguments: {
+                                  'prefillStudentId':
+                                      StudentIdInputFormatter.toFullStudentId(
+                                    _identifierController.text,
+                                  ),
+                                  'focusPassword': true,
+                                },
                               ),
                               child: const Text(
-                                'Check Student ID',
+                                'Log in',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),

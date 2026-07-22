@@ -478,6 +478,24 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
         const validPassword = validatePassword(nextPassword, confirmPassword);
 
         if (validPassword) {
+            const currentPasswordResult = await client.query(
+                `
+                SELECT password_hash
+                FROM users
+                WHERE user_id = $1
+                FOR UPDATE
+                `,
+                [userId]
+            );
+            const currentPasswordHash = currentPasswordResult.rows[0]?.password_hash || '';
+            const reusesCurrentPassword = currentPasswordHash
+                ? await bcrypt.compare(validPassword, currentPasswordHash)
+                : false;
+
+            if (reusesCurrentPassword) {
+                throw createHttpError(400, 'New password must be different from the current password.');
+            }
+
             const passwordHash = await bcrypt.hash(validPassword, 12);
 
             await client.query(

@@ -254,6 +254,20 @@ export default function ThemePanel({
   }, [feedback]);
 
   const handleSave = async (portalKey, presetKey = 'default', nextCustomColors = null) => {
+    const previousPresetKey = settings[portalKey] || 'default';
+    const previousCustomColors = customColors[portalKey] || null;
+    const optimisticCustomColors = presetKey === 'custom' ? nextCustomColors : null;
+
+    setSettings((current) => ({ ...current, [portalKey]: presetKey }));
+    setCustomColors((current) => ({ ...current, [portalKey]: optimisticCustomColors }));
+    window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
+      detail: {
+        portal_key: portalKey,
+        preset_key: presetKey,
+        custom_colors: optimisticCustomColors,
+      },
+    }));
+
     try {
       setSavingPortal(portalKey);
       const response = await fetch(buildApiUrl(`/api/theme-settings/${portalKey}`), {
@@ -284,6 +298,7 @@ export default function ThemePanel({
         detail: {
           portal_key: portalKey,
           preset_key: nextPresetKey,
+          custom_colors: payload?.custom_colors || null,
           user_id: payload?.user_id || null,
         },
       }));
@@ -291,6 +306,15 @@ export default function ThemePanel({
       setFeedback({ type: 'success', message: `${PORTAL_LABELS[portalKey]} theme applied.` });
       return true;
     } catch (error) {
+      setSettings((current) => ({ ...current, [portalKey]: previousPresetKey }));
+      setCustomColors((current) => ({ ...current, [portalKey]: previousCustomColors }));
+      window.dispatchEvent(new CustomEvent('smartpdm-theme-updated', {
+        detail: {
+          portal_key: portalKey,
+          preset_key: previousPresetKey,
+          custom_colors: previousCustomColors,
+        },
+      }));
       setFeedback({ type: 'error', message: error.message || 'Failed to save theme setting.' });
       return false;
     } finally {
@@ -415,8 +439,8 @@ export default function ThemePanel({
                       onClick={() => handleSave(portalKey, 'default')}
                       disabled={savingPortal === portalKey}
                     >
-                      {savingPortal === portalKey ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
-                      {savingPortal === portalKey ? 'Applying...' : 'Restore Default'}
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                      Restore Default
                     </Button>
                   </div>
                 </div>
@@ -444,7 +468,7 @@ export default function ThemePanel({
                           <div>
                             <p className="text-sm font-semibold">{preset.label}</p>
                             <p className={`mt-1 text-xs ${isSelected ? 'text-white/75' : 'text-stone-500'}`}>
-                              {isSelected ? (savingPortal === portalKey ? 'Applying theme...' : 'Currently active theme.') : preset.description}
+                              {isSelected ? 'Currently active theme.' : preset.description}
                             </p>
                           </div>
                           <div className="flex flex-col items-end gap-1">

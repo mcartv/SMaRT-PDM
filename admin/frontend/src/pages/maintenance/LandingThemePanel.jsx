@@ -324,7 +324,7 @@ export default function LandingThemePanel({ tokenStorageKey = 'adminToken' }) {
                 onClick={handleRestoreDefault}
                 disabled={saving}
               >
-                {saving && presetKey === 'default' ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                 Restore Default
               </Button>
             </div>

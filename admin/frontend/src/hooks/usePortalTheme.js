@@ -97,12 +97,25 @@ export default function usePortalTheme(portalKey, fallbackTheme = null, options 
     const handleLocalThemeUpdate = (event) => {
       if (event.detail?.portal_key !== normalizedPortal) return;
       if (event.detail?.user_id && userId && event.detail.user_id !== userId) return;
+      if (event.detail?.preset_key) {
+        const nextSetting = {
+          presetKey: event.detail.preset_key,
+          customColors: event.detail.custom_colors || null,
+        };
+        setThemeSetting(nextSetting);
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(nextSetting));
+        } catch {
+          // The live theme still applies when browser storage is unavailable.
+        }
+        return;
+      }
       loadTheme();
     };
 
     window.addEventListener('smartpdm-theme-updated', handleLocalThemeUpdate);
     return () => window.removeEventListener('smartpdm-theme-updated', handleLocalThemeUpdate);
-  }, [loadTheme, normalizedPortal, userId]);
+  }, [cacheKey, loadTheme, normalizedPortal, userId]);
 
   useSocketEvent(
     'maintenance:updated',

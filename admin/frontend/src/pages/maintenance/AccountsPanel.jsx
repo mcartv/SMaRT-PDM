@@ -17,7 +17,9 @@ import {
     ChevronDown,
     Edit,
     Eye,
+    EyeOff,
     Filter,
+    Info,
     Loader2,
     Mail,
     Phone,
@@ -41,6 +43,12 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { C, EmptyState, FieldLabel } from './components/MaintenanceShared';
@@ -288,6 +296,49 @@ function validateEditForm(form) {
     return validatePasswordFields(form.password, form.confirm_password, false);
 }
 
+function PasswordInput({ label, value, onChange, placeholder = '', disabled = false, optional = false }) {
+    const [visible, setVisible] = useState(false);
+
+    return (
+        <div>
+            <div className="mb-1 flex items-center gap-1.5">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-stone-400">{label}</span>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button type="button" className="text-stone-400 hover:text-stone-700" aria-label="View password requirements">
+                                <Info className="h-3 w-3" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" sideOffset={6}>
+                            {optional ? 'Optional. If changed, use ' : 'Use '}8+ characters with uppercase, lowercase, and a number.
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
+            <div className="relative">
+                <Input
+                    type={visible ? 'text' : 'password'}
+                    value={value}
+                    onChange={onChange}
+                    className="h-9 rounded-lg border-stone-200 pr-9 text-sm"
+                    placeholder={placeholder}
+                    disabled={disabled}
+                />
+                <button
+                    type="button"
+                    onClick={() => setVisible((current) => !current)}
+                    disabled={disabled}
+                    aria-label={visible ? 'Hide password' : 'Show password'}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-stone-400 transition hover:text-stone-700 disabled:opacity-50"
+                >
+                    {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function StaffCreateModal({
     open,
     form,
@@ -423,16 +474,12 @@ function StaffCreateModal({
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                            <FieldLabel>Password</FieldLabel>
-                            <Input
-                                type="password"
-                                value={form.password}
-                                onChange={(event) => setField('password', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
-                        </div>
+                        <PasswordInput
+                            label="Password"
+                            value={form.password}
+                            onChange={(event) => setField('password', event.target.value)}
+                            disabled={saving}
+                        />
 
                         <div>
                             <FieldLabel>Confirm Password</FieldLabel>
@@ -447,10 +494,10 @@ function StaffCreateModal({
                     </div>
 
                     {error ? (
-                        <div className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        <p className="flex items-start gap-1.5 text-xs font-medium text-red-600">
                             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                             <span>{error}</span>
-                        </div>
+                        </p>
                     ) : null}
 
                     <div className="flex items-center justify-end gap-2 border-t border-stone-100 pt-3">
@@ -489,6 +536,8 @@ function StaffEditModal({
     form,
     setForm,
     saving,
+    error,
+    onClearError,
     onClose,
     onSave,
     courses,
@@ -501,6 +550,7 @@ function StaffEditModal({
             ...current,
             [field]: value,
         }));
+        onClearError();
     };
 
     const handleRoleChange = (role) => {
@@ -642,17 +692,14 @@ function StaffEditModal({
                         </p>
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div>
-                                <FieldLabel>New Password</FieldLabel>
-                                <Input
-                                    type="password"
-                                    value={form.password}
-                                    onChange={(event) => setField('password', event.target.value)}
-                                    className="h-9 rounded-lg border-stone-200 text-sm"
-                                    placeholder="Leave blank to keep current"
-                                    disabled={saving}
-                                />
-                            </div>
+                            <PasswordInput
+                                label="New Password"
+                                value={form.password}
+                                onChange={(event) => setField('password', event.target.value)}
+                                placeholder="Leave blank to keep current"
+                                disabled={saving}
+                                optional
+                            />
 
                             <div>
                                 <FieldLabel>Confirm New Password</FieldLabel>
@@ -666,6 +713,12 @@ function StaffEditModal({
                                 />
                             </div>
                         </div>
+                        {error ? (
+                            <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-red-600">
+                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                <span>{error}</span>
+                            </p>
+                        ) : null}
                     </div>
                 </div>
 
@@ -839,6 +892,7 @@ export default function AccountsPanel() {
     const [profileAccount, setProfileAccount] = useState(null);
 
     const [error, setError] = useState('');
+    const [editError, setEditError] = useState('');
     const [search, setSearch] = useState('');
     const [pageTab, setPageTab] = useState('current');
     const [roleFilter, setRoleFilter] = useState('all');
@@ -976,6 +1030,7 @@ export default function AccountsPanel() {
     };
 
     const openEditModal = (account) => {
+        setEditError('');
         setEditingAccountId(account.user_id);
 
         setEditForm({
@@ -998,6 +1053,7 @@ export default function AccountsPanel() {
         if (updating) return;
 
         setEditOpen(false);
+        setEditError('');
         setEditingAccountId(null);
         setEditForm(DEFAULT_FORM);
     };
@@ -1063,12 +1119,13 @@ export default function AccountsPanel() {
         const validationError = validateEditForm(editForm);
 
         if (validationError) {
-            alert(validationError);
+            setEditError(validationError);
             return;
         }
 
         try {
             setUpdating(true);
+            setEditError('');
 
             const payload = {
                 ...editForm,
@@ -1105,7 +1162,7 @@ export default function AccountsPanel() {
             setEditForm(DEFAULT_FORM);
             toast.success('Account updated', { description: 'Account details and course assignments were saved.' });
         } catch (err) {
-            alert(err.message || 'Failed to update staff account.');
+            setEditError(err.message || 'Failed to update staff account.');
         } finally {
             setUpdating(false);
         }
@@ -1173,6 +1230,8 @@ export default function AccountsPanel() {
                 form={editForm}
                 setForm={setEditForm}
                 saving={updating}
+                error={editError}
+                onClearError={() => setEditError('')}
                 onClose={closeEditModal}
                 onSave={handleUpdate}
                 courses={courses}

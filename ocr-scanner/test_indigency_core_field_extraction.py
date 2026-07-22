@@ -186,7 +186,10 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertTrue(diagnostics.candidate_found)
         self.assertEqual(diagnostics.candidate_count, 1)
         self.assertEqual(diagnostics.candidate_source, "pre_title_header")
-        self.assertEqual(diagnostics.crop_validation_status, "non_empty_accepted")
+        self.assertEqual(diagnostics.value_source, "positional")
+        self.assertEqual(diagnostics.positional_validation_status, "valid")
+        self.assertFalse(diagnostics.crop_attempted)
+        self.assertEqual(diagnostics.crop_validation_status, "not_attempted")
         self.assertEqual(diagnostics.failure_stage, "none")
 
     def test_known_header_variants_locate_only_the_barangay_name(self):
@@ -243,6 +246,8 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertFalse(diagnostics.candidate_found)
         self.assertEqual(diagnostics.candidate_count, 0)
         self.assertEqual(diagnostics.candidate_source, "none")
+        self.assertEqual(diagnostics.value_source, "none")
+        self.assertEqual(diagnostics.positional_validation_status, "not_attempted")
         self.assertFalse(diagnostics.bounds_present)
         self.assertFalse(diagnostics.crop_attempted)
         self.assertEqual(diagnostics.crop_validation_status, "not_attempted")
@@ -284,6 +289,8 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertEqual(diagnostics.candidate_count, 2)
         self.assertEqual(diagnostics.candidate_token_count, 0)
         self.assertEqual(diagnostics.candidate_source, "ambiguous")
+        self.assertEqual(diagnostics.value_source, "none")
+        self.assertEqual(diagnostics.positional_validation_status, "not_attempted")
         self.assertTrue(diagnostics.anchor_found)
         self.assertFalse(diagnostics.crop_attempted)
         self.assertEqual(diagnostics.failure_stage, "candidate_selection")
@@ -518,7 +525,9 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
     def test_barangay_candidate_with_empty_crop_ocr_preserves_context(self):
         result = extract_indigency_core_fields(
             self.image,
-            word_reader=lambda *_args: _valid_word_data(),
+            word_reader=lambda *_args: _valid_word_data(
+                header_text="BARANGAY 123"
+            ),
             field_reader=lambda crop, field_name: (
                 ""
                 if field_name == "issuing_barangay"
@@ -541,7 +550,8 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertTrue(diagnostics.bounds_present)
         self.assertTrue(diagnostics.crop_attempted)
         self.assertFalse(diagnostics.crop_returned_text)
-        self.assertEqual(diagnostics.positional_validation_status, "not_implemented")
+        self.assertEqual(diagnostics.value_source, "none")
+        self.assertEqual(diagnostics.positional_validation_status, "invalid")
         self.assertEqual(diagnostics.crop_validation_status, "empty")
         self.assertEqual(diagnostics.failure_stage, "crop_ocr")
 
@@ -553,7 +563,9 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
 
         result = extract_indigency_core_fields(
             self.image,
-            word_reader=lambda *_args: _valid_word_data(),
+            word_reader=lambda *_args: _valid_word_data(
+                header_text="BARANGAY 123"
+            ),
             field_reader=reader,
         )
         field = next(
@@ -566,15 +578,68 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         diagnostics = field.diagnostics
         self.assertTrue(diagnostics.crop_attempted)
         self.assertFalse(diagnostics.crop_returned_text)
+        self.assertEqual(diagnostics.value_source, "none")
+        self.assertEqual(diagnostics.positional_validation_status, "invalid")
         self.assertEqual(diagnostics.crop_validation_status, "exception")
         self.assertEqual(diagnostics.failure_stage, "crop_ocr")
 
-    def test_corrupted_non_empty_barangay_crop_remains_accepted(self):
+    def test_invalid_non_empty_barangay_crop_is_rejected(self):
         result = extract_indigency_core_fields(
             self.image,
-            word_reader=lambda *_args: _valid_word_data(),
+            word_reader=lambda *_args: _valid_word_data(
+                header_text="BARANGAY 123"
+            ),
             field_reader=lambda crop, field_name: (
-                "synthetic corrupted result"
+                "4567"
+                if field_name == "issuing_barangay"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertFalse(field.success)
+        self.assertEqual(field.raw_text, "")
+        diagnostics = field.diagnostics
+        self.assertTrue(diagnostics.crop_returned_text)
+        self.assertEqual(diagnostics.value_source, "none")
+        self.assertEqual(diagnostics.positional_validation_status, "invalid")
+        self.assertEqual(diagnostics.crop_validation_status, "invalid")
+        self.assertEqual(diagnostics.failure_stage, "crop_ocr")
+
+    def test_valid_positional_barangay_bypasses_crop_ocr(self):
+        calls = []
+
+        def reader(crop, field_name):
+            calls.append(field_name)
+            return _field_reader(crop, field_name)
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                header_text="BARANGAY [Sample-Place] 'O'Name,'"
+            ),
+            field_reader=reader,
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertTrue(field.success)
+        self.assertEqual(field.raw_text, "Sample-Place O'Name")
+        self.assertNotIn("issuing_barangay", calls)
+        self.assertEqual(field.diagnostics.value_source, "positional")
+        self.assertEqual(field.diagnostics.positional_validation_status, "valid")
+
+    def test_invalid_positional_barangay_uses_valid_crop_fallback(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                header_text="BARANGAY 123"
+            ),
+            field_reader=lambda crop, field_name: (
+                "Sample-Place O'Name"
                 if field_name == "issuing_barangay"
                 else _field_reader(crop, field_name)
             ),
@@ -584,11 +649,91 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         )
 
         self.assertTrue(field.success)
-        self.assertEqual(field.raw_text, "synthetic corrupted result")
-        diagnostics = field.diagnostics
-        self.assertTrue(diagnostics.crop_returned_text)
-        self.assertEqual(diagnostics.crop_validation_status, "non_empty_accepted")
-        self.assertEqual(diagnostics.failure_stage, "none")
+        self.assertEqual(field.raw_text, "Sample-Place O'Name")
+        self.assertEqual(field.diagnostics.value_source, "crop_ocr")
+        self.assertEqual(field.diagnostics.positional_validation_status, "invalid")
+        self.assertEqual(field.diagnostics.crop_validation_status, "valid")
+
+    def test_barangay_length_boundary_accepts_80_and_rejects_81(self):
+        for length, expected_success in ((80, True), (81, False)):
+            with self.subTest(length=length):
+                result = extract_indigency_core_fields(
+                    self.image,
+                    word_reader=lambda *_args, size=length: _valid_word_data(
+                        header_text=f"BARANGAY {'A' * size}"
+                    ),
+                    field_reader=lambda crop, field_name: (
+                        "123"
+                        if field_name == "issuing_barangay"
+                        else _field_reader(crop, field_name)
+                    ),
+                )
+                field = next(
+                    item
+                    for item in result.data.fields
+                    if item.name == "issuing_barangay"
+                )
+
+                self.assertEqual(field.success, expected_success)
+                if expected_success:
+                    self.assertEqual(len(field.raw_text), 80)
+                    self.assertEqual(field.diagnostics.value_source, "positional")
+                else:
+                    self.assertEqual(field.raw_text, "")
+                    self.assertEqual(
+                        field.diagnostics.positional_validation_status,
+                        "invalid",
+                    )
+
+    def test_anchor_only_punctuation_only_and_whitespace_only_are_rejected(self):
+        for header in (
+            "BARANGAY",
+            "BARANGAY Barangay",
+            "BARANGAY ---",
+            "BARANGAY    ",
+        ):
+            with self.subTest(header=header):
+                result = extract_indigency_core_fields(
+                    self.image,
+                    word_reader=lambda *_args, value=header: _valid_word_data(
+                        header_text=value
+                    ),
+                    field_reader=lambda crop, field_name: (
+                        "123"
+                        if field_name == "issuing_barangay"
+                        else _field_reader(crop, field_name)
+                    ),
+                )
+                field = next(
+                    item
+                    for item in result.data.fields
+                    if item.name == "issuing_barangay"
+                )
+
+                self.assertFalse(field.success)
+                self.assertEqual(field.raw_text, "")
+                self.assertEqual(field.diagnostics.value_source, "none")
+
+    def test_barangay_control_characters_are_rejected(self):
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: _valid_word_data(
+                header_text="BARANGAY Sample\x00Place"
+            ),
+            field_reader=lambda crop, field_name: (
+                "Other\x00Place"
+                if field_name == "issuing_barangay"
+                else _field_reader(crop, field_name)
+            ),
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertFalse(field.success)
+        self.assertEqual(field.raw_text, "")
+        self.assertEqual(field.diagnostics.positional_validation_status, "invalid")
+        self.assertEqual(field.diagnostics.crop_validation_status, "invalid")
 
     def test_barangay_diagnostics_are_immutable(self):
         result = extract_indigency_core_fields(
@@ -641,7 +786,7 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
 
         self.assertEqual(
             calls,
-            ["certificate_subject_name", "issuing_barangay"],
+            ["certificate_subject_name"],
         )
         self.assertEqual(
             fields["certificate_subject_name"].raw_text,
@@ -783,7 +928,7 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertEqual(result.data.selected_orientation, "counterclockwise_90")
         self.assertEqual(
             [name for name, _crop in field_calls],
-            ["certificate_subject_name", "issuing_barangay"],
+            ["certificate_subject_name"],
         )
         selected_image = np.rot90(image, 1)
         selected_height, selected_width = selected_image.shape[:2]

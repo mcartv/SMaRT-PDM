@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from types import MappingProxyType
@@ -44,6 +45,7 @@ class IndigencyExtractionConfig:
     elevated_deskew_degrees: float = 3.0
     maximum_deskew_degrees: float = 7.0
     crop_padding_pixels: int = 4
+    maximum_barangay_length: int = 80
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,7 @@ class IndigencyFieldDiagnostics:
     bounds_present: bool
     crop_attempted: bool
     crop_returned_text: bool
+    value_source: str
     positional_validation_status: str
     crop_validation_status: str
     failure_stage: str
@@ -653,6 +656,8 @@ def _barangay_diagnostics(
     bounds_present: bool,
     crop_attempted: bool,
     crop_returned_text: bool,
+    value_source: str,
+    positional_validation_status: str,
     crop_validation_status: str,
     failure_stage: str,
 ) -> IndigencyFieldDiagnostics:
@@ -665,9 +670,37 @@ def _barangay_diagnostics(
         bounds_present=bounds_present,
         crop_attempted=crop_attempted,
         crop_returned_text=crop_returned_text,
-        positional_validation_status="not_implemented",
+        value_source=value_source,
+        positional_validation_status=positional_validation_status,
         crop_validation_status=crop_validation_status,
         failure_stage=failure_stage,
+    )
+
+
+def _normalize_barangay_value(value: Any) -> tuple[str, bool]:
+    text = "" if value is None else str(value)
+    contains_control = any(
+        unicodedata.category(character) == "Cc" for character in text
+    )
+    tokens = (
+        _sanitize_positional_date_token(token)
+        for token in text.split()
+    )
+    normalized = _normalize_field_text(" ".join(token for token in tokens if token))
+    return normalized, contains_control
+
+
+def _valid_barangay_value(
+    value: str,
+    *,
+    contains_control: bool,
+    maximum_length: int,
+) -> bool:
+    return (
+        1 <= len(value) <= maximum_length
+        and not contains_control
+        and any(character.isalpha() for character in value)
+        and value.casefold() != "barangay"
     )
 
 
@@ -689,6 +722,8 @@ def _read_issuing_barangay_field(
             bounds_present=False,
             crop_attempted=False,
             crop_returned_text=False,
+            value_source="none",
+            positional_validation_status="not_attempted",
             crop_validation_status="not_attempted",
             failure_stage="candidate_selection",
         )
@@ -716,12 +751,43 @@ def _read_issuing_barangay_field(
         "anchor_found": True,
         "bounds_present": True,
     }
+    positional_text, positional_has_control = _normalize_barangay_value(
+        " ".join(word.text for word in selected)
+    )
+    if _valid_barangay_value(
+        positional_text,
+        contains_control=positional_has_control,
+        maximum_length=config.maximum_barangay_length,
+    ):
+        diagnostics = _barangay_diagnostics(
+            **base_diagnostics,
+            crop_attempted=False,
+            crop_returned_text=False,
+            value_source="positional",
+            positional_validation_status="valid",
+            crop_validation_status="not_attempted",
+            failure_stage="none",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text=positional_text,
+            success=True,
+            review_required=True,
+            issue_codes=(),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=normalized_bounds,
+            diagnostics=diagnostics,
+        )
+
     crop = _crop(source_image, bounds, config.crop_padding_pixels)
     if crop.size == 0:
         diagnostics = _barangay_diagnostics(
             **base_diagnostics,
             crop_attempted=False,
             crop_returned_text=False,
+            value_source="none",
+            positional_validation_status="invalid",
             crop_validation_status="not_attempted",
             failure_stage="crop_generation",
         )
@@ -738,12 +804,14 @@ def _read_issuing_barangay_field(
         )
 
     try:
-        raw_text = _normalize_field_text(reader(crop.copy(), "issuing_barangay"))
+        crop_result = reader(crop.copy(), "issuing_barangay")
     except Exception:
         diagnostics = _barangay_diagnostics(
             **base_diagnostics,
             crop_attempted=True,
             crop_returned_text=False,
+            value_source="none",
+            positional_validation_status="invalid",
             crop_validation_status="exception",
             failure_stage="crop_ocr",
         )
@@ -759,12 +827,42 @@ def _read_issuing_barangay_field(
             diagnostics=diagnostics,
         )
 
-    if not raw_text:
+    crop_returned_text = bool(_normalize_field_text(crop_result))
+    crop_text, crop_has_control = _normalize_barangay_value(crop_result)
+    if not crop_text:
         diagnostics = _barangay_diagnostics(
             **base_diagnostics,
             crop_attempted=True,
-            crop_returned_text=False,
+            crop_returned_text=crop_returned_text,
+            value_source="none",
+            positional_validation_status="invalid",
             crop_validation_status="empty",
+            failure_stage="crop_ocr",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text="",
+            success=False,
+            review_required=True,
+            issue_codes=("ISSUING_BARANGAY_NOT_EXTRACTED",),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=normalized_bounds,
+            diagnostics=diagnostics,
+        )
+
+    if not _valid_barangay_value(
+        crop_text,
+        contains_control=crop_has_control,
+        maximum_length=config.maximum_barangay_length,
+    ):
+        diagnostics = _barangay_diagnostics(
+            **base_diagnostics,
+            crop_attempted=True,
+            crop_returned_text=crop_returned_text,
+            value_source="none",
+            positional_validation_status="invalid",
+            crop_validation_status="invalid",
             failure_stage="crop_ocr",
         )
         return IndigencyFieldResult(
@@ -783,12 +881,14 @@ def _read_issuing_barangay_field(
         **base_diagnostics,
         crop_attempted=True,
         crop_returned_text=True,
-        crop_validation_status="non_empty_accepted",
+        value_source="crop_ocr",
+        positional_validation_status="invalid",
+        crop_validation_status="valid",
         failure_stage="none",
     )
     return IndigencyFieldResult(
         name="issuing_barangay",
-        raw_text=raw_text,
+        raw_text=crop_text,
         success=True,
         review_required=True,
         issue_codes=(),

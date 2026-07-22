@@ -156,9 +156,18 @@ def build_indigency_extracted_fields_from_result(
     }
     fields: Dict[str, Any] = {}
     candidate_sources = {"pre_title_header", "none", "ambiguous"}
+    value_sources = {"positional", "crop_ocr", "none"}
+    positional_statuses = {
+        "valid",
+        "invalid",
+        "not_attempted",
+        "not_implemented",
+    }
     crop_statuses = {
         "not_attempted",
         "empty",
+        "valid",
+        "invalid",
         "non_empty_accepted",
         "exception",
     }
@@ -201,6 +210,17 @@ def build_indigency_extracted_fields_from_result(
             failure_stage = str(
                 getattr(diagnostics, "failure_stage", "none") or "none"
             )
+            value_source = str(
+                getattr(diagnostics, "value_source", "none") or "none"
+            )
+            positional_status = str(
+                getattr(
+                    diagnostics,
+                    "positional_validation_status",
+                    "not_attempted",
+                )
+                or "not_attempted"
+            )
             field_payload["diagnostics"] = {
                 "candidate_found": bool(
                     getattr(diagnostics, "candidate_found", False)
@@ -232,7 +252,14 @@ def build_indigency_extracted_fields_from_result(
                 "crop_returned_text": bool(
                     getattr(diagnostics, "crop_returned_text", False)
                 ),
-                "positional_validation_status": "not_implemented",
+                "value_source": (
+                    value_source if value_source in value_sources else "none"
+                ),
+                "positional_validation_status": (
+                    positional_status
+                    if positional_status in positional_statuses
+                    else "not_attempted"
+                ),
                 "crop_validation_status": (
                     crop_status
                     if crop_status in crop_statuses

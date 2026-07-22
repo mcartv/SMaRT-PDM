@@ -133,8 +133,9 @@ class DocumentContractsTest(unittest.TestCase):
             bounds_present=True,
             crop_attempted=True,
             crop_returned_text=True,
-            positional_validation_status="not_implemented",
-            crop_validation_status="non_empty_accepted",
+            value_source="positional",
+            positional_validation_status="valid",
+            crop_validation_status="not_attempted",
             failure_stage="none",
             candidate_text="MUST NOT PERSIST",
             crop_text="MUST NOT PERSIST",
@@ -171,6 +172,7 @@ class DocumentContractsTest(unittest.TestCase):
                 "bounds_present",
                 "crop_attempted",
                 "crop_returned_text",
+                "value_source",
                 "positional_validation_status",
                 "crop_validation_status",
                 "failure_stage",
@@ -185,12 +187,57 @@ class DocumentContractsTest(unittest.TestCase):
                 or value
                 in {
                     "pre_title_header",
-                    "not_implemented",
-                    "non_empty_accepted",
+                    "positional",
+                    "valid",
+                    "not_attempted",
                     "none",
                 }
                 for value in persisted.values()
             )
+        )
+
+    def test_indigency_legacy_barangay_diagnostic_enums_remain_persistable(self):
+        diagnostics = SimpleNamespace(
+            candidate_found=True,
+            candidate_count=1,
+            candidate_token_count=2,
+            candidate_source="pre_title_header",
+            anchor_found=True,
+            bounds_present=True,
+            crop_attempted=True,
+            crop_returned_text=True,
+            value_source="crop_ocr",
+            positional_validation_status="not_implemented",
+            crop_validation_status="non_empty_accepted",
+            failure_stage="none",
+        )
+        field = SimpleNamespace(
+            name="issuing_barangay",
+            raw_text="SYNTHETIC",
+            success=True,
+            issue_codes=(),
+            detection_variant="grayscale",
+            anchor="SYNTHETIC",
+            normalized_bounds=(0.1, 0.2, 0.3, 0.1),
+            diagnostics=diagnostics,
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(fields=(field,), detection_variant="grayscale")
+        )
+
+        payload = build_indigency_extracted_fields_from_result(
+            "SYNTHETIC RAW OCR",
+            extraction_result,
+        )
+        persisted = payload["fields"]["issuing_barangay"]["diagnostics"]
+
+        self.assertEqual(
+            persisted["positional_validation_status"],
+            "not_implemented",
+        )
+        self.assertEqual(
+            persisted["crop_validation_status"],
+            "non_empty_accepted",
         )
 
     def test_mutating_one_result_does_not_affect_next_result(self):

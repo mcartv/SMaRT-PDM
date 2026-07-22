@@ -15,6 +15,20 @@ function getActorUserId(req) {
     return req.user?.user_id || req.user?.userId || req.user?.id || null;
 }
 
+function getScopedServiceQuery(req) {
+    const role = String(req.user?.role || '').toLowerCase();
+    const reportType = String(req.query?.reportType || req.query?.type || 'applications').toLowerCase();
+    if (role === 'pd' && reportType !== 'pd') {
+        const error = new Error('Program Directors may only access their assigned-course PD report.');
+        error.statusCode = 403;
+        throw error;
+    }
+    return {
+        ...(req.query || {}),
+        pdUserId: role === 'pd' ? getActorUserId(req) : '',
+    };
+}
+
 function getReportQueryPayload(req) {
     return {
         reportType: req.query?.reportType || req.query?.type || 'applications',
@@ -86,7 +100,7 @@ async function previewReport(req, res) {
         }
 
         const queryPayload = getReportQueryPayload(req);
-        const result = await reportService.previewReport(req.query || {});
+        const result = await reportService.previewReport(getScopedServiceQuery(req));
 
         await writeReportAudit(
             req,
@@ -117,7 +131,7 @@ async function exportReport(req, res) {
         const format = String(req.query?.format || 'xlsx').toLowerCase();
 
         if (format === 'csv') {
-            const result = await reportService.generateCsvReport(req.query || {});
+            const result = await reportService.generateCsvReport(getScopedServiceQuery(req));
 
             await writeReportAudit(
                 req,
@@ -139,7 +153,7 @@ async function exportReport(req, res) {
             return res.status(200).send(result.content);
         }
 
-        const result = await reportService.generateExcelReport(req.query || {});
+        const result = await reportService.generateExcelReport(getScopedServiceQuery(req));
 
         await writeReportAudit(
             req,

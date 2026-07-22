@@ -32,6 +32,13 @@ function emitAccountUpdate(req, action, account = null) {
 
     if (socketEvents?.maintenanceUpdated) {
         socketEvents.maintenanceUpdated(io, payload);
+        socketEvents.endorsementUpdated(io, {
+            source: 'pd_course_assignment',
+            action,
+            pd_user_id: account?.role === 'pd' ? account.user_id : null,
+        });
+        socketEvents.dashboardUpdated(io, { source: 'pd_course_assignment', action });
+        socketEvents.reportUpdated(io, { source: 'pd_course_assignment', action });
         return;
     }
 
@@ -55,24 +62,26 @@ exports.getStaffAccounts = async (req, res) => {
 };
 
 exports.createStaffAccount = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: 'CREATE_STAFF_ACCOUNT',
-        module: 'Accounts',
-        entityType: 'staff_account',
-        entityId: account?.user_id || null,
-        description: `Created staff account for ${account?.email || 'unknown email'}.`,
-        metadata: {
-            user_id: account?.user_id || null,
-            email: account?.email || null,
-            role: account?.role || null,
-            department: account?.department || null,
-            position: account?.position || null,
-        },
-    });
-
     try {
-        const account = await accountService.createStaffAccount(req.body);
+        const account = await accountService.createStaffAccount(req.body, getActorUserId(req));
+
+        await auditLogService.logAudit({
+            req,
+            actionTaken: 'CREATE_STAFF_ACCOUNT',
+            module: 'Accounts',
+            entityType: 'staff_account',
+            entityId: account?.user_id || null,
+            description: `Created staff account for ${account?.email || 'unknown email'}.`,
+            metadata: {
+                user_id: account?.user_id || null,
+                email: account?.email || null,
+                role: account?.role || null,
+                department: account?.department || null,
+                position: account?.position || null,
+            },
+        }).catch((auditError) => {
+            console.error('CREATE STAFF ACCOUNT AUDIT ERROR:', auditError.message);
+        });
 
         emitAccountUpdate(req, 'create', account);
 
@@ -88,27 +97,8 @@ exports.createStaffAccount = async (req, res) => {
 };
 
 exports.updateStaffAccount = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: 'UPDATE_STAFF_ACCOUNT',
-        module: 'Accounts',
-        entityType: 'staff_account',
-        entityId: account?.user_id || req.params.id,
-        description: `Updated staff account: ${account?.email || req.params.id}.`,
-        metadata: {
-            user_id: account?.user_id || req.params.id,
-            email: account?.email || null,
-            role: account?.role || null,
-            changes: {
-                ...req.body,
-                password: req.body?.password ? '[REDACTED]' : undefined,
-                confirm_password: req.body?.confirm_password ? '[REDACTED]' : undefined,
-            },
-        },
-    });
-
     try {
-        const account = await accountService.updateStaffAccount(req.params.id, req.body);
+        const account = await accountService.updateStaffAccount(req.params.id, req.body, getActorUserId(req));
 
         if (!account) {
             return res.status(404).json({
@@ -119,6 +109,27 @@ exports.updateStaffAccount = async (req, res) => {
                 },
             });
         }
+
+        await auditLogService.logAudit({
+            req,
+            actionTaken: 'UPDATE_STAFF_ACCOUNT',
+            module: 'Accounts',
+            entityType: 'staff_account',
+            entityId: account.user_id || req.params.id,
+            description: `Updated staff account: ${account.email || req.params.id}.`,
+            metadata: {
+                user_id: account.user_id || req.params.id,
+                email: account.email || null,
+                role: account.role || null,
+                changes: {
+                    ...req.body,
+                    password: req.body?.password ? '[REDACTED]' : undefined,
+                    confirm_password: req.body?.confirm_password ? '[REDACTED]' : undefined,
+                },
+            },
+        }).catch((auditError) => {
+            console.error('UPDATE STAFF ACCOUNT AUDIT ERROR:', auditError.message);
+        });
 
         emitAccountUpdate(req, 'update', account);
 
@@ -134,20 +145,6 @@ exports.updateStaffAccount = async (req, res) => {
 };
 
 exports.archiveStaffAccount = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: 'ARCHIVE_STAFF_ACCOUNT',
-        module: 'Accounts',
-        entityType: 'staff_account',
-        entityId: account?.user_id || req.params.id,
-        description: `Archived staff account: ${account?.email || req.params.id}.`,
-        metadata: {
-            user_id: account?.user_id || req.params.id,
-            email: account?.email || null,
-            role: account?.role || null,
-        },
-    });
-
     try {
         const account = await accountService.archiveStaffAccount(
             req.params.id,
@@ -164,6 +161,22 @@ exports.archiveStaffAccount = async (req, res) => {
             });
         }
 
+        await auditLogService.logAudit({
+            req,
+            actionTaken: 'ARCHIVE_STAFF_ACCOUNT',
+            module: 'Accounts',
+            entityType: 'staff_account',
+            entityId: account.user_id || req.params.id,
+            description: `Archived staff account: ${account.email || req.params.id}.`,
+            metadata: {
+                user_id: account.user_id || req.params.id,
+                email: account.email || null,
+                role: account.role || null,
+            },
+        }).catch((auditError) => {
+            console.error('ARCHIVE STAFF ACCOUNT AUDIT ERROR:', auditError.message);
+        });
+
         emitAccountUpdate(req, 'archive', account);
 
         return res.status(200).json({
@@ -178,20 +191,6 @@ exports.archiveStaffAccount = async (req, res) => {
 };
 
 exports.restoreStaffAccount = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: 'RESTORE_STAFF_ACCOUNT',
-        module: 'Accounts',
-        entityType: 'staff_account',
-        entityId: account?.user_id || req.params.id,
-        description: `Restored staff account: ${account?.email || req.params.id}.`,
-        metadata: {
-            user_id: account?.user_id || req.params.id,
-            email: account?.email || null,
-            role: account?.role || null,
-        },
-    });
-
     try {
         const account = await accountService.restoreStaffAccount(req.params.id);
 
@@ -204,6 +203,22 @@ exports.restoreStaffAccount = async (req, res) => {
                 },
             });
         }
+
+        await auditLogService.logAudit({
+            req,
+            actionTaken: 'RESTORE_STAFF_ACCOUNT',
+            module: 'Accounts',
+            entityType: 'staff_account',
+            entityId: account.user_id || req.params.id,
+            description: `Restored staff account: ${account.email || req.params.id}.`,
+            metadata: {
+                user_id: account.user_id || req.params.id,
+                email: account.email || null,
+                role: account.role || null,
+            },
+        }).catch((auditError) => {
+            console.error('RESTORE STAFF ACCOUNT AUDIT ERROR:', auditError.message);
+        });
 
         emitAccountUpdate(req, 'restore', account);
 

@@ -41,12 +41,33 @@ function emitCourseUpdate(req, action, course = null) {
 
     if (socketEvents?.maintenanceUpdated) {
         socketEvents.maintenanceUpdated(io, payload);
+        socketEvents.endorsementUpdated(io, { source: 'course_assignment', action, course_id: course?.course_id || null });
+        socketEvents.dashboardUpdated(io, { source: 'course_assignment', action });
         return;
     }
 
     if (io) {
         io.emit('maintenance:updated', payload);
     }
+}
+
+async function writeCourseAudit(req, action, course, changes = null) {
+    await auditLogService.logAudit({
+        req,
+        actionTaken: `${action.toUpperCase()}_COURSE`,
+        module: 'Courses',
+        entityType: 'academic_course',
+        entityId: course?.course_id || req.params?.id || null,
+        description: `${action[0].toUpperCase()}${action.slice(1)}d course: ${course?.course_code || req.params?.id || ''}.`,
+        metadata: {
+            course_id: course?.course_id || req.params?.id || null,
+            course_code: course?.course_code || null,
+            course_name: course?.course_name || null,
+            changes,
+        },
+    }).catch((auditError) => {
+        console.error(`${action.toUpperCase()} COURSE AUDIT ERROR:`, auditError.message);
+    });
 }
 
 const getCourses = async (req, res) => {
@@ -60,26 +81,14 @@ const getCourses = async (req, res) => {
 };
 
 const createCourse = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: 'CREATE_COURSE',
-        module: 'Courses',
-        entityType: 'academic_course',
-        entityId: course?.course_id || null,
-        description: `Created course: ${course?.course_code || ''} ${course?.course_name || ''}`.trim(),
-        metadata: {
-            course_id: course?.course_id || null,
-            course_code: course?.course_code || null,
-            course_name: course?.course_name || null,
-        },
-    });
-
     try {
         const createdCourse = await courseService.createCourse({
             course_code: req.body.course_code,
             course_name: req.body.course_name,
             is_archived: req.body.is_archived,
         });
+
+        await writeCourseAudit(req, 'create', createdCourse);
 
         emitCourseUpdate(req, 'create', createdCourse);
 
@@ -91,19 +100,6 @@ const createCourse = async (req, res) => {
 };
 
 const updateCourse = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: 'UPDATE_COURSE',
-        module: 'Courses',
-        entityType: 'academic_course',
-        entityId: course?.course_id || req.params.id,
-        description: `Updated course: ${course?.course_code || req.params.id}.`,
-        metadata: {
-            course_id: course?.course_id || req.params.id,
-            changes: req.body,
-        },
-    });
-
     try {
         const updatedCourse = await courseService.updateCourse(req.params.id, {
             course_code: req.body.course_code,
@@ -118,6 +114,8 @@ const updateCourse = async (req, res) => {
             });
         }
 
+        await writeCourseAudit(req, 'update', updatedCourse, req.body);
+
         emitCourseUpdate(req, 'update', updatedCourse);
 
         return res.status(200).json(updatedCourse);
@@ -128,20 +126,6 @@ const updateCourse = async (req, res) => {
 };
 
 const archiveCourse = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: course?.is_archived ? 'ARCHIVE_COURSE' : 'RESTORE_COURSE',
-        module: 'Courses',
-        entityType: 'academic_course',
-        entityId: course?.course_id || req.params.id,
-        description: `${course?.is_archived ? 'Archived' : 'Restored'} course: ${course?.course_code || req.params.id}.`,
-        metadata: {
-            course_id: course?.course_id || req.params.id,
-            course_code: course?.course_code || null,
-            is_archived: course?.is_archived,
-        },
-    });
-
     try {
         const archivedCourse = await courseService.archiveCourse(req.params.id);
 
@@ -151,6 +135,8 @@ const archiveCourse = async (req, res) => {
                 error: 'Course not found',
             });
         }
+
+        await writeCourseAudit(req, 'archive', archivedCourse);
 
         emitCourseUpdate(req, 'archive', archivedCourse);
 
@@ -162,20 +148,6 @@ const archiveCourse = async (req, res) => {
 };
 
 const restoreCourse = async (req, res) => {
-    await auditLogService.logAudit({
-        req,
-        actionTaken: course?.is_archived ? 'ARCHIVE_COURSE' : 'RESTORE_COURSE',
-        module: 'Courses',
-        entityType: 'academic_course',
-        entityId: course?.course_id || req.params.id,
-        description: `${course?.is_archived ? 'Archived' : 'Restored'} course: ${course?.course_code || req.params.id}.`,
-        metadata: {
-            course_id: course?.course_id || req.params.id,
-            course_code: course?.course_code || null,
-            is_archived: course?.is_archived,
-        },
-    });
-    
     try {
         const restoredCourse = await courseService.restoreCourse(req.params.id);
 
@@ -185,6 +157,8 @@ const restoreCourse = async (req, res) => {
                 error: 'Course not found',
             });
         }
+
+        await writeCourseAudit(req, 'restore', restoredCourse);
 
         emitCourseUpdate(req, 'restore', restoredCourse);
 

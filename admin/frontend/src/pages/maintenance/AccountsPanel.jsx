@@ -27,6 +27,7 @@ import {
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { C, EmptyState, FieldLabel } from './components/MaintenanceShared';
+import { toast } from 'sonner';
 
 const ROLE_OPTIONS = [
     {
@@ -65,7 +66,52 @@ const DEFAULT_FORM = {
     position: ROLE_OPTIONS[0].position,
     password: '',
     confirm_password: '',
+    course_ids: [],
 };
+
+function CourseAssignmentField({ form, setField, courses, currentUserId = null, disabled = false }) {
+    if (form.role !== 'pd') return null;
+    const selected = new Set(form.course_ids || []);
+
+    return (
+        <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3">
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <p className="text-xs font-semibold text-stone-800">Assigned Courses</p>
+                    <p className="mt-0.5 text-[11px] text-stone-500">Choose one or more active courses from Courses Maintenance.</p>
+                </div>
+                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-violet-700">{selected.size} selected</span>
+            </div>
+            <div className="mt-3 grid max-h-36 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {courses.map((course) => {
+                    const ownedByAnother = course.assigned_pd?.user_id && course.assigned_pd.user_id !== currentUserId;
+                    const isSelected = selected.has(course.course_id);
+                    return (
+                        <button
+                            key={course.course_id}
+                            type="button"
+                            disabled={disabled || ownedByAnother}
+                            onClick={() => setField('course_ids', isSelected
+                                ? [...selected].filter((id) => id !== course.course_id)
+                                : [...selected, course.course_id])}
+                            className={`rounded-lg border px-3 py-2 text-left transition ${isSelected
+                                ? 'border-violet-400 bg-white ring-1 ring-violet-200'
+                                : ownedByAnother
+                                    ? 'cursor-not-allowed border-stone-200 bg-stone-100 opacity-60'
+                                    : 'border-stone-200 bg-white hover:border-violet-300'}`}
+                        >
+                            <span className="block text-xs font-semibold text-stone-800">{course.course_code}</span>
+                            <span className="mt-0.5 block truncate text-[10px] text-stone-500">
+                                {ownedByAnother ? `Assigned to ${course.assigned_pd.name || course.assigned_pd.email}` : course.course_name}
+                            </span>
+                        </button>
+                    );
+                })}
+                {!courses.length ? <p className="text-xs text-stone-500">No active courses are available.</p> : null}
+            </div>
+        </div>
+    );
+}
 
 function getAuthHeaders() {
     return {
@@ -122,6 +168,7 @@ function validateCreateForm(form) {
     if (!form.role) {
         return 'Select an account role.';
     }
+    if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
@@ -138,6 +185,7 @@ function validateEditForm(form) {
     if (!form.role) {
         return 'Select an account role.';
     }
+    if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
     return validatePasswordFields(form.password, form.confirm_password, false);
 }
@@ -151,6 +199,7 @@ function StaffCreateModal({
     handleRoleChange,
     onClose,
     onSubmit,
+    courses,
 }) {
     if (!open) return null;
 
@@ -160,7 +209,7 @@ function StaffCreateModal({
             onClick={onClose}
         >
             <div
-                className="w-full max-w-2xl overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl"
+                className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
@@ -250,6 +299,8 @@ function StaffCreateModal({
                             </div>
                         </div>
                     </div>
+
+                    <CourseAssignmentField form={form} setField={setField} courses={courses} disabled={saving} />
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
@@ -342,6 +393,8 @@ function StaffEditModal({
     saving,
     onClose,
     onSave,
+    courses,
+    currentUserId,
 }) {
     if (!open) return null;
 
@@ -358,6 +411,7 @@ function StaffEditModal({
         setForm((current) => ({
             ...current,
             role,
+            course_ids: role === 'pd' ? current.course_ids : [],
             department: defaults?.department || current.department,
             position: defaults?.position || current.position,
         }));
@@ -369,7 +423,7 @@ function StaffEditModal({
             onClick={onClose}
         >
             <div
-                className="w-full max-w-2xl overflow-hidden rounded-xl border border-stone-200 bg-white shadow-xl"
+                className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
@@ -482,6 +536,8 @@ function StaffEditModal({
                         </div>
                     </div>
 
+                    <CourseAssignmentField form={form} setField={setField} courses={courses} currentUserId={currentUserId} disabled={saving} />
+
                     <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
                         <p className="mb-2 text-xs font-semibold text-stone-700">
                             Password Reset
@@ -546,6 +602,7 @@ function StaffEditModal({
 
 export default function AccountsPanel() {
     const [accounts, setAccounts] = useState([]);
+    const [courses, setCourses] = useState([]);
     const [form, setForm] = useState(DEFAULT_FORM);
     const [editForm, setEditForm] = useState(DEFAULT_FORM);
 
@@ -572,6 +629,14 @@ export default function AccountsPanel() {
         () => accounts.filter((account) => account.is_archived === true).length,
         [accounts]
     );
+    const activePdCount = useMemo(
+        () => accounts.filter((account) => account.role === 'pd' && !account.is_archived).length,
+        [accounts]
+    );
+    const assignedCourseCount = useMemo(
+        () => courses.filter((course) => course.assigned_pd).length,
+        [courses]
+    );
 
     const filteredAccounts = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -592,7 +657,8 @@ export default function AccountsPanel() {
                 String(account.last_name || '').toLowerCase().includes(q) ||
                 String(account.email || '').toLowerCase().includes(q) ||
                 String(account.department || '').toLowerCase().includes(q) ||
-                String(account.position || '').toLowerCase().includes(q)
+                String(account.position || '').toLowerCase().includes(q) ||
+                (account.assigned_courses || []).some((course) => String(course.course_code || '').toLowerCase().includes(q))
             );
         });
     }, [accounts, search, pageTab, roleFilter]);
@@ -625,11 +691,12 @@ export default function AccountsPanel() {
             setLoading(true);
             setError('');
 
-            const response = await fetch(buildApiUrl('/api/accounts/staff'), {
-                headers: getAuthHeaders(),
-            });
-
+            const [response, courseResponse] = await Promise.all([
+                fetch(buildApiUrl('/api/accounts/staff'), { headers: getAuthHeaders() }),
+                fetch(buildApiUrl('/api/courses'), { headers: getAuthHeaders() }),
+            ]);
             const data = await response.json().catch(() => ({}));
+            const courseData = await courseResponse.json().catch(() => []);
 
             if (!response.ok || data.success === false) {
                 throw new Error(
@@ -638,8 +705,10 @@ export default function AccountsPanel() {
                     'Failed to load staff accounts.'
                 );
             }
+            if (!courseResponse.ok) throw new Error(courseData.message || 'Failed to load courses.');
 
             setAccounts(Array.isArray(data.data) ? data.data : []);
+            setCourses((Array.isArray(courseData) ? courseData : []).filter((course) => !course.is_archived));
         } catch (err) {
             setError(err.message || 'Failed to load staff accounts.');
         } finally {
@@ -654,7 +723,7 @@ export default function AccountsPanel() {
     useSocketEvent(
         'maintenance:updated',
         (payload = {}) => {
-            if (!payload?.module || payload.module === 'accounts') {
+            if (!payload?.module || ['accounts', 'courses', 'pd_course_assignments'].includes(payload.module)) {
                 loadAccounts();
             }
         },
@@ -677,6 +746,7 @@ export default function AccountsPanel() {
             role,
             department: defaults?.department || current.department,
             position: defaults?.position || current.position,
+            course_ids: role === 'pd' ? current.course_ids : [],
         }));
 
         setError('');
@@ -716,6 +786,7 @@ export default function AccountsPanel() {
             position: account.position || '',
             password: '',
             confirm_password: '',
+            course_ids: account.course_ids || [],
         });
 
         setEditOpen(true);
@@ -776,6 +847,9 @@ export default function AccountsPanel() {
             });
             setPageTab('current');
             setCreateOpen(false);
+            toast.success('Staff account created', {
+                description: form.role === 'pd' ? 'The Program Director and course assignments are active.' : 'The account is ready to use.',
+            });
         } catch (err) {
             setError(err.message || 'Failed to create staff account.');
         } finally {
@@ -824,7 +898,10 @@ export default function AccountsPanel() {
             }
 
             await loadAccounts();
-            closeEditModal();
+            setEditOpen(false);
+            setEditingAccountId(null);
+            setEditForm(DEFAULT_FORM);
+            toast.success('Account updated', { description: 'Account details and course assignments were saved.' });
         } catch (err) {
             alert(err.message || 'Failed to update staff account.');
         } finally {
@@ -863,6 +940,11 @@ export default function AccountsPanel() {
             if (isRestore) {
                 setPageTab('current');
             }
+            toast.success(isRestore ? 'Account restored' : 'Account archived', {
+                description: account.role === 'pd'
+                    ? (isRestore ? 'Assign courses again before the Program Director handles applicants.' : 'Active course assignments were released.')
+                    : 'The account status was updated successfully.',
+            });
         } catch (err) {
             alert(err.message || 'Failed to update account status.');
         } finally {
@@ -881,6 +963,7 @@ export default function AccountsPanel() {
                 handleRoleChange={handleRoleChange}
                 onClose={closeCreateModal}
                 onSubmit={handleSubmit}
+                courses={courses}
             />
 
             <StaffEditModal
@@ -890,6 +973,8 @@ export default function AccountsPanel() {
                 saving={updating}
                 onClose={closeEditModal}
                 onSave={handleUpdate}
+                courses={courses}
+                currentUserId={editingAccountId}
             />
 
             <div className="space-y-3">
@@ -902,6 +987,9 @@ export default function AccountsPanel() {
                                 </p>
                                 <p className="mt-1 text-sm font-semibold text-stone-900">
                                     {currentCount} active · {archivedCount} archived
+                                </p>
+                                <p className="mt-1 text-[11px] text-stone-500">
+                                    {activePdCount} Program Director{activePdCount === 1 ? '' : 's'} · {assignedCourseCount} assigned course{assignedCourseCount === 1 ? '' : 's'} · {Math.max(courses.length - assignedCourseCount, 0)} unassigned
                                 </p>
                             </div>
 
@@ -1082,6 +1170,20 @@ export default function AccountsPanel() {
                                                                 {account.position || 'No position'}
                                                             </span>
                                                         </div>
+
+                                                        {account.role === 'pd' ? (
+                                                            <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-stone-100 pt-3">
+                                                                {(account.assigned_courses || []).slice(0, 4).map((course) => (
+                                                                    <span key={course.course_id} className="rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                                                                        {course.course_code}
+                                                                    </span>
+                                                                ))}
+                                                                {(account.assigned_courses || []).length > 4 ? (
+                                                                    <span className="text-[10px] font-medium text-stone-400">+{account.assigned_courses.length - 4} more</span>
+                                                                ) : null}
+                                                                {!account.assigned_courses?.length ? <span className="text-[10px] font-medium text-amber-700">No courses assigned</span> : null}
+                                                            </div>
+                                                        ) : null}
 
                                                         <div className="mt-3 flex flex-wrap justify-end gap-1.5">
                                                             {account.is_archived ? (

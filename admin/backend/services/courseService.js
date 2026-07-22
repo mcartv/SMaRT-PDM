@@ -14,6 +14,12 @@ function mapCourse(row = {}) {
         course_code: row.course_code,
         course_name: row.course_name,
         is_archived: row.is_archived === true,
+        assigned_pd: row.assigned_pd_user_id ? {
+            user_id: row.assigned_pd_user_id,
+            name: [row.assigned_pd_first_name, row.assigned_pd_last_name].filter(Boolean).join(' '),
+            email: row.assigned_pd_email || '',
+        } : null,
+        pending_pd_count: Number(row.pending_pd_count || 0),
     };
 }
 
@@ -56,14 +62,29 @@ const fetchCourses = async () => {
     const result = await pool.query(
         `
         SELECT
-            course_id,
-            course_code,
-            course_name,
-            is_archived
-        FROM academic_course
+            course.course_id,
+            course.course_code,
+            course.course_name,
+            course.is_archived,
+            assignment.pd_user_id AS assigned_pd_user_id,
+            profile.first_name AS assigned_pd_first_name,
+            profile.last_name AS assigned_pd_last_name,
+            pd_user.email AS assigned_pd_email
+            ,(
+              SELECT count(*)
+              FROM endorsement_slips slip
+              JOIN students student ON student.student_id = slip.student_id
+              WHERE student.course_id = course.course_id
+                AND slip.current_stage = 'pending_pd'
+            ) AS pending_pd_count
+        FROM academic_course course
+        LEFT JOIN program_director_course_assignments assignment
+          ON assignment.course_id = course.course_id AND assignment.is_active = true
+        LEFT JOIN admin_profiles profile ON profile.user_id = assignment.pd_user_id
+        LEFT JOIN users pd_user ON pd_user.user_id = assignment.pd_user_id
         ORDER BY
-            is_archived ASC,
-            course_code ASC
+            course.is_archived ASC,
+            course.course_code ASC
         `
     );
 
@@ -183,21 +204,34 @@ const archiveCourse = async (courseId) => {
         return null;
     }
 
-    const result = await pool.query(
-        `
-        UPDATE academic_course
-        SET is_archived = true
-        WHERE course_id = $1
-        RETURNING
-            course_id,
-            course_code,
-            course_name,
-            is_archived
-        `,
-        [courseId]
-    );
-
-    return result.rows[0] ? mapCourse(result.rows[0]) : null;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const result = await client.query(
+            `
+            UPDATE academic_course
+            SET is_archived = true
+            WHERE course_id = $1
+            RETURNING course_id, course_code, course_name, is_archived
+            `,
+            [courseId]
+        );
+        await client.query(
+            `
+            UPDATE program_director_course_assignments
+            SET is_active = false, archived_at = now()
+            WHERE course_id = $1 AND is_active = true
+            `,
+            [courseId]
+        );
+        await client.query('COMMIT');
+        return result.rows[0] ? mapCourse(result.rows[0]) : null;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 const restoreCourse = async (courseId) => {

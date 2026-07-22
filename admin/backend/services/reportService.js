@@ -517,6 +517,7 @@ async function getPdRows({
     reviewResult,
     dateFrom,
     dateTo,
+    pdUserId,
 }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
@@ -524,6 +525,16 @@ async function getPdRows({
     const normalizedReviewResult = safeText(reviewResult || 'all').toLowerCase();
     const normalizedDateFrom = safeText(dateFrom || '');
     const normalizedDateTo = safeText(dateTo || '');
+
+    if (pdUserId) {
+        params.push(pdUserId);
+        where.push(`EXISTS (
+          SELECT 1 FROM program_director_course_assignments assignment
+          WHERE assignment.pd_user_id = $${params.length}
+            AND assignment.course_id = st.course_id
+            AND assignment.is_active = true
+        )`);
+    }
 
     if (academicYearId && academicYearId !== 'all') {
         params.push(academicYearId);
@@ -688,6 +699,7 @@ async function getRowsByReportType({
     reviewResult,
     dateFrom,
     dateTo,
+    pdUserId,
 }) {
     if (reportType === 'applications') {
         return await getApplicationsRows({
@@ -752,6 +764,7 @@ async function getRowsByReportType({
             reviewResult,
             dateFrom,
             dateTo,
+            pdUserId,
         });
     }
 
@@ -768,6 +781,7 @@ function normalizeReportQuery(query = {}) {
         reviewResult: safeText(query.reviewResult || query.review_result || 'all'),
         dateFrom: safeText(query.dateFrom || query.date_from || ''),
         dateTo: safeText(query.dateTo || query.date_to || ''),
+        pdUserId: safeText(query.pdUserId || ''),
     };
 }
 

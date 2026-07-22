@@ -4,6 +4,7 @@ const db = require('../config/db');
 const supabase = require('../config/supabase');
 const { resolveStaffRole } = require('../utils/staffRoles');
 const { extractAvatarStoragePath, resolveAvatarUrl } = require('./avatarService');
+const pdCourseAssignmentService = require('./pdCourseAssignmentService');
 
 const ROLE_CONFIG = {
     admin: {
@@ -134,12 +135,17 @@ function mapStaffAccount(row) {
     };
 }
 
-async function decorateStaffAccount(row) {
+async function decorateStaffAccount(row, client = db) {
     const account = mapStaffAccount(row);
+    const assignedCourses = account.role === 'pd'
+        ? await pdCourseAssignmentService.getAssignmentsForUser(account.user_id, client)
+        : [];
 
     return {
         ...account,
         avatar_url: await resolveAvatarUrl(account.profile_photo_url),
+        assigned_courses: assignedCourses,
+        course_ids: assignedCourses.map((course) => course.course_id),
     };
 }
 
@@ -235,9 +241,7 @@ async function listStaffAccounts() {
             u.created_at DESC
     `);
 
-    const accounts = await Promise.all(
-        result.rows.map((row) => decorateStaffAccount(row))
-    );
+    const accounts = await Promise.all(result.rows.map((row) => decorateStaffAccount(row)));
 
     return accounts.filter((account) =>
         ROLE_VALUES.includes(account.role)
@@ -258,7 +262,7 @@ async function getCurrentStaffProfile(userId) {
     return decorateStaffAccount(row);
 }
 
-async function createStaffAccount(payload) {
+async function createStaffAccount(payload, actorUserId = null) {
     const parsed = staffAccountSchema.safeParse(payload);
 
     if (!parsed.success) {
@@ -346,6 +350,15 @@ async function createStaffAccount(payload) {
             [user.user_id, firstName, lastName, department, position]
         );
 
+        if (role === 'pd') {
+            await pdCourseAssignmentService.syncAssignments({
+                userId: user.user_id,
+                courseIds: payload.course_ids,
+                assignedByUserId: actorUserId,
+                client,
+            });
+        }
+
         await client.query('COMMIT');
 
         return decorateStaffAccount({
@@ -365,7 +378,7 @@ async function createStaffAccount(payload) {
     }
 }
 
-async function updateStaffAccount(userId, payload = {}) {
+async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
     if (!userId) {
         throw createHttpError(400, 'User ID is required.');
     }
@@ -507,6 +520,21 @@ async function updateStaffAccount(userId, payload = {}) {
             [userId, firstName, lastName, department, position, nextIsArchived]
         );
 
+        if (nextRole === 'pd' && !nextIsArchived) {
+            const existingAssignments = await pdCourseAssignmentService.getAssignmentsForUser(userId, client);
+            const courseIds = payload.course_ids !== undefined
+                ? payload.course_ids
+                : existingAssignments.map((course) => course.course_id);
+            await pdCourseAssignmentService.syncAssignments({
+                userId,
+                courseIds,
+                assignedByUserId: actorUserId,
+                client,
+            });
+        } else {
+            await pdCourseAssignmentService.releaseAssignments(userId, client);
+        }
+
         await client.query('COMMIT');
 
         return getStaffAccountById(userId, true);
@@ -538,14 +566,21 @@ async function archiveStaffAccount(userId, actorUserId = null) {
         return null;
     }
 
-    await db.query(
-        `
-        UPDATE admin_profiles
-        SET is_archived = true
-        WHERE user_id = $1
-        `,
-        [userId]
-    );
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            `UPDATE admin_profiles SET is_archived = true WHERE user_id = $1`,
+            [userId]
+        );
+        await pdCourseAssignmentService.releaseAssignments(userId, client);
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 
     return getStaffAccountById(userId, true);
 }

@@ -6,6 +6,7 @@ const supabase = require('../config/supabase');
 const { transporter } = require('../config/mailer');
 const notificationService = require('./notificationService');
 const { resolveStaffRole } = require('../utils/staffRoles');
+const pdCourseAssignmentService = require('./pdCourseAssignmentService');
 
 const STORAGE_BUCKET =
     process.env.SUPABASE_APPLICATION_DOCUMENT_BUCKET || 'documents';
@@ -420,20 +421,33 @@ async function mapQueueRowWithSignedGrade(row) {
     });
 }
 
-async function loadSlipRows({ stage = null, stages = null } = {}) {
+async function loadSlipRows({ stage = null, stages = null, actor = null } = {}) {
     const params = [];
     const normalizedStages = Array.isArray(stages)
         ? stages.map((value) => safeText(value)).filter(Boolean)
         : [];
-    let whereClause = '';
+    const conditions = [];
 
     if (normalizedStages.length > 0) {
-        whereClause = `where es.current_stage = any($1::text[])`;
         params.push(normalizedStages);
+        conditions.push(`es.current_stage = any($${params.length}::text[])`);
     } else if (stage) {
-        whereClause = `where es.current_stage = $1`;
         params.push(stage);
+        conditions.push(`es.current_stage = $${params.length}`);
     }
+
+    if (safeText(actor?.role).toLowerCase() === 'pd') {
+        const actorUserId = getActorUserId(actor);
+        if (!actorUserId) throw createHttpError(401, 'Authenticated Program Director is required.');
+        params.push(actorUserId);
+        conditions.push(`exists (
+          select 1 from program_director_course_assignments assignment
+          where assignment.pd_user_id = $${params.length}
+            and assignment.course_id = st.course_id
+            and assignment.is_active = true
+        )`);
+    }
+    const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : '';
 
     const { rows } = await pool.query(
         `
@@ -464,6 +478,7 @@ async function loadSlipRows({ stage = null, stages = null } = {}) {
             a.document_status,
             st.pdm_id,
             st.gwa,
+            st.course_id,
             st.year_level,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
             ac.course_code,
@@ -515,15 +530,15 @@ async function loadSlipRows({ stage = null, stages = null } = {}) {
 async function fetchQueue(queueKey, actor) {
     const config = ensureQueueAccess(queueKey, actor);
     if (queueKey === 'guidance') {
-        return loadSlipRows({ stages: ['pending_guidance', 'held'] });
+        return loadSlipRows({ stages: ['pending_guidance', 'held'], actor });
     }
 
-    return loadSlipRows({ stage: config.stage });
+    return loadSlipRows({ stage: config.stage, actor });
 }
 
 async function fetchAllSlips(actor) {
     ensureTrackerAccess(actor);
-    return loadSlipRows();
+    return loadSlipRows({ actor });
 }
 
 async function fetchSlipDetail(slipId, actor = null) {
@@ -540,6 +555,7 @@ async function fetchSlipDetail(slipId, actor = null) {
             a.document_status,
             st.pdm_id,
             st.gwa,
+            st.course_id,
             st.year_level,
             trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name,
             st.first_name,
@@ -585,6 +601,13 @@ async function fetchSlipDetail(slipId, actor = null) {
     }
 
     const row = rows[0];
+    if (safeText(actor?.role).toLowerCase() === 'pd') {
+        await pdCourseAssignmentService.assertCourseAccess({
+            userId: getActorUserId(actor),
+            courseId: row.course_id,
+            role: actor.role,
+        });
+    }
     const tracker = buildProgressTracker(row);
     const officeResults = mapPaperOfficeResults(row);
     const officeSignatories = {
@@ -696,7 +719,7 @@ async function fetchSlipDetail(slipId, actor = null) {
     };
 }
 
-async function fetchStaffTargetsByRole(role) {
+async function fetchStaffTargetsByRole(role, { courseId = null } = {}) {
     const { rows } = await pool.query(
         `
         select
@@ -714,7 +737,7 @@ async function fetchStaffTargetsByRole(role) {
         `
     );
 
-    return rows
+    let targets = rows
         .filter((row) => resolveStaffRole(row) === role)
         .filter((row) => safeText(row.email))
         .map((row) => ({
@@ -722,15 +745,26 @@ async function fetchStaffTargetsByRole(role) {
             email: row.email,
             name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email,
         }));
+
+    if (role === 'pd' && courseId) {
+        const assigned = await pool.query(
+            `SELECT pd_user_id FROM program_director_course_assignments WHERE course_id = $1 AND is_active = true`,
+            [courseId]
+        );
+        const allowedIds = new Set(assigned.rows.map((row) => String(row.pd_user_id)));
+        targets = targets.filter((target) => allowedIds.has(String(target.user_id)));
+    }
+
+    return targets;
 }
 
-async function notifyNextStage({ slipId, queueKey, studentName }) {
+async function notifyNextStage({ slipId, queueKey, studentName, courseId = null }) {
     const config = QUEUE_CONFIG[queueKey];
     if (!config?.nextRole) {
         return;
     }
 
-    const targets = await fetchStaffTargetsByRole(config.nextRole);
+    const targets = await fetchStaffTargetsByRole(config.nextRole, { courseId });
     if (!targets.length) {
         return;
     }
@@ -1296,7 +1330,7 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
 
         const currentResult = await client.query(
             `
-            select es.*, trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name
+            select es.*, st.course_id, trim(concat(coalesce(st.first_name, ''), ' ', coalesce(st.last_name, ''))) as student_name
             from endorsement_slips es
             join students st on st.student_id = es.student_id
             where es.slip_id = $1
@@ -1310,6 +1344,14 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
         }
 
         const currentSlip = currentResult.rows[0];
+        if (queueKey === 'pd') {
+            await pdCourseAssignmentService.assertCourseAccess({
+                userId: actorUserId,
+                courseId: currentSlip.course_id,
+                role: actor?.role,
+                client,
+            });
+        }
         const isHeldGuidanceResolution =
             queueKey === 'guidance' &&
             currentSlip.current_stage === 'held' &&
@@ -1368,6 +1410,7 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
             slipId,
             queueKey,
             studentName: currentSlip.student_name || 'A student',
+            courseId: currentSlip.course_id,
         });
 
         let finalizedDetail = await fetchSlipDetail(slipId, actor);
@@ -1526,23 +1569,23 @@ async function sendPendingDigestForRole(role) {
         return { sent: 0, skipped: 'unsupported_role' };
     }
 
-    const rows = await loadSlipRows({ stage: QUEUE_CONFIG[queueKey].stage });
-    if (!rows.length) {
-        return { sent: 0, role };
-    }
-
     const recipients = await fetchStaffTargetsByRole(role);
     if (!recipients.length) {
         return { sent: 0, role, skipped: 'no_recipients' };
     }
 
     const queueUrl = `${FRONTEND_BASE_URL}/${queueKey}/dashboard`;
-    const previewItems = rows
-        .slice(0, 10)
-        .map((row) => `<li>${row.student_name} (${row.pdm_id}) - ${row.program_name}</li>`)
-        .join('');
-
+    let sent = 0;
     for (const recipient of recipients) {
+        const rows = await loadSlipRows({
+            stage: QUEUE_CONFIG[queueKey].stage,
+            actor: role === 'pd' ? { role: 'pd', userId: recipient.user_id } : null,
+        });
+        if (!rows.length) continue;
+        const previewItems = rows
+            .slice(0, 10)
+            .map((row) => `<li>${row.student_name} (${row.pdm_id}) - ${row.program_name}</li>`)
+            .join('');
         await transporter.sendMail({
             from: process.env.GMAIL_USER,
             to: recipient.email,
@@ -1554,12 +1597,12 @@ async function sendPendingDigestForRole(role) {
                 <p><a href="${queueUrl}">Open pending queue</a></p>
             `,
         });
+        sent += 1;
     }
 
     return {
-        sent: recipients.length,
+        sent,
         role,
-        pending: rows.length,
     };
 }
 

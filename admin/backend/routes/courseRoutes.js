@@ -9,15 +9,15 @@ const {
     restoreCourse,
 } = require('../controllers/courseController');
 
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 
-router.get('/', protect, getCourses);
-router.post('/', protect, createCourse);
-router.patch('/:id', protect, updateCourse);
-router.patch('/:id/archive', protect, archiveCourse);
-router.patch('/:id/restore', protect, restoreCourse);
+router.get('/', protect, authorizeRoles('admin'), getCourses);
+router.post('/', protect, authorizeRoles('admin'), createCourse);
+router.patch('/:id', protect, authorizeRoles('admin'), updateCourse);
+router.patch('/:id/archive', protect, authorizeRoles('admin'), archiveCourse);
+router.patch('/:id/restore', protect, authorizeRoles('admin'), restoreCourse);
 
 // Safe delete: this archives instead of hard-deleting.
-router.delete('/:id', protect, archiveCourse);
+router.delete('/:id', protect, authorizeRoles('admin'), archiveCourse);
 
 module.exports = router;

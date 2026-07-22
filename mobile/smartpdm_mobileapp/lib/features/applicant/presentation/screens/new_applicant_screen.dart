@@ -47,7 +47,6 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
   bool _isAutosaving = false;
   bool _hasDraftLoaded = false;
   String? _autosaveError;
-  String? _bootstrapError;
   final ApplicationSubmissionValidator _submissionValidator =
       const ApplicationSubmissionValidator();
 
@@ -121,8 +120,8 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
         _hasDraftLoaded = savedFormData['has_saved_form'] == true;
         await _syncAccountHolderCache();
       }
-    } catch (_) {
-      _bootstrapError = 'Some database information could not be loaded. You may retry before submitting.';
+    } catch (error) {
+      debugPrint('APPLICATION FORM PREFILL ERROR: $error');
     }
 
     if (!mounted) return;
@@ -222,7 +221,7 @@ class _NewApplicantScreenState extends State<NewApplicantScreen> {
     if (!_hasSelectedOpening) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Choose a scholarship before submitting.'),
+          content: Text('Choose a scholarship opening before submitting.'),
         ),
       );
       return;

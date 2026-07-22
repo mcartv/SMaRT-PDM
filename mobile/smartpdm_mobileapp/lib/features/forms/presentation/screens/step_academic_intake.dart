@@ -50,7 +50,7 @@ class _StepAcademicState extends State<StepAcademic> {
     'Loan',
     'Other',
   ];
-  final List<String> courseOptions = [
+  static const List<String> _defaultCourseOptions = [
     'BSTM',
     'BSOAD',
     'BECED',
@@ -59,6 +59,8 @@ class _StepAcademicState extends State<StepAcademic> {
     'BSHM',
     'BTLED',
   ];
+
+  late final List<String> courseOptions;
   static const List<String> _defaultSectionOptions = [
     'A',
     'B',
@@ -81,6 +83,40 @@ class _StepAcademicState extends State<StepAcademic> {
   bool scholarshipCollege = false;
   bool scholarshipOthers = false;
   bool disciplinaryAction = false;
+
+  String _normalizeCourseValue(String value) {
+    final raw = value.trim();
+    if (raw.isEmpty) return '';
+
+    final normalized = raw
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    const aliases = <String, String>{
+      'BACHELOR OF SCIENCE IN TOURISM MANAGEMENT': 'BSTM',
+      'TOURISM MANAGEMENT': 'BSTM',
+      'BACHELOR OF SCIENCE IN OFFICE ADMINISTRATION': 'BSOAD',
+      'OFFICE ADMINISTRATION': 'BSOAD',
+      'BACHELOR OF EARLY CHILDHOOD EDUCATION': 'BECED',
+      'EARLY CHILDHOOD EDUCATION': 'BECED',
+      'BACHELOR OF SCIENCE IN COMPUTER SCIENCE': 'BSCS',
+      'COMPUTER SCIENCE': 'BSCS',
+      'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY': 'BSIT',
+      'INFORMATION TECHNOLOGY': 'BSIT',
+      'BACHELOR OF SCIENCE IN HOSPITALITY MANAGEMENT': 'BSHM',
+      'HOSPITALITY MANAGEMENT': 'BSHM',
+      'BACHELOR OF TECHNOLOGY AND LIVELIHOOD EDUCATION': 'BTLED',
+      'TECHNOLOGY AND LIVELIHOOD EDUCATION': 'BTLED',
+    };
+
+    if (_defaultCourseOptions.contains(normalized)) {
+      return normalized;
+    }
+
+    return aliases[normalized] ?? raw;
+  }
 
   @override
   void initState() {
@@ -161,9 +197,22 @@ class _StepAcademicState extends State<StepAcademic> {
       text: widget.data.disciplinaryExplanation,
     );
 
-    selectedCourse = courseOptions.contains(widget.data.currentCourse)
-        ? widget.data.currentCourse
-        : null;
+    final normalizedCourse = _normalizeCourseValue(widget.data.currentCourse);
+    final uniqueCourses = <String>{
+      ..._defaultCourseOptions,
+      if (normalizedCourse.isNotEmpty) normalizedCourse,
+    };
+    courseOptions = uniqueCourses.toList();
+
+    selectedCourse = normalizedCourse.isNotEmpty ? normalizedCourse : null;
+
+    if (selectedCourse != null &&
+        widget.data.currentCourse != selectedCourse) {
+      widget.data.currentCourse = selectedCourse!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onChanged();
+      });
+    }
     selectedYearLevel = _yearLevelOptions.contains(widget.data.currentYearLevel)
         ? widget.data.currentYearLevel
         : null;

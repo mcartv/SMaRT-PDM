@@ -618,6 +618,8 @@ class ApplicationData {
         'current_course_code',
         'current_course',
         'course_code',
+        'current_course_name',
+        'course_name',
       ]),
     );
     _setIfPresent(

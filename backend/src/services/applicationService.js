@@ -2400,34 +2400,158 @@ async function ensureApplicationEndorsementSlip(application = {}) {
 }
 
 
-function requireSubmissionText(value, label) {
-    const text = safeText(value);
-    if (!text) throw createHttpError(400, `${label} is required.`);
-    return text;
+function isBlankSubmissionValue(value) {
+    return (
+        value === null ||
+        value === undefined ||
+        (typeof value === 'string' && value.trim() === '')
+    );
 }
 
-function validateApplicationSubmissionPayload(payload = {}) {
+function mergeMissingSubmissionValues(primary, fallback) {
+    if (
+        fallback === null ||
+        fallback === undefined ||
+        typeof fallback !== 'object' ||
+        Array.isArray(fallback)
+    ) {
+        return isBlankSubmissionValue(primary) ? fallback : primary;
+    }
+
+    const primaryObject =
+        primary && typeof primary === 'object' && !Array.isArray(primary)
+            ? primary
+            : {};
+    const merged = { ...primaryObject };
+
+    Object.entries(fallback).forEach(([key, fallbackValue]) => {
+        const primaryValue = primaryObject[key];
+
+        if (
+            fallbackValue &&
+            typeof fallbackValue === 'object' &&
+            !Array.isArray(fallbackValue)
+        ) {
+            merged[key] = mergeMissingSubmissionValues(
+                primaryValue,
+                fallbackValue
+            );
+            return;
+        }
+
+        if (isBlankSubmissionValue(primaryValue)) {
+            merged[key] = fallbackValue;
+        }
+    });
+
+    return merged;
+}
+
+function collectMissingSubmissionFields(payload = {}) {
     const personal = payload.personal || {};
     const address = payload.address || {};
     const contact = payload.contact || {};
     const academic = payload.academic || {};
     const essays = payload.essays || {};
 
-    requireSubmissionText(personal.first_name || personal.firstName, 'First name');
-    requireSubmissionText(personal.last_name || personal.lastName, 'Last name');
-    requireSubmissionText(personal.date_of_birth || personal.dateOfBirth, 'Date of birth');
-    requireSubmissionText(personal.place_of_birth || personal.placeOfBirth, 'Place of birth');
-    requireSubmissionText(personal.sex || personal.sex_at_birth, 'Sex');
-    requireSubmissionText(personal.civil_status || personal.civilStatus, 'Civil status');
-    requireSubmissionText(personal.religion, 'Religion');
-    requireSubmissionText(contact.mobile_number || contact.mobile, 'Mobile number');
-    requireSubmissionText(address.barangay, 'Barangay');
-    requireSubmissionText(address.city_municipality || address.city, 'City or municipality');
-    requireSubmissionText(address.province, 'Province');
-    requireSubmissionText(academic.course || academic.current_course, 'Course');
-    requireSubmissionText(academic.year_level || academic.current_year_level, 'Year level');
-    requireSubmissionText(essays.self_description || essays.describe_yourself_essay, 'Self-description');
-    requireSubmissionText(essays.aims_and_ambitions || essays.aims_and_ambition_essay, 'Aims and ambitions');
+    const requiredFields = [
+        {
+            label: 'First name',
+            value: personal.first_name || personal.firstName,
+        },
+        {
+            label: 'Last name',
+            value: personal.last_name || personal.lastName,
+        },
+        {
+            label: 'Date of birth',
+            value: personal.date_of_birth || personal.dateOfBirth,
+        },
+        {
+            label: 'Place of birth',
+            value: personal.place_of_birth || personal.placeOfBirth,
+        },
+        {
+            label: 'Sex',
+            value: personal.sex || personal.sex_at_birth,
+        },
+        {
+            label: 'Civil status',
+            value: personal.civil_status || personal.civilStatus,
+        },
+        {
+            label: 'Religion',
+            value: personal.religion,
+        },
+        {
+            label: 'Mobile number',
+            value:
+                contact.mobile_number ||
+                contact.mobile ||
+                contact.phone_number,
+        },
+        {
+            label: 'Barangay',
+            value:
+                address.barangay ||
+                address.barangay_name ||
+                address.current_barangay,
+        },
+        {
+            label: 'City or municipality',
+            value:
+                address.city_municipality ||
+                address.city ||
+                address.municipality,
+        },
+        {
+            label: 'Province',
+            value: address.province,
+        },
+        {
+            label: 'Course',
+            value:
+                academic.course ||
+                academic.course_code ||
+                academic.course_name ||
+                academic.current_course ||
+                academic.current_course_code ||
+                academic.current_course_name,
+        },
+        {
+            label: 'Year level',
+            value:
+                academic.year_level ||
+                academic.current_year_level,
+        },
+        {
+            label: 'Self-description',
+            value:
+                essays.self_description ||
+                essays.describe_yourself_essay,
+        },
+        {
+            label: 'Aims and ambitions',
+            value:
+                essays.aims_and_ambitions ||
+                essays.aims_and_ambition_essay,
+        },
+    ];
+
+    return requiredFields
+        .filter((field) => !safeText(field.value))
+        .map((field) => field.label);
+}
+
+function validateApplicationSubmissionPayload(payload = {}) {
+    const missingFields = collectMissingSubmissionFields(payload);
+
+    if (missingFields.length > 0) {
+        throw createHttpError(
+            400,
+            `Complete the following required fields: ${missingFields.join(', ')}.`
+        );
+    }
 }
 
 async function submitMyApplicationForm(userId, payload = {}) {
@@ -2435,13 +2559,86 @@ async function submitMyApplicationForm(userId, payload = {}) {
         throw createHttpError(401, 'Authentication required.');
     }
 
-    validateApplicationSubmissionPayload(payload);
+    // The mobile client may omit values that were already loaded from the
+    // registry/profile database. Rehydrate only blank values before validation
+    // so valid stored information is not requested from the applicant again.
+    const storedFormData = await getMyFormData(userId);
+    payload = mergeMissingSubmissionValues(payload, storedFormData || {});
 
     const student = await ensureStudentForUser(userId);
 
     if (!student?.student_id) {
         throw createHttpError(400, 'Student profile is required.');
     }
+
+    const master = await getMasterStudent(student.master_student_id);
+    const resolvedCourseId = firstNonEmpty(
+        student.course_id,
+        master?.course_id
+    );
+    const resolvedCourse = resolvedCourseId
+        ? await getCourse(resolvedCourseId)
+        : null;
+
+    const sourceAcademic = payload.academic || {};
+    payload = {
+        ...payload,
+        address: {
+            ...(payload.address || {}),
+            barangay: firstNonEmpty(
+                payload.address?.barangay,
+                payload.address?.barangay_name,
+                payload.address?.current_barangay,
+                storedFormData?.address?.barangay
+            ),
+            city_municipality: firstNonEmpty(
+                payload.address?.city_municipality,
+                payload.address?.city,
+                payload.address?.municipality,
+                storedFormData?.address?.city_municipality,
+                storedFormData?.address?.city
+            ),
+            province: firstNonEmpty(
+                payload.address?.province,
+                storedFormData?.address?.province
+            ),
+        },
+        academic: {
+            ...sourceAcademic,
+            current_course: firstNonEmpty(
+                sourceAcademic.current_course,
+                sourceAcademic.course,
+                sourceAcademic.current_course_code,
+                sourceAcademic.course_code,
+                resolvedCourse?.course_code,
+                resolvedCourse?.course_name
+            ),
+            current_course_code: firstNonEmpty(
+                sourceAcademic.current_course_code,
+                sourceAcademic.course_code,
+                resolvedCourse?.course_code
+            ),
+            current_course_name: firstNonEmpty(
+                sourceAcademic.current_course_name,
+                sourceAcademic.course_name,
+                resolvedCourse?.course_name
+            ),
+            current_year_level: firstNonEmpty(
+                sourceAcademic.current_year_level,
+                sourceAcademic.year_level,
+                student.year_level,
+                master?.year_level
+            ),
+            year_level: firstNonEmpty(
+                sourceAcademic.year_level,
+                sourceAcademic.current_year_level,
+                student.year_level,
+                master?.year_level
+            ),
+        },
+    };
+
+    validateApplicationSubmissionPayload(payload);
 
     const openingId =
         safeText(payload.opening_id) ||

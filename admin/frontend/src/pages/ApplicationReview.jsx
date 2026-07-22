@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { Card, CardContent } from '@/components/ui/card';
@@ -32,6 +32,8 @@ import {
   SlidersHorizontal,
   Download,
   CheckCircle2,
+  ListOrdered,
+  Trophy,
   X,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -67,6 +69,50 @@ function formatDate(value) {
     month: 'short',
     day: 'numeric',
   });
+}
+
+function toTimestamp(value, fallback = Number.MAX_SAFE_INTEGER) {
+  if (!value) return fallback;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function compareFcfs(a, b) {
+  const queueA = Number(a?.queue_position);
+  const queueB = Number(b?.queue_position);
+  const hasQueueA = Number.isFinite(queueA) && queueA > 0;
+  const hasQueueB = Number.isFinite(queueB) && queueB > 0;
+
+  if (hasQueueA && hasQueueB && queueA !== queueB) {
+    return queueA - queueB;
+  }
+  if (hasQueueA !== hasQueueB) {
+    return hasQueueA ? -1 : 1;
+  }
+
+  const completedDifference =
+    toTimestamp(a?.requirements_completed_at) -
+    toTimestamp(b?.requirements_completed_at);
+
+  if (completedDifference !== 0) return completedDifference;
+
+  const submittedDifference =
+    toTimestamp(a?.submitted_at) -
+    toTimestamp(b?.submitted_at);
+
+  if (submittedDifference !== 0) return submittedDifference;
+
+  return String(a?.application_id || '').localeCompare(
+    String(b?.application_id || '')
+  );
+}
+
+function getFcfsLabel(row) {
+  const queuePosition = Number(row?.queue_position);
+  if (Number.isFinite(queuePosition) && queuePosition > 0) {
+    return `#${queuePosition}`;
+  }
+  return row?.requirements_completed_at ? 'Queued' : 'Not ranked';
 }
 
 async function parseErrorResponse(response, fallback = 'Request failed') {
@@ -228,6 +274,13 @@ function normalizeApplicantRow(app) {
       Number(app.uploaded_required_count || 0) >= 4,
     uploaded_required_count: Number(app.uploaded_required_count || 0),
     requirements_status: app.requirements_status || null,
+    requirements_completed_at: app.requirements_completed_at || null,
+    requirements_verified_at: app.requirements_verified_at || null,
+    queue_position:
+      app.queue_position != null ? Number(app.queue_position) : null,
+    waitlist_position:
+      app.waitlist_position != null ? Number(app.waitlist_position) : null,
+    selection_status: app.selection_status || null,
     endorsement_complete: app.endorsement_complete === true,
     scholar_activation_ready: app.scholar_activation_ready === true,
     requirements_incomplete: app.requirements_incomplete !== false,
@@ -561,6 +614,8 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
         const requirementsCount = summary.requirementsComplete || 0;
         const endorsementCount = summary.endorsementComplete || 0;
         const readyCount = summary.scholarReady || 0;
+        const fcfsCount = summary.fcfsQueued || 0;
+        const nextFcfsApplicant = summary.nextFcfsApplicant || null;
 
         return (
           <Card
@@ -583,21 +638,44 @@ function OpeningsGrid({ rows, countsMap, navigate }) {
                   <StatusPill meta={statusMeta} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
                   <MetricItem label="Slots" value={allocatedSlots} />
                   <MetricItem label="Filled" value={filledSlots} />
                   <MetricItem label="Applicants" value={applicationCount} />
                   <MetricItem label="Remaining" value={remainingSlots} />
                   <MetricItem label="Req. OK" value={requirementsCount} />
                   <MetricItem label="Endorse OK" value={endorsementCount} />
+                  <MetricItem label="FCFS Queue" value={fcfsCount} />
                 </div>
 
-                <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-600">
-                  <span>Scholar-ready applicants</span>
-                  <span className="font-semibold text-stone-900">{readyCount}</span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                    <span>Scholar-ready applicants</span>
+                    <span className="font-semibold text-stone-900">{readyCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Trophy className="h-3.5 w-3.5" />
+                      Next in FCFS
+                    </span>
+                    <span className="max-w-[180px] truncate font-semibold">
+                      {nextFcfsApplicant?.applicant_name || 'No ranked applicant'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-end border-t border-stone-100 pt-3">
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-stone-100 pt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 rounded-lg border-amber-200 px-3 text-xs text-amber-800"
+                    onClick={() =>
+                      navigate(`/admin/openings/${opening.opening_id}/applications?view=final-selection`)
+                    }
+                  >
+                    <ListOrdered className="mr-1.5 h-3.5 w-3.5" />
+                    FCFS & Finalize
+                  </Button>
                   <Button
                     size="sm"
                     className="h-8 rounded-lg border-none px-3 text-xs text-white"
@@ -665,6 +743,8 @@ function RegistryTable({
                   <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Endorsement</th>
                   {isReadinessMode ? (
                     <>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">FCFS</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Completed</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Slip</th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-stone-900">Ready Status</th>
                     </>
@@ -731,6 +811,14 @@ function RegistryTable({
 
                       {isReadinessMode ? (
                         <>
+                          <td className="px-3 py-3 align-top">
+                            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                              {getFcfsLabel(row)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top whitespace-nowrap text-xs text-stone-600">
+                            {formatDate(row.requirements_completed_at)}
+                          </td>
                           <td className="px-3 py-3 align-top">
                             {row.endorsement_slip_id ? (
                               <div className="space-y-2">
@@ -1099,11 +1187,20 @@ export default function ApplicationReview() {
         requirementsComplete: 0,
         endorsementComplete: 0,
         scholarReady: 0,
+        fcfsQueued: 0,
+        fcfsApplicants: [],
+        nextFcfsApplicant: null,
       };
       current.applicants += 1;
       if (row.requirements_complete) current.requirementsComplete += 1;
       if (row.endorsement_complete) current.endorsementComplete += 1;
       if (row.scholar_activation_ready) current.scholarReady += 1;
+      if (row.requirements_completed_at || Number(row.queue_position) > 0) {
+        current.fcfsQueued += 1;
+        current.fcfsApplicants.push(row);
+        current.fcfsApplicants.sort(compareFcfs);
+        current.nextFcfsApplicant = current.fcfsApplicants[0] || null;
+      }
       map.set(row.opening_id, current);
     });
 
@@ -1166,7 +1263,10 @@ export default function ApplicationReview() {
   );
 
   const readinessRows = useMemo(
-    () => filteredRegistryRows.filter((row) => row.scholar_activation_ready),
+    () =>
+      filteredRegistryRows
+        .filter((row) => row.scholar_activation_ready)
+        .sort(compareFcfs),
     [filteredRegistryRows]
   );
 
@@ -1317,7 +1417,7 @@ export default function ApplicationReview() {
               onApproveScholar={approveScholar}
               approvalLoadingId={approvalLoadingId}
               title="Activation Readiness Queue"
-              subtitle="Applicants who completed both requirements and endorsement and are ready for final scholar handling."
+              subtitle="FCFS order is based on the last valid required-document submission, then application submission as the tie-breaker."
               mode="readiness"
               page={page}
               totalPages={readinessTotalPages}

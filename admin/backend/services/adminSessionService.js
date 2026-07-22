@@ -737,6 +737,108 @@ async function logoutAdminSession({ decoded }) {
     }
 }
 
+
+async function listRecentAdminSessions({
+    userId,
+    currentSessionId = null,
+    limit = 8,
+} = {}) {
+    if (!userId) {
+        throw new AdminSessionError('Unauthorized request.', {
+            statusCode: 401,
+            code: 'ADMIN_SESSION_USER_MISSING',
+        });
+    }
+
+    const safeLimit = Math.min(Math.max(Number(limit) || 8, 1), 20);
+
+    await db.query(
+        `
+        UPDATE admin_sessions
+        SET is_active = false,
+            released_at = COALESCE(released_at, now())
+        WHERE user_id = $1
+          AND session_scope = $2
+          AND is_active = true
+          AND (
+              expires_at <= now()
+              OR logged_out_at IS NOT NULL
+          )
+        `,
+        [userId, SESSION_SCOPE]
+    );
+
+    const result = await db.query(
+        `
+        SELECT
+            s.session_id,
+            s.device_id,
+            s.ip_address,
+            s.user_agent,
+            s.stay_logged_in,
+            s.is_active,
+            s.created_at,
+            s.last_seen_at,
+            s.expires_at,
+            s.released_at,
+            s.logged_out_at,
+            s.session_scope,
+            EXISTS (
+                SELECT 1
+                FROM admin_session_pages p
+                WHERE p.session_id = s.session_id
+                  AND p.is_active = true
+                  AND p.last_seen_at >= now() - ($4 * interval '1 second')
+            ) AS has_recent_active_page
+        FROM admin_sessions s
+        WHERE s.user_id = $1
+          AND s.session_scope = $2
+        ORDER BY COALESCE(s.last_seen_at, s.created_at) DESC
+        LIMIT $3
+        `,
+        [userId, SESSION_SCOPE, safeLimit, STALE_PAGE_SECONDS]
+    );
+
+    return result.rows.map((row) => {
+        const expired = new Date(row.expires_at).getTime() <= Date.now();
+        const isCurrent =
+            currentSessionId &&
+            String(row.session_id) === String(currentSessionId);
+
+        let status = 'Ended';
+
+        if (isCurrent && row.is_active && !row.logged_out_at && !expired) {
+            status = 'Current';
+        } else if (row.is_active && !row.logged_out_at && !expired) {
+            status = row.has_recent_active_page ? 'Active' : 'Remembered';
+        } else if (expired) {
+            status = 'Expired';
+        } else if (row.logged_out_at) {
+            status = 'Logged out';
+        }
+
+        return {
+            session_id: row.session_id,
+            device_id: row.device_id,
+            ip_address: row.ip_address,
+            user_agent: row.user_agent,
+            stay_logged_in: row.stay_logged_in === true,
+            is_active:
+                row.is_active === true &&
+                !row.logged_out_at &&
+                !expired,
+            is_current: Boolean(isCurrent),
+            status,
+            created_at: row.created_at,
+            last_seen_at: row.last_seen_at,
+            expires_at: row.expires_at,
+            released_at: row.released_at,
+            logged_out_at: row.logged_out_at,
+            session_scope: row.session_scope,
+        };
+    });
+}
+
 async function revokeAllAdminSessionsForUser(client, userId) {
     await client.query(
         `
@@ -776,6 +878,7 @@ module.exports = {
     releaseAdminPage,
     logoutAdminSession,
     revokeAllAdminSessionsForUser,
+    listRecentAdminSessions,
     getBearerToken,
     sessionConfig: Object.freeze({
         scope: SESSION_SCOPE,

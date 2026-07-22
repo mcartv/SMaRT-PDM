@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,8 @@ import {
     ArrowLeft,
     CalendarDays,
     CircleOff,
+    ListOrdered,
+    Trophy,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -104,6 +106,50 @@ function formatDate(value) {
         month: 'short',
         day: 'numeric',
     });
+}
+
+function toTimestamp(value, fallback = Number.MAX_SAFE_INTEGER) {
+    if (!value) return fallback;
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+function compareFcfs(a, b) {
+    const queueA = Number(a?.queue_position);
+    const queueB = Number(b?.queue_position);
+    const hasQueueA = Number.isFinite(queueA) && queueA > 0;
+    const hasQueueB = Number.isFinite(queueB) && queueB > 0;
+
+    if (hasQueueA && hasQueueB && queueA !== queueB) {
+        return queueA - queueB;
+    }
+    if (hasQueueA !== hasQueueB) {
+        return hasQueueA ? -1 : 1;
+    }
+
+    const completedDifference =
+        toTimestamp(a?.requirements_completed_at) -
+        toTimestamp(b?.requirements_completed_at);
+
+    if (completedDifference !== 0) return completedDifference;
+
+    const submittedDifference =
+        toTimestamp(a?.submission_date) -
+        toTimestamp(b?.submission_date);
+
+    if (submittedDifference !== 0) return submittedDifference;
+
+    return String(a?.id || a?.application_id || '').localeCompare(
+        String(b?.id || b?.application_id || '')
+    );
+}
+
+function getFcfsRank(app, fallbackIndex = null) {
+    const queuePosition = Number(app?.queue_position);
+    if (Number.isFinite(queuePosition) && queuePosition > 0) {
+        return queuePosition;
+    }
+    return fallbackIndex;
 }
 
 function buildApplicantState(app) {
@@ -341,6 +387,7 @@ function ApplicantTable({
     onOpenRemarks,
     onApprove,
     onDisqualify,
+    fcfsOrder,
 }) {
     return (
         <div className="overflow-x-auto">
@@ -365,6 +412,12 @@ function ApplicantTable({
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
                             Submitted
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            FCFS
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
+                            Requirements Completed
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500">
                             Application
@@ -431,6 +484,23 @@ function ApplicantTable({
 
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-500">
                                     {formatDate(app.submission_date)}
+                                </td>
+
+                                <td className="px-4 py-4">
+                                    {app.requirements_completed_at || Number(app.queue_position) > 0 ? (
+                                        <Badge className="border-amber-200 bg-amber-50 text-[10px] font-semibold text-amber-800">
+                                            #{getFcfsRank(
+                                                app,
+                                                fcfsOrder.get(app.id) || null
+                                            )}
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-xs text-stone-400">Not ranked</span>
+                                    )}
+                                </td>
+
+                                <td className="px-4 py-4 whitespace-nowrap text-sm text-stone-500">
+                                    {formatDate(app.requirements_completed_at)}
                                 </td>
 
                                 <td className="px-4 py-4">
@@ -523,6 +593,7 @@ function ApplicantTable({
 export default function OpeningApplications() {
     const navigate = useNavigate();
     const { openingId } = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const [opening, setOpening] = useState(null);
     const [apps, setApps] = useState([]);
@@ -531,7 +602,10 @@ export default function OpeningApplications() {
     const [error, setError] = useState(null);
 
     const [search, setSearch] = useState('');
-    const [viewMode, setViewMode] = useState(VIEW_MODES.current);
+    const initialView = searchParams.get('view') === VIEW_MODES.finalSelection
+        ? VIEW_MODES.finalSelection
+        : VIEW_MODES.current;
+    const [viewMode, setViewMode] = useState(initialView);
 
     const [page, setPage] = useState(1);
     const [selected, setSelected] = useState(new Set());
@@ -618,6 +692,44 @@ export default function OpeningApplications() {
         [apps]
     );
 
+    const fcfsSortedApplicants = useMemo(
+        () =>
+            apps
+                .filter(
+                    (app) =>
+                        app.requirements_completed_at ||
+                        Number(app.queue_position) > 0
+                )
+                .sort(compareFcfs),
+        [apps]
+    );
+
+    const fcfsOrder = useMemo(() => {
+        const order = new Map();
+        fcfsSortedApplicants.forEach((app, index) => {
+            order.set(app.id, getFcfsRank(app, index + 1));
+        });
+        return order;
+    }, [fcfsSortedApplicants]);
+
+    const nextFcfsApplicant = fcfsSortedApplicants.find(
+        (app) => !isApprovedCandidate(app)
+    ) || null;
+
+    const changeViewMode = (nextView) => {
+        setViewMode(nextView);
+        setPage(1);
+        setSelected(new Set());
+
+        const nextParams = new URLSearchParams(searchParams);
+        if (nextView === VIEW_MODES.finalSelection) {
+            nextParams.set('view', VIEW_MODES.finalSelection);
+        } else {
+            nextParams.delete('view');
+        }
+        setSearchParams(nextParams, { replace: true });
+    };
+
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         const normalizedQ = q.replace(/[^a-z0-9]/g, '');
@@ -643,7 +755,8 @@ export default function OpeningApplications() {
                     normalizedStudentNumber.startsWith(normalizedQ) ||
                     appId.startsWith(q)
                 );
-            });
+            })
+            .sort(viewMode === VIEW_MODES.current ? compareFcfs : compareFcfs);
     }, [apps, search, viewMode]);
 
     useEffect(() => {
@@ -892,129 +1005,118 @@ export default function OpeningApplications() {
                 />
             )}
 
-            <section className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate('/admin/applications')}
-                            className="rounded-xl border-stone-200 text-xs text-stone-600"
-                        >
-                            <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-                            Back
-                        </Button>
-                    </div>
-
-                    {openingFilled && (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
-                            <CircleOff className="h-3.5 w-3.5" />
-                            Slots Filled / Applications Closed
-                        </span>
-                    )}
-                </div>
-
-                <section className="rounded-2xl border bg-white p-4" style={{ borderColor: C.border }}>
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="min-w-0">
-                            <h1 className="truncate text-xl font-semibold text-stone-900">
-                                {opening?.program_name || opening?.title || opening?.opening_title || 'Scholarship Program'}
-                            </h1>
-
-                            <p className="mt-1 text-sm text-stone-500">
-                                {opening?.opening_title || 'Application period'}
-                                {opening?.benefactor_name ? ` · ${opening.benefactor_name}` : ''}
-                            </p>
-
-                            {openingMetaLine ? (
-                                <div className="mt-2 inline-flex items-center gap-1 text-xs text-stone-500">
-                                    <CalendarDays className="h-3.5 w-3.5" />
-                                    {openingMetaLine}
-                                </div>
-                            ) : null}
-                        </div>
-
-                        <div className="grid min-w-[260px] grid-cols-3 gap-2">
-                            <div className="rounded-lg bg-stone-50 px-3 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-stone-500">Slots</p>
-                                <p className="mt-0.5 text-base font-semibold text-stone-900">{openingSlotCount}</p>
-                            </div>
-                            <div className="rounded-lg bg-stone-50 px-3 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-stone-500">Filled</p>
-                                <p className="mt-0.5 text-base font-semibold text-stone-900">{openingFilledCount}</p>
-                            </div>
-                            <div className="rounded-lg bg-stone-50 px-3 py-2.5">
-                                <p className="text-[10px] uppercase tracking-wide text-stone-500">Remaining</p>
-                                <p className="mt-0.5 text-base font-semibold text-stone-900">{remainingSlots}</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            </section>
-
             <section
-                className="rounded-2xl border bg-white p-3 sm:p-4"
+                className="overflow-hidden rounded-2xl border bg-white"
                 style={{ borderColor: C.border }}
             >
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="relative w-full xl:max-w-xl">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                        <Input
-                            placeholder="Search by student name or PDM ID..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="h-10 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm shadow-none focus-visible:ring-1"
-                        />
+                <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => navigate('/admin/applications')}
+                            className="h-9 w-9 shrink-0 rounded-xl border-stone-200 text-stone-600"
+                            title="Back to Applications"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="truncate text-lg font-semibold text-stone-900">
+                                    {opening?.program_name || opening?.title || opening?.opening_title || 'Scholarship Program'}
+                                </h1>
+                                {openingFilled && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                                        <CircleOff className="h-3 w-3" />
+                                        Closed / Filled
+                                    </span>
+                                )}
+                            </div>
+                            <p className="mt-1 truncate text-xs text-stone-500">
+                                {opening?.opening_title || 'Application period'}
+                                {opening?.benefactor_name ? ` · ${opening.benefactor_name}` : ''}
+                                {openingMetaLine ? ` · ${openingMetaLine}` : ''}
+                            </p>
+                        </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                        <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 sm:w-auto">
-                            <button
-                                onClick={() => setViewMode(VIEW_MODES.current)}
-                                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === VIEW_MODES.current
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
-                                    }`}
-                            >
-                                Applicants
-                                <span className="text-xs">{currentCount}</span>
-                            </button>
-
-                            <button
-                                onClick={() => setViewMode(VIEW_MODES.approved)}
-                                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === VIEW_MODES.approved
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
-                                    }`}
-                            >
-                                Approved
-                                <span className="text-xs">{approvedCount}</span>
-                            </button>
-
-                            <button
-                                onClick={() => setViewMode(VIEW_MODES.finalSelection)}
-                                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none ${viewMode === VIEW_MODES.finalSelection
-                                    ? 'bg-white text-stone-900 shadow-sm'
-                                    : 'text-stone-600'
-                                    }`}
-                            >
-                                Final Selection
-                            </button>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+                        <div className="rounded-xl bg-stone-50 px-3 py-2.5">
+                            <p className="text-[9px] font-semibold uppercase tracking-wide text-stone-400">Slots</p>
+                            <p className="mt-0.5 text-base font-semibold text-stone-900">
+                                {openingFilledCount}/{openingSlotCount}
+                            </p>
                         </div>
+                        <div className="rounded-xl bg-amber-50 px-3 py-2.5">
+                            <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-700">FCFS Queue</p>
+                            <p className="mt-0.5 text-base font-semibold text-stone-900">
+                                {fcfsSortedApplicants.length}
+                            </p>
+                        </div>
+                        <div className="min-w-0 rounded-xl bg-stone-50 px-3 py-2.5">
+                            <p className="text-[9px] font-semibold uppercase tracking-wide text-stone-400">Next in Line</p>
+                            <p className="mt-0.5 truncate text-sm font-semibold text-stone-900">
+                                {nextFcfsApplicant?.name || 'None'}
+                            </p>
+                        </div>
+                        <Button
+                            className="h-full min-h-[54px] rounded-xl border-none text-xs font-semibold text-white"
+                            style={{ background: C.green }}
+                            onClick={() => changeViewMode(VIEW_MODES.finalSelection)}
+                        >
+                            <Trophy className="mr-1.5 h-4 w-4" />
+                            Review & Finalize
+                        </Button>
+                    </div>
+                </div>
 
-                        {search && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    setSearch('');
-                                    setPage(1);
-                                }}
-                                className="h-10 rounded-xl border-stone-200 text-xs"
-                            >
-                                Reset
-                            </Button>
-                        )}
+                <div className="flex flex-col gap-3 border-t border-stone-100 p-3 lg:flex-row lg:items-center lg:justify-between">
+                    {viewMode !== VIEW_MODES.finalSelection ? (
+                        <div className="relative w-full lg:max-w-lg">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                            <Input
+                                placeholder="Search applicant or PDM ID..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="h-9 rounded-xl border-stone-200 bg-stone-50 pl-10 text-sm shadow-none focus-visible:ring-1"
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-xs text-stone-500">
+                            <ListOrdered className="h-4 w-4 text-amber-700" />
+                            Ranked by requirements completion time; submission time is used only as a tie-breaker.
+                        </div>
+                    )}
+
+                    <div className="inline-flex w-full rounded-xl bg-stone-100 p-1 lg:w-auto">
+                        <button
+                            onClick={() => changeViewMode(VIEW_MODES.current)}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition lg:flex-none ${viewMode === VIEW_MODES.current
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
+                                }`}
+                        >
+                            Applicants <span>{currentCount}</span>
+                        </button>
+                        <button
+                            onClick={() => changeViewMode(VIEW_MODES.approved)}
+                            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition lg:flex-none ${viewMode === VIEW_MODES.approved
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
+                                }`}
+                        >
+                            Approved <span>{approvedCount}</span>
+                        </button>
+                        <button
+                            onClick={() => changeViewMode(VIEW_MODES.finalSelection)}
+                            className={`inline-flex flex-1 items-center justify-center rounded-lg px-4 py-2 text-xs font-medium transition lg:flex-none ${viewMode === VIEW_MODES.finalSelection
+                                ? 'bg-white text-stone-900 shadow-sm'
+                                : 'text-stone-600'
+                                }`}
+                        >
+                            Final Selection
+                        </button>
                     </div>
                 </div>
             </section>
@@ -1109,6 +1211,7 @@ export default function OpeningApplications() {
                             onOpenRemarks={handleOpenRemarks}
                             onApprove={(id) => handleDecision(id, 'approve')}
                             onDisqualify={setDisqApp}
+                            fcfsOrder={fcfsOrder}
                         />
                     )}
                 </CardContent>

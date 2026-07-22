@@ -61,9 +61,7 @@ async function verifyAuditPassword({ userId, password }) {
             scope: 'audit_logs',
         },
         getJwtSecret(),
-        {
-            expiresIn: '10m',
-        }
+        { expiresIn: '10m' }
     );
 
     return {
@@ -85,18 +83,29 @@ function verifyAuditAccessToken(token, currentUserId) {
         }
 
         if (String(decoded.user_id) !== String(currentUserId)) {
-            throw createHttpError(403, 'Audit access token does not match current user.');
+            throw createHttpError(
+                403,
+                'Audit access token does not match current user.'
+            );
         }
 
         return decoded;
     } catch (err) {
         if (err.statusCode) throw err;
 
-        throw createHttpError(401, 'Audit access expired. Please enter your password again.');
+        throw createHttpError(
+            401,
+            'Audit access expired. Please enter your password again.'
+        );
     }
 }
 
-async function listAuditLogs({ limit = 100, offset = 0, search = '', module = '' } = {}) {
+async function listAuditLogs({
+    limit = 100,
+    offset = 0,
+    search = '',
+    module = '',
+} = {}) {
     const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
     const safeOffset = Math.max(Number(offset) || 0, 0);
     const q = String(search || '').trim();
@@ -172,6 +181,39 @@ async function listAuditLogs({ limit = 100, offset = 0, search = '', module = ''
     };
 }
 
+async function listRecentActivityForUser({
+    userId,
+    limit = 8,
+} = {}) {
+    if (!userId) {
+        throw createHttpError(401, 'Unauthorized request.');
+    }
+
+    const safeLimit = Math.min(Math.max(Number(limit) || 8, 1), 20);
+
+    const result = await db.query(
+        `
+        select
+            a.log_id,
+            a.module,
+            a.action_taken,
+            a.entity_type,
+            a.entity_id,
+            a.description,
+            a.metadata,
+            a.ip_address,
+            a.timestamp
+        from audit_logs a
+        where a.user_id = $1
+        order by a.timestamp desc
+        limit $2
+        `,
+        [userId, safeLimit]
+    );
+
+    return result.rows;
+}
+
 async function logAudit({
     req = null,
     userId = null,
@@ -230,6 +272,7 @@ async function logAudit({
 
 module.exports = {
     listAuditLogs,
+    listRecentActivityForUser,
     logAudit,
     verifyAuditAccessToken,
     verifyAuditPassword,

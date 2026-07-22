@@ -406,6 +406,48 @@ exports.releaseAdminSessionBeacon = async (req, res) => {
     }
 };
 
+
+exports.getRecentAdminSessions = async (req, res) => {
+    try {
+        const userId =
+            req.user?.user_id ||
+            req.user?.userId ||
+            req.user?.sub ||
+            null;
+
+        const items = await adminSessionService.listRecentAdminSessions({
+            userId,
+            currentSessionId:
+                req.user?.sid ||
+                req.user?.session_id ||
+                null,
+            limit: req.query?.limit,
+        });
+
+        return res.status(200).json({
+            success: true,
+            items,
+            session_scope: adminSessionService.sessionConfig.scope,
+            max_active_devices:
+                adminSessionService.sessionConfig.maxActiveDevices,
+        });
+    } catch (err) {
+        if (err instanceof adminSessionService.AdminSessionError) {
+            return res.status(err.statusCode).json({
+                success: false,
+                code: err.code,
+                message: err.message,
+            });
+        }
+
+        console.error('GET RECENT ADMIN SESSIONS ERROR:', err);
+        return res.status(500).json({
+            success: false,
+            message: 'Unable to load recent Admin sessions.',
+        });
+    }
+};
+
 exports.logoutAdminSession = async (req, res) => {
     try {
         await adminSessionService.logoutAdminSession({

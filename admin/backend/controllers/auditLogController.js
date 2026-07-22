@@ -1,7 +1,7 @@
 const auditLogService = require('../services/auditLogService');
 
 function getActorUserId(req) {
-    return req.user?.user_id || req.user?.userId || null;
+    return req.user?.user_id || req.user?.userId || req.user?.sub || null;
 }
 
 function sendError(res, err, fallbackMessage) {
@@ -10,9 +10,7 @@ function sendError(res, err, fallbackMessage) {
     return res.status(err.statusCode || 500).json({
         success: false,
         message,
-        error: {
-            message,
-        },
+        error: { message },
     });
 }
 
@@ -56,5 +54,22 @@ exports.getAuditLogs = async (req, res) => {
     } catch (err) {
         console.error('GET AUDIT LOGS ERROR:', err);
         return sendError(res, err, 'Failed to load audit logs.');
+    }
+};
+
+exports.getMyRecentActivity = async (req, res) => {
+    try {
+        const items = await auditLogService.listRecentActivityForUser({
+            userId: getActorUserId(req),
+            limit: req.query.limit,
+        });
+
+        return res.status(200).json({
+            success: true,
+            items,
+        });
+    } catch (err) {
+        console.error('GET MY RECENT ACTIVITY ERROR:', err);
+        return sendError(res, err, 'Failed to load recent activity.');
     }
 };

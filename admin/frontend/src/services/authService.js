@@ -130,6 +130,28 @@ export const authService = {
     );
   },
 
+  getRecentAdminSessions: async (limit = 8) => {
+    const active = getStoredPortalSession('admin');
+    const token = active?.token || sessionStorage.getItem('adminToken') || '';
+
+    return requestJson(`/api/auth/session/recent?limit=${limit}`, {
+      method: 'GET',
+      token,
+      fallbackMessage: 'Unable to load recent sessions',
+    });
+  },
+
+  getMyRecentActivity: async (limit = 8) => {
+    const active = getStoredPortalSession('admin');
+    const token = active?.token || sessionStorage.getItem('adminToken') || '';
+
+    return requestJson(`/api/audit-logs/recent-activity?limit=${limit}`, {
+      method: 'GET',
+      token,
+      fallbackMessage: 'Unable to load recent activity',
+    });
+  },
+
   startAdminPasswordReset: async (email = OFFICIAL_ADMIN_EMAIL) => {
     return requestJson('/api/auth/admin/forgot-password/start', {
       body: { email },
@@ -192,7 +214,12 @@ export function installAdminSessionLifecycle() {
   const heartbeat = async () => {
     const active = getStoredPortalSession('admin');
 
-    if (!active?.token || !navigator.onLine || document.hidden) {
+    if (
+      logoutInProgress ||
+      !active?.token ||
+      !navigator.onLine ||
+      document.hidden
+    ) {
       return;
     }
 
@@ -216,7 +243,12 @@ export function installAdminSessionLifecycle() {
   const resumeWhenVisible = async () => {
     const active = getStoredPortalSession('admin');
 
-    if (!active?.token || !navigator.onLine || document.hidden) {
+    if (
+      logoutInProgress ||
+      !active?.token ||
+      !navigator.onLine ||
+      document.hidden
+    ) {
       return;
     }
 
@@ -234,12 +266,6 @@ export function installAdminSessionLifecycle() {
     }
   };
 
-  // Do not release the Admin session on pagehide/unload.
-  // Browsers can fire page lifecycle events during refresh, tab suspension,
-  // browser sleep, and back-forward cache transitions. Releasing the session
-  // here can make a valid 30-day login appear logged out after brief inactivity.
-  // The managed session is released only by explicit logout or token expiry.
-
   window.addEventListener('online', resumeWhenVisible);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
@@ -247,6 +273,5 @@ export function installAdminSessionLifecycle() {
     }
   });
 
-  // Heartbeat is only for last-seen tracking. It is not an idle timeout.
   window.setInterval(heartbeat, 5 * 60_000);
 }

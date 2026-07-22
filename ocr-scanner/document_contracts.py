@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping
 
 
 @dataclass(frozen=True)
@@ -177,6 +177,18 @@ def build_indigency_extracted_fields_from_result(
         "crop_generation",
         "crop_ocr",
     }
+
+    def diagnostic_value(diagnostics: Any, name: str, default: Any) -> Any:
+        if isinstance(diagnostics, Mapping):
+            return diagnostics.get(name, default)
+        return getattr(diagnostics, name, default)
+
+    def numeric_sequence(diagnostics: Any, name: str) -> list[float | int]:
+        value = diagnostic_value(diagnostics, name, ()) or ()
+        if not isinstance(value, (list, tuple)):
+            return []
+        return [item for item in value if isinstance(item, (int, float))]
+
     for field_name in (
         "certificate_subject_name",
         "issue_date",
@@ -197,10 +209,10 @@ def build_indigency_extracted_fields_from_result(
         diagnostics = getattr(field, "diagnostics", None)
         if diagnostics is not None:
             candidate_source = str(
-                getattr(diagnostics, "candidate_source", "none") or "none"
+                diagnostic_value(diagnostics, "candidate_source", "none") or "none"
             )
             crop_status = str(
-                getattr(
+                diagnostic_value(
                     diagnostics,
                     "crop_validation_status",
                     "not_attempted",
@@ -208,13 +220,13 @@ def build_indigency_extracted_fields_from_result(
                 or "not_attempted"
             )
             failure_stage = str(
-                getattr(diagnostics, "failure_stage", "none") or "none"
+                diagnostic_value(diagnostics, "failure_stage", "none") or "none"
             )
             value_source = str(
-                getattr(diagnostics, "value_source", "none") or "none"
+                diagnostic_value(diagnostics, "value_source", "none") or "none"
             )
             positional_status = str(
-                getattr(
+                diagnostic_value(
                     diagnostics,
                     "positional_validation_status",
                     "not_attempted",
@@ -223,16 +235,47 @@ def build_indigency_extracted_fields_from_result(
             )
             field_payload["diagnostics"] = {
                 "candidate_found": bool(
-                    getattr(diagnostics, "candidate_found", False)
+                    diagnostic_value(diagnostics, "candidate_found", False)
                 ),
                 "candidate_count": max(
                     0,
-                    int(getattr(diagnostics, "candidate_count", 0) or 0),
+                    int(diagnostic_value(diagnostics, "candidate_count", 0) or 0),
                 ),
                 "candidate_token_count": max(
                     0,
                     int(
-                        getattr(diagnostics, "candidate_token_count", 0) or 0
+                        diagnostic_value(diagnostics, "candidate_token_count", 0)
+                        or 0
+                    ),
+                ),
+                "candidate_word_confidences": numeric_sequence(
+                    diagnostics,
+                    "candidate_word_confidences",
+                ),
+                "candidate_horizontal_gaps": numeric_sequence(
+                    diagnostics,
+                    "candidate_horizontal_gaps",
+                ),
+                "candidate_word_count_before_filter": max(
+                    0,
+                    int(
+                        diagnostic_value(
+                            diagnostics,
+                            "candidate_word_count_before_filter",
+                            0,
+                        )
+                        or 0
+                    ),
+                ),
+                "candidate_word_count_after_filter": max(
+                    0,
+                    int(
+                        diagnostic_value(
+                            diagnostics,
+                            "candidate_word_count_after_filter",
+                            0,
+                        )
+                        or 0
                     ),
                 ),
                 "candidate_source": (
@@ -241,16 +284,16 @@ def build_indigency_extracted_fields_from_result(
                     else "none"
                 ),
                 "anchor_found": bool(
-                    getattr(diagnostics, "anchor_found", False)
+                    diagnostic_value(diagnostics, "anchor_found", False)
                 ),
                 "bounds_present": bool(
-                    getattr(diagnostics, "bounds_present", False)
+                    diagnostic_value(diagnostics, "bounds_present", False)
                 ),
                 "crop_attempted": bool(
-                    getattr(diagnostics, "crop_attempted", False)
+                    diagnostic_value(diagnostics, "crop_attempted", False)
                 ),
                 "crop_returned_text": bool(
-                    getattr(diagnostics, "crop_returned_text", False)
+                    diagnostic_value(diagnostics, "crop_returned_text", False)
                 ),
                 "value_source": (
                     value_source if value_source in value_sources else "none"

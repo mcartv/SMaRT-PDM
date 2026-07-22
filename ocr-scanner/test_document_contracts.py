@@ -128,6 +128,10 @@ class DocumentContractsTest(unittest.TestCase):
             candidate_found=True,
             candidate_count=1,
             candidate_token_count=2,
+            candidate_word_confidences=(91.25, 43.5),
+            candidate_horizontal_gaps=(37,),
+            candidate_word_count_before_filter=2,
+            candidate_word_count_after_filter=2,
             candidate_source="pre_title_header",
             anchor_found=True,
             bounds_present=True,
@@ -167,6 +171,10 @@ class DocumentContractsTest(unittest.TestCase):
                 "candidate_found",
                 "candidate_count",
                 "candidate_token_count",
+                "candidate_word_confidences",
+                "candidate_horizontal_gaps",
+                "candidate_word_count_before_filter",
+                "candidate_word_count_after_filter",
                 "candidate_source",
                 "anchor_found",
                 "bounds_present",
@@ -181,6 +189,17 @@ class DocumentContractsTest(unittest.TestCase):
         self.assertNotIn("candidate_text", persisted)
         self.assertNotIn("crop_text", persisted)
         self.assertNotIn("raw_text", persisted)
+        numeric_arrays = {
+            "candidate_word_confidences",
+            "candidate_horizontal_gaps",
+        }
+        self.assertTrue(
+            all(
+                isinstance(item, (int, float))
+                for key in numeric_arrays
+                for item in persisted[key]
+            )
+        )
         self.assertTrue(
             all(
                 isinstance(value, (bool, int))
@@ -192,15 +211,64 @@ class DocumentContractsTest(unittest.TestCase):
                     "not_attempted",
                     "none",
                 }
-                for value in persisted.values()
+                for key, value in persisted.items()
+                if key not in numeric_arrays
             )
         )
+
+    def test_indigency_mapping_diagnostics_preserve_runtime_statuses(self):
+        diagnostics = {
+            "candidate_found": True,
+            "candidate_count": 1,
+            "candidate_token_count": 2,
+            "candidate_word_confidences": (91.25, 43.5),
+            "candidate_horizontal_gaps": (37,),
+            "candidate_word_count_before_filter": 2,
+            "candidate_word_count_after_filter": 2,
+            "candidate_source": "pre_title_header",
+            "anchor_found": True,
+            "bounds_present": True,
+            "crop_attempted": False,
+            "crop_returned_text": False,
+            "value_source": "positional",
+            "positional_validation_status": "valid",
+            "crop_validation_status": "not_attempted",
+            "failure_stage": "none",
+        }
+        field = SimpleNamespace(
+            name="issuing_barangay",
+            raw_text="SYNTHETIC",
+            success=True,
+            issue_codes=(),
+            detection_variant="grayscale",
+            anchor="SYNTHETIC",
+            normalized_bounds=(0.1, 0.2, 0.3, 0.1),
+            diagnostics=diagnostics,
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(fields=(field,), detection_variant="grayscale")
+        )
+
+        payload = build_indigency_extracted_fields_from_result(
+            "SYNTHETIC RAW OCR",
+            extraction_result,
+        )
+        persisted = payload["fields"]["issuing_barangay"]["diagnostics"]
+
+        self.assertEqual(persisted["value_source"], "positional")
+        self.assertEqual(persisted["positional_validation_status"], "valid")
+        self.assertEqual(persisted["candidate_word_confidences"], [91.25, 43.5])
+        self.assertEqual(persisted["candidate_horizontal_gaps"], [37])
 
     def test_indigency_legacy_barangay_diagnostic_enums_remain_persistable(self):
         diagnostics = SimpleNamespace(
             candidate_found=True,
             candidate_count=1,
             candidate_token_count=2,
+            candidate_word_confidences=(),
+            candidate_horizontal_gaps=(),
+            candidate_word_count_before_filter=0,
+            candidate_word_count_after_filter=0,
             candidate_source="pre_title_header",
             anchor_found=True,
             bounds_present=True,

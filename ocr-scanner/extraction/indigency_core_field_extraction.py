@@ -76,6 +76,10 @@ class IndigencyFieldDiagnostics:
     candidate_found: bool
     candidate_count: int
     candidate_token_count: int
+    candidate_word_confidences: tuple[float, ...]
+    candidate_horizontal_gaps: tuple[int, ...]
+    candidate_word_count_before_filter: int
+    candidate_word_count_after_filter: int
     candidate_source: str
     anchor_found: bool
     bounds_present: bool
@@ -651,6 +655,10 @@ def _barangay_diagnostics(
     candidate_found: bool,
     candidate_count: int,
     candidate_token_count: int,
+    candidate_word_confidences: tuple[float, ...],
+    candidate_horizontal_gaps: tuple[int, ...],
+    candidate_word_count_before_filter: int,
+    candidate_word_count_after_filter: int,
     candidate_source: str,
     anchor_found: bool,
     bounds_present: bool,
@@ -665,6 +673,10 @@ def _barangay_diagnostics(
         candidate_found=candidate_found,
         candidate_count=candidate_count,
         candidate_token_count=candidate_token_count,
+        candidate_word_confidences=candidate_word_confidences,
+        candidate_horizontal_gaps=candidate_horizontal_gaps,
+        candidate_word_count_before_filter=candidate_word_count_before_filter,
+        candidate_word_count_after_filter=candidate_word_count_after_filter,
         candidate_source=candidate_source,
         anchor_found=anchor_found,
         bounds_present=bounds_present,
@@ -688,6 +700,21 @@ def _normalize_barangay_value(value: Any) -> tuple[str, bool]:
     )
     normalized = _normalize_field_text(" ".join(token for token in tokens if token))
     return normalized, contains_control
+
+
+def _barangay_word_metrics(
+    words: Sequence[PositionalWord],
+) -> tuple[tuple[float, ...], tuple[int, ...], int, int]:
+    ordered = tuple(sorted(words, key=lambda word: word.left))
+    confidences = tuple(round(float(word.confidence), 3) for word in ordered)
+    gaps = tuple(
+        int(current.left - previous.right)
+        for previous, current in zip(ordered, ordered[1:])
+    )
+    filtered_count = sum(
+        bool(_sanitize_positional_date_token(word.text)) for word in ordered
+    )
+    return confidences, gaps, len(ordered), filtered_count
 
 
 def _valid_barangay_value(
@@ -717,6 +744,10 @@ def _read_issuing_barangay_field(
             candidate_found=candidate_count > 0,
             candidate_count=candidate_count,
             candidate_token_count=0,
+            candidate_word_confidences=(),
+            candidate_horizontal_gaps=(),
+            candidate_word_count_before_filter=0,
+            candidate_word_count_after_filter=0,
             candidate_source="ambiguous" if candidate_count > 1 else "none",
             anchor_found=candidate_count > 0,
             bounds_present=False,
@@ -743,10 +774,20 @@ def _read_issuing_barangay_field(
     anchor = " ".join(word.text for word in selected)
     bounds = _bounds(selected, source_image.shape)
     normalized_bounds = _normalized_bounds(bounds, source_image.shape)
+    (
+        candidate_word_confidences,
+        candidate_horizontal_gaps,
+        candidate_word_count_before_filter,
+        candidate_word_count_after_filter,
+    ) = _barangay_word_metrics(selected)
     base_diagnostics = {
         "candidate_found": True,
         "candidate_count": 1,
         "candidate_token_count": len(selected),
+        "candidate_word_confidences": candidate_word_confidences,
+        "candidate_horizontal_gaps": candidate_horizontal_gaps,
+        "candidate_word_count_before_filter": candidate_word_count_before_filter,
+        "candidate_word_count_after_filter": candidate_word_count_after_filter,
         "candidate_source": "pre_title_header",
         "anchor_found": True,
         "bounds_present": True,

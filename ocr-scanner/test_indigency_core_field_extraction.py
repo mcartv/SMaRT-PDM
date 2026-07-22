@@ -632,6 +632,43 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertEqual(field.diagnostics.value_source, "positional")
         self.assertEqual(field.diagnostics.positional_validation_status, "valid")
 
+    def test_barangay_candidate_diagnostics_are_numeric_only(self):
+        data = _valid_word_data(header_text="BARANGAY SAMPLE TRAILING")
+        header_indexes = [
+            index
+            for index, block in enumerate(data["block_num"])
+            if block == 2 and data["par_num"][index] == 1
+        ]
+        data["conf"][header_indexes[-2]] = 91.25
+        data["conf"][header_indexes[-1]] = 43.5
+        data["left"][header_indexes[-1]] += 37
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: data,
+            field_reader=_field_reader,
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+        diagnostics = field.diagnostics
+
+        self.assertEqual(diagnostics.candidate_word_confidences, (91.25, 43.5))
+        self.assertEqual(len(diagnostics.candidate_horizontal_gaps), 1)
+        self.assertGreater(diagnostics.candidate_horizontal_gaps[0], 12)
+        self.assertEqual(diagnostics.candidate_word_count_before_filter, 2)
+        self.assertEqual(diagnostics.candidate_word_count_after_filter, 2)
+        self.assertTrue(
+            all(
+                isinstance(value, (int, float))
+                for values in (
+                    diagnostics.candidate_word_confidences,
+                    diagnostics.candidate_horizontal_gaps,
+                )
+                for value in values
+            )
+        )
+
     def test_invalid_positional_barangay_uses_valid_crop_fallback(self):
         result = extract_indigency_core_fields(
             self.image,

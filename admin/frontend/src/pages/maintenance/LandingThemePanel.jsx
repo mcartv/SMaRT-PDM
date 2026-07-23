@@ -54,7 +54,7 @@ function LandingThemePreview({ theme }) {
       <div style={{ background: theme.pageBg }} className="space-y-4 p-5">
         <div className="rounded-2xl border p-4" style={{ background: theme.soft, borderColor: theme.border }}>
           <div className="flex flex-wrap gap-2">
-            {[theme.dark, theme.base, theme.heroEnd, theme.soft].map((color) => (
+            {[theme.dark, theme.base, theme.accent, theme.danger, theme.soft].map((color) => (
               <span key={color} className="h-8 w-8 rounded-full border border-black/5" style={{ background: color }} />
             ))}
           </div>

@@ -4,7 +4,7 @@ const PORTAL_KEYS = ['admin', 'sdo', 'guidance', 'pd', 'landing'];
 const PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic', 'coral', 'mint', 'custom'];
 const TABLE_NAME = 'portal_theme_settings';
 const PERSONAL_TABLE_NAME = 'staff_portal_theme_settings';
-const LANDING_COLOR_KEYS = ['dark', 'base', 'heroEnd', 'soft', 'border', 'pageBg'];
+const LANDING_COLOR_KEYS = ['dark', 'base', 'heroEnd', 'accent', 'danger', 'soft', 'border', 'pageBg'];
 const STAFF_COLOR_KEYS = ['base', 'active', 'mainBg', 'accent', 'accentSoft', 'chartPrimary', 'chartSecondary', 'chartTertiary', 'chartQuaternary'];
 
 function createHttpError(statusCode, message) {

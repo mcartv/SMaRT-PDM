@@ -2,13 +2,15 @@ export const LANDING_THEME_PRESET_KEYS = ['default', 'forest', 'ocean', 'royal',
 
 const DEFAULT_LANDING_THEME = {
   presetKey: 'default',
-  label: 'Default',
-  dark: '#56321f',
-  base: '#7c4a2e',
-  heroEnd: '#8a5a38',
-  soft: '#f7f1e9',
-  border: '#e9dcc8',
-  pageBg: '#f8f5f1',
+  label: 'PDM Institutional',
+  dark: '#321b0f',
+  base: '#5f351f',
+  heroEnd: '#7b4a28',
+  accent: '#f2cf00',
+  danger: '#7b1e1e',
+  soft: '#fff9e8',
+  border: '#dfd0ae',
+  pageBg: '#f4f3ed',
 };
 
 const LANDING_PRESET_OVERRIDES = {
@@ -72,6 +74,8 @@ export const LANDING_COLOR_FIELDS = [
   { key: 'dark', label: 'Hero Start' },
   { key: 'base', label: 'Hero Middle' },
   { key: 'heroEnd', label: 'Hero End' },
+  { key: 'accent', label: 'PDM Gold Accent' },
+  { key: 'danger', label: 'Important Red Accent' },
   { key: 'soft', label: 'Soft Surface' },
   { key: 'border', label: 'Border' },
   { key: 'pageBg', label: 'Page Background' },
@@ -104,9 +108,9 @@ export function getLandingThemePresetOptions() {
       label: theme.label,
       description:
         key === 'default'
-          ? 'Restore the current default landing page colors.'
+          ? 'Restore the official PDM brown, gold, red, and warm-white palette.'
           : `Apply the ${theme.label.toLowerCase()} landing palette.`,
-      swatches: [theme.dark, theme.base, theme.heroEnd, theme.soft],
+      swatches: [theme.dark, theme.base, theme.accent, theme.danger],
     };
   });
 }

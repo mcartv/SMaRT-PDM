@@ -596,6 +596,7 @@ export default function SmartPDMLanding() {
         className="landing-hero relative overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 58%, ${theme.heroEnd} 100%)`,
+          borderBottom: `4px solid ${theme.accent}`,
         }}
       >
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -660,7 +661,7 @@ export default function SmartPDMLanding() {
         <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-8 lg:grid-cols-[1.05fr_0.95fr] lg:pb-20 lg:pt-14">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
-              <span className="h-2 w-2 rounded-full bg-yellow-400" />
+              <span className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
               {generalSettings.landing_content.hero_badge}
             </div>
 
@@ -790,7 +791,7 @@ export default function SmartPDMLanding() {
                   <Megaphone size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: theme.base }}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: theme.danger }}>
                     Featured OSFA Notice
                   </p>
                   <h2 className="mt-1.5 text-lg font-bold text-stone-900 md:text-xl">
@@ -1159,7 +1160,7 @@ export default function SmartPDMLanding() {
       </section>
       </main>
 
-      <footer className="landing-footer border-t border-stone-200 px-5 py-8">
+      <footer className="landing-footer border-t-4 px-5 py-8" style={{ borderTopColor: theme.accent }}>
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-6 rounded-[2rem] border border-stone-200 bg-stone-50/60 px-6 py-6 md:grid-cols-[1fr_auto] md:items-center md:px-8">
             <div>

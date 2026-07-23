@@ -3,14 +3,14 @@ export const LANDING_THEME_PRESET_KEYS = ['default', 'forest', 'ocean', 'royal',
 const DEFAULT_LANDING_THEME = {
   presetKey: 'default',
   label: 'PDM Institutional',
-  dark: '#321b0f',
-  base: '#5f351f',
-  heroEnd: '#7b4a28',
-  accent: '#f2cf00',
-  danger: '#7b1e1e',
-  soft: '#fff9e8',
-  border: '#dfd0ae',
-  pageBg: '#f4f3ed',
+  dark: '#4a2a18',
+  base: '#7a4a2c',
+  heroEnd: '#a06c43',
+  accent: '#edcf2f',
+  danger: '#963232',
+  soft: '#fff9eb',
+  border: '#e5d7b8',
+  pageBg: '#faf8f1',
 };
 
 const LANDING_PRESET_OVERRIDES = {

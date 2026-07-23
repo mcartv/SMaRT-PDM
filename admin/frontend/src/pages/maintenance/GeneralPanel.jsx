@@ -432,6 +432,7 @@ export default function GeneralPanel() {
         const fieldsByGroup = {
             hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
             guide: ['guide_title', 'guide_description', 'guide_steps'],
+            requirements: ['requirements_title', 'requirements_description', 'requirement_items', 'requirement_notices'],
             features: ['features_title', 'features_description', 'feature_items'],
             campus: ['campus_title', 'campus_description', 'credibility_title', 'credibility_description'],
         };
@@ -505,6 +506,7 @@ export default function GeneralPanel() {
         const fieldsByGroup = {
             hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
             guide: ['guide_title', 'guide_description', 'guide_steps'],
+            requirements: ['requirements_title', 'requirements_description', 'requirement_items', 'requirement_notices'],
             features: ['features_title', 'features_description', 'feature_items'],
             campus: ['campus_title', 'campus_description', 'credibility_title', 'credibility_description'],
         };
@@ -544,6 +546,15 @@ export default function GeneralPanel() {
             ...current,
             [collection]: current[collection].map((item, itemIndex) =>
                 itemIndex === index ? { ...item, [field]: value } : item
+            ),
+        }));
+    };
+
+    const updateLandingTextItem = (collection, index, value) => {
+        setLandingContent((current) => ({
+            ...current,
+            [collection]: current[collection].map((item, itemIndex) =>
+                itemIndex === index ? value : item
             ),
         }));
     };
@@ -1069,6 +1080,44 @@ export default function GeneralPanel() {
                                                 ))}
                                             </div>
                                             {renderContentGroupActions('copy', 'guide')}
+                                        </div>
+
+                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Application Requirements</p>
+                                                <p className="mt-1 text-xs text-stone-500">Checklist and important notices displayed in the public requirements modal.</p>
+                                            </div>
+                                            <FieldLabel>Requirements Heading</FieldLabel>
+                                            <Input value={landingContent.requirements_title} onChange={(e) => updateLandingField('requirements_title', e.target.value)} maxLength={160} />
+                                            <div className="mt-3">
+                                                <FieldLabel>Requirements Introduction</FieldLabel>
+                                                <textarea value={landingContent.requirements_description} onChange={(e) => updateLandingField('requirements_description', e.target.value)} rows={3} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" />
+                                            </div>
+                                            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                                                <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+                                                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-600">Required Documents</p>
+                                                    <div className="space-y-2">
+                                                        {landingContent.requirement_items.map((item, index) => (
+                                                            <div key={`requirement-${index}`}>
+                                                                <FieldLabel>Requirement {index + 1}</FieldLabel>
+                                                                <textarea value={item} onChange={(e) => updateLandingTextItem('requirement_items', index, e.target.value)} rows={2} maxLength={500} className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+                                                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-600">Important Notices</p>
+                                                    <div className="space-y-2">
+                                                        {landingContent.requirement_notices.map((item, index) => (
+                                                            <div key={`requirement-notice-${index}`}>
+                                                                <FieldLabel>Notice {index + 1}</FieldLabel>
+                                                                <textarea value={item} onChange={(e) => updateLandingTextItem('requirement_notices', index, e.target.value)} rows={2} maxLength={500} className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {renderContentGroupActions('copy', 'requirements')}
                                         </div>
 
                                         <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">

@@ -19,6 +19,26 @@ const DEFAULT_LANDING_CONTENT = {
     { title: 'Monitor your status', description: 'Follow application updates, document review, and office announcements through SMaRT-PDM.' },
     { title: 'Wait for endorsement', description: 'OSFA and the designated offices review qualified applications before final scholar activation.' },
   ],
+  requirements_title: 'Application requirements',
+  requirements_description:
+    'Prepare clear and current copies of the required records before submitting your application through SMaRT-PDM.',
+  requirement_items: [
+    'Fully accomplished application form',
+    'Completed endorsement slip',
+    'Letter requesting scholarship or financial assistance',
+    'Latest Certificate of Registration (COR)',
+    'Latest Student Grade Form, with a GWA of 2.0 or better and no final grade of 5.0',
+    'Certificate of Indigency issued or certified by the Punong Barangay',
+    'Recent semi-formal photo for the applicant system profile',
+  ],
+  requirement_notices: [
+    'The applicant must be a resident of Marilao, Bulacan.',
+    'The applicant must not be receiving another scholarship grant.',
+    'The applicant must have no derogatory or disciplinary record from SDO.',
+    'Applications are processed on a first-come, first-served basis.',
+    'Available slots depend on the allocation provided by each benefactor.',
+    'Submitting complete requirements does not automatically guarantee approval.',
+  ],
   features_title: 'Built for scholarship operations',
   features_description:
     'Designed for applicants, scholars, and OSFA staff who need a clean, direct, and reliable workflow.',
@@ -165,6 +185,11 @@ function sanitizeLandingItems(items, defaults) {
   }));
 }
 
+function sanitizeLandingTextItems(items, defaults, maxLength = 500) {
+  const source = Array.isArray(items) ? items : defaults;
+  return defaults.map((fallback, index) => safeText(source[index], maxLength) || fallback);
+}
+
 function sanitizeLandingContent(content = {}) {
   const defaults = DEFAULT_LANDING_CONTENT;
   return {
@@ -177,6 +202,14 @@ function sanitizeLandingContent(content = {}) {
     guide_title: safeText(content.guide_title, 160) || defaults.guide_title,
     guide_description: safeText(content.guide_description, 400) || defaults.guide_description,
     guide_steps: sanitizeLandingItems(content.guide_steps, defaults.guide_steps),
+    requirements_title:
+      safeText(content.requirements_title, 160) || defaults.requirements_title,
+    requirements_description:
+      safeText(content.requirements_description, 600) || defaults.requirements_description,
+    requirement_items:
+      sanitizeLandingTextItems(content.requirement_items, defaults.requirement_items, 500),
+    requirement_notices:
+      sanitizeLandingTextItems(content.requirement_notices, defaults.requirement_notices, 500),
     features_title: safeText(content.features_title, 160) || defaults.features_title,
     features_description:
       safeText(content.features_description, 400) || defaults.features_description,

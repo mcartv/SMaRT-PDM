@@ -15,6 +15,26 @@ export const DEFAULT_LANDING_CONTENT = {
     { title: 'Monitor your status', description: 'Follow application updates, document review, and office announcements through SMaRT-PDM.' },
     { title: 'Wait for endorsement', description: 'OSFA and the designated offices review qualified applications before final scholar activation.' },
   ],
+  requirements_title: 'Application requirements',
+  requirements_description:
+    'Prepare clear and current copies of the required records before submitting your application through SMaRT-PDM.',
+  requirement_items: [
+    'Fully accomplished application form',
+    'Completed endorsement slip',
+    'Letter requesting scholarship or financial assistance',
+    'Latest Certificate of Registration (COR)',
+    'Latest Student Grade Form, with a GWA of 2.0 or better and no final grade of 5.0',
+    'Certificate of Indigency issued or certified by the Punong Barangay',
+    'Recent semi-formal photo for the applicant system profile',
+  ],
+  requirement_notices: [
+    'The applicant must be a resident of Marilao, Bulacan.',
+    'The applicant must not be receiving another scholarship grant.',
+    'The applicant must have no derogatory or disciplinary record from SDO.',
+    'Applications are processed on a first-come, first-served basis.',
+    'Available slots depend on the allocation provided by each benefactor.',
+    'Submitting complete requirements does not automatically guarantee approval.',
+  ],
   features_title: 'Built for scholarship operations',
   features_description:
     'Designed for applicants, scholars, and OSFA staff who need a clean, direct, and reliable workflow.',
@@ -45,5 +65,13 @@ export function mergeLandingContent(content) {
       Array.isArray(source.feature_items) && source.feature_items.length === 4
         ? source.feature_items
         : DEFAULT_LANDING_CONTENT.feature_items,
+    requirement_items:
+      Array.isArray(source.requirement_items) && source.requirement_items.length === 7
+        ? source.requirement_items
+        : DEFAULT_LANDING_CONTENT.requirement_items,
+    requirement_notices:
+      Array.isArray(source.requirement_notices) && source.requirement_notices.length === 6
+        ? source.requirement_notices
+        : DEFAULT_LANDING_CONTENT.requirement_notices,
   };
 }

@@ -5,9 +5,11 @@ import {
   ArrowUp,
   Bell,
   ChevronDown,
+  Database,
   Phone,
   Download,
   FileCheck2,
+  FileText,
   MapPin,
   Clock3,
   Globe2,
@@ -18,16 +20,23 @@ import {
   MessageSquare,
   ShieldCheck,
   Smartphone,
+  UserRound,
   UsersRound,
+  X,
 } from 'lucide-react';
 import useLandingTheme from '@/hooks/useLandingTheme';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
+import { DEFAULT_POLICY_CONTENT, mergePolicyContent } from '@/constants/policyContent';
 
 import pdmLogo from '../assets/pdm-logo.png';
 import pdmFacade from '../assets/PDM-Facade.png';
 import marilaoLogo from '../assets/MARILAO LOGO.png';
+import bcPackagingLogo from '../assets/BC PACKAGING.png';
+import foodCraftersLogo from '../assets/FOOD CRAFTERS.png';
+import kaizenFoundationLogo from '../assets/KAIZEN FOUNDATION.png';
+import pusongMapagkalingaLogo from '../assets/PUSONG MAPAGKALINGA.jpg';
 
 const APP_DOWNLOAD_URL =
   'https://www.mediafire.com/file/8157hvb8nuqiprf/SMaRT_PDM.apk/file';
@@ -51,6 +60,12 @@ function normalizePublicFaqItems(items = []) {
 }
 
 const featureIcons = [FileCheck2, Bell, MessageSquare, LockKeyhole];
+const benefactorLogos = {
+  'bc packaging': { src: bcPackagingLogo, scale: 1 },
+  'food crafters': { src: foodCraftersLogo, scale: 0.9 },
+  'kaizen foundation': { src: kaizenFoundationLogo, scale: 0.92 },
+  'pusong mapagkalinga': { src: pusongMapagkalingaLogo, scale: 1.7 },
+};
 
 const defaultFaqItems = [
   {
@@ -189,13 +204,8 @@ function StepCard({ step, title, description, theme }) {
 }
 
 function BenefactorCard({ benefactor, theme }) {
-  const initials = String(benefactor.benefactor_name || 'Benefactor')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase();
+  const normalizedName = String(benefactor.benefactor_name || '').trim().toLowerCase();
+  const logo = benefactorLogos[normalizedName];
 
   return (
     <div
@@ -205,11 +215,21 @@ function BenefactorCard({ benefactor, theme }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold"
-            style={{ background: theme.soft, color: theme.base }}
-            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-stone-200 bg-white p-1.5"
+            aria-label={`${benefactor.benefactor_name} logo`}
           >
-            {initials}
+            {logo ? (
+              <img
+                src={logo.src}
+                alt={`${benefactor.benefactor_name} logo`}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-contain"
+                style={{ transform: `scale(${logo.scale})` }}
+              />
+            ) : (
+              <UserRound size={24} strokeWidth={1.5} className="text-stone-400" aria-label="No profile image available" />
+            )}
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-stone-900">{benefactor.benefactor_name}</p>
@@ -222,7 +242,7 @@ function BenefactorCard({ benefactor, theme }) {
           className="rounded-full px-2.5 py-1 text-[10px] font-semibold"
           style={{ background: theme.soft, color: theme.base }}
         >
-          Partner
+          Benefactor
         </span>
       </div>
       <p className="mt-3 text-sm leading-6 text-stone-500">
@@ -276,11 +296,190 @@ function FaqCard({ item, theme, isOpen, onToggle, panelId }) {
   );
 }
 
+function PolicyModal({ type, content, theme, onClose }) {
+  const isPrivacy = type === 'privacy';
+  const isTerms = type === 'terms';
+  const title = isPrivacy ? 'Privacy Notice' : isTerms ? 'Terms of Use' : content.consent_title;
+  const intro = isPrivacy ? content.privacy_intro : isTerms ? content.terms_intro : content.consent_body;
+  const sections = isPrivacy ? content.privacy_sections : isTerms ? content.terms_sections : [];
+  const Icon = isPrivacy ? ShieldCheck : isTerms ? FileText : Database;
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="policy-modal-title"
+        className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <header className="flex items-start justify-between gap-4 px-5 py-5 text-white md:px-7" style={{ background: theme.dark }}>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: theme.accent, color: theme.dark }}>
+              <Icon size={20} aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">OSFA Public Information</p>
+              <h2 id="policy-modal-title" className="mt-1 text-xl font-bold md:text-2xl">{title}</h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            aria-label={`Close ${title}`}
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="overflow-y-auto px-5 py-6 md:px-7">
+          <p className="text-sm leading-7 text-stone-600">{intro}</p>
+          <p className="mt-4 text-xs font-bold uppercase tracking-wide" style={{ color: theme.danger }}>
+            Effective {content.effective_date}
+          </p>
+
+          {sections.length ? (
+            <div className="mt-6 divide-y divide-stone-200 border-y border-stone-200">
+              {sections.map((section) => (
+                <section key={section.title} className="py-5">
+                  <h3 className="text-sm font-bold text-stone-900 md:text-base">{section.title}</h3>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-stone-600">{section.body}</p>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6 border-t border-stone-200 pt-5">
+              <p className="whitespace-pre-line text-sm leading-7 text-stone-600">{content.consent_note}</p>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function RequirementsModal({ content, theme, onClose }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="requirements-modal-title"
+        className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <header className="flex items-start justify-between gap-4 px-5 py-5 text-white md:px-7" style={{ background: theme.dark }}>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: theme.accent, color: theme.dark }}>
+              <FileCheck2 size={20} aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">Applicant Checklist</p>
+              <h2 id="requirements-modal-title" className="mt-1 text-xl font-bold md:text-2xl">
+                {content.requirements_title}
+              </h2>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            aria-label="Close application requirements"
+          >
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="overflow-y-auto px-5 py-6 md:px-7">
+          <p className="max-w-3xl text-sm leading-7 text-stone-600">
+            {content.requirements_description}
+          </p>
+
+          <div className="mt-6 grid gap-7 lg:grid-cols-[1.15fr_0.85fr]">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
+                Required documents
+              </h3>
+              <ol className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
+                {content.requirement_items.map((item, index) => (
+                  <li key={`${index}-${item}`} className="flex gap-3 py-3.5 text-sm leading-6 text-stone-700">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: theme.soft, color: theme.base }}>
+                      {index + 1}
+                    </span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <aside className="rounded-xl p-5" style={{ background: theme.soft }}>
+              <div className="flex items-center gap-2" style={{ color: theme.dark }}>
+                <ShieldCheck size={18} aria-hidden="true" />
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em]">Important notices</h3>
+              </div>
+              <ul className="mt-3 space-y-3">
+                {content.requirement_notices.map((item) => (
+                  <li key={item} className="flex gap-2.5 text-sm leading-6 text-stone-700">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: theme.danger }} />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
-  const [activeFaq, setActiveFaq] = useState(0);
+  const [activeFaq, setActiveFaq] = useState(-1);
   const [activeSection, setActiveSection] = useState('home');
+  const [activePolicy, setActivePolicy] = useState(null);
+  const [showRequirements, setShowRequirements] = useState(false);
+  const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
@@ -300,7 +499,7 @@ export default function SmartPDMLanding() {
   const hasFeaturedNotice = Boolean(generalSettings.featured_notice);
   const navigationItems = [
     ['Home', '#home'],
-    ...(benefactors.length ? [['Benefactors', '#partners']] : []),
+    ...(benefactors.length ? [['Benefactors', '#benefactors']] : []),
     ['Guide', '#guide'],
     ['About', '#about'],
     ['FAQ', '#faq'],
@@ -349,7 +548,7 @@ export default function SmartPDMLanding() {
   }, []);
 
   useEffect(() => {
-    const sectionIds = ['home', 'partners', 'guide', 'about', 'faq', 'contact'];
+    const sectionIds = ['home', 'benefactors', 'guide', 'about', 'faq', 'contact'];
     let frameId;
 
     const updateActiveSection = () => {
@@ -430,6 +629,7 @@ export default function SmartPDMLanding() {
         }
 
         if (active) {
+          setPolicyContent(mergePolicyContent(payload?.policy_content));
           setGeneralSettings((current) => ({
             ...current,
             office_name: payload?.office_name || current.office_name,
@@ -466,6 +666,9 @@ export default function SmartPDMLanding() {
     (payload) => {
       if (payload?.source !== 'general_settings') return;
       const settings = payload?.settings || {};
+      if (settings?.policy_content) {
+        setPolicyContent(mergePolicyContent(settings.policy_content));
+      }
       setGeneralSettings((current) => ({
         ...current,
         office_name: settings?.office_name || current.office_name,
@@ -564,8 +767,8 @@ export default function SmartPDMLanding() {
           transition: transform 280ms ease, box-shadow 280ms ease, border-color 280ms ease;
         }
         .landing-interactive-card:hover {
-          transform: translateY(-5px);
-          box-shadow: 0 16px 34px rgba(55, 35, 20, 0.10);
+          transform: translateY(-3px);
+          box-shadow: 0 12px 28px rgba(55, 35, 20, 0.08);
           border-color: ${theme.accent}88;
         }
         .landing-faq-answer {
@@ -612,28 +815,25 @@ export default function SmartPDMLanding() {
           isolation: isolate;
           box-shadow: 0 0 0 100vmax var(--zone-background);
           clip-path: inset(0 -100vmax);
+          border-top: 1px solid ${theme.accent}38;
         }
         .landing-zone-discover {
-          --zone-background: ${theme.soft};
+          --zone-background: #fbf7eb;
           background:
-            radial-gradient(circle at 8% 18%, ${theme.accent}22 0, transparent 24%),
-            radial-gradient(circle at 92% 72%, ${theme.base}12 0, transparent 26%),
-            ${theme.soft};
+            radial-gradient(circle at 92% 8%, ${theme.accent}12 0, transparent 22%),
+            linear-gradient(180deg, #fffaf0 0%, #fbf7eb 100%);
         }
         .landing-zone-process {
           --zone-background: #fffdf9;
-          background-color: #fffdf9;
-          background-image:
-            linear-gradient(${theme.base}0c 1px, transparent 1px),
-            linear-gradient(90deg, ${theme.base}0c 1px, transparent 1px);
-          background-size: 34px 34px;
+          background:
+            linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, transparent 48%),
+            #fffdf9;
         }
         .landing-zone-bridge {
-          --zone-background: #f4f7f5;
+          --zone-background: #f7f3ec;
           background:
-            radial-gradient(circle at 4% 82%, ${theme.base}14 0, transparent 25%),
-            radial-gradient(circle at 96% 16%, ${theme.accent}18 0, transparent 24%),
-            linear-gradient(135deg, #f8faf9 0%, ${theme.soft} 52%, #f6f3ee 100%);
+            radial-gradient(circle at 6% 90%, ${theme.base}0d 0, transparent 22%),
+            linear-gradient(135deg, #faf7f1 0%, #f7f3ec 100%);
         }
         .landing-zone-notice {
           background:
@@ -649,27 +849,24 @@ export default function SmartPDMLanding() {
           transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
         }
         .landing-highlight-card:hover {
-          transform: translateY(-3px);
+          transform: translateY(-2px);
           border-color: ${theme.base}42;
-          box-shadow: 0 16px 38px -26px ${theme.dark}66;
+          box-shadow: 0 12px 30px -24px ${theme.dark}55;
         }
         .landing-zone-support {
           --zone-background: #f7f4ef;
           background:
-            radial-gradient(ellipse at 90% 10%, ${theme.accent}18 0, transparent 30%),
-            linear-gradient(180deg, #faf8f4 0%, #f4f0e9 100%);
+            radial-gradient(ellipse at 96% 4%, ${theme.accent}0d 0, transparent 24%),
+            linear-gradient(180deg, #faf8f4 0%, #f7f4ef 100%);
         }
         .landing-zone-support::before {
-          content: '';
-          position: absolute;
-          z-index: -1;
-          left: -9rem;
-          top: 2rem;
-          width: 19rem;
-          height: 19rem;
-          border-radius: 999px;
-          background: ${theme.base}0d;
-          filter: blur(2px);
+          content: none;
+        }
+        .landing-zone-discover .shadow-sm,
+        .landing-zone-process .shadow-sm,
+        .landing-zone-bridge .shadow-sm,
+        .landing-zone-support .shadow-sm {
+          box-shadow: 0 5px 18px rgba(72, 44, 25, 0.055);
         }
         .landing-footer {
           background:
@@ -960,7 +1157,7 @@ export default function SmartPDMLanding() {
       </section>
 
       {benefactors.length ? (
-        <section id="partners" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-12 md:px-8">
+        <section id="benefactors" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-12 md:px-8">
           <div
             className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
             style={{ background: '#ffffff', borderColor: theme.border }}
@@ -971,12 +1168,12 @@ export default function SmartPDMLanding() {
                   Benefactors
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-stone-900">
-                  Scholarship partners and funding support
+                  Scholarship benefactors and funding support
                 </h2>
               </div>
 
               <p className="max-w-md text-sm leading-6 text-stone-500">
-                These partner organizations and funding sources help make scholarship access possible for PDM students.
+                These benefactors and funding sources help make scholarship access possible for PDM students.
               </p>
             </div>
 
@@ -1084,28 +1281,35 @@ export default function SmartPDMLanding() {
       </section>
 
       <section className="landing-zone-bridge mx-auto w-full max-w-[84rem] px-5 pb-14 pt-14 md:px-8">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div
-            className="rounded-[1.75rem] border bg-white/85 p-6 shadow-sm"
-            style={{ borderColor: theme.border }}
+            className="landing-highlight-card relative overflow-hidden rounded-[1.75rem] border-2 bg-white p-6 shadow-md md:p-7"
+            style={{ borderColor: `${theme.accent}8f` }}
           >
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-              Eligibility Overview
-            </p>
+            <span className="absolute inset-x-0 top-0 h-1.5" style={{ background: theme.accent }} aria-hidden="true" />
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: theme.soft, color: theme.base }}>
+                <FileCheck2 size={20} aria-hidden="true" />
+              </span>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+                Eligibility Overview
+              </p>
+            </div>
             <h2 className="mt-2 text-xl font-bold text-stone-900">
               Check whether a scholarship may be right for you.
             </h2>
-            <p className="mt-3 text-sm leading-7 text-stone-600">
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-stone-600">
               {generalSettings.eligibility_summary}
             </p>
-            <a
-              href="#faq"
-              className="mt-5 inline-flex items-center gap-2 text-sm font-bold transition hover:opacity-75"
-              style={{ color: theme.base }}
+            <button
+              type="button"
+              onClick={() => setShowRequirements(true)}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition hover:-translate-y-0.5 hover:brightness-105 hover:shadow-md"
+              style={{ background: theme.accent, color: theme.dark }}
             >
-              View eligibility guidance
+              View application requirements
               <ArrowRight size={16} aria-hidden="true" />
-            </a>
+            </button>
           </div>
 
           <div
@@ -1212,84 +1416,35 @@ export default function SmartPDMLanding() {
       </section>
       ) : null}
 
-      <section id="contact" className="landing-zone-support mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-14 md:px-8">
-        <div
-          className="rounded-[2rem] border px-6 py-6 md:px-8"
-          style={{ background: theme.base, borderColor: theme.border }}
-        >
-          <div className="mb-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/70">
-              Contact Information
-            </p>
-            <p className="mt-2 text-lg font-semibold text-white">
-              {generalSettings.office_name}
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <MapPin className="h-4 w-4" />
-                Office Address
-              </div>
-              <p className="mt-3 text-base font-semibold">
-                {generalSettings.office_address}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                Main office destination for OSFA-related transactions and follow-up.
-              </p>
-            </div>
-
-            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Phone className="h-4 w-4" />
-                Landline Number
-              </div>
-              <p className="mt-3 text-base font-semibold">
-                {generalSettings.landline_number}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                Office contact line for public inquiries and coordination.
-              </p>
-            </div>
-
-            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Clock3 className="h-4 w-4" />
-                Office Hours
-              </div>
-              <p className="mt-3 text-base font-semibold">
-                {generalSettings.office_hours}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                Public service window for in-person follow-up and scholarship transactions.
-              </p>
-            </div>
-
-            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Mail className="h-4 w-4" />
-                Email
-              </div>
-              <p className="mt-3 break-words text-base font-semibold">
-                {generalSettings.office_email}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                Official channel for public scholarship questions and assistance.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
       </main>
 
-      <footer className="landing-footer overflow-hidden border-t-4 px-5 pt-8 md:px-8 lg:px-10" style={{ borderTopColor: theme.accent, background: theme.pageBg }}>
-        <div className="w-full">
-          <div className="grid gap-6 px-1 pb-8 md:grid-cols-[1fr_auto] md:items-center">
+      <footer
+        id="contact"
+        className="landing-footer scroll-mt-16 overflow-hidden border-t-4 px-5 pt-7 text-white md:px-8 lg:px-10"
+        style={{
+          borderTopColor: theme.accent,
+          background: `linear-gradient(135deg, ${theme.dark} 0%, #24140d 100%)`,
+        }}
+      >
+        <div className="mx-auto w-full max-w-[96rem]">
+          <div className="grid gap-8 border-b border-white/15 pb-7 lg:grid-cols-[1.15fr_1.25fr_0.8fr]">
             <div>
-              <p className="text-sm font-bold text-stone-900">SMaRT-PDM</p>
-              <p className="mt-1 text-sm text-stone-600">{generalSettings.office_name}</p>
-              <p className="mt-2 text-xs text-stone-500">
+              <div className="flex items-center gap-4">
+                <div className="flex shrink-0 items-center gap-2.5" aria-label="PDM and Municipality of Marilao">
+                  <img src={pdmLogo} alt="PDM seal" className="h-14 w-14 object-contain" />
+                  <span className="h-9 w-px bg-white/25" aria-hidden="true" />
+                  <img
+                    src={marilaoLogo}
+                    alt="Municipality of Marilao seal"
+                    className="h-11 w-11 rounded-full bg-white object-contain"
+                  />
+                </div>
+                <div className="min-w-0 border-l border-white/15 pl-4">
+                  <p className="text-base font-bold text-white">SMaRT-PDM</p>
+                  <p className="mt-1 text-xs leading-5 text-white/70">{generalSettings.office_name}</p>
+                </div>
+              </div>
+              <p className="mt-4 max-w-lg text-sm leading-6 text-white/60">
                 Official scholarship monitoring platform of Pambayang Dalubhasaan ng Marilao.
               </p>
               <a
@@ -1297,65 +1452,79 @@ export default function SmartPDMLanding() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Download the SMaRT-PDM app"
-                className="mt-4 inline-flex min-w-[184px] items-center gap-3 rounded-lg border border-stone-700 bg-black px-3.5 py-2 text-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-stone-900 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-stone-300"
+                className="mt-4 inline-flex min-w-[174px] items-center gap-2.5 rounded-lg border border-white/20 bg-black/70 px-3 py-2 text-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-black hover:shadow-md focus:outline-none focus:ring-4 focus:ring-white/15"
               >
-                <Smartphone className="h-8 w-8 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <Smartphone className="h-7 w-7 shrink-0" strokeWidth={1.8} aria-hidden="true" />
                 <span className="text-left">
                   <span className="block text-[10px] font-medium uppercase leading-none tracking-wide text-white/80">
                     Download the
                   </span>
-                  <span className="mt-1 block text-lg font-semibold leading-none">
+                  <span className="mt-1 block text-base font-semibold leading-none">
                     SMaRT-PDM App
                   </span>
                 </span>
               </a>
             </div>
 
-            <div className="flex flex-wrap gap-2 md:justify-end">
-              <Link to="/privacy" className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100">
-                Privacy Notice
-              </Link>
-              <Link to="/terms" className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100">
-                Terms of Use
-              </Link>
-              <Link to="/privacy#data-processing-consent" className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100">
-                Data Processing Consent
-              </Link>
-              <a
-                href={PDM_FACEBOOK_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100"
-              >
-                <Globe2 className="h-4 w-4" />
-                PDM Facebook
-              </a>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.accent }}>
+                Office Contact
+              </p>
+              <div className="mt-4 grid gap-x-7 gap-y-4 text-sm text-white/75 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                <div className="flex items-start gap-3">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: theme.accent }} />
+                  <span>{generalSettings.office_address}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Phone className="h-4 w-4 shrink-0" style={{ color: theme.accent }} />
+                  <span>{generalSettings.landline_number}</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Clock3 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: theme.accent }} />
+                  <span>{generalSettings.office_hours}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 shrink-0" style={{ color: theme.accent }} />
+                  <span className="break-all">{generalSettings.office_email}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.accent }}>
+                Public Links
+              </p>
+              <div className="mt-4 flex flex-col items-start gap-3 text-sm">
+                <button type="button" onClick={() => setActivePolicy('privacy')} className="text-white/70 transition hover:text-white">
+                  Privacy Notice
+                </button>
+                <button type="button" onClick={() => setActivePolicy('terms')} className="text-white/70 transition hover:text-white">
+                  Terms of Use
+                </button>
+                <button type="button" onClick={() => setActivePolicy('consent')} className="text-left text-white/70 transition hover:text-white">
+                  Data Processing Consent
+                </button>
+                <a
+                  href={PDM_FACEBOOK_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-xs font-bold shadow-sm transition duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-md focus:outline-none focus:ring-4"
+                  style={{
+                    background: theme.accent,
+                    borderColor: `${theme.accent}`,
+                    color: theme.dark,
+                    '--tw-ring-color': `${theme.accent}40`,
+                  }}
+                >
+                  <Globe2 className="h-4 w-4" />
+                  Visit PDM Facebook
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </a>
+              </div>
             </div>
           </div>
 
-          <div
-            className="relative flex flex-col gap-4 border-t-4 px-1 py-5 text-center md:flex-row md:items-center md:justify-between md:text-left"
-            style={{
-              background: theme.dark,
-              borderTopColor: theme.accent,
-              boxShadow: `0 0 0 100vmax ${theme.dark}`,
-              clipPath: 'inset(0 -100vmax)',
-            }}
-          >
-            <div className="flex items-center justify-center gap-3" aria-label="PDM and Municipality of Marilao">
-              <img
-                src={pdmLogo}
-                alt="PDM seal"
-                className="h-12 w-12 object-contain"
-              />
-              <span className="h-9 w-px bg-white/25" aria-hidden="true" />
-              <img
-                src={marilaoLogo}
-                alt="Municipality of Marilao seal"
-                className="h-11 w-11 rounded-full bg-white object-contain"
-              />
-            </div>
-
+          <div className="flex flex-col gap-2 py-4 text-center md:flex-row md:items-center md:justify-between md:text-left">
             <p className="text-xs font-semibold text-white">
               SMaRT-PDM · Office for Scholarship and Financial Assistance
             </p>
@@ -1366,6 +1535,23 @@ export default function SmartPDMLanding() {
           </div>
         </div>
       </footer>
+
+      {activePolicy ? (
+        <PolicyModal
+          type={activePolicy}
+          content={policyContent}
+          theme={theme}
+          onClose={() => setActivePolicy(null)}
+        />
+      ) : null}
+
+      {showRequirements ? (
+        <RequirementsModal
+          content={generalSettings.landing_content}
+          theme={theme}
+          onClose={() => setShowRequirements(false)}
+        />
+      ) : null}
 
       <button
         type="button"

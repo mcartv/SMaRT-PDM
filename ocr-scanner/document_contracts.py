@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping
 
 
 @dataclass(frozen=True)
@@ -155,13 +155,53 @@ def build_indigency_extracted_fields_from_result(
         for field in getattr(getattr(extraction_result, "data", None), "fields", ())
     }
     fields: Dict[str, Any] = {}
+    candidate_sources = {"pre_title_header", "none", "ambiguous"}
+    value_sources = {"positional", "crop_ocr", "none"}
+    positional_statuses = {
+        "valid",
+        "invalid",
+        "not_attempted",
+        "not_implemented",
+    }
+    crop_statuses = {
+        "not_attempted",
+        "empty",
+        "valid",
+        "invalid",
+        "non_empty_accepted",
+        "exception",
+    }
+    failure_stages = {
+        "none",
+        "candidate_selection",
+        "crop_generation",
+        "crop_ocr",
+    }
+    token_filter_statuses = {
+        "unchanged",
+        "detached_low_confidence_removed",
+        "unsafe_to_filter",
+        "not_attempted",
+    }
+
+    def diagnostic_value(diagnostics: Any, name: str, default: Any) -> Any:
+        if isinstance(diagnostics, Mapping):
+            return diagnostics.get(name, default)
+        return getattr(diagnostics, name, default)
+
+    def numeric_sequence(diagnostics: Any, name: str) -> list[float | int]:
+        value = diagnostic_value(diagnostics, name, ()) or ()
+        if not isinstance(value, (list, tuple)):
+            return []
+        return [item for item in value if isinstance(item, (int, float))]
+
     for field_name in (
         "certificate_subject_name",
         "issue_date",
         "issuing_barangay",
     ):
         field = result_fields.get(field_name)
-        fields[field_name] = {
+        field_payload = {
             "raw_text": str(getattr(field, "raw_text", "") or ""),
             "success": bool(getattr(field, "success", False)),
             "review_required": True,
@@ -172,6 +212,146 @@ def build_indigency_extracted_fields_from_result(
             "anchor": str(getattr(field, "anchor", "") or ""),
             "normalized_bounds": getattr(field, "normalized_bounds", None),
         }
+        diagnostics = getattr(field, "diagnostics", None)
+        if diagnostics is not None:
+            candidate_source = str(
+                diagnostic_value(diagnostics, "candidate_source", "none") or "none"
+            )
+            crop_status = str(
+                diagnostic_value(
+                    diagnostics,
+                    "crop_validation_status",
+                    "not_attempted",
+                )
+                or "not_attempted"
+            )
+            failure_stage = str(
+                diagnostic_value(diagnostics, "failure_stage", "none") or "none"
+            )
+            value_source = str(
+                diagnostic_value(diagnostics, "value_source", "none") or "none"
+            )
+            positional_status = str(
+                diagnostic_value(
+                    diagnostics,
+                    "positional_validation_status",
+                    "not_attempted",
+                )
+                or "not_attempted"
+            )
+            token_filter_status = str(
+                diagnostic_value(
+                    diagnostics,
+                    "token_filter_status",
+                    "not_attempted",
+                )
+                or "not_attempted"
+            )
+            field_payload["diagnostics"] = {
+                "candidate_found": bool(
+                    diagnostic_value(diagnostics, "candidate_found", False)
+                ),
+                "candidate_count": max(
+                    0,
+                    int(diagnostic_value(diagnostics, "candidate_count", 0) or 0),
+                ),
+                "candidate_token_count": max(
+                    0,
+                    int(
+                        diagnostic_value(diagnostics, "candidate_token_count", 0)
+                        or 0
+                    ),
+                ),
+                "candidate_word_confidences": numeric_sequence(
+                    diagnostics,
+                    "candidate_word_confidences",
+                ),
+                "candidate_horizontal_gaps": numeric_sequence(
+                    diagnostics,
+                    "candidate_horizontal_gaps",
+                ),
+                "candidate_gap_ratios": numeric_sequence(
+                    diagnostics,
+                    "candidate_gap_ratios",
+                ),
+                "candidate_word_count_before_filter": max(
+                    0,
+                    int(
+                        diagnostic_value(
+                            diagnostics,
+                            "candidate_word_count_before_filter",
+                            0,
+                        )
+                        or 0
+                    ),
+                ),
+                "candidate_word_count_after_filter": max(
+                    0,
+                    int(
+                        diagnostic_value(
+                            diagnostics,
+                            "candidate_word_count_after_filter",
+                            0,
+                        )
+                        or 0
+                    ),
+                ),
+                "token_filter_status": (
+                    token_filter_status
+                    if token_filter_status in token_filter_statuses
+                    else "not_attempted"
+                ),
+                "removed_token_count": min(
+                    1,
+                    max(
+                        0,
+                        int(
+                            diagnostic_value(
+                                diagnostics,
+                                "removed_token_count",
+                                0,
+                            )
+                            or 0
+                        ),
+                    ),
+                ),
+                "candidate_source": (
+                    candidate_source
+                    if candidate_source in candidate_sources
+                    else "none"
+                ),
+                "anchor_found": bool(
+                    diagnostic_value(diagnostics, "anchor_found", False)
+                ),
+                "bounds_present": bool(
+                    diagnostic_value(diagnostics, "bounds_present", False)
+                ),
+                "crop_attempted": bool(
+                    diagnostic_value(diagnostics, "crop_attempted", False)
+                ),
+                "crop_returned_text": bool(
+                    diagnostic_value(diagnostics, "crop_returned_text", False)
+                ),
+                "value_source": (
+                    value_source if value_source in value_sources else "none"
+                ),
+                "positional_validation_status": (
+                    positional_status
+                    if positional_status in positional_statuses
+                    else "not_attempted"
+                ),
+                "crop_validation_status": (
+                    crop_status
+                    if crop_status in crop_statuses
+                    else "not_attempted"
+                ),
+                "failure_stage": (
+                    failure_stage
+                    if failure_stage in failure_stages
+                    else "none"
+                ),
+            }
+        fields[field_name] = field_payload
 
     return {
         "document_type": "certificate_of_indigency",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from types import MappingProxyType
@@ -44,6 +45,12 @@ class IndigencyExtractionConfig:
     elevated_deskew_degrees: float = 3.0
     maximum_deskew_degrees: float = 7.0
     crop_padding_pixels: int = 4
+    maximum_barangay_length: int = 80
+    minimum_leading_word_confidence: float = 85.0
+    maximum_trailing_noise_confidence: float = 40.0
+    minimum_confidence_drop: float = 40.0
+    minimum_detached_gap_ratio: float = 2.0
+    maximum_detached_tokens_removed: int = 1
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,29 @@ class PositionalWord:
 
 
 @dataclass(frozen=True)
+class IndigencyFieldDiagnostics:
+    candidate_found: bool
+    candidate_count: int
+    candidate_token_count: int
+    candidate_word_confidences: tuple[float, ...]
+    candidate_horizontal_gaps: tuple[int, ...]
+    candidate_gap_ratios: tuple[float, ...]
+    candidate_word_count_before_filter: int
+    candidate_word_count_after_filter: int
+    token_filter_status: str
+    removed_token_count: int
+    candidate_source: str
+    anchor_found: bool
+    bounds_present: bool
+    crop_attempted: bool
+    crop_returned_text: bool
+    value_source: str
+    positional_validation_status: str
+    crop_validation_status: str
+    failure_stage: str
+
+
+@dataclass(frozen=True)
 class IndigencyFieldResult:
     name: str
     raw_text: str
@@ -79,6 +109,7 @@ class IndigencyFieldResult:
     detection_variant: str
     anchor: str
     normalized_bounds: tuple[float, float, float, float] | None
+    diagnostics: IndigencyFieldDiagnostics | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +117,9 @@ class IndigencyExtractionOutput:
     fields: tuple[IndigencyFieldResult, ...]
     field_count: int
     detection_variant: str
+    selected_orientation: str
+    selected_detection_variant: str
+    candidate_count: int
     deskew_angle_degrees: float
     title_anchor: str
     anchor_metadata: Mapping[str, Mapping[str, Any]]
@@ -131,10 +165,18 @@ def _validate_image(image: Any) -> np.ndarray:
     return np.ascontiguousarray(image.copy())
 
 
-def _orient_portrait(image: np.ndarray) -> np.ndarray:
-    if image.shape[1] <= image.shape[0]:
-        return image.copy()
-    return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+def _orientation_candidates(
+    image: np.ndarray,
+) -> tuple[tuple[str, np.ndarray], ...]:
+    return (
+        ("original", image.copy()),
+        ("clockwise_90", cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)),
+        (
+            "counterclockwise_90",
+            cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE),
+        ),
+        ("180", cv2.rotate(image, cv2.ROTATE_180)),
+    )
 
 
 def _grayscale(image: np.ndarray) -> np.ndarray:
@@ -305,17 +347,30 @@ def _title_candidate(
     return min(candidates, key=lambda candidate: min(word.top for word in candidate))
 
 
-def _variant_score(words: Sequence[PositionalWord], image_height: int, config: IndigencyExtractionConfig) -> int:
-    score = 0
-    if _title_candidate(words, image_height, config.title_maximum_y):
-        score += 1000
+def _variant_score(
+    words: Sequence[PositionalWord],
+    image_height: int,
+    config: IndigencyExtractionConfig,
+) -> tuple[int, int, int, int]:
+    title_present = int(
+        _title_candidate(words, image_height, config.title_maximum_y) is not None
+    )
     paragraphs = _group_paragraphs(words)
-    if any(_find_phrase(paragraph, SUBJECT_ANCHOR) for paragraph in paragraphs):
-        score += 100
-    if any(any(_find_phrase(paragraph, anchor) for anchor in DATE_ANCHORS) for paragraph in paragraphs):
-        score += 50
-    score += min(len(words), 200)
-    return score
+    subject_present = int(
+        any(_find_phrase(paragraph, SUBJECT_ANCHOR) for paragraph in paragraphs)
+    )
+    date_present = int(
+        any(
+            any(_find_phrase(paragraph, anchor) for anchor in DATE_ANCHORS)
+            for paragraph in paragraphs
+        )
+    )
+    return (
+        title_present,
+        subject_present,
+        date_present,
+        len(words),
+    )
 
 
 def _bounds(words: Sequence[PositionalWord], image_shape: tuple[int, ...]) -> tuple[int, int, int, int]:
@@ -500,6 +555,17 @@ def _valid_visible_date(text: str) -> bool:
     return False
 
 
+def _sanitize_positional_date_token(value: Any) -> str:
+    text = "" if value is None else str(value)
+    start = 0
+    stop = len(text)
+    while start < stop and not text[start].isalnum():
+        start += 1
+    while stop > start and not text[stop - 1].isalnum():
+        stop -= 1
+    return text[start:stop]
+
+
 def _read_field(
     name: str,
     words: Sequence[PositionalWord] | None,
@@ -538,6 +604,419 @@ def _read_field(
     )
 
 
+def _read_date_field(
+    words: Sequence[PositionalWord] | None,
+    anchor: str,
+    source_image: np.ndarray,
+    variant: str,
+    reader: FieldReader,
+    config: IndigencyExtractionConfig,
+) -> IndigencyFieldResult:
+    if not words:
+        return _empty_field("issue_date", variant, "ISSUE_DATE_NOT_EXTRACTED")
+
+    ordered_words = tuple(sorted(words, key=lambda word: word.order))
+    bounds = _bounds(ordered_words, source_image.shape)
+    positional_text = " ".join(
+        token
+        for token in (
+            _sanitize_positional_date_token(word.text)
+            for word in ordered_words
+        )
+        if token
+    )
+    if _valid_visible_date(positional_text):
+        raw_text = positional_text
+    else:
+        crop = _crop(source_image, bounds, config.crop_padding_pixels)
+        if crop.size == 0:
+            return _empty_field(
+                "issue_date",
+                variant,
+                "ISSUE_DATE_NOT_EXTRACTED",
+            )
+        try:
+            raw_text = _normalize_field_text(reader(crop.copy(), "issue_date"))
+        except Exception:
+            raw_text = ""
+        if not _valid_visible_date(raw_text):
+            return _empty_field(
+                "issue_date",
+                variant,
+                "ISSUE_DATE_NOT_EXTRACTED",
+            )
+
+    return IndigencyFieldResult(
+        name="issue_date",
+        raw_text=raw_text,
+        success=True,
+        review_required=True,
+        issue_codes=(),
+        detection_variant=variant,
+        anchor=anchor,
+        normalized_bounds=_normalized_bounds(bounds, source_image.shape),
+    )
+
+
+def _barangay_diagnostics(
+    *,
+    candidate_found: bool,
+    candidate_count: int,
+    candidate_token_count: int,
+    candidate_word_confidences: tuple[float, ...],
+    candidate_horizontal_gaps: tuple[int, ...],
+    candidate_gap_ratios: tuple[float, ...],
+    candidate_word_count_before_filter: int,
+    candidate_word_count_after_filter: int,
+    token_filter_status: str,
+    removed_token_count: int,
+    candidate_source: str,
+    anchor_found: bool,
+    bounds_present: bool,
+    crop_attempted: bool,
+    crop_returned_text: bool,
+    value_source: str,
+    positional_validation_status: str,
+    crop_validation_status: str,
+    failure_stage: str,
+) -> IndigencyFieldDiagnostics:
+    return IndigencyFieldDiagnostics(
+        candidate_found=candidate_found,
+        candidate_count=candidate_count,
+        candidate_token_count=candidate_token_count,
+        candidate_word_confidences=candidate_word_confidences,
+        candidate_horizontal_gaps=candidate_horizontal_gaps,
+        candidate_gap_ratios=candidate_gap_ratios,
+        candidate_word_count_before_filter=candidate_word_count_before_filter,
+        candidate_word_count_after_filter=candidate_word_count_after_filter,
+        token_filter_status=token_filter_status,
+        removed_token_count=removed_token_count,
+        candidate_source=candidate_source,
+        anchor_found=anchor_found,
+        bounds_present=bounds_present,
+        crop_attempted=crop_attempted,
+        crop_returned_text=crop_returned_text,
+        value_source=value_source,
+        positional_validation_status=positional_validation_status,
+        crop_validation_status=crop_validation_status,
+        failure_stage=failure_stage,
+    )
+
+
+def _normalize_barangay_value(value: Any) -> tuple[str, bool]:
+    text = "" if value is None else str(value)
+    contains_control = any(
+        unicodedata.category(character) == "Cc" for character in text
+    )
+    tokens = (
+        _sanitize_positional_date_token(token)
+        for token in text.split()
+    )
+    normalized = _normalize_field_text(" ".join(token for token in tokens if token))
+    return normalized, contains_control
+
+
+def _barangay_word_metrics(
+    words: Sequence[PositionalWord],
+) -> tuple[tuple[float, ...], tuple[int, ...], tuple[float, ...]]:
+    ordered = tuple(sorted(words, key=lambda word: word.left))
+    confidences = tuple(round(float(word.confidence), 3) for word in ordered)
+    gaps = tuple(
+        int(current.left - previous.right)
+        for previous, current in zip(ordered, ordered[1:])
+    )
+    gap_ratios = tuple(
+        round(gap / max(previous.height, current.height, 1), 3)
+        for gap, (previous, current) in zip(
+            gaps,
+            zip(ordered, ordered[1:]),
+        )
+    )
+    return confidences, gaps, gap_ratios
+
+
+def _filter_detached_barangay_noise(
+    words: Sequence[PositionalWord],
+    config: IndigencyExtractionConfig,
+) -> tuple[tuple[PositionalWord, ...], str, int]:
+    ordered = tuple(sorted(words, key=lambda word: word.left))
+    if len(ordered) < 2:
+        return ordered, "unchanged", 0
+
+    previous = ordered[-2]
+    trailing = ordered[-1]
+    gap = trailing.left - previous.right
+    gap_ratio = gap / max(previous.height, trailing.height, 1)
+    low_confidence = (
+        trailing.confidence < config.maximum_trailing_noise_confidence
+    )
+    detached = gap_ratio > config.minimum_detached_gap_ratio
+    strong_predecessor = (
+        previous.confidence >= config.minimum_leading_word_confidence
+    )
+    sufficient_confidence_drop = (
+        previous.confidence - trailing.confidence
+        >= config.minimum_confidence_drop
+    )
+    removal_allowed = config.maximum_detached_tokens_removed >= 1
+
+    if (
+        low_confidence
+        and detached
+        and strong_predecessor
+        and sufficient_confidence_drop
+        and removal_allowed
+    ):
+        return ordered[:-1], "detached_low_confidence_removed", 1
+
+    all_words_strong = all(
+        word.confidence >= config.minimum_leading_word_confidence
+        for word in ordered
+    )
+    all_gaps_connected = all(
+        (current.left - previous.right)
+        / max(previous.height, current.height, 1)
+        <= config.minimum_detached_gap_ratio
+        for previous, current in zip(ordered, ordered[1:])
+    )
+    if all_words_strong and all_gaps_connected:
+        return ordered, "unchanged", 0
+    return ordered, "unsafe_to_filter", 0
+
+
+def _valid_barangay_value(
+    value: str,
+    *,
+    contains_control: bool,
+    maximum_length: int,
+) -> bool:
+    return (
+        1 <= len(value) <= maximum_length
+        and not contains_control
+        and any(character.isalpha() for character in value)
+        and value.casefold() != "barangay"
+    )
+
+
+def _read_issuing_barangay_field(
+    candidates: Sequence[Sequence[PositionalWord]],
+    source_image: np.ndarray,
+    variant: str,
+    reader: FieldReader,
+    config: IndigencyExtractionConfig,
+) -> IndigencyFieldResult:
+    candidate_count = len(candidates)
+    if candidate_count != 1:
+        diagnostics = _barangay_diagnostics(
+            candidate_found=candidate_count > 0,
+            candidate_count=candidate_count,
+            candidate_token_count=0,
+            candidate_word_confidences=(),
+            candidate_horizontal_gaps=(),
+            candidate_gap_ratios=(),
+            candidate_word_count_before_filter=0,
+            candidate_word_count_after_filter=0,
+            token_filter_status="not_attempted",
+            removed_token_count=0,
+            candidate_source="ambiguous" if candidate_count > 1 else "none",
+            anchor_found=candidate_count > 0,
+            bounds_present=False,
+            crop_attempted=False,
+            crop_returned_text=False,
+            value_source="none",
+            positional_validation_status="not_attempted",
+            crop_validation_status="not_attempted",
+            failure_stage="candidate_selection",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text="",
+            success=False,
+            review_required=True,
+            issue_codes=("ISSUING_BARANGAY_NOT_EXTRACTED",),
+            detection_variant=variant,
+            anchor="",
+            normalized_bounds=None,
+            diagnostics=diagnostics,
+        )
+
+    selected = tuple(candidates[0])
+    anchor = " ".join(word.text for word in selected)
+    bounds = _bounds(selected, source_image.shape)
+    normalized_bounds = _normalized_bounds(bounds, source_image.shape)
+    candidate_word_confidences, candidate_horizontal_gaps, candidate_gap_ratios = (
+        _barangay_word_metrics(selected)
+    )
+    filtered_words, token_filter_status, removed_token_count = (
+        _filter_detached_barangay_noise(selected, config)
+    )
+    candidate_word_count_before_filter = len(selected)
+    candidate_word_count_after_filter = sum(
+        bool(_sanitize_positional_date_token(word.text)) for word in filtered_words
+    )
+    base_diagnostics = {
+        "candidate_found": True,
+        "candidate_count": 1,
+        "candidate_token_count": len(selected),
+        "candidate_word_confidences": candidate_word_confidences,
+        "candidate_horizontal_gaps": candidate_horizontal_gaps,
+        "candidate_gap_ratios": candidate_gap_ratios,
+        "candidate_word_count_before_filter": candidate_word_count_before_filter,
+        "candidate_word_count_after_filter": candidate_word_count_after_filter,
+        "token_filter_status": token_filter_status,
+        "removed_token_count": removed_token_count,
+        "candidate_source": "pre_title_header",
+        "anchor_found": True,
+        "bounds_present": True,
+    }
+    positional_text, positional_has_control = _normalize_barangay_value(
+        " ".join(word.text for word in filtered_words)
+    )
+    if token_filter_status != "unsafe_to_filter" and _valid_barangay_value(
+        positional_text,
+        contains_control=positional_has_control,
+        maximum_length=config.maximum_barangay_length,
+    ):
+        diagnostics = _barangay_diagnostics(
+            **base_diagnostics,
+            crop_attempted=False,
+            crop_returned_text=False,
+            value_source="positional",
+            positional_validation_status="valid",
+            crop_validation_status="not_attempted",
+            failure_stage="none",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text=positional_text,
+            success=True,
+            review_required=True,
+            issue_codes=(),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=normalized_bounds,
+            diagnostics=diagnostics,
+        )
+
+    crop = _crop(source_image, bounds, config.crop_padding_pixels)
+    if crop.size == 0:
+        diagnostics = _barangay_diagnostics(
+            **base_diagnostics,
+            crop_attempted=False,
+            crop_returned_text=False,
+            value_source="none",
+            positional_validation_status="invalid",
+            crop_validation_status="not_attempted",
+            failure_stage="crop_generation",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text="",
+            success=False,
+            review_required=True,
+            issue_codes=("ISSUING_BARANGAY_NOT_EXTRACTED",),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=normalized_bounds,
+            diagnostics=diagnostics,
+        )
+
+    try:
+        crop_result = reader(crop.copy(), "issuing_barangay")
+    except Exception:
+        diagnostics = _barangay_diagnostics(
+            **base_diagnostics,
+            crop_attempted=True,
+            crop_returned_text=False,
+            value_source="none",
+            positional_validation_status="invalid",
+            crop_validation_status="exception",
+            failure_stage="crop_ocr",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text="",
+            success=False,
+            review_required=True,
+            issue_codes=("ISSUING_BARANGAY_NOT_EXTRACTED",),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=normalized_bounds,
+            diagnostics=diagnostics,
+        )
+
+    crop_returned_text = bool(_normalize_field_text(crop_result))
+    crop_text, crop_has_control = _normalize_barangay_value(crop_result)
+    if not crop_text:
+        diagnostics = _barangay_diagnostics(
+            **base_diagnostics,
+            crop_attempted=True,
+            crop_returned_text=crop_returned_text,
+            value_source="none",
+            positional_validation_status="invalid",
+            crop_validation_status="empty",
+            failure_stage="crop_ocr",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text="",
+            success=False,
+            review_required=True,
+            issue_codes=("ISSUING_BARANGAY_NOT_EXTRACTED",),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=normalized_bounds,
+            diagnostics=diagnostics,
+        )
+
+    if not _valid_barangay_value(
+        crop_text,
+        contains_control=crop_has_control,
+        maximum_length=config.maximum_barangay_length,
+    ):
+        diagnostics = _barangay_diagnostics(
+            **base_diagnostics,
+            crop_attempted=True,
+            crop_returned_text=crop_returned_text,
+            value_source="none",
+            positional_validation_status="invalid",
+            crop_validation_status="invalid",
+            failure_stage="crop_ocr",
+        )
+        return IndigencyFieldResult(
+            name="issuing_barangay",
+            raw_text="",
+            success=False,
+            review_required=True,
+            issue_codes=("ISSUING_BARANGAY_NOT_EXTRACTED",),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=normalized_bounds,
+            diagnostics=diagnostics,
+        )
+
+    diagnostics = _barangay_diagnostics(
+        **base_diagnostics,
+        crop_attempted=True,
+        crop_returned_text=True,
+        value_source="crop_ocr",
+        positional_validation_status="invalid",
+        crop_validation_status="valid",
+        failure_stage="none",
+    )
+    return IndigencyFieldResult(
+        name="issuing_barangay",
+        raw_text=crop_text,
+        success=True,
+        review_required=True,
+        issue_codes=(),
+        detection_variant=variant,
+        anchor=anchor,
+        normalized_bounds=normalized_bounds,
+        diagnostics=diagnostics,
+    )
+
+
 def extract_indigency_core_fields(
     image: Any,
     word_reader: WordReader | None = None,
@@ -546,7 +1025,7 @@ def extract_indigency_core_fields(
 ) -> StageResult[IndigencyExtractionOutput]:
     resolved = config or IndigencyExtractionConfig()
     try:
-        source = _orient_portrait(_validate_image(image))
+        source = _validate_image(image)
     except (OCRInputError, TypeError, ValueError):
         return StageResult(
             stage=STAGE_NAME,
@@ -557,27 +1036,58 @@ def extract_indigency_core_fields(
             metrics={"manual_review_required": True},
         )
 
-    angle = _estimate_deskew_angle(source, resolved.maximum_deskew_degrees)
-    transformed_source = _deskew(source, -angle)
     detection_reader = word_reader or _default_word_reader
     ocr_reader = field_reader or _default_field_reader
-    candidates: list[tuple[int, str, tuple[PositionalWord, ...]]] = []
-    for variant, detection_image in _detection_variants(transformed_source):
-        try:
-            words = _parse_words(detection_reader(detection_image.copy(), variant, resolved), resolved)
-            candidates.append((_variant_score(words, transformed_source.shape[0], resolved), variant, words))
-        except (
-            pytesseract.TesseractNotFoundError,
-            OCRBinaryUnavailableError,
-            OCRExecutionError,
-            ValueError,
-            TypeError,
-            KeyError,
-            IndexError,
-        ):
-            continue
-        except Exception:
-            continue
+    candidates: list[
+        tuple[
+            tuple[int, int, int, int],
+            str,
+            str,
+            tuple[PositionalWord, ...],
+            np.ndarray,
+            float,
+        ]
+    ] = []
+    candidate_count = 0
+    for orientation, oriented_source in _orientation_candidates(source):
+        angle = _estimate_deskew_angle(
+            oriented_source,
+            resolved.maximum_deskew_degrees,
+        )
+        transformed_candidate = _deskew(oriented_source, -angle)
+        for variant, detection_image in _detection_variants(transformed_candidate):
+            candidate_count += 1
+            try:
+                words = _parse_words(
+                    detection_reader(detection_image.copy(), variant, resolved),
+                    resolved,
+                )
+                candidates.append(
+                    (
+                        _variant_score(
+                            words,
+                            transformed_candidate.shape[0],
+                            resolved,
+                        ),
+                        orientation,
+                        variant,
+                        words,
+                        transformed_candidate,
+                        angle,
+                    )
+                )
+            except (
+                pytesseract.TesseractNotFoundError,
+                OCRBinaryUnavailableError,
+                OCRExecutionError,
+                ValueError,
+                TypeError,
+                KeyError,
+                IndexError,
+            ):
+                continue
+            except Exception:
+                continue
 
     if not candidates:
         return StageResult(
@@ -586,9 +1096,19 @@ def extract_indigency_core_fields(
             status="failed",
             data=None,
             issues=[_issue("INDIGENCY_WORD_DATA_UNAVAILABLE")],
-            metrics={"manual_review_required": True},
+            metrics={
+                "manual_review_required": True,
+                "candidate_count": candidate_count,
+            },
         )
-    _, variant, words = max(candidates, key=lambda candidate: candidate[0])
+    (
+        _,
+        selected_orientation,
+        variant,
+        words,
+        transformed_source,
+        angle,
+    ) = max(candidates, key=lambda candidate: candidate[0])
     title = _title_candidate(words, transformed_source.shape[0], resolved.title_maximum_y)
     if title is None:
         return StageResult(
@@ -601,6 +1121,9 @@ def extract_indigency_core_fields(
                 "manual_review_required": True,
                 "word_count": len(words),
                 "deskew_angle_degrees": abs(angle),
+                "selected_orientation": selected_orientation,
+                "selected_detection_variant": variant,
+                "candidate_count": candidate_count,
             },
         )
 
@@ -617,14 +1140,6 @@ def extract_indigency_core_fields(
             )
 
     barangay_candidates = _issuing_barangay_candidates(words, title)
-    barangay_selection = (
-        barangay_candidates[0] if len(barangay_candidates) == 1 else None
-    )
-    barangay_anchor = (
-        " ".join(word.text for word in barangay_selection)
-        if barangay_selection
-        else ""
-    )
     if len(barangay_candidates) > 1:
         issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issuing_barangay"))
 
@@ -644,8 +1159,7 @@ def extract_indigency_core_fields(
             ocr_reader,
             resolved,
         ),
-        _read_field(
-            "issue_date",
+        _read_date_field(
             date_selection,
             date_anchor,
             transformed_source,
@@ -653,10 +1167,8 @@ def extract_indigency_core_fields(
             ocr_reader,
             resolved,
         ),
-        _read_field(
-            "issuing_barangay",
-            barangay_selection,
-            barangay_anchor,
+        _read_issuing_barangay_field(
+            barangay_candidates,
             transformed_source,
             variant,
             ocr_reader,
@@ -686,6 +1198,9 @@ def extract_indigency_core_fields(
         fields=fields,
         field_count=len(fields),
         detection_variant=variant,
+        selected_orientation=selected_orientation,
+        selected_detection_variant=variant,
+        candidate_count=candidate_count,
         deskew_angle_degrees=float(angle),
         title_anchor=" ".join(word.text for word in title),
         anchor_metadata=metadata,
@@ -702,6 +1217,9 @@ def extract_indigency_core_fields(
             "failed_field_count": sum(not field.success for field in fields),
             "word_count": len(words),
             "deskew_angle_degrees": abs(angle),
+            "selected_orientation": selected_orientation,
+            "selected_detection_variant": variant,
+            "candidate_count": candidate_count,
             "manual_review_required": True,
         },
     )

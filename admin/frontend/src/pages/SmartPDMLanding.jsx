@@ -457,8 +457,8 @@ function RequirementsModal({ content, theme, onClose }) {
                 <h3 className="text-xs font-bold uppercase tracking-[0.16em]">Important notices</h3>
               </div>
               <ul className="mt-3 space-y-3">
-                {content.requirement_notices.map((item) => (
-                  <li key={item} className="flex gap-2.5 text-sm leading-6 text-stone-700">
+                {content.requirement_notices.map((item, index) => (
+                  <li key={`${index}-${item}`} className="flex gap-2.5 text-sm leading-6 text-stone-700">
                     <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: theme.danger }} />
                     <span>{item}</span>
                   </li>
@@ -1151,7 +1151,7 @@ export default function SmartPDMLanding() {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {generalSettings.landing_content.feature_items.map((feature, index) => (
-            <FeatureCard key={feature.title} {...feature} icon={featureIcons[index]} theme={theme} />
+            <FeatureCard key={`${index}-${feature.title}`} {...feature} icon={featureIcons[index % featureIcons.length]} theme={theme} />
           ))}
         </div>
       </section>

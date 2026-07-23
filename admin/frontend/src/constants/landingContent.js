@@ -54,24 +54,37 @@ export const DEFAULT_LANDING_CONTENT = {
 
 export function mergeLandingContent(content) {
   const source = content && typeof content === 'object' ? content : {};
+  const normalizeTextItems = (items, defaults) => {
+    if (!Array.isArray(items)) return defaults;
+    const normalized = items
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    return normalized.length ? normalized : defaults;
+  };
+  const normalizeContentItems = (items, defaults) => {
+    if (!Array.isArray(items)) return defaults;
+    const normalized = items
+      .map((item) => ({
+        title: String(item?.title || '').trim(),
+        description: String(item?.description || '').trim(),
+      }))
+      .filter((item) => item.title && item.description)
+      .slice(0, 12);
+    return normalized.length ? normalized : defaults;
+  };
   return {
     ...DEFAULT_LANDING_CONTENT,
     ...source,
-    guide_steps:
-      Array.isArray(source.guide_steps) && source.guide_steps.length === 4
-        ? source.guide_steps
-        : DEFAULT_LANDING_CONTENT.guide_steps,
-    feature_items:
-      Array.isArray(source.feature_items) && source.feature_items.length === 4
-        ? source.feature_items
-        : DEFAULT_LANDING_CONTENT.feature_items,
-    requirement_items:
-      Array.isArray(source.requirement_items) && source.requirement_items.length === 7
-        ? source.requirement_items
-        : DEFAULT_LANDING_CONTENT.requirement_items,
-    requirement_notices:
-      Array.isArray(source.requirement_notices) && source.requirement_notices.length === 6
-        ? source.requirement_notices
-        : DEFAULT_LANDING_CONTENT.requirement_notices,
+    guide_steps: normalizeContentItems(source.guide_steps, DEFAULT_LANDING_CONTENT.guide_steps),
+    feature_items: normalizeContentItems(source.feature_items, DEFAULT_LANDING_CONTENT.feature_items),
+    requirement_items: normalizeTextItems(
+      source.requirement_items,
+      DEFAULT_LANDING_CONTENT.requirement_items
+    ),
+    requirement_notices: normalizeTextItems(
+      source.requirement_notices,
+      DEFAULT_LANDING_CONTENT.requirement_notices
+    ),
   };
 }

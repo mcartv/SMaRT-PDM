@@ -40,16 +40,27 @@ export const DEFAULT_POLICY_CONTENT = {
 
 export function mergePolicyContent(content) {
   const source = content && typeof content === 'object' ? content : {};
+  const normalizeSections = (items, defaults) => {
+    if (!Array.isArray(items)) return defaults;
+    const normalized = items
+      .map((item) => ({
+        title: String(item?.title || '').trim(),
+        body: String(item?.body || '').trim(),
+      }))
+      .filter((item) => item.title && item.body)
+      .slice(0, 12);
+    return normalized.length ? normalized : defaults;
+  };
   return {
     ...DEFAULT_POLICY_CONTENT,
     ...source,
-    privacy_sections:
-      Array.isArray(source.privacy_sections) && source.privacy_sections.length === 5
-        ? source.privacy_sections
-        : DEFAULT_POLICY_CONTENT.privacy_sections,
-    terms_sections:
-      Array.isArray(source.terms_sections) && source.terms_sections.length === 6
-        ? source.terms_sections
-        : DEFAULT_POLICY_CONTENT.terms_sections,
+    privacy_sections: normalizeSections(
+      source.privacy_sections,
+      DEFAULT_POLICY_CONTENT.privacy_sections
+    ),
+    terms_sections: normalizeSections(
+      source.terms_sections,
+      DEFAULT_POLICY_CONTENT.terms_sections
+    ),
   };
 }

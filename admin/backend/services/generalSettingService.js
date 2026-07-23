@@ -178,16 +178,24 @@ function sanitizeFeaturedNotice(notice = {}) {
 }
 
 function sanitizeLandingItems(items, defaults) {
-  const source = Array.isArray(items) ? items : defaults;
-  return defaults.map((fallback, index) => ({
-    title: safeText(source[index]?.title, 120) || fallback.title,
-    description: safeText(source[index]?.description, 500) || fallback.description,
-  }));
+  if (!Array.isArray(items)) return defaults.map((item) => ({ ...item }));
+  const normalized = items
+    .map((item) => ({
+      title: safeText(item?.title, 120),
+      description: safeText(item?.description, 500),
+    }))
+    .filter((item) => item.title && item.description)
+    .slice(0, 12);
+  return normalized.length ? normalized : defaults.map((item) => ({ ...item }));
 }
 
 function sanitizeLandingTextItems(items, defaults, maxLength = 500) {
-  const source = Array.isArray(items) ? items : defaults;
-  return defaults.map((fallback, index) => safeText(source[index], maxLength) || fallback);
+  if (!Array.isArray(items)) return [...defaults];
+  const normalized = items
+    .map((item) => safeText(item, maxLength))
+    .filter(Boolean)
+    .slice(0, 12);
+  return normalized.length ? normalized : [...defaults];
 }
 
 function sanitizeLandingContent(content = {}) {
@@ -226,11 +234,15 @@ function sanitizeLandingContent(content = {}) {
 const POLICY_ICONS = new Set(['shield-check', 'file-text', 'database', 'lock-keyhole', 'scale', 'landmark']);
 
 function sanitizePolicySections(items, defaults) {
-  const source = Array.isArray(items) ? items : defaults;
-  return defaults.map((fallback, index) => ({
-    title: safeText(source[index]?.title, 160) || fallback.title,
-    body: safeText(source[index]?.body, 1800) || fallback.body,
-  }));
+  if (!Array.isArray(items)) return defaults.map((item) => ({ ...item }));
+  const normalized = items
+    .map((item) => ({
+      title: safeText(item?.title, 160),
+      body: safeText(item?.body, 1800),
+    }))
+    .filter((item) => item.title && item.body)
+    .slice(0, 12);
+  return normalized.length ? normalized : defaults.map((item) => ({ ...item }));
 }
 
 function sanitizePolicyIcon(value, fallback) {

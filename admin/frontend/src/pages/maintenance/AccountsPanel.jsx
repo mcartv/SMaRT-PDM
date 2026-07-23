@@ -1656,10 +1656,11 @@ export default function AccountsPanel() {
                                                     variant="outline"
                                                     onClick={() => setProfileAccount(account)}
                                                     disabled={isBusy}
-                                                    className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
+                                                    aria-label={`View ${account.name}`}
+                                                    title="View account"
+                                                    className="h-7 w-7 rounded-lg border-stone-200 p-0 text-stone-600 hover:bg-stone-50"
                                                 >
-                                                    <Eye className="mr-1.5 h-3.5 w-3.5" />
-                                                    View
+                                                    <Eye className="h-3.5 w-3.5" />
                                                 </Button>
                                                 {account.is_archived ? (
                                                     <Button
@@ -1667,10 +1668,11 @@ export default function AccountsPanel() {
                                                         variant="outline"
                                                         onClick={() => handleArchiveRestore(account)}
                                                         disabled={isBusy}
-                                                        className="h-8 rounded-lg border-green-200 px-2.5 text-xs text-green-700 hover:bg-green-50"
+                                                        aria-label={`Restore ${account.name}`}
+                                                        title="Restore account"
+                                                        className="h-7 w-7 rounded-lg border-green-200 p-0 text-green-700 hover:bg-green-50"
                                                     >
-                                                        {isBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="mr-1.5 h-3.5 w-3.5" />}
-                                                        Restore
+                                                        {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
                                                     </Button>
                                                 ) : (
                                                     <>
@@ -1679,10 +1681,11 @@ export default function AccountsPanel() {
                                                             variant="outline"
                                                             onClick={() => openEditModal(account)}
                                                             disabled={isBusy}
-                                                            className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
+                                                            aria-label={`Edit ${account.name}`}
+                                                            title="Edit account"
+                                                            className="h-7 w-7 rounded-lg border-stone-200 p-0 text-stone-600 hover:bg-stone-50"
                                                         >
-                                                            <Edit className="mr-1.5 h-3.5 w-3.5" />
-                                                            Edit
+                                                            <Edit className="h-3.5 w-3.5" />
                                                         </Button>
                                                         <Button
                                                             size="sm"
@@ -1691,7 +1694,7 @@ export default function AccountsPanel() {
                                                             disabled={isBusy}
                                                             aria-label={`Archive ${account.name}`}
                                                             title="Archive account"
-                                                            className="h-8 w-8 rounded-lg border-red-200 p-0 text-red-700 hover:bg-red-50"
+                                                            className="h-7 w-7 rounded-lg border-red-200 p-0 text-red-700 hover:bg-red-50"
                                                         >
                                                             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
                                                         </Button>

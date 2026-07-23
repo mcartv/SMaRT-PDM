@@ -28,6 +28,8 @@ import {
     Megaphone,
     Loader2,
     ShieldCheck,
+    ChevronDown,
+    Trash2,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -145,6 +147,42 @@ function SectionFrame({ title, description, children, actions }) {
     );
 }
 
+function LandingContentAccordion({ title, description, summary, open, onToggle, children }) {
+    return (
+        <section
+            className={`overflow-hidden rounded-2xl border bg-white transition-all duration-200 ${
+                open
+                    ? 'border-[#c7ad8f] shadow-md ring-1 ring-[#eee5d8]'
+                    : 'border-stone-200 shadow-sm'
+            }`}
+        >
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={open}
+                className={`flex w-full items-center justify-between gap-4 border-b px-4 py-3.5 text-left transition ${
+                    open
+                        ? 'border-[#ded1c1] bg-[#f6f1e9]'
+                        : 'border-b-transparent bg-stone-50/80 hover:bg-stone-100'
+                }`}
+            >
+                <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-stone-900">{title}</span>
+                    <span className="mt-1 block text-xs text-stone-500">
+                        {open ? description : summary}
+                    </span>
+                </span>
+                <ChevronDown
+                    size={18}
+                    className={`shrink-0 text-stone-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                />
+            </button>
+            {open ? <div className="bg-[#fffdf9] p-5">{children}</div> : null}
+        </section>
+    );
+}
+
 function FaqEditorDialog({
     open,
     onOpenChange,
@@ -245,6 +283,9 @@ export default function GeneralPanel() {
     const [error, setError] = useState('');
     const [activeSection, setActiveSection] = useState('office');
     const [activeLandingSection, setActiveLandingSection] = useState('about');
+    const [activeAboutGroup, setActiveAboutGroup] = useState(null);
+    const [activeCopyGroup, setActiveCopyGroup] = useState(null);
+    const [activePolicyGroup, setActivePolicyGroup] = useState(null);
     const [activeFaqTab, setActiveFaqTab] = useState('current');
     const [faqDialogOpen, setFaqDialogOpen] = useState(false);
     const [faqForm, setFaqForm] = useState(DEFAULT_FAQ_FORM);
@@ -557,6 +598,78 @@ export default function GeneralPanel() {
                 itemIndex === index ? value : item
             ),
         }));
+    };
+
+    const addLandingTextItem = (collection, label) => {
+        setLandingContent((current) => {
+            if (current[collection].length >= 12) {
+                toast.error(`A maximum of 12 ${label.toLowerCase()} entries is allowed.`);
+                return current;
+            }
+            return { ...current, [collection]: [...current[collection], ''] };
+        });
+    };
+
+    const removeLandingTextItem = (collection, index, label) => {
+        setLandingContent((current) => {
+            if (current[collection].length <= 1) {
+                toast.error(`At least one ${label.toLowerCase()} entry is required.`);
+                return current;
+            }
+            return {
+                ...current,
+                [collection]: current[collection].filter((_, itemIndex) => itemIndex !== index),
+            };
+        });
+    };
+
+    const addLandingObjectItem = (collection, template, label) => {
+        setLandingContent((current) => {
+            if (current[collection].length >= 12) {
+                toast.error(`A maximum of 12 ${label.toLowerCase()} entries is allowed.`);
+                return current;
+            }
+            return { ...current, [collection]: [...current[collection], template] };
+        });
+    };
+
+    const removeLandingObjectItem = (collection, index, label) => {
+        setLandingContent((current) => {
+            if (current[collection].length <= 1) {
+                toast.error(`At least one ${label.toLowerCase()} entry is required.`);
+                return current;
+            }
+            return {
+                ...current,
+                [collection]: current[collection].filter((_, itemIndex) => itemIndex !== index),
+            };
+        });
+    };
+
+    const addPolicySection = (collection, label) => {
+        setPolicyContent((current) => {
+            if (current[collection].length >= 12) {
+                toast.error(`A maximum of 12 ${label.toLowerCase()} sections is allowed.`);
+                return current;
+            }
+            return {
+                ...current,
+                [collection]: [...current[collection], { title: '', body: '' }],
+            };
+        });
+    };
+
+    const removePolicySection = (collection, index, label) => {
+        setPolicyContent((current) => {
+            if (current[collection].length <= 1) {
+                toast.error(`At least one ${label.toLowerCase()} section is required.`);
+                return current;
+            }
+            return {
+                ...current,
+                [collection]: current[collection].filter((_, itemIndex) => itemIndex !== index),
+            };
+        });
     };
 
     const updatePolicyField = (field, value) => {
@@ -926,15 +1039,8 @@ export default function GeneralPanel() {
                         description="Manage each public landing display in a separated view with group-specific save controls."
                     >
                         <div className="space-y-4">
-                            <div className="rounded-xl border border-stone-100 bg-stone-50/80 p-3">
-                                <p className="text-[11px] font-medium uppercase tracking-wide text-stone-400">
-                                    Landing Sections
-                                </p>
-                                <p className="mt-1 text-sm text-stone-500">
-                                    Open one section at a time so editing stays cleaner and easier to use.
-                                </p>
-
-                                <div className="mt-3 inline-flex flex-wrap rounded-full border border-stone-200 bg-white p-1">
+                            <div>
+                                <div className="inline-flex flex-wrap rounded-full border border-stone-200 bg-white p-1">
                                     <button
                                         type="button"
                                         onClick={() => setActiveLandingSection('about')}
@@ -1001,34 +1107,38 @@ export default function GeneralPanel() {
                             {activeLandingSection === 'about' ? (
                                 <GroupCard title="Landing About OSFA & Eligibility" icon={Globe}>
                                 <div className="space-y-5">
-                                    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                        <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                            <p className="text-sm font-semibold text-stone-900">About OSFA</p>
-                                            <p className="mt-1 text-xs text-stone-500">Public description of the scholarship office and its role.</p>
-                                        </div>
+                                    <LandingContentAccordion
+                                        title="About OSFA"
+                                        description="Public description of the scholarship office and its role."
+                                        summary="Public office description"
+                                        open={activeAboutGroup === 'about'}
+                                        onToggle={() => setActiveAboutGroup((current) => current === 'about' ? null : 'about')}
+                                    >
                                         <FieldLabel>About OSFA Text</FieldLabel>
                                         <textarea
                                             value={aboutOsfa}
                                             onChange={(e) => setAboutOsfa(e.target.value)}
-                                            rows={13}
+                                            rows={7}
                                             className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
                                             placeholder="Write the public About OSFA description shown on the landing page."
                                         />
-                                        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-stone-100 pt-4">
+                                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-stone-100 pt-4">
                                             {renderSectionActions(restoreAboutOsfaDefault, saveAboutOsfa, 'about-osfa')}
                                         </div>
-                                    </div>
+                                    </LandingContentAccordion>
 
-                                    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                        <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                            <p className="text-sm font-semibold text-stone-900">Eligibility Summary</p>
-                                            <p className="mt-1 text-xs text-stone-500">General guidance shown before detailed scholarship requirements are available.</p>
-                                        </div>
+                                    <LandingContentAccordion
+                                        title="Eligibility Summary"
+                                        description="General guidance shown before detailed scholarship requirements are available."
+                                        summary="Public eligibility overview"
+                                        open={activeAboutGroup === 'eligibility'}
+                                        onToggle={() => setActiveAboutGroup((current) => current === 'eligibility' ? null : 'eligibility')}
+                                    >
                                         <FieldLabel>Eligibility Summary</FieldLabel>
                                         <textarea
                                             value={eligibilitySummary}
                                             onChange={(e) => setEligibilitySummary(e.target.value)}
-                                            rows={6}
+                                            rows={4}
                                             maxLength={1200}
                                             className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
                                             placeholder="Summarize who may qualify. Detailed requirements can be added later."
@@ -1036,10 +1146,10 @@ export default function GeneralPanel() {
                                         <p className="mt-1 text-[11px] text-stone-500">
                                             This appears in the public eligibility overview. Keep it general when requirements vary by scholarship.
                                         </p>
-                                        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-stone-100 pt-4">
+                                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-stone-100 pt-4">
                                             {renderSectionActions(restoreEligibilityDefault, saveEligibilitySummary, 'about-eligibility')}
                                         </div>
-                                    </div>
+                                    </LandingContentAccordion>
                                 </div>
                                 </GroupCard>
                             ) : null}
@@ -1047,11 +1157,13 @@ export default function GeneralPanel() {
                             {activeLandingSection === 'copy' ? (
                                 <GroupCard title="Editable Landing Page Content" icon={LayoutTemplate}>
                                     <div className="space-y-5">
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Hero & Mobile App</p>
-                                                <p className="mt-1 text-xs text-stone-500">The first message and mobile-app information visitors see.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Hero & Mobile App"
+                                            description="The first message and mobile-app information visitors see."
+                                            summary="Hero message and mobile app download copy"
+                                            open={activeCopyGroup === 'hero'}
+                                            onToggle={() => setActiveCopyGroup((current) => current === 'hero' ? null : 'hero')}
+                                        >
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <div><FieldLabel>Hero Badge</FieldLabel><Input value={landingContent.hero_badge} onChange={(e) => updateLandingField('hero_badge', e.target.value)} maxLength={80} /></div>
                                                 <div><FieldLabel>Hero Title</FieldLabel><Input value={landingContent.hero_title} onChange={(e) => updateLandingField('hero_title', e.target.value)} maxLength={180} /></div>
@@ -1060,33 +1172,48 @@ export default function GeneralPanel() {
                                                 <div><FieldLabel>Mobile App Description</FieldLabel><Input value={landingContent.mobile_app_description} onChange={(e) => updateLandingField('mobile_app_description', e.target.value)} maxLength={400} /></div>
                                             </div>
                                             {renderContentGroupActions('copy', 'hero')}
-                                        </div>
+                                        </LandingContentAccordion>
 
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Applicant Guide</p>
-                                                <p className="mt-1 text-xs text-stone-500">Heading, introduction, and the four application steps.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Applicant Guide"
+                                            description="Heading, introduction, and the public application steps."
+                                            summary={`${landingContent.guide_steps.length} application steps`}
+                                            open={activeCopyGroup === 'guide'}
+                                            onToggle={() => setActiveCopyGroup((current) => current === 'guide' ? null : 'guide')}
+                                        >
                                             <FieldLabel>Applicant Guide Heading</FieldLabel>
                                             <Input value={landingContent.guide_title} onChange={(e) => updateLandingField('guide_title', e.target.value)} maxLength={160} />
                                             <div className="mt-3"><FieldLabel>Guide Introduction</FieldLabel><Input value={landingContent.guide_description} onChange={(e) => updateLandingField('guide_description', e.target.value)} maxLength={400} /></div>
-                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            <div className="mt-4 flex items-center justify-between gap-3">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Application Steps</p>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => addLandingObjectItem('guide_steps', { title: '', description: '' }, 'Step')} disabled={landingContent.guide_steps.length >= 12}>
+                                                    <Plus size={14} className="mr-1" /> Add
+                                                </Button>
+                                            </div>
+                                            <div className="mt-3 grid gap-3 md:grid-cols-2">
                                                 {landingContent.guide_steps.map((item, index) => (
                                                     <div key={`guide-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                        <FieldLabel>Step {index + 1}</FieldLabel>
+                                                        <div className="mb-1.5 flex items-center justify-between">
+                                                            <FieldLabel>Step {index + 1}</FieldLabel>
+                                                            <button type="button" onClick={() => removeLandingObjectItem('guide_steps', index, 'Step')} disabled={landingContent.guide_steps.length <= 1} className="rounded-md p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Remove step ${index + 1}`}>
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
                                                         <Input value={item.title} onChange={(e) => updateLandingItem('guide_steps', index, 'title', e.target.value)} maxLength={120} />
-                                                        <textarea value={item.description} onChange={(e) => updateLandingItem('guide_steps', index, 'description', e.target.value)} rows={3} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                        <textarea value={item.description} onChange={(e) => updateLandingItem('guide_steps', index, 'description', e.target.value)} rows={2} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
                                                     </div>
                                                 ))}
                                             </div>
                                             {renderContentGroupActions('copy', 'guide')}
-                                        </div>
+                                        </LandingContentAccordion>
 
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Application Requirements</p>
-                                                <p className="mt-1 text-xs text-stone-500">Checklist and important notices displayed in the public requirements modal.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Application Requirements"
+                                            description="Checklist and important notices displayed in the public requirements modal."
+                                            summary={`${landingContent.requirement_items.length} requirements · ${landingContent.requirement_notices.length} notices`}
+                                            open={activeCopyGroup === 'requirements'}
+                                            onToggle={() => setActiveCopyGroup((current) => current === 'requirements' ? null : 'requirements')}
+                                        >
                                             <FieldLabel>Requirements Heading</FieldLabel>
                                             <Input value={landingContent.requirements_title} onChange={(e) => updateLandingField('requirements_title', e.target.value)} maxLength={160} />
                                             <div className="mt-3">
@@ -1095,56 +1222,91 @@ export default function GeneralPanel() {
                                             </div>
                                             <div className="mt-4 grid gap-4 xl:grid-cols-2">
                                                 <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-600">Required Documents</p>
+                                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Required Documents</p>
+                                                        <Button type="button" variant="outline" size="sm" onClick={() => addLandingTextItem('requirement_items', 'Requirement')} disabled={landingContent.requirement_items.length >= 12}>
+                                                            <Plus size={14} className="mr-1" /> Add
+                                                        </Button>
+                                                    </div>
                                                     <div className="space-y-2">
                                                         {landingContent.requirement_items.map((item, index) => (
-                                                            <div key={`requirement-${index}`}>
-                                                                <FieldLabel>Requirement {index + 1}</FieldLabel>
-                                                                <textarea value={item} onChange={(e) => updateLandingTextItem('requirement_items', index, e.target.value)} rows={2} maxLength={500} className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                            <div key={`requirement-${index}`} className="rounded-lg border border-stone-200 bg-white p-2">
+                                                                <div className="mb-1.5 flex items-center justify-between">
+                                                                    <FieldLabel>Requirement {index + 1}</FieldLabel>
+                                                                    <button type="button" onClick={() => removeLandingTextItem('requirement_items', index, 'Requirement')} disabled={landingContent.requirement_items.length <= 1} className="rounded-md p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Remove requirement ${index + 1}`}>
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
+                                                                <textarea value={item} onChange={(e) => updateLandingTextItem('requirement_items', index, e.target.value)} rows={1} maxLength={500} className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                                 <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-600">Important Notices</p>
+                                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Important Notices</p>
+                                                        <Button type="button" variant="outline" size="sm" onClick={() => addLandingTextItem('requirement_notices', 'Notice')} disabled={landingContent.requirement_notices.length >= 12}>
+                                                            <Plus size={14} className="mr-1" /> Add
+                                                        </Button>
+                                                    </div>
                                                     <div className="space-y-2">
                                                         {landingContent.requirement_notices.map((item, index) => (
-                                                            <div key={`requirement-notice-${index}`}>
-                                                                <FieldLabel>Notice {index + 1}</FieldLabel>
-                                                                <textarea value={item} onChange={(e) => updateLandingTextItem('requirement_notices', index, e.target.value)} rows={2} maxLength={500} className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                            <div key={`requirement-notice-${index}`} className="rounded-lg border border-stone-200 bg-white p-2">
+                                                                <div className="mb-1.5 flex items-center justify-between">
+                                                                    <FieldLabel>Notice {index + 1}</FieldLabel>
+                                                                    <button type="button" onClick={() => removeLandingTextItem('requirement_notices', index, 'Notice')} disabled={landingContent.requirement_notices.length <= 1} className="rounded-md p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Remove notice ${index + 1}`}>
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
+                                                                <textarea value={item} onChange={(e) => updateLandingTextItem('requirement_notices', index, e.target.value)} rows={1} maxLength={500} className="w-full resize-y rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                             </div>
                                             {renderContentGroupActions('copy', 'requirements')}
-                                        </div>
+                                        </LandingContentAccordion>
 
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Platform Features</p>
-                                                <p className="mt-1 text-xs text-stone-500">Heading, introduction, and four feature descriptions.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Platform Features"
+                                            description="Heading, introduction, and public feature descriptions."
+                                            summary={`${landingContent.feature_items.length} platform features`}
+                                            open={activeCopyGroup === 'features'}
+                                            onToggle={() => setActiveCopyGroup((current) => current === 'features' ? null : 'features')}
+                                        >
                                             <FieldLabel>Features Heading</FieldLabel>
                                             <Input value={landingContent.features_title} onChange={(e) => updateLandingField('features_title', e.target.value)} maxLength={160} />
                                             <div className="mt-3"><FieldLabel>Features Introduction</FieldLabel><Input value={landingContent.features_description} onChange={(e) => updateLandingField('features_description', e.target.value)} maxLength={400} /></div>
-                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            <div className="mt-4 flex items-center justify-between gap-3">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Feature Cards</p>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => addLandingObjectItem('feature_items', { title: '', description: '' }, 'Feature')} disabled={landingContent.feature_items.length >= 12}>
+                                                    <Plus size={14} className="mr-1" /> Add
+                                                </Button>
+                                            </div>
+                                            <div className="mt-3 grid gap-3 md:grid-cols-2">
                                                 {landingContent.feature_items.map((item, index) => (
                                                     <div key={`feature-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                        <FieldLabel>Feature {index + 1}</FieldLabel>
+                                                        <div className="mb-1.5 flex items-center justify-between">
+                                                            <FieldLabel>Feature {index + 1}</FieldLabel>
+                                                            <button type="button" onClick={() => removeLandingObjectItem('feature_items', index, 'Feature')} disabled={landingContent.feature_items.length <= 1} className="rounded-md p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Remove feature ${index + 1}`}>
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
                                                         <Input value={item.title} onChange={(e) => updateLandingItem('feature_items', index, 'title', e.target.value)} maxLength={120} />
-                                                        <textarea value={item.description} onChange={(e) => updateLandingItem('feature_items', index, 'description', e.target.value)} rows={3} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                        <textarea value={item.description} onChange={(e) => updateLandingItem('feature_items', index, 'description', e.target.value)} rows={2} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
                                                     </div>
                                                 ))}
                                             </div>
                                             {renderContentGroupActions('copy', 'features')}
-                                        </div>
+                                        </LandingContentAccordion>
 
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Campus & Credibility</p>
-                                                <p className="mt-1 text-xs text-stone-500">Institutional campus message and official-platform verification guidance.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Campus & Credibility"
+                                            description="Institutional campus message and official-platform verification guidance."
+                                            summary="Campus message and platform verification copy"
+                                            open={activeCopyGroup === 'campus'}
+                                            onToggle={() => setActiveCopyGroup((current) => current === 'campus' ? null : 'campus')}
+                                        >
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
                                                 <FieldLabel>Campus Heading</FieldLabel><Input value={landingContent.campus_title} onChange={(e) => updateLandingField('campus_title', e.target.value)} maxLength={160} />
@@ -1156,7 +1318,7 @@ export default function GeneralPanel() {
                                                 </div>
                                             </div>
                                             {renderContentGroupActions('copy', 'campus')}
-                                        </div>
+                                        </LandingContentAccordion>
                                     </div>
                                 </GroupCard>
                             ) : null}
@@ -1164,28 +1326,27 @@ export default function GeneralPanel() {
                             {activeLandingSection === 'policy' ? (
                                 <GroupCard title="Privacy, Consent & Terms" icon={ShieldCheck}>
                                     <div className="space-y-5">
-                                        <div className="rounded-lg border border-amber-100 bg-amber-50/70 px-4 py-3">
-                                            <p className="text-xs font-semibold text-stone-800">Review before publishing</p>
-                                            <p className="mt-1 text-[11px] leading-5 text-stone-500">Policy changes affect public institutional statements. Have final wording reviewed by the authorized PDM office.</p>
-                                        </div>
-
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Shared Policy Settings</p>
-                                                <p className="mt-1 text-xs text-stone-500">Set the public effective date used by both pages.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Shared Policy Settings"
+                                            description="Set the public effective date used by all policy documents."
+                                            summary={`Effective ${policyContent.effective_date || 'date not set'}`}
+                                            open={activePolicyGroup === 'shared'}
+                                            onToggle={() => setActivePolicyGroup((current) => current === 'shared' ? null : 'shared')}
+                                        >
                                             <div className="max-w-xs">
                                                 <FieldLabel>Effective Date</FieldLabel>
                                                 <Input type="date" value={policyContent.effective_date} onChange={(e) => updatePolicyField('effective_date', e.target.value)} />
                                             </div>
                                             {renderContentGroupActions('policy', 'shared')}
-                                        </div>
+                                        </LandingContentAccordion>
 
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Privacy Notice</p>
-                                                <p className="mt-1 text-xs text-stone-500">Choose its page icon and edit the introduction and five notice sections.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Privacy Notice"
+                                            description="Choose its icon and edit the introduction and privacy sections."
+                                            summary={`Introduction · ${policyContent.privacy_sections.length} privacy sections`}
+                                            open={activePolicyGroup === 'privacy'}
+                                            onToggle={() => setActivePolicyGroup((current) => current === 'privacy' ? null : 'privacy')}
+                                        >
                                             <div className="max-w-xs">
                                                 <FieldLabel>Privacy Page Icon</FieldLabel>
                                                 <select value={policyContent.privacy_icon} onChange={(e) => updatePolicyField('privacy_icon', e.target.value)} className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-700">
@@ -1193,23 +1354,36 @@ export default function GeneralPanel() {
                                                 </select>
                                             </div>
                                             <div className="mt-4"><FieldLabel>Privacy Introduction</FieldLabel><textarea value={policyContent.privacy_intro} onChange={(e) => updatePolicyField('privacy_intro', e.target.value)} rows={4} maxLength={1600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
-                                            <div className="mt-4 space-y-3">
+                                            <div className="mt-4 flex items-center justify-between gap-3">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Privacy Sections</p>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => addPolicySection('privacy_sections', 'Privacy')} disabled={policyContent.privacy_sections.length >= 12}>
+                                                    <Plus size={14} className="mr-1" /> Add
+                                                </Button>
+                                            </div>
+                                            <div className="mt-3 space-y-3">
                                                 {policyContent.privacy_sections.map((section, index) => (
                                                     <div key={`privacy-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                        <FieldLabel>Privacy Section {index + 1}</FieldLabel>
+                                                        <div className="mb-1.5 flex items-center justify-between">
+                                                            <FieldLabel>Privacy Section {index + 1}</FieldLabel>
+                                                            <button type="button" onClick={() => removePolicySection('privacy_sections', index, 'Privacy')} disabled={policyContent.privacy_sections.length <= 1} className="rounded-md p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Remove privacy section ${index + 1}`}>
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
                                                         <Input value={section.title} onChange={(e) => updatePolicySection('privacy_sections', index, 'title', e.target.value)} maxLength={160} />
-                                                        <textarea value={section.body} onChange={(e) => updatePolicySection('privacy_sections', index, 'body', e.target.value)} rows={4} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                        <textarea value={section.body} onChange={(e) => updatePolicySection('privacy_sections', index, 'body', e.target.value)} rows={3} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
                                                     </div>
                                                 ))}
                                             </div>
                                             {renderContentGroupActions('policy', 'privacy')}
-                                        </div>
+                                        </LandingContentAccordion>
 
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Data Processing Consent</p>
-                                                <p className="mt-1 text-xs text-stone-500">Edit the consent section displayed inside the Privacy Notice.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Data Processing Consent"
+                                            description="Edit the consent statement and additional processing notice."
+                                            summary="Consent heading, statement, and note"
+                                            open={activePolicyGroup === 'consent'}
+                                            onToggle={() => setActivePolicyGroup((current) => current === 'consent' ? null : 'consent')}
+                                        >
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <div>
                                                     <FieldLabel>Consent Icon</FieldLabel>
@@ -1222,13 +1396,15 @@ export default function GeneralPanel() {
                                             <div className="mt-4"><FieldLabel>Consent Statement</FieldLabel><textarea value={policyContent.consent_body} onChange={(e) => updatePolicyField('consent_body', e.target.value)} rows={5} maxLength={1800} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                             <div className="mt-4"><FieldLabel>Consent Additional Note</FieldLabel><textarea value={policyContent.consent_note} onChange={(e) => updatePolicyField('consent_note', e.target.value)} rows={4} maxLength={1200} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                             {renderContentGroupActions('policy', 'consent')}
-                                        </div>
+                                        </LandingContentAccordion>
 
-                                        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-100/70 px-4 py-3.5">
-                                                <p className="text-sm font-semibold text-stone-900">Terms of Use</p>
-                                                <p className="mt-1 text-xs text-stone-500">Choose its page icon and edit the introduction and six terms sections.</p>
-                                            </div>
+                                        <LandingContentAccordion
+                                            title="Terms of Use"
+                                            description="Choose its icon and edit the introduction and terms sections."
+                                            summary={`Introduction · ${policyContent.terms_sections.length} terms sections`}
+                                            open={activePolicyGroup === 'terms'}
+                                            onToggle={() => setActivePolicyGroup((current) => current === 'terms' ? null : 'terms')}
+                                        >
                                             <div className="max-w-xs">
                                                 <FieldLabel>Terms Page Icon</FieldLabel>
                                                 <select value={policyContent.terms_icon} onChange={(e) => updatePolicyField('terms_icon', e.target.value)} className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-700">
@@ -1236,17 +1412,28 @@ export default function GeneralPanel() {
                                                 </select>
                                             </div>
                                             <div className="mt-4"><FieldLabel>Terms Introduction</FieldLabel><textarea value={policyContent.terms_intro} onChange={(e) => updatePolicyField('terms_intro', e.target.value)} rows={4} maxLength={1600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
-                                            <div className="mt-4 space-y-3">
+                                            <div className="mt-4 flex items-center justify-between gap-3">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Terms Sections</p>
+                                                <Button type="button" variant="outline" size="sm" onClick={() => addPolicySection('terms_sections', 'Terms')} disabled={policyContent.terms_sections.length >= 12}>
+                                                    <Plus size={14} className="mr-1" /> Add
+                                                </Button>
+                                            </div>
+                                            <div className="mt-3 space-y-3">
                                                 {policyContent.terms_sections.map((section, index) => (
                                                     <div key={`terms-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
-                                                        <FieldLabel>Terms Section {index + 1}</FieldLabel>
+                                                        <div className="mb-1.5 flex items-center justify-between">
+                                                            <FieldLabel>Terms Section {index + 1}</FieldLabel>
+                                                            <button type="button" onClick={() => removePolicySection('terms_sections', index, 'Terms')} disabled={policyContent.terms_sections.length <= 1} className="rounded-md p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`Remove terms section ${index + 1}`}>
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
                                                         <Input value={section.title} onChange={(e) => updatePolicySection('terms_sections', index, 'title', e.target.value)} maxLength={160} />
-                                                        <textarea value={section.body} onChange={(e) => updatePolicySection('terms_sections', index, 'body', e.target.value)} rows={4} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                        <textarea value={section.body} onChange={(e) => updatePolicySection('terms_sections', index, 'body', e.target.value)} rows={3} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
                                                     </div>
                                                 ))}
                                             </div>
                                             {renderContentGroupActions('policy', 'terms')}
-                                        </div>
+                                        </LandingContentAccordion>
                                     </div>
                                 </GroupCard>
                             ) : null}

@@ -58,28 +58,71 @@ const ROLE_OPTIONS = [
     {
         value: 'admin',
         label: 'Admin',
-        department: 'OSFA',
+        department: 'Office for Scholarship and Financial Assistance (OSFA)',
         position: 'OSFA Administrator',
     },
     {
         value: 'pd',
         label: 'Program Director',
-        department: 'Program Department',
+        department: '',
         position: 'Program Director',
     },
     {
         value: 'guidance',
         label: 'GCO',
-        department: 'Guidance Office',
+        department: 'Guidance and Counseling Office',
         position: 'Guidance Staff',
     },
     {
         value: 'sdo',
         label: 'SDO',
-        department: 'Student Disciplinary Office',
+        department: 'Student Welfare and Development Office',
         position: 'SDO Officer',
     },
 ];
+
+const DEPARTMENT_OPTIONS = {
+    admin: [
+        {
+            value: 'Office for Scholarship and Financial Assistance (OSFA)',
+            label: 'Office for Scholarship and Financial Assistance (OSFA)',
+        },
+    ],
+    pd: [
+        {
+            value: 'Office of the College of Hospitality and Tourism Management',
+            label: 'Hospitality and Tourism Management',
+            hint: 'HM and TM',
+        },
+        {
+            value: 'Office of the College of Computer Studies',
+            label: 'College of Computer Studies',
+            hint: 'IT and CS',
+        },
+        {
+            value: 'Office of the Program Head - Office Administration',
+            label: 'Program Head - Office Administration',
+            hint: 'OAD and Entrep',
+        },
+        {
+            value: 'Office of the Program Head - Teacher Education Program',
+            label: 'Program Head - Teacher Education',
+            hint: 'BTLED and BECED',
+        },
+    ],
+    guidance: [
+        {
+            value: 'Guidance and Counseling Office',
+            label: 'Guidance and Counseling Office',
+        },
+    ],
+    sdo: [
+        {
+            value: 'Student Welfare and Development Office',
+            label: 'Student Welfare and Development Office',
+        },
+    ],
+};
 
 const DEFAULT_FORM = {
     first_name: '',
@@ -93,6 +136,73 @@ const DEFAULT_FORM = {
     confirm_password: '',
     course_ids: [],
 };
+
+function inferPdDepartment(assignedCourses = []) {
+    const departmentByCode = new Map([
+        ['HM', DEPARTMENT_OPTIONS.pd[0].value],
+        ['BSHM', DEPARTMENT_OPTIONS.pd[0].value],
+        ['TM', DEPARTMENT_OPTIONS.pd[0].value],
+        ['BSTM', DEPARTMENT_OPTIONS.pd[0].value],
+        ['IT', DEPARTMENT_OPTIONS.pd[1].value],
+        ['BSIT', DEPARTMENT_OPTIONS.pd[1].value],
+        ['CS', DEPARTMENT_OPTIONS.pd[1].value],
+        ['BSCS', DEPARTMENT_OPTIONS.pd[1].value],
+        ['OAD', DEPARTMENT_OPTIONS.pd[2].value],
+        ['BSOA', DEPARTMENT_OPTIONS.pd[2].value],
+        ['ENTREP', DEPARTMENT_OPTIONS.pd[2].value],
+        ['BSENTREP', DEPARTMENT_OPTIONS.pd[2].value],
+        ['BTLED', DEPARTMENT_OPTIONS.pd[3].value],
+        ['BECED', DEPARTMENT_OPTIONS.pd[3].value],
+    ]);
+    const matches = new Set(
+        assignedCourses
+            .map((course) => departmentByCode.get(String(course.course_code || '').trim().toUpperCase()))
+            .filter(Boolean)
+    );
+
+    return matches.size === 1 ? [...matches][0] : '';
+}
+
+function normalizeDepartment(role, department, assignedCourses = []) {
+    const options = DEPARTMENT_OPTIONS[role] || [];
+    const current = String(department || '').trim();
+
+    if (options.some((option) => option.value === current)) return current;
+    if (role === 'pd') return inferPdDepartment(assignedCourses);
+    return options[0]?.value || '';
+}
+
+function DepartmentField({ role, value, onChange, disabled = false }) {
+    const options = DEPARTMENT_OPTIONS[role] || [];
+
+    return (
+        <div>
+            <FieldLabel>Department / Office</FieldLabel>
+            <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+                <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                    <SelectValue placeholder="Select department or office" />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            <span className="flex flex-col">
+                                <span>{option.label}</span>
+                                {option.hint ? (
+                                    <span className="text-[11px] text-stone-500">{option.hint} courses</span>
+                                ) : null}
+                            </span>
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            {role === 'pd' ? (
+                <p className="mt-1 text-[11px] text-stone-500">
+                    Choose the office that supervises the assigned courses.
+                </p>
+            ) : null}
+        </div>
+    );
+}
 
 function CourseAssignmentField({ form, setField, courses, currentUserId = null, disabled = false }) {
     const [open, setOpen] = useState(false);
@@ -274,6 +384,9 @@ function validateCreateForm(form) {
     if (!form.role) {
         return 'Select an account role.';
     }
+    if (!(DEPARTMENT_OPTIONS[form.role] || []).some((option) => option.value === form.department)) {
+        return 'Select a valid department or office.';
+    }
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
     return validatePasswordFields(form.password, form.confirm_password, true);
@@ -290,6 +403,9 @@ function validateEditForm(form) {
 
     if (!form.role) {
         return 'Select an account role.';
+    }
+    if (!(DEPARTMENT_OPTIONS[form.role] || []).some((option) => option.value === form.department)) {
+        return 'Select a valid department or office.';
     }
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
 
@@ -452,15 +568,12 @@ function StaffCreateModal({
                     <CourseAssignmentField form={form} setField={setField} courses={courses} disabled={saving} />
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                            <FieldLabel>Department</FieldLabel>
-                            <Input
-                                value={form.department}
-                                onChange={(event) => setField('department', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
-                        </div>
+                        <DepartmentField
+                            role={form.role}
+                            value={form.department}
+                            onChange={(value) => setField('department', value)}
+                            disabled={saving}
+                        />
 
                         <div>
                             <FieldLabel>Position</FieldLabel>
@@ -663,15 +776,12 @@ function StaffEditModal({
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div>
-                            <FieldLabel>Department</FieldLabel>
-                            <Input
-                                value={form.department}
-                                onChange={(event) => setField('department', event.target.value)}
-                                className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
-                            />
-                        </div>
+                        <DepartmentField
+                            role={form.role}
+                            value={form.department}
+                            onChange={(value) => setField('department', value)}
+                            disabled={saving}
+                        />
 
                         <div>
                             <FieldLabel>Position</FieldLabel>
@@ -1039,7 +1149,11 @@ export default function AccountsPanel() {
             email: account.email || '',
             phone_number: account.phone_number || '',
             role: account.role || 'admin',
-            department: account.department || '',
+            department: normalizeDepartment(
+                account.role || 'admin',
+                account.department,
+                account.assigned_courses || []
+            ),
             position: account.position || '',
             password: '',
             confirm_password: '',

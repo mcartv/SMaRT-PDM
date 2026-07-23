@@ -9,24 +9,36 @@ const pdCourseAssignmentService = require('./pdCourseAssignmentService');
 const ROLE_CONFIG = {
     admin: {
         dbRole: 'Admin',
-        department: 'OSFA',
+        department: 'Office for Scholarship and Financial Assistance (OSFA)',
         position: 'OSFA Administrator',
     },
     pd: {
         dbRole: 'Admin',
-        department: 'Program Department',
+        department: '',
         position: 'Program Director',
     },
     guidance: {
         dbRole: 'Admin',
-        department: 'Guidance Office',
+        department: 'Guidance and Counseling Office',
         position: 'Guidance Staff',
     },
     sdo: {
         dbRole: 'SDO',
-        department: 'Student Disciplinary Office',
+        department: 'Student Welfare and Development Office',
         position: 'SDO Officer',
     },
+};
+
+const DEPARTMENTS_BY_ROLE = {
+    admin: ['Office for Scholarship and Financial Assistance (OSFA)'],
+    pd: [
+        'Office of the College of Hospitality and Tourism Management',
+        'Office of the College of Computer Studies',
+        'Office of the Program Head - Office Administration',
+        'Office of the Program Head - Teacher Education Program',
+    ],
+    guidance: ['Guidance and Counseling Office'],
+    sdo: ['Student Welfare and Development Office'],
 };
 
 const ROLE_VALUES = Object.keys(ROLE_CONFIG);
@@ -63,6 +75,21 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function validateDepartment(role, value) {
+    const department = safeText(value);
+    const allowedDepartments = DEPARTMENTS_BY_ROLE[role] || [];
+
+    if (!department) {
+        throw createHttpError(400, 'Select a department or office.');
+    }
+
+    if (!allowedDepartments.includes(department)) {
+        throw createHttpError(400, 'The selected department or office is not valid for this role.');
+    }
+
+    return department;
 }
 
 function validatePassword(password, confirmPassword) {
@@ -281,7 +308,7 @@ async function createStaffAccount(payload, actorUserId = null) {
 
     const config = ROLE_CONFIG[role];
     const phoneNumber = safeText(phoneNumberInput) || null;
-    const department = safeText(payload.department) || config.department;
+    const department = validateDepartment(role, payload.department || config.department);
     const position = safeText(payload.position) || config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -424,11 +451,12 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             ? safeText(payload.phone_number) || null
             : safeText(current.phone_number) || null;
 
-        const department = payload.department !== undefined
+        const departmentInput = payload.department !== undefined
             ? safeText(payload.department) || config.department
             : roleChanged
                 ? config.department
                 : safeText(current.department) || config.department;
+        const department = validateDepartment(nextRole, departmentInput);
 
         const position = payload.position !== undefined
             ? safeText(payload.position) || config.position

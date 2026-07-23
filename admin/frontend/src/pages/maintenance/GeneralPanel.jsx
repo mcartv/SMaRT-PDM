@@ -132,7 +132,7 @@ function createFaqId() {
 
 function SectionFrame({ title, description, children, actions }) {
     return (
-        <div className="rounded-2xl border border-stone-200 bg-white p-4">
+        <div className="group rounded-2xl border border-stone-200 bg-white p-4">
             <div className="flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 className="text-sm font-semibold text-stone-900">{title}</h3>
@@ -230,10 +230,13 @@ export default function GeneralPanel() {
     const [officeAddress, setOfficeAddress] = useState(DEFAULT_OFFICE.office_address);
     const [landlineNumber, setLandlineNumber] = useState(DEFAULT_OFFICE.landline_number);
     const [officeHours, setOfficeHours] = useState(DEFAULT_OFFICE.office_hours);
+    const [officeEditing, setOfficeEditing] = useState(false);
     const [aboutOsfa, setAboutOsfa] = useState(DEFAULT_ABOUT_OSFA);
     const [eligibilitySummary, setEligibilitySummary] = useState(DEFAULT_ELIGIBILITY_SUMMARY);
     const [landingContent, setLandingContent] = useState(DEFAULT_LANDING_CONTENT);
+    const [savedLandingContent, setSavedLandingContent] = useState(DEFAULT_LANDING_CONTENT);
     const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
+    const [savedPolicyContent, setSavedPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
     const [featuredNotice, setFeaturedNotice] = useState(DEFAULT_FEATURED_NOTICE);
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
@@ -286,8 +289,12 @@ export default function GeneralPanel() {
             setOfficeHours(payload?.office_hours || DEFAULT_OFFICE.office_hours);
             setAboutOsfa(payload?.about_osfa || DEFAULT_ABOUT_OSFA);
             setEligibilitySummary(payload?.eligibility_summary || DEFAULT_ELIGIBILITY_SUMMARY);
-            setLandingContent(mergeLandingContent(payload?.landing_content));
-            setPolicyContent(mergePolicyContent(payload?.policy_content));
+            const nextLandingContent = mergeLandingContent(payload?.landing_content);
+            const nextPolicyContent = mergePolicyContent(payload?.policy_content);
+            setLandingContent(nextLandingContent);
+            setSavedLandingContent(nextLandingContent);
+            setPolicyContent(nextPolicyContent);
+            setSavedPolicyContent(nextPolicyContent);
             setFeaturedNotice(normalizeFeaturedNotice(payload?.featured_notice));
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
             setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
@@ -341,12 +348,6 @@ export default function GeneralPanel() {
                 if (typeof payload?.eligibility_summary === 'string') {
                     setEligibilitySummary(payload.eligibility_summary);
                 }
-                if (payload?.landing_content && typeof payload.landing_content === 'object') {
-                    setLandingContent(mergeLandingContent(payload.landing_content));
-                }
-                if (payload?.policy_content && typeof payload.policy_content === 'object') {
-                    setPolicyContent(mergePolicyContent(payload.policy_content));
-                }
                 if (payload?.featured_notice && typeof payload.featured_notice === 'object') {
                     setFeaturedNotice(normalizeFeaturedNotice(payload.featured_notice));
                 }
@@ -388,7 +389,7 @@ export default function GeneralPanel() {
     );
 
     const saveOfficeSettings = async () => {
-        await updateGeneralSettings(
+        const saved = await updateGeneralSettings(
             {
                 institution_name: instName,
                 office_name: officeName,
@@ -400,6 +401,7 @@ export default function GeneralPanel() {
             'office',
             'Office and contact details saved successfully.'
         );
+        if (saved) setOfficeEditing(false);
     };
 
     const saveAboutSettings = async () => {
@@ -421,20 +423,46 @@ export default function GeneralPanel() {
         );
     };
 
-    const saveLandingCopy = async () => {
-        await updateGeneralSettings(
-            { landing_content: landingContent },
-            'copy',
-            'Landing-page text saved successfully.'
+    const saveLandingCopyGroup = async (group) => {
+        const fieldsByGroup = {
+            hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
+            guide: ['guide_title', 'guide_description', 'guide_steps'],
+            features: ['features_title', 'features_description', 'feature_items'],
+            campus: ['campus_title', 'campus_description', 'credibility_title', 'credibility_description'],
+        };
+        const nextContent = { ...savedLandingContent };
+        fieldsByGroup[group].forEach((field) => {
+            nextContent[field] = landingContent[field];
+        });
+        const saved = await updateGeneralSettings(
+            { landing_content: nextContent },
+            `copy-${group}`,
+            `${group} landing content saved successfully.`
         );
+        if (saved?.landing_content) {
+            setSavedLandingContent(mergeLandingContent(saved.landing_content));
+        }
     };
 
-    const savePolicyContent = async () => {
-        await updateGeneralSettings(
-            { policy_content: policyContent },
-            'policy',
-            'Privacy, consent, and terms content saved successfully.'
+    const savePolicyGroup = async (group) => {
+        const fieldsByGroup = {
+            shared: ['effective_date'],
+            privacy: ['privacy_icon', 'privacy_intro', 'privacy_sections'],
+            consent: ['consent_icon', 'consent_title', 'consent_body', 'consent_note'],
+            terms: ['terms_icon', 'terms_intro', 'terms_sections'],
+        };
+        const nextContent = { ...savedPolicyContent };
+        fieldsByGroup[group].forEach((field) => {
+            nextContent[field] = policyContent[field];
+        });
+        const saved = await updateGeneralSettings(
+            { policy_content: nextContent },
+            `policy-${group}`,
+            `${group} policy content saved successfully.`
         );
+        if (saved?.policy_content) {
+            setSavedPolicyContent(mergePolicyContent(saved.policy_content));
+        }
     };
 
     const saveApplicationSettings = async () => {
@@ -464,14 +492,38 @@ export default function GeneralPanel() {
         showSuccess('Landing About OSFA and eligibility content restored locally. Save to apply.');
     };
 
-    const restoreLandingCopyDefaults = () => {
-        setLandingContent(DEFAULT_LANDING_CONTENT);
-        showSuccess('Landing-page text restored locally. Save to apply.');
+    const restoreLandingGroupDefaults = (group) => {
+        const fieldsByGroup = {
+            hero: ['hero_badge', 'hero_title', 'hero_description', 'mobile_app_title', 'mobile_app_description'],
+            guide: ['guide_title', 'guide_description', 'guide_steps'],
+            features: ['features_title', 'features_description', 'feature_items'],
+            campus: ['campus_title', 'campus_description', 'credibility_title', 'credibility_description'],
+        };
+        setLandingContent((current) => {
+            const next = { ...current };
+            fieldsByGroup[group].forEach((field) => {
+                next[field] = DEFAULT_LANDING_CONTENT[field];
+            });
+            return next;
+        });
+        showSuccess(`${group} landing content restored locally. Save to apply.`);
     };
 
-    const restorePolicyDefaults = () => {
-        setPolicyContent(DEFAULT_POLICY_CONTENT);
-        showSuccess('Policy content restored locally. Save to apply.');
+    const restorePolicyGroupDefaults = (group) => {
+        const fieldsByGroup = {
+            shared: ['effective_date'],
+            privacy: ['privacy_icon', 'privacy_intro', 'privacy_sections'],
+            consent: ['consent_icon', 'consent_title', 'consent_body', 'consent_note'],
+            terms: ['terms_icon', 'terms_intro', 'terms_sections'],
+        };
+        setPolicyContent((current) => {
+            const next = { ...current };
+            fieldsByGroup[group].forEach((field) => {
+                next[field] = DEFAULT_POLICY_CONTENT[field];
+            });
+            return next;
+        });
+        showSuccess(`${group} policy content restored locally. Save to apply.`);
     };
 
     const updateLandingField = (field, value) => {
@@ -645,6 +697,25 @@ export default function GeneralPanel() {
         </>
     );
 
+    const renderContentGroupActions = (type, group) => {
+        const isLanding = type === 'copy';
+        const restore = () => (
+            isLanding
+                ? restoreLandingGroupDefaults(group)
+                : restorePolicyGroupDefaults(group)
+        );
+        const save = () => (
+            isLanding
+                ? saveLandingCopyGroup(group)
+                : savePolicyGroup(group)
+        );
+        return (
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-stone-100 pt-4">
+                {renderSectionActions(restore, save, `${type}-${group}`)}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-4">
             <FaqEditorDialog
@@ -710,7 +781,21 @@ export default function GeneralPanel() {
                     <SectionFrame
                         title="Office & Contact"
                         description="Manage institution identity, office details, and public contact information."
-                        actions={renderSectionActions(restoreOfficeDefaults, saveOfficeSettings, 'office')}
+                        actions={
+                            officeEditing ? (
+                                renderSectionActions(restoreOfficeDefaults, saveOfficeSettings, 'office')
+                            ) : (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setOfficeEditing(true)}
+                                    className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                                >
+                                    <Pencil size={13} className="mr-1.5" />
+                                    Edit Details
+                                </Button>
+                            )
+                        }
                     >
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                             <GroupCard title="Institution Info" icon={Globe}>
@@ -720,6 +805,7 @@ export default function GeneralPanel() {
                                         <Input
                                             value={instName}
                                             onChange={(e) => setInstName(e.target.value)}
+                                            disabled={!officeEditing}
                                             className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                                         />
                                     </div>
@@ -729,6 +815,7 @@ export default function GeneralPanel() {
                                         <Input
                                             value={officeName}
                                             onChange={(e) => setOfficeName(e.target.value)}
+                                            disabled={!officeEditing}
                                             className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                                         />
                                     </div>
@@ -738,6 +825,7 @@ export default function GeneralPanel() {
                                         <Input
                                             value={officeEmail}
                                             onChange={(e) => setOfficeEmail(e.target.value)}
+                                            disabled={!officeEditing}
                                             className="h-9 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
                                         />
                                     </div>
@@ -751,8 +839,9 @@ export default function GeneralPanel() {
                                         <div className="relative">
                                             <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                                             <Input
-                                                value={officeAddress}
-                                                onChange={(e) => setOfficeAddress(e.target.value)}
+                                                 value={officeAddress}
+                                                 onChange={(e) => setOfficeAddress(e.target.value)}
+                                                 disabled={!officeEditing}
                                                 className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
                                             />
                                         </div>
@@ -763,8 +852,9 @@ export default function GeneralPanel() {
                                         <div className="relative">
                                             <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                                             <Input
-                                                value={landlineNumber}
-                                                onChange={(e) => setLandlineNumber(e.target.value)}
+                                                 value={landlineNumber}
+                                                 onChange={(e) => setLandlineNumber(e.target.value)}
+                                                 disabled={!officeEditing}
                                                 className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
                                             />
                                         </div>
@@ -775,8 +865,9 @@ export default function GeneralPanel() {
                                         <div className="relative">
                                             <Clock3 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                                             <Input
-                                                value={officeHours}
-                                                onChange={(e) => setOfficeHours(e.target.value)}
+                                                 value={officeHours}
+                                                 onChange={(e) => setOfficeHours(e.target.value)}
+                                                 disabled={!officeEditing}
                                                 className="h-9 rounded-lg border-stone-200 bg-stone-50/50 pl-9 text-sm"
                                             />
                                         </div>
@@ -875,31 +966,7 @@ export default function GeneralPanel() {
                                         </div>
 
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700"
-                                                onClick={restoreAboutDefaults}
-                                            >
-                                                <RotateCcw size={13} className="mr-1.5" />
-                                                Restore
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                                                style={{ background: savedKey === 'about' ? C.green : C.brownMid }}
-                                                onClick={saveAboutSettings}
-                                                disabled={savingKey === 'about'}
-                                            >
-                                                {savingKey === 'about' ? (
-                                                    <Loader2 size={14} className="mr-1.5 animate-spin" />
-                                                ) : savedKey === 'about' ? (
-                                                    <Check size={14} className="mr-1.5" />
-                                                ) : (
-                                                    <Save size={14} className="mr-1.5" />
-                                                )}
-                                                {savingKey === 'about' ? 'Saving' : savedKey === 'about' ? 'Saved' : 'Save'}
-                                            </Button>
+                                            {renderSectionActions(restoreAboutDefaults, saveAboutSettings, 'about')}
                                         </div>
                                     </div>
 
@@ -936,8 +1003,8 @@ export default function GeneralPanel() {
                                 <GroupCard title="Editable Landing Page Content" icon={LayoutTemplate}>
                                     <div className="space-y-5">
                                         <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3">
-                                            <p className="text-xs font-semibold text-stone-800">One save applies all Page Text sections</p>
-                                            <p className="mt-1 text-[11px] leading-5 text-stone-500">Review Hero & App, Applicant Guide, Platform Features, and Campus & Credibility, then use the action bar at the bottom.</p>
+                                            <p className="text-xs font-semibold text-stone-800">Each landing display saves independently</p>
+                                            <p className="mt-1 text-[11px] leading-5 text-stone-500">Use the Restore Defaults and Save Changes buttons inside each group. Saving one group does not require saving the others.</p>
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
@@ -952,6 +1019,7 @@ export default function GeneralPanel() {
                                                 <div><FieldLabel>Mobile App Title</FieldLabel><Input value={landingContent.mobile_app_title} onChange={(e) => updateLandingField('mobile_app_title', e.target.value)} maxLength={100} /></div>
                                                 <div><FieldLabel>Mobile App Description</FieldLabel><Input value={landingContent.mobile_app_description} onChange={(e) => updateLandingField('mobile_app_description', e.target.value)} maxLength={400} /></div>
                                             </div>
+                                            {renderContentGroupActions('copy', 'hero')}
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
@@ -971,6 +1039,7 @@ export default function GeneralPanel() {
                                                     </div>
                                                 ))}
                                             </div>
+                                            {renderContentGroupActions('copy', 'guide')}
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
@@ -990,6 +1059,7 @@ export default function GeneralPanel() {
                                                     </div>
                                                 ))}
                                             </div>
+                                            {renderContentGroupActions('copy', 'features')}
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
@@ -1007,16 +1077,7 @@ export default function GeneralPanel() {
                                                 <div className="mt-3"><FieldLabel>Verification Description</FieldLabel><textarea value={landingContent.credibility_description} onChange={(e) => updateLandingField('credibility_description', e.target.value)} rows={4} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <p className="text-xs font-semibold text-stone-800">Page Text actions</p>
-                                                <p className="mt-1 text-[11px] text-stone-500">Restore affects the form locally. Select Save Changes to publish.</p>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                                                {renderSectionActions(restoreLandingCopyDefaults, saveLandingCopy, 'copy')}
-                                            </div>
+                                            {renderContentGroupActions('copy', 'campus')}
                                         </div>
                                     </div>
                                 </GroupCard>
@@ -1039,6 +1100,7 @@ export default function GeneralPanel() {
                                                 <FieldLabel>Effective Date</FieldLabel>
                                                 <Input type="date" value={policyContent.effective_date} onChange={(e) => updatePolicyField('effective_date', e.target.value)} />
                                             </div>
+                                            {renderContentGroupActions('policy', 'shared')}
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
@@ -1062,6 +1124,7 @@ export default function GeneralPanel() {
                                                     </div>
                                                 ))}
                                             </div>
+                                            {renderContentGroupActions('policy', 'privacy')}
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
@@ -1080,6 +1143,7 @@ export default function GeneralPanel() {
                                             </div>
                                             <div className="mt-4"><FieldLabel>Consent Statement</FieldLabel><textarea value={policyContent.consent_body} onChange={(e) => updatePolicyField('consent_body', e.target.value)} rows={5} maxLength={1800} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                             <div className="mt-4"><FieldLabel>Consent Additional Note</FieldLabel><textarea value={policyContent.consent_note} onChange={(e) => updatePolicyField('consent_note', e.target.value)} rows={4} maxLength={1200} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                            {renderContentGroupActions('policy', 'consent')}
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
@@ -1103,16 +1167,7 @@ export default function GeneralPanel() {
                                                     </div>
                                                 ))}
                                             </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <p className="text-xs font-semibold text-stone-800">Policy Content actions</p>
-                                                <p className="mt-1 text-[11px] text-stone-500">Restore changes the form locally. Save Changes publishes all policy sections and icons.</p>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                                                {renderSectionActions(restorePolicyDefaults, savePolicyContent, 'policy')}
-                                            </div>
+                                            {renderContentGroupActions('policy', 'terms')}
                                         </div>
                                     </div>
                                 </GroupCard>
@@ -1129,31 +1184,7 @@ export default function GeneralPanel() {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="h-8 rounded-lg border-stone-200 px-3 text-xs"
-                                                    onClick={restoreFeaturedNoticeDefaults}
-                                                >
-                                                    <RotateCcw size={13} className="mr-1.5" />
-                                                    Restore
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    className="h-8 rounded-lg border-none px-3 text-xs text-white"
-                                                    style={{ background: savedKey === 'notice' ? C.green : C.brownMid }}
-                                                    onClick={saveFeaturedNotice}
-                                                    disabled={savingKey === 'notice'}
-                                                >
-                                                    {savingKey === 'notice' ? (
-                                                        <Loader2 size={14} className="mr-1.5 animate-spin" />
-                                                    ) : savedKey === 'notice' ? (
-                                                        <Check size={14} className="mr-1.5" />
-                                                    ) : (
-                                                        <Save size={14} className="mr-1.5" />
-                                                    )}
-                                                    {savingKey === 'notice' ? 'Saving' : savedKey === 'notice' ? 'Saved' : 'Save'}
-                                                </Button>
+                                                {renderSectionActions(restoreFeaturedNoticeDefaults, saveFeaturedNotice, 'notice')}
                                             </div>
                                         </div>
 

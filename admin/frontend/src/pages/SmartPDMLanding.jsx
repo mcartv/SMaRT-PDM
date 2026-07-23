@@ -157,7 +157,7 @@ function Button({
 
 function FeatureCard({ icon: Icon, title, description, theme }) {
   return (
-    <div className="landing-interactive-card rounded-2xl border border-stone-100 bg-white p-5 shadow-sm">
+    <div className="landing-interactive-card h-full rounded-2xl border border-stone-100 bg-white p-5 shadow-sm">
       <div
         className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl"
         style={{ background: theme.soft, color: theme.base }}
@@ -174,7 +174,7 @@ function FeatureCard({ icon: Icon, title, description, theme }) {
 
 function StepCard({ step, title, description, theme }) {
   return (
-    <div className="landing-interactive-card rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
+    <div className="landing-interactive-card flex h-full flex-col rounded-[1.75rem] border border-stone-200 bg-white p-5 shadow-sm">
       <div
         className="inline-flex rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]"
         style={{ background: theme.soft, color: theme.base }}
@@ -183,7 +183,7 @@ function StepCard({ step, title, description, theme }) {
       </div>
 
       <h3 className="mt-4 text-base font-bold text-stone-900">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-stone-500">{description}</p>
+      <p className="mt-2 flex-1 text-sm leading-6 text-stone-500">{description}</p>
     </div>
   );
 }
@@ -298,6 +298,14 @@ export default function SmartPDMLanding() {
     landing_faqs: defaultFaqItems,
   });
   const hasFeaturedNotice = Boolean(generalSettings.featured_notice);
+  const navigationItems = [
+    ['Home', '#home'],
+    ...(benefactors.length ? [['Partners', '#partners']] : []),
+    ['Applicant Guide', '#guide'],
+    ['About OSFA', '#about'],
+    ['FAQ', '#faq'],
+    ['Contact', '#contact'],
+  ];
 
   useEffect(() => {
     let active = true;
@@ -341,34 +349,47 @@ export default function SmartPDMLanding() {
   }, []);
 
   useEffect(() => {
-    const sectionIds = ['home', 'guide', 'partners', 'about', 'faq', 'contact'];
-    const sections = sectionIds
-      .map((id) => document.getElementById(id))
-      .filter(Boolean);
+    const sectionIds = ['home', 'partners', 'guide', 'about', 'faq', 'contact'];
+    let frameId;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visibleSection = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    const updateActiveSection = () => {
+      frameId = undefined;
+      const activationLine = 120;
+      let currentSection = 'home';
 
-        if (visibleSection?.target?.id) {
-          setActiveSection(visibleSection.target.id);
+      sectionIds.forEach((id) => {
+        const section = document.getElementById(id);
+        if (section && section.getBoundingClientRect().top <= activationLine) {
+          currentSection = id;
         }
-      },
-      {
-        rootMargin: '-18% 0px -62% 0px',
-        threshold: [0, 0.1, 0.25, 0.5],
-      }
-    );
+      });
 
-    sections.forEach((section) => observer.observe(section));
-    return () => observer.disconnect();
+      const reachedPageEnd =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 24;
+      setActiveSection(reachedPageEnd ? 'contact' : currentSection);
+    };
+
+    const handleScroll = () => {
+      if (frameId !== undefined) return;
+      frameId = window.requestAnimationFrame(updateActiveSection);
+    };
+
+    updateActiveSection();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+      if (frameId !== undefined) window.cancelAnimationFrame(frameId);
+    };
   }, [benefactors.length, generalSettings.landing_faqs.length]);
 
   useEffect(() => {
     const sections = Array.from(
-      document.querySelectorAll('.landing-page > section:not(.landing-hero), .landing-page > footer')
+      document.querySelectorAll(
+        '.landing-page > section:not(.landing-hero), .landing-page > main > section, .landing-page > footer'
+      )
     );
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -695,15 +716,8 @@ export default function SmartPDMLanding() {
         className="sticky top-0 z-50 border-b shadow-md"
         style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent }}
       >
-        <div className="mx-auto flex max-w-[84rem] items-center overflow-x-auto px-3 md:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {[
-            ['Home', '#home'],
-            ['Applicant Guide', '#guide'],
-            ['Partners', '#partners'],
-            ['About OSFA', '#about'],
-            ['FAQ', '#faq'],
-            ['Contact', '#contact'],
-          ].map(([label, href]) => (
+        <div className="mx-auto flex max-w-[84rem] items-center overflow-x-auto px-5 md:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {navigationItems.map(([label, href]) => (
             <a
               key={href}
               href={href}
@@ -966,39 +980,17 @@ export default function SmartPDMLanding() {
               </p>
             </div>
 
-            <style>{`
-              @keyframes benefactor-carousel-scroll {
-                from { transform: translateX(0); }
-                to { transform: translateX(-50%); }
-              }
-              .benefactor-carousel-track {
-                animation: benefactor-carousel-scroll ${Math.max(18, benefactors.length * 6)}s linear infinite;
-              }
-              .benefactor-carousel:hover .benefactor-carousel-track,
-              .benefactor-carousel:focus-within .benefactor-carousel-track {
-                animation-play-state: paused;
-              }
-              @media (prefers-reduced-motion: reduce) {
-                .benefactor-carousel-track { animation: none; transform: none; }
-              }
-            `}</style>
-
-            <div className="benefactor-carousel overflow-hidden rounded-[1.5rem]" aria-roledescription="carousel" aria-label="Scholarship benefactors">
-              <div className="benefactor-carousel-track flex w-max">
-                {[0, 1].map((copyIndex) => (
-                  <div
-                    key={`benefactor-set-${copyIndex}`}
-                    className="flex shrink-0 gap-4 pr-4"
-                    aria-hidden={copyIndex === 1 ? 'true' : undefined}
-                  >
-                    {benefactors.map((benefactor) => (
-                      <div key={`${copyIndex}-${benefactor.benefactor_id}`} className="w-[280px] shrink-0 sm:w-[320px] lg:w-[350px]">
-                        <BenefactorCard benefactor={benefactor} theme={theme} />
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+            <div
+              className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              aria-label="Scholarship benefactors"
+            >
+              {benefactors.map((benefactor) => (
+                <BenefactorCard
+                  key={benefactor.benefactor_id}
+                  benefactor={benefactor}
+                  theme={theme}
+                />
+              ))}
             </div>
 
           </div>

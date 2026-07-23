@@ -123,6 +123,205 @@ class DocumentContractsTest(unittest.TestCase):
         self.assertNotIn("applicant_name", payload["fields"])
         self.assertNotIn("extracted_name", payload["fields"])
 
+    def test_indigency_barangay_diagnostics_are_structural_and_text_free(self):
+        diagnostics = SimpleNamespace(
+            candidate_found=True,
+            candidate_count=1,
+            candidate_token_count=2,
+            candidate_word_confidences=(91.25, 43.5),
+            candidate_horizontal_gaps=(37,),
+            candidate_gap_ratios=(1.321,),
+            candidate_word_count_before_filter=2,
+            candidate_word_count_after_filter=2,
+            token_filter_status="unchanged",
+            removed_token_count=0,
+            candidate_source="pre_title_header",
+            anchor_found=True,
+            bounds_present=True,
+            crop_attempted=True,
+            crop_returned_text=True,
+            value_source="positional",
+            positional_validation_status="valid",
+            crop_validation_status="not_attempted",
+            failure_stage="none",
+            candidate_text="MUST NOT PERSIST",
+            crop_text="MUST NOT PERSIST",
+            raw_text="MUST NOT PERSIST",
+        )
+        field = SimpleNamespace(
+            name="issuing_barangay",
+            raw_text="SYNTHETIC FIELD OUTPUT",
+            success=True,
+            issue_codes=(),
+            detection_variant="grayscale",
+            anchor="SYNTHETIC ANCHOR",
+            normalized_bounds=(0.1, 0.2, 0.3, 0.1),
+            diagnostics=diagnostics,
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(fields=(field,), detection_variant="grayscale")
+        )
+
+        payload = build_indigency_extracted_fields_from_result(
+            "SYNTHETIC RAW OCR",
+            extraction_result,
+        )
+        persisted = payload["fields"]["issuing_barangay"]["diagnostics"]
+
+        self.assertEqual(
+            set(persisted),
+            {
+                "candidate_found",
+                "candidate_count",
+                "candidate_token_count",
+                "candidate_word_confidences",
+                "candidate_horizontal_gaps",
+                "candidate_gap_ratios",
+                "candidate_word_count_before_filter",
+                "candidate_word_count_after_filter",
+                "token_filter_status",
+                "removed_token_count",
+                "candidate_source",
+                "anchor_found",
+                "bounds_present",
+                "crop_attempted",
+                "crop_returned_text",
+                "value_source",
+                "positional_validation_status",
+                "crop_validation_status",
+                "failure_stage",
+            },
+        )
+        self.assertNotIn("candidate_text", persisted)
+        self.assertNotIn("crop_text", persisted)
+        self.assertNotIn("raw_text", persisted)
+        numeric_arrays = {
+            "candidate_word_confidences",
+            "candidate_horizontal_gaps",
+            "candidate_gap_ratios",
+        }
+        self.assertTrue(
+            all(
+                isinstance(item, (int, float))
+                for key in numeric_arrays
+                for item in persisted[key]
+            )
+        )
+        self.assertTrue(
+            all(
+                isinstance(value, (bool, int))
+                or value
+                in {
+                    "pre_title_header",
+                    "positional",
+                    "valid",
+                    "not_attempted",
+                    "unchanged",
+                    "none",
+                }
+                for key, value in persisted.items()
+                if key not in numeric_arrays
+            )
+        )
+
+    def test_indigency_mapping_diagnostics_preserve_runtime_statuses(self):
+        diagnostics = {
+            "candidate_found": True,
+            "candidate_count": 1,
+            "candidate_token_count": 2,
+            "candidate_word_confidences": (91.25, 43.5),
+            "candidate_horizontal_gaps": (37,),
+            "candidate_gap_ratios": (1.321,),
+            "candidate_word_count_before_filter": 2,
+            "candidate_word_count_after_filter": 2,
+            "token_filter_status": "unchanged",
+            "removed_token_count": 0,
+            "candidate_source": "pre_title_header",
+            "anchor_found": True,
+            "bounds_present": True,
+            "crop_attempted": False,
+            "crop_returned_text": False,
+            "value_source": "positional",
+            "positional_validation_status": "valid",
+            "crop_validation_status": "not_attempted",
+            "failure_stage": "none",
+        }
+        field = SimpleNamespace(
+            name="issuing_barangay",
+            raw_text="SYNTHETIC",
+            success=True,
+            issue_codes=(),
+            detection_variant="grayscale",
+            anchor="SYNTHETIC",
+            normalized_bounds=(0.1, 0.2, 0.3, 0.1),
+            diagnostics=diagnostics,
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(fields=(field,), detection_variant="grayscale")
+        )
+
+        payload = build_indigency_extracted_fields_from_result(
+            "SYNTHETIC RAW OCR",
+            extraction_result,
+        )
+        persisted = payload["fields"]["issuing_barangay"]["diagnostics"]
+
+        self.assertEqual(persisted["value_source"], "positional")
+        self.assertEqual(persisted["positional_validation_status"], "valid")
+        self.assertEqual(persisted["candidate_word_confidences"], [91.25, 43.5])
+        self.assertEqual(persisted["candidate_horizontal_gaps"], [37])
+        self.assertEqual(persisted["candidate_gap_ratios"], [1.321])
+        self.assertEqual(persisted["token_filter_status"], "unchanged")
+        self.assertEqual(persisted["removed_token_count"], 0)
+
+    def test_indigency_legacy_barangay_diagnostic_enums_remain_persistable(self):
+        diagnostics = SimpleNamespace(
+            candidate_found=True,
+            candidate_count=1,
+            candidate_token_count=2,
+            candidate_word_confidences=(),
+            candidate_horizontal_gaps=(),
+            candidate_word_count_before_filter=0,
+            candidate_word_count_after_filter=0,
+            candidate_source="pre_title_header",
+            anchor_found=True,
+            bounds_present=True,
+            crop_attempted=True,
+            crop_returned_text=True,
+            value_source="crop_ocr",
+            positional_validation_status="not_implemented",
+            crop_validation_status="non_empty_accepted",
+            failure_stage="none",
+        )
+        field = SimpleNamespace(
+            name="issuing_barangay",
+            raw_text="SYNTHETIC",
+            success=True,
+            issue_codes=(),
+            detection_variant="grayscale",
+            anchor="SYNTHETIC",
+            normalized_bounds=(0.1, 0.2, 0.3, 0.1),
+            diagnostics=diagnostics,
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(fields=(field,), detection_variant="grayscale")
+        )
+
+        payload = build_indigency_extracted_fields_from_result(
+            "SYNTHETIC RAW OCR",
+            extraction_result,
+        )
+        persisted = payload["fields"]["issuing_barangay"]["diagnostics"]
+
+        self.assertEqual(
+            persisted["positional_validation_status"],
+            "not_implemented",
+        )
+        self.assertEqual(
+            persisted["crop_validation_status"],
+            "non_empty_accepted",
+        )
+
     def test_mutating_one_result_does_not_affect_next_result(self):
         first = build_extracted_fields("certificate_of_live_birth", "sample text")
         first["source_regions"].append("MUTATED")

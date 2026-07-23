@@ -41,21 +41,27 @@ const portalLinks = [
 const howItWorks = [
   {
     step: '01',
-    title: 'Apply and submit requirements',
+    title: 'Prepare your information',
     description:
-      'Applicants complete the scholarship form, upload required documents, and track their submission in one place.',
+      'Review the scholarship notice and prepare accurate personal, academic, and supporting information.',
   },
   {
     step: '02',
-    title: 'Offices review the endorsement',
+    title: 'Submit your application',
     description:
-      'SDO, Guidance, and Program Director handle endorsement decisions by stage with visible progress and office remarks.',
+      'Complete the application and upload the documents requested for the scholarship program.',
   },
   {
     step: '03',
-    title: 'Admin finalizes scholar readiness',
+    title: 'Monitor your status',
     description:
-      'The admin side confirms requirements and endorsement completion before final scholar activation.',
+      'Follow application updates, document review, and office announcements through SMaRT-PDM.',
+  },
+  {
+    step: '04',
+    title: 'Wait for endorsement',
+    description:
+      'OSFA and the designated offices review qualified applications before final scholar activation.',
   },
 ];
 
@@ -117,6 +123,16 @@ const defaultFaqItems = [
 
 function isExternalUrl(href) {
   return /^https?:\/\//i.test(href);
+}
+
+function isSafePublicLink(href) {
+  const value = String(href || '').trim();
+  if (value.startsWith('/') && !value.startsWith('//')) return true;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 function Button({
@@ -273,7 +289,7 @@ function BenefactorCard({ benefactor, theme }) {
   );
 }
 
-function FaqCard({ item, theme, isOpen, onToggle }) {
+function FaqCard({ item, theme, isOpen, onToggle, panelId }) {
   return (
     <div
       className="rounded-[1.5rem] border bg-white p-5 shadow-sm"
@@ -282,6 +298,8 @@ function FaqCard({ item, theme, isOpen, onToggle }) {
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
         className="flex w-full items-start gap-3 text-left"
       >
         <div
@@ -307,7 +325,7 @@ function FaqCard({ item, theme, isOpen, onToggle }) {
       </button>
 
       {isOpen ? (
-        <div className="ml-12 mt-3 border-t border-stone-100 pt-3">
+        <div id={panelId} className="ml-12 mt-3 border-t border-stone-100 pt-3">
           <p className="text-sm leading-6 text-stone-500">{item.answer}</p>
         </div>
       ) : null}
@@ -328,6 +346,8 @@ export default function SmartPDMLanding() {
     office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
     about_osfa:
       'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
+    eligibility_summary:
+      'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
     featured_notice: null,
     featured_notice_next_change_at: null,
     landing_faqs: defaultFaqItems,
@@ -426,6 +446,7 @@ export default function SmartPDMLanding() {
             landline_number: payload?.landline_number || current.landline_number,
             office_hours: payload?.office_hours || current.office_hours,
             about_osfa: payload?.about_osfa || current.about_osfa,
+            eligibility_summary: payload?.eligibility_summary || current.eligibility_summary,
             featured_notice: payload?.featured_notice || null,
             featured_notice_next_change_at: payload?.featured_notice_next_change_at || null,
             landing_faqs: Array.isArray(payload?.landing_faqs)
@@ -460,6 +481,7 @@ export default function SmartPDMLanding() {
         landline_number: settings?.landline_number || current.landline_number,
         office_hours: settings?.office_hours || current.office_hours,
         about_osfa: settings?.about_osfa || current.about_osfa,
+        eligibility_summary: settings?.eligibility_summary || current.eligibility_summary,
         featured_notice:
           Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
             ? settings.featured_notice
@@ -679,7 +701,7 @@ export default function SmartPDMLanding() {
           </nav>
         </header>
 
-        <main className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-8 lg:grid-cols-[1.05fr_0.95fr] lg:pb-20 lg:pt-14">
+        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-8 lg:grid-cols-[1.05fr_0.95fr] lg:pb-20 lg:pt-14">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
               <span className="h-2 w-2 rounded-full bg-yellow-400" />
@@ -699,10 +721,6 @@ export default function SmartPDMLanding() {
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Button href={APP_DOWNLOAD_URL} icon={Download} theme={theme}>
                 Download APK
-              </Button>
-
-              <Button href="/admin/login" variant="ghost" icon={ArrowRight} theme={theme}>
-                Open Portal
               </Button>
             </div>
 
@@ -791,19 +809,15 @@ export default function SmartPDMLanding() {
                       scholarship activity from your phone.
                     </p>
 
-                    <div className="mt-3">
-                      <Button href={APP_DOWNLOAD_URL} size="sm" icon={Download} theme={theme}>
-                        Download App
-                      </Button>
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </section>
 
+      <main>
       {generalSettings.featured_notice ? (
         <section className="landing-zone-notice mx-auto w-full max-w-6xl px-5 pb-8 pt-8">
           <div
@@ -835,7 +849,8 @@ export default function SmartPDMLanding() {
                 </div>
               </div>
 
-              {generalSettings.featured_notice.link_label && generalSettings.featured_notice.link_url ? (
+              {generalSettings.featured_notice.link_label &&
+              isSafePublicLink(generalSettings.featured_notice.link_url) ? (
                 <Button
                   href={generalSettings.featured_notice.link_url}
                   variant="primary"
@@ -904,12 +919,16 @@ export default function SmartPDMLanding() {
               .benefactor-carousel-track {
                 animation: benefactor-carousel-scroll ${Math.max(18, benefactors.length * 6)}s linear infinite;
               }
+              .benefactor-carousel:hover .benefactor-carousel-track,
+              .benefactor-carousel:focus-within .benefactor-carousel-track {
+                animation-play-state: paused;
+              }
               @media (prefers-reduced-motion: reduce) {
-                .benefactor-carousel-track { animation-duration: 60s; }
+                .benefactor-carousel-track { animation: none; transform: none; }
               }
             `}</style>
 
-            <div className="overflow-hidden rounded-[1.5rem]" aria-roledescription="carousel" aria-label="Scholarship benefactors">
+            <div className="benefactor-carousel overflow-hidden rounded-[1.5rem]" aria-roledescription="carousel" aria-label="Scholarship benefactors">
               <div className="benefactor-carousel-track flex w-max">
                 {[0, 1].map((copyIndex) => (
                   <div
@@ -939,10 +958,10 @@ export default function SmartPDMLanding() {
           <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-                How It Works
+                Applicant Quick Guide
               </p>
               <h2 className="mt-2 text-2xl font-bold text-stone-900">
-                Scholarship flow in 3 simple steps
+                Get started in four clear steps
               </h2>
             </div>
 
@@ -951,7 +970,7 @@ export default function SmartPDMLanding() {
             </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {howItWorks.map((item) => (
               <StepCard key={item.step} {...item} theme={theme} />
             ))}
@@ -964,6 +983,8 @@ export default function SmartPDMLanding() {
           <img
             src={pdmFacade}
             alt="Pambayang Dalubhasaan ng Marilao campus facade"
+            loading="lazy"
+            decoding="async"
             className="absolute inset-0 h-full w-full object-cover object-center transition duration-700 group-hover:scale-[1.02]"
           />
           <div
@@ -987,70 +1008,47 @@ export default function SmartPDMLanding() {
       </section>
 
       <section className="landing-zone-bridge mx-auto w-full max-w-6xl px-5 pb-14 pt-14">
-        <div
-          className="rounded-[2rem] border p-6 md:p-8"
-          style={{ background: theme.soft, borderColor: theme.border }}
-        >
-          <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-                Department Access
-              </p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div
+            className="rounded-[1.75rem] border bg-white/85 p-6 shadow-sm"
+            style={{ borderColor: theme.border }}
+          >
+            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
+              Eligibility Overview
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-stone-900">
+              Check whether a scholarship may be right for you.
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-stone-600">
+              {generalSettings.eligibility_summary}
+            </p>
+            <a
+              href="#faq"
+              className="mt-5 inline-flex items-center gap-2 text-sm font-bold transition hover:opacity-75"
+              style={{ color: theme.base }}
+            >
+              View eligibility guidance
+              <ArrowRight size={16} aria-hidden="true" />
+            </a>
+          </div>
 
-              <h2 className="mt-2 text-xl font-bold text-stone-900">
-                Open the right portal directly.
-              </h2>
-
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-                Department users can access PD, Guidance, or SDO login without
-                passing through the admin login screen first.
-              </p>
+          <div
+            className="rounded-[1.75rem] border p-6 text-white shadow-sm"
+            style={{ background: theme.dark, borderColor: theme.border }}
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
+              <ShieldCheck size={20} aria-hidden="true" />
             </div>
-
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {portalLinks.map((item) => (
-                <Button
-                  key={item.href}
-                  href={item.href}
-                  variant={item.label === 'Admin' ? 'primary' : 'secondary'}
-                  size="sm"
-                  fullWidth
-                  theme={theme}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-zone-bridge mx-auto w-full max-w-6xl px-5 pb-14">
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="landing-highlight-card rounded-[1.75rem] border p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-              Clear workflow
+            <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-white/65">
+              Official PDM–OSFA Platform
             </p>
-            <p className="mt-3 text-sm leading-6 text-stone-600">
-              Applications, requirements, endorsement, and scholar readiness stay separated so each step is easier to manage.
-            </p>
-          </div>
-
-          <div className="landing-highlight-card rounded-[1.75rem] border p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-              Office visibility
-            </p>
-            <p className="mt-3 text-sm leading-6 text-stone-600">
-              SDO, Guidance, and Program Director can monitor active applicants, processed slips, and downloadable records in their own portals.
-            </p>
-          </div>
-
-          <div className="landing-highlight-card rounded-[1.75rem] border p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-              Student-friendly access
-            </p>
-            <p className="mt-3 text-sm leading-6 text-stone-600">
-              Applicants can use the mobile app for updates, reminders, and status tracking without depending only on manual follow-up.
+            <h2 className="mt-2 text-xl font-bold">
+              Verify scholarship information through official channels.
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-white/75">
+              SMaRT-PDM is the scholarship monitoring platform of Pambayang
+              Dalubhasaan ng Marilao and OSFA. Confirm important announcements
+              through this site, the OSFA office, or PDM&apos;s official Facebook page.
             </p>
           </div>
         </div>
@@ -1104,7 +1102,7 @@ export default function SmartPDMLanding() {
       </section>
 
       {generalSettings.landing_faqs.length ? (
-      <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-12">
+      <section id="faq" className="landing-zone-support mx-auto w-full max-w-6xl scroll-mt-6 px-5 pb-12">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
           style={{ background: '#fffdfb', borderColor: theme.border }}
@@ -1131,6 +1129,7 @@ export default function SmartPDMLanding() {
                 item={item}
                 theme={theme}
                 isOpen={activeFaq === index}
+                panelId={`faq-panel-${index}`}
                 onToggle={() => setActiveFaq((current) => (current === index ? -1 : index))}
               />
             ))}
@@ -1153,7 +1152,7 @@ export default function SmartPDMLanding() {
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <MapPin className="h-4 w-4" />
@@ -1192,66 +1191,53 @@ export default function SmartPDMLanding() {
                 Public service window for in-person follow-up and scholarship transactions.
               </p>
             </div>
+
+            <div className="rounded-[1.5rem] bg-white/8 px-5 py-5 text-white backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Mail className="h-4 w-4" />
+                Email
+              </div>
+              <p className="mt-3 break-words text-base font-semibold">
+                {generalSettings.office_email}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/75">
+                Official channel for public scholarship questions and assistance.
+              </p>
+            </div>
           </div>
         </div>
       </section>
+      </main>
 
       <footer className="landing-footer border-t border-stone-200 px-5 py-8">
         <div className="mx-auto max-w-6xl">
-          <div className="grid gap-6 rounded-[2rem] border border-stone-200 bg-stone-50/60 px-6 py-6 md:px-8 lg:grid-cols-[1.15fr_0.85fr_0.85fr]">
+          <div className="grid gap-6 rounded-[2rem] border border-stone-200 bg-stone-50/60 px-6 py-6 md:grid-cols-[1fr_auto] md:items-center md:px-8">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-                Contact / Visit Us
-              </p>
-              <h3 className="mt-2 text-lg font-bold text-stone-900">{generalSettings.office_name}</h3>
-              <p className="mt-3 text-sm leading-6 text-stone-600">
-                Public scholarship inquiries, application follow-up, and office coordination can be directed through the contact details below.
+              <p className="text-sm font-bold text-stone-900">SMaRT-PDM</p>
+              <p className="mt-1 text-sm text-stone-600">{generalSettings.office_name}</p>
+              <p className="mt-2 text-xs text-stone-500">
+                Official scholarship monitoring platform of Pambayang Dalubhasaan ng Marilao.
               </p>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <MapPin className="mt-0.5 h-4 w-4 text-stone-500" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Office Address</p>
-                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.office_address}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Phone className="mt-0.5 h-4 w-4 text-stone-500" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Landline Number</p>
-                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.landline_number}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Clock3 className="mt-0.5 h-4 w-4 text-stone-500" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Office Hours</p>
-                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.office_hours}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Mail className="mt-0.5 h-4 w-4 text-stone-500" />
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">Email</p>
-                  <p className="mt-1 text-sm font-medium text-stone-800">{generalSettings.office_email}</p>
-                </div>
-              </div>
-
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              <Link to="/privacy" className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100">
+                Privacy Notice
+              </Link>
+              <Link to="/terms" className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100">
+                Terms of Use
+              </Link>
+              <Link to="/privacy#data-processing-consent" className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100">
+                Data Processing Consent
+              </Link>
               <a
                 href={PDM_FACEBOOK_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
+                className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 transition hover:bg-stone-100"
               >
                 <Globe2 className="h-4 w-4" />
-                Follow PDM on Facebook
+                PDM Facebook
               </a>
             </div>
           </div>
@@ -1262,21 +1248,9 @@ export default function SmartPDMLanding() {
             </p>
 
             <p className="text-xs text-stone-400">
-              © 2026 Pambayang Dalubhasaan ng Marilao
+              © {new Date().getFullYear()} Pambayang Dalubhasaan ng Marilao
             </p>
           </div>
-        </div>
-      </footer>
-
-      <footer className="hidden border-t border-stone-200 bg-white px-5 py-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 text-center md:flex-row md:items-center md:justify-between md:text-left">
-          <p className="text-xs font-semibold text-stone-600">
-            SMaRT-PDM · Office for Scholarship and Financial Assistance
-          </p>
-
-          <p className="text-xs text-stone-400">
-            © 2026 Pambayang Dalubhasaan ng Marilao
-          </p>
         </div>
       </footer>
 

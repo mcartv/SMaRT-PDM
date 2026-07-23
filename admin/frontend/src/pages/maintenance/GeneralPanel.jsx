@@ -36,6 +36,9 @@ import { C, FieldLabel, GroupCard, Toggle, EmptyState } from './components/Maint
 const DEFAULT_ABOUT_OSFA =
     'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.';
 
+const DEFAULT_ELIGIBILITY_SUMMARY =
+    'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.';
+
 const DEFAULT_FAQS = [
     {
         faq_id: 'faq-1',
@@ -221,6 +224,7 @@ export default function GeneralPanel() {
     const [landlineNumber, setLandlineNumber] = useState(DEFAULT_OFFICE.landline_number);
     const [officeHours, setOfficeHours] = useState(DEFAULT_OFFICE.office_hours);
     const [aboutOsfa, setAboutOsfa] = useState(DEFAULT_ABOUT_OSFA);
+    const [eligibilitySummary, setEligibilitySummary] = useState(DEFAULT_ELIGIBILITY_SUMMARY);
     const [featuredNotice, setFeaturedNotice] = useState(DEFAULT_FEATURED_NOTICE);
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
@@ -272,6 +276,7 @@ export default function GeneralPanel() {
             setLandlineNumber(payload?.landline_number || DEFAULT_OFFICE.landline_number);
             setOfficeHours(payload?.office_hours || DEFAULT_OFFICE.office_hours);
             setAboutOsfa(payload?.about_osfa || DEFAULT_ABOUT_OSFA);
+            setEligibilitySummary(payload?.eligibility_summary || DEFAULT_ELIGIBILITY_SUMMARY);
             setFeaturedNotice(normalizeFeaturedNotice(payload?.featured_notice));
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
             setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
@@ -321,6 +326,9 @@ export default function GeneralPanel() {
                 }
                 if (typeof payload?.about_osfa === 'string') {
                     setAboutOsfa(payload.about_osfa);
+                }
+                if (typeof payload?.eligibility_summary === 'string') {
+                    setEligibilitySummary(payload.eligibility_summary);
                 }
                 if (payload?.featured_notice && typeof payload.featured_notice === 'object') {
                     setFeaturedNotice(normalizeFeaturedNotice(payload.featured_notice));
@@ -379,9 +387,12 @@ export default function GeneralPanel() {
 
     const saveAboutSettings = async () => {
         await updateGeneralSettings(
-            { about_osfa: aboutOsfa },
+            {
+                about_osfa: aboutOsfa,
+                eligibility_summary: eligibilitySummary,
+            },
             'about',
-            'Landing About OSFA content saved successfully.'
+            'Landing About OSFA and eligibility content saved successfully.'
         );
     };
 
@@ -416,7 +427,8 @@ export default function GeneralPanel() {
 
     const restoreAboutDefaults = () => {
         setAboutOsfa(DEFAULT_ABOUT_OSFA);
-        showSuccess('Landing About OSFA restored locally. Save to apply.');
+        setEligibilitySummary(DEFAULT_ELIGIBILITY_SUMMARY);
+        showSuccess('Landing About OSFA and eligibility content restored locally. Save to apply.');
     };
 
     const restoreFeaturedNoticeDefaults = () => {
@@ -761,7 +773,7 @@ export default function GeneralPanel() {
                             </div>
 
                             {activeLandingSection === 'about' ? (
-                                <GroupCard title="Landing About OSFA" icon={Globe}>
+                                <GroupCard title="Landing About OSFA & Eligibility" icon={Globe}>
                                 <div className="space-y-3">
                                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-100 bg-stone-50 px-3 py-2.5">
                                         <div>
@@ -807,6 +819,21 @@ export default function GeneralPanel() {
                                             className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
                                             placeholder="Write the public About OSFA description shown on the landing page."
                                         />
+                                    </div>
+
+                                    <div>
+                                        <FieldLabel>Eligibility Summary</FieldLabel>
+                                        <textarea
+                                            value={eligibilitySummary}
+                                            onChange={(e) => setEligibilitySummary(e.target.value)}
+                                            rows={6}
+                                            maxLength={1200}
+                                            className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
+                                            placeholder="Summarize who may qualify. Detailed requirements can be added later."
+                                        />
+                                        <p className="mt-1 text-[11px] text-stone-500">
+                                            This appears in the public eligibility overview. Keep it general when requirements vary by scholarship.
+                                        </p>
                                     </div>
                                 </div>
                                 </GroupCard>
@@ -921,6 +948,7 @@ export default function GeneralPanel() {
                                             </div>
                                         </div>
                                     </div>
+
                                 </GroupCard>
                             ) : null}
 

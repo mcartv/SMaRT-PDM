@@ -7,6 +7,7 @@ create table if not exists public.general_settings (
   landline_number text not null default '(044) 919-8191',
   office_hours text not null default 'Monday - Friday, 8:00 AM - 5:00 PM',
   about_osfa text not null default 'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
+  eligibility_summary text not null default 'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
   landing_faqs jsonb not null default '[
     {"question":"Who can apply?","answer":"Applicants must meet the eligibility requirements of the scholarship program and submit the required records through the SMaRT-PDM application process."},
     {"question":"What documents are required?","answer":"Required documents depend on the scholarship program, but applicants are expected to upload the listed requirements in the system before final review."},
@@ -21,6 +22,9 @@ create table if not exists public.general_settings (
 
 alter table public.general_settings
   add column if not exists about_osfa text not null default 'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.';
+
+alter table public.general_settings
+  add column if not exists eligibility_summary text not null default 'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.';
 
 alter table public.general_settings
   add column if not exists landing_faqs jsonb not null default '[
@@ -39,6 +43,7 @@ insert into public.general_settings (
   landline_number,
   office_hours,
   about_osfa,
+  eligibility_summary,
   landing_faqs,
   global_deadline,
   applications_open
@@ -52,6 +57,7 @@ values (
   '(044) 919-8191',
   'Monday - Friday, 8:00 AM - 5:00 PM',
   'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
+  'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
   '[
     {"question":"Who can apply?","answer":"Applicants must meet the eligibility requirements of the scholarship program and submit the required records through the SMaRT-PDM application process."},
     {"question":"What documents are required?","answer":"Required documents depend on the scholarship program, but applicants are expected to upload the listed requirements in the system before final review."},

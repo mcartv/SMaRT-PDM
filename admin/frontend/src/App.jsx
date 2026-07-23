@@ -43,6 +43,7 @@ import EndorsementQueue from './pages/EndorsementQueue';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
+import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 
 // --- SDO PAGES ---
 
@@ -69,6 +70,8 @@ export default function App() {
 
         {/* Public Landing Page */}
         <Route path="/landing" element={<SmartPDMLanding />} />
+        <Route path="/privacy" element={<PrivacyNotice />} />
+        <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/endorsement/verify/:token" element={<EndorsementVerification />} />
 
         {/* Public Routes */}

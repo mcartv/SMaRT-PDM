@@ -12,6 +12,8 @@ const DEFAULT_GENERAL_SETTINGS = {
   office_hours: 'Monday - Friday, 8:00 AM - 5:00 PM',
   about_osfa:
     'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
+  eligibility_summary:
+    'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
   featured_notice: {
     title: 'Welcome to SMaRT-PDM',
     message: 'Check the mobile application and official OSFA channels for current scholarship updates.',
@@ -153,6 +155,8 @@ function sanitizeSettings(payload = {}) {
       safeText(payload.office_hours, 120) || DEFAULT_GENERAL_SETTINGS.office_hours,
     about_osfa:
       safeText(payload.about_osfa, 2000) || DEFAULT_GENERAL_SETTINGS.about_osfa,
+    eligibility_summary:
+      safeText(payload.eligibility_summary, 1200) || DEFAULT_GENERAL_SETTINGS.eligibility_summary,
     featured_notice: sanitizeFeaturedNotice(payload.featured_notice),
     landing_faqs: sanitizeFaqs(payload.landing_faqs),
     global_deadline:
@@ -213,7 +217,7 @@ async function getGeneralSettings() {
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .eq('general_settings_id', 1)
     .maybeSingle();
@@ -266,7 +270,7 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     .from(TABLE_NAME)
     .upsert(upsertPayload, { onConflict: 'general_settings_id' })
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .single();
 

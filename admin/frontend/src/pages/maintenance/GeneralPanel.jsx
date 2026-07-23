@@ -404,14 +404,19 @@ export default function GeneralPanel() {
         if (saved) setOfficeEditing(false);
     };
 
-    const saveAboutSettings = async () => {
+    const saveAboutOsfa = async () => {
         await updateGeneralSettings(
-            {
-                about_osfa: aboutOsfa,
-                eligibility_summary: eligibilitySummary,
-            },
-            'about',
-            'Landing About OSFA and eligibility content saved successfully.'
+            { about_osfa: aboutOsfa },
+            'about-osfa',
+            'About OSFA content saved successfully.'
+        );
+    };
+
+    const saveEligibilitySummary = async () => {
+        await updateGeneralSettings(
+            { eligibility_summary: eligibilitySummary },
+            'about-eligibility',
+            'Eligibility summary saved successfully.'
         );
     };
 
@@ -486,10 +491,14 @@ export default function GeneralPanel() {
         showSuccess('Office and contact fields restored locally. Save to apply.');
     };
 
-    const restoreAboutDefaults = () => {
+    const restoreAboutOsfaDefault = () => {
         setAboutOsfa(DEFAULT_ABOUT_OSFA);
+        showSuccess('About OSFA content restored locally. Save to apply.');
+    };
+
+    const restoreEligibilityDefault = () => {
         setEligibilitySummary(DEFAULT_ELIGIBILITY_SUMMARY);
-        showSuccess('Landing About OSFA and eligibility content restored locally. Save to apply.');
+        showSuccess('Eligibility summary restored locally. Save to apply.');
     };
 
     const restoreLandingGroupDefaults = (group) => {
@@ -782,19 +791,18 @@ export default function GeneralPanel() {
                         title="Office & Contact"
                         description="Manage institution identity, office details, and public contact information."
                         actions={
-                            officeEditing ? (
-                                renderSectionActions(restoreOfficeDefaults, saveOfficeSettings, 'office')
-                            ) : (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setOfficeEditing(true)}
-                                    className="h-8 rounded-lg border-stone-200 px-3 text-xs text-stone-700 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
-                                >
-                                    <Pencil size={13} className="mr-1.5" />
-                                    Edit Details
-                                </Button>
-                            )
+                            <>
+                                <div className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1">
+                                    <Toggle
+                                        value={officeEditing}
+                                        onChange={setOfficeEditing}
+                                        labels={['Edit mode: On', 'Edit mode: Off']}
+                                    />
+                                </div>
+                                {officeEditing
+                                    ? renderSectionActions(restoreOfficeDefaults, saveOfficeSettings, 'office')
+                                    : null}
+                            </>
                         }
                     >
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -881,7 +889,7 @@ export default function GeneralPanel() {
                 {activeSection === 'landing' ? (
                     <SectionFrame
                         title="Landing Content"
-                        description="Manage the public About OSFA section and landing FAQs in separate, cleaner views."
+                        description="Manage each public landing display in a separated view with group-specific save controls."
                     >
                         <div className="space-y-4">
                             <div className="rounded-xl border border-stone-100 bg-stone-50/80 p-3">
@@ -958,19 +966,12 @@ export default function GeneralPanel() {
 
                             {activeLandingSection === 'about' ? (
                                 <GroupCard title="Landing About OSFA & Eligibility" icon={Globe}>
-                                <div className="space-y-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-100 bg-stone-50 px-3 py-2.5">
-                                        <div>
-                                            <p className="text-xs font-semibold text-stone-800">About section content</p>
-                                            <p className="text-[11px] text-stone-500">This text appears in the public landing page About OSFA section.</p>
+                                <div className="space-y-5">
+                                    <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                        <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                            <p className="text-sm font-semibold text-stone-900">About OSFA</p>
+                                            <p className="mt-1 text-xs text-stone-500">Public description of the scholarship office and its role.</p>
                                         </div>
-
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            {renderSectionActions(restoreAboutDefaults, saveAboutSettings, 'about')}
-                                        </div>
-                                    </div>
-
-                                    <div>
                                         <FieldLabel>About OSFA Text</FieldLabel>
                                         <textarea
                                             value={aboutOsfa}
@@ -979,9 +980,16 @@ export default function GeneralPanel() {
                                             className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm text-stone-700 outline-none"
                                             placeholder="Write the public About OSFA description shown on the landing page."
                                         />
+                                        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-stone-100 pt-4">
+                                            {renderSectionActions(restoreAboutOsfaDefault, saveAboutOsfa, 'about-osfa')}
+                                        </div>
                                     </div>
 
-                                    <div>
+                                    <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                        <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                            <p className="text-sm font-semibold text-stone-900">Eligibility Summary</p>
+                                            <p className="mt-1 text-xs text-stone-500">General guidance shown before detailed scholarship requirements are available.</p>
+                                        </div>
                                         <FieldLabel>Eligibility Summary</FieldLabel>
                                         <textarea
                                             value={eligibilitySummary}
@@ -994,6 +1002,9 @@ export default function GeneralPanel() {
                                         <p className="mt-1 text-[11px] text-stone-500">
                                             This appears in the public eligibility overview. Keep it general when requirements vary by scholarship.
                                         </p>
+                                        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-stone-100 pt-4">
+                                            {renderSectionActions(restoreEligibilityDefault, saveEligibilitySummary, 'about-eligibility')}
+                                        </div>
                                     </div>
                                 </div>
                                 </GroupCard>
@@ -1007,9 +1018,9 @@ export default function GeneralPanel() {
                                             <p className="mt-1 text-[11px] leading-5 text-stone-500">Use the Restore Defaults and Save Changes buttons inside each group. Saving one group does not require saving the others.</p>
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">1. Hero & Mobile App</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Hero & Mobile App</p>
                                                 <p className="mt-1 text-xs text-stone-500">The first message and mobile-app information visitors see.</p>
                                             </div>
                                             <div className="grid gap-4 md:grid-cols-2">
@@ -1022,9 +1033,9 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('copy', 'hero')}
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">2. Applicant Guide</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Applicant Guide</p>
                                                 <p className="mt-1 text-xs text-stone-500">Heading, introduction, and the four application steps.</p>
                                             </div>
                                             <FieldLabel>Applicant Guide Heading</FieldLabel>
@@ -1032,7 +1043,7 @@ export default function GeneralPanel() {
                                             <div className="mt-3"><FieldLabel>Guide Introduction</FieldLabel><Input value={landingContent.guide_description} onChange={(e) => updateLandingField('guide_description', e.target.value)} maxLength={400} /></div>
                                             <div className="mt-4 grid gap-3 md:grid-cols-2">
                                                 {landingContent.guide_steps.map((item, index) => (
-                                                    <div key={`guide-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                    <div key={`guide-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
                                                         <FieldLabel>Step {index + 1}</FieldLabel>
                                                         <Input value={item.title} onChange={(e) => updateLandingItem('guide_steps', index, 'title', e.target.value)} maxLength={120} />
                                                         <textarea value={item.description} onChange={(e) => updateLandingItem('guide_steps', index, 'description', e.target.value)} rows={3} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
@@ -1042,9 +1053,9 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('copy', 'guide')}
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">3. Platform Features</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Platform Features</p>
                                                 <p className="mt-1 text-xs text-stone-500">Heading, introduction, and four feature descriptions.</p>
                                             </div>
                                             <FieldLabel>Features Heading</FieldLabel>
@@ -1052,7 +1063,7 @@ export default function GeneralPanel() {
                                             <div className="mt-3"><FieldLabel>Features Introduction</FieldLabel><Input value={landingContent.features_description} onChange={(e) => updateLandingField('features_description', e.target.value)} maxLength={400} /></div>
                                             <div className="mt-4 grid gap-3 md:grid-cols-2">
                                                 {landingContent.feature_items.map((item, index) => (
-                                                    <div key={`feature-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                    <div key={`feature-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
                                                         <FieldLabel>Feature {index + 1}</FieldLabel>
                                                         <Input value={item.title} onChange={(e) => updateLandingItem('feature_items', index, 'title', e.target.value)} maxLength={120} />
                                                         <textarea value={item.description} onChange={(e) => updateLandingItem('feature_items', index, 'description', e.target.value)} rows={3} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
@@ -1062,17 +1073,17 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('copy', 'features')}
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">4. Campus & Credibility</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Campus & Credibility</p>
                                                 <p className="mt-1 text-xs text-stone-500">Institutional campus message and official-platform verification guidance.</p>
                                             </div>
                                             <div className="grid gap-4 md:grid-cols-2">
-                                                <div className="rounded-lg bg-stone-50 p-3">
+                                                <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
                                                 <FieldLabel>Campus Heading</FieldLabel><Input value={landingContent.campus_title} onChange={(e) => updateLandingField('campus_title', e.target.value)} maxLength={160} />
                                                 <div className="mt-3"><FieldLabel>Campus Description</FieldLabel><textarea value={landingContent.campus_description} onChange={(e) => updateLandingField('campus_description', e.target.value)} rows={4} maxLength={400} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                                 </div>
-                                                <div className="rounded-lg bg-stone-50 p-3">
+                                                <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
                                                 <FieldLabel>Official Platform Heading</FieldLabel><Input value={landingContent.credibility_title} onChange={(e) => updateLandingField('credibility_title', e.target.value)} maxLength={180} />
                                                 <div className="mt-3"><FieldLabel>Verification Description</FieldLabel><textarea value={landingContent.credibility_description} onChange={(e) => updateLandingField('credibility_description', e.target.value)} rows={4} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                                 </div>
@@ -1091,9 +1102,9 @@ export default function GeneralPanel() {
                                             <p className="mt-1 text-[11px] leading-5 text-stone-500">Policy changes affect public institutional statements. Have final wording reviewed by the authorized PDM office.</p>
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">1. Shared Policy Settings</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Shared Policy Settings</p>
                                                 <p className="mt-1 text-xs text-stone-500">Set the public effective date used by both pages.</p>
                                             </div>
                                             <div className="max-w-xs">
@@ -1103,9 +1114,9 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('policy', 'shared')}
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">2. Privacy Notice</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Privacy Notice</p>
                                                 <p className="mt-1 text-xs text-stone-500">Choose its page icon and edit the introduction and five notice sections.</p>
                                             </div>
                                             <div className="max-w-xs">
@@ -1117,7 +1128,7 @@ export default function GeneralPanel() {
                                             <div className="mt-4"><FieldLabel>Privacy Introduction</FieldLabel><textarea value={policyContent.privacy_intro} onChange={(e) => updatePolicyField('privacy_intro', e.target.value)} rows={4} maxLength={1600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                             <div className="mt-4 space-y-3">
                                                 {policyContent.privacy_sections.map((section, index) => (
-                                                    <div key={`privacy-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                    <div key={`privacy-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
                                                         <FieldLabel>Privacy Section {index + 1}</FieldLabel>
                                                         <Input value={section.title} onChange={(e) => updatePolicySection('privacy_sections', index, 'title', e.target.value)} maxLength={160} />
                                                         <textarea value={section.body} onChange={(e) => updatePolicySection('privacy_sections', index, 'body', e.target.value)} rows={4} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
@@ -1127,9 +1138,9 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('policy', 'privacy')}
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">3. Data Processing Consent</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Data Processing Consent</p>
                                                 <p className="mt-1 text-xs text-stone-500">Edit the consent section displayed inside the Privacy Notice.</p>
                                             </div>
                                             <div className="grid gap-4 md:grid-cols-2">
@@ -1146,9 +1157,9 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('policy', 'consent')}
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-200 p-4">
-                                            <div className="mb-4">
-                                                <p className="text-sm font-semibold text-stone-900">4. Terms of Use</p>
+                                        <div className="overflow-hidden rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
+                                            <div className="-mx-4 -mt-4 mb-5 border-b border-stone-200 bg-stone-50 px-4 py-3.5">
+                                                <p className="text-sm font-semibold text-stone-900">Terms of Use</p>
                                                 <p className="mt-1 text-xs text-stone-500">Choose its page icon and edit the introduction and six terms sections.</p>
                                             </div>
                                             <div className="max-w-xs">
@@ -1160,7 +1171,7 @@ export default function GeneralPanel() {
                                             <div className="mt-4"><FieldLabel>Terms Introduction</FieldLabel><textarea value={policyContent.terms_intro} onChange={(e) => updatePolicyField('terms_intro', e.target.value)} rows={4} maxLength={1600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
                                             <div className="mt-4 space-y-3">
                                                 {policyContent.terms_sections.map((section, index) => (
-                                                    <div key={`terms-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                    <div key={`terms-${index}`} className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
                                                         <FieldLabel>Terms Section {index + 1}</FieldLabel>
                                                         <Input value={section.title} onChange={(e) => updatePolicySection('terms_sections', index, 'title', e.target.value)} maxLength={160} />
                                                         <textarea value={section.body} onChange={(e) => updatePolicySection('terms_sections', index, 'body', e.target.value)} rows={4} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
@@ -1176,7 +1187,7 @@ export default function GeneralPanel() {
                             {activeLandingSection === 'notice' ? (
                                 <GroupCard title="Featured Public Notice" icon={Megaphone}>
                                     <div className="space-y-4">
-                                        <div className="flex flex-col gap-3 rounded-xl border border-stone-100 bg-stone-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="flex flex-col gap-3 rounded-2xl border-2 border-stone-200 bg-stone-50 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                                             <div>
                                                 <p className="text-xs font-semibold text-stone-800">Landing-page notice</p>
                                                 <p className="mt-1 text-[11px] text-stone-500">
@@ -1188,7 +1199,7 @@ export default function GeneralPanel() {
                                             </div>
                                         </div>
 
-                                        <div className="rounded-xl border border-stone-100 bg-stone-50 p-3">
+                                        <div className="rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm">
                                             <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-stone-400">Visibility</p>
                                             <Toggle
                                                 value={featuredNotice.is_visible}
@@ -1197,7 +1208,7 @@ export default function GeneralPanel() {
                                             />
                                         </div>
 
-                                        <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="grid gap-4 rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm md:grid-cols-2">
                                             <div className="md:col-span-2">
                                                 <FieldLabel>Notice Title</FieldLabel>
                                                 <Input
@@ -1265,7 +1276,7 @@ export default function GeneralPanel() {
                             {activeLandingSection === 'faq' ? (
                                 <GroupCard title="Landing FAQs" icon={LayoutTemplate}>
                                 <div className="space-y-4">
-                                    <div className="flex flex-col gap-3 rounded-xl border border-stone-100 bg-stone-50/80 p-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex flex-col gap-3 rounded-2xl border-2 border-stone-200 bg-stone-50/80 p-4 shadow-sm md:flex-row md:items-center md:justify-between">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <button
                                                 type="button"
@@ -1321,7 +1332,7 @@ export default function GeneralPanel() {
                                             {visibleFaqs.map((faq) => (
                                                 <div
                                                     key={faq.faq_id}
-                                                    className="rounded-xl border border-stone-200 bg-white p-3"
+                                                    className="rounded-2xl border-2 border-stone-200 bg-white p-4 shadow-sm"
                                                 >
                                                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                                                         <div className="min-w-0 flex-1">

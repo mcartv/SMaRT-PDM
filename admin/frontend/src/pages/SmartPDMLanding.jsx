@@ -280,6 +280,7 @@ export default function SmartPDMLanding() {
   const { theme } = useLandingTheme();
   const [benefactors, setBenefactors] = useState([]);
   const [activeFaq, setActiveFaq] = useState(0);
+  const [activeSection, setActiveSection] = useState('home');
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [generalSettings, setGeneralSettings] = useState({
     office_name: 'Office for Scholarship and Financial Assistance',
@@ -338,6 +339,32 @@ export default function SmartPDMLanding() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const sectionIds = ['home', 'guide', 'partners', 'about', 'faq', 'contact'];
+    const sections = sectionIds
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleSection = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (visibleSection?.target?.id) {
+          setActiveSection(visibleSection.target.id);
+        }
+      },
+      {
+        rootMargin: '-18% 0px -62% 0px',
+        threshold: [0, 0.1, 0.25, 0.5],
+      }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [benefactors.length, generalSettings.landing_faqs.length]);
 
   useEffect(() => {
     const sections = Array.from(
@@ -490,6 +517,10 @@ export default function SmartPDMLanding() {
       style={{ background: theme.pageBg, fontFamily: "'Inter', sans-serif" }}
     >
       <style>{`
+        html {
+          scroll-behavior: smooth;
+          scroll-padding-top: 4.25rem;
+        }
         @keyframes landing-hero-enter {
           from { opacity: 0; transform: translateY(22px); }
           to { opacity: 1; transform: translateY(0); }
@@ -532,6 +563,9 @@ export default function SmartPDMLanding() {
           transform: translateY(0);
         }
         @media (prefers-reduced-motion: reduce) {
+          html {
+            scroll-behavior: auto;
+          }
           .landing-hero-copy,
           .landing-hero-panel,
           .landing-faq-answer {
@@ -623,7 +657,7 @@ export default function SmartPDMLanding() {
         }
       `}</style>
       <header className="border-b-4 bg-[#f7f8f4]" style={{ borderBottomColor: theme.accent }}>
-        <div className="mx-auto flex w-full max-w-[90rem] items-center justify-between gap-4 px-5 py-4 md:px-8 md:py-5">
+        <div className="mx-auto flex w-full max-w-[84rem] items-center justify-between gap-4 px-5 py-4 md:px-8 md:py-5">
           <Link to="/landing" className="flex min-w-0 items-center gap-3">
             <span className="flex shrink-0 items-center gap-2" aria-label="PDM and Municipality of Marilao">
               <img
@@ -635,7 +669,7 @@ export default function SmartPDMLanding() {
               <img
                 src={marilaoLogo}
                 alt="Municipality of Marilao seal"
-                className="h-12 w-12 object-contain sm:h-14 sm:w-14 md:h-16 md:w-16"
+                className="h-11 w-11 object-contain sm:h-12 sm:w-12 md:h-14 md:w-14"
               />
             </span>
             <span className="min-w-0">
@@ -661,7 +695,7 @@ export default function SmartPDMLanding() {
         className="sticky top-0 z-50 border-b shadow-md"
         style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent }}
       >
-        <div className="mx-auto flex max-w-[90rem] items-center overflow-x-auto px-3 md:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mx-auto flex max-w-[84rem] items-center overflow-x-auto px-3 md:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             ['Home', '#home'],
             ['Applicant Guide', '#guide'],
@@ -673,7 +707,12 @@ export default function SmartPDMLanding() {
             <a
               key={href}
               href={href}
-              className="shrink-0 border-b-2 border-transparent px-3 py-3 text-xs font-bold uppercase tracking-[0.08em] text-white/80 transition hover:border-[var(--nav-accent)] hover:text-white md:px-4"
+              aria-current={activeSection === href.slice(1) ? 'location' : undefined}
+              className={`shrink-0 border-b-2 px-3 py-3 text-xs font-bold uppercase tracking-[0.08em] transition duration-300 hover:border-[var(--nav-accent)] hover:text-white md:px-4 ${
+                activeSection === href.slice(1)
+                  ? 'border-[var(--nav-accent)] bg-white/8 text-white'
+                  : 'border-transparent text-white/80'
+              }`}
             >
               {label}
             </a>
@@ -721,7 +760,7 @@ export default function SmartPDMLanding() {
           />
         </div>
 
-        <div className="relative z-10 mx-auto grid w-full max-w-[90rem] items-center gap-10 px-5 pb-16 pt-12 md:px-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:pb-20 lg:pt-16">
+        <div className="relative z-10 mx-auto grid w-full max-w-[84rem] items-center gap-10 px-5 pb-16 pt-12 md:px-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16 lg:pb-20 lg:pt-16">
           <div className="landing-hero-copy max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
               <span className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
@@ -836,7 +875,7 @@ export default function SmartPDMLanding() {
 
       <main>
       {generalSettings.featured_notice ? (
-        <section className="landing-zone-notice mx-auto w-full max-w-[90rem] px-5 pb-8 pt-8 md:px-8">
+        <section className="landing-zone-notice mx-auto w-full max-w-[84rem] px-5 pb-8 pt-8 md:px-8">
           <div
             className="relative overflow-hidden rounded-[1.75rem] border px-5 py-5 shadow-sm md:px-7"
             style={{ background: theme.soft, borderColor: theme.border }}
@@ -883,7 +922,7 @@ export default function SmartPDMLanding() {
         </section>
       ) : null}
 
-      <section id="features" className="landing-zone-discover mx-auto w-full max-w-[90rem] scroll-mt-16 px-5 py-12 md:px-8">
+      <section id="features" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 py-12 md:px-8">
         <div className="mb-7 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
@@ -907,7 +946,7 @@ export default function SmartPDMLanding() {
       </section>
 
       {benefactors.length ? (
-        <section id="partners" className="landing-zone-discover mx-auto w-full max-w-[90rem] scroll-mt-16 px-5 pb-12 md:px-8">
+        <section id="partners" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-12 md:px-8">
           <div
             className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
             style={{ background: '#ffffff', borderColor: theme.border }}
@@ -966,7 +1005,7 @@ export default function SmartPDMLanding() {
         </section>
       ) : null}
 
-      <section id="guide" className="landing-zone-process mx-auto w-full max-w-[90rem] scroll-mt-16 px-5 pb-14 pt-12 md:px-8">
+      <section id="guide" className="landing-zone-process mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-14 pt-12 md:px-8">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
           style={{ background: '#fffdfb', borderColor: theme.border }}
@@ -994,7 +1033,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="landing-zone-process mx-auto w-full max-w-[90rem] px-5 pb-14 md:px-8" aria-label="PDM campus">
+      <section className="landing-zone-process mx-auto w-full max-w-[84rem] px-5 pb-14 md:px-8" aria-label="PDM campus">
         <div className="group relative min-h-[240px] overflow-hidden rounded-[2rem] md:min-h-[300px]">
           <img
             src={pdmFacade}
@@ -1023,7 +1062,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="landing-zone-bridge mx-auto w-full max-w-[90rem] px-5 pb-14 pt-14 md:px-8">
+      <section className="landing-zone-bridge mx-auto w-full max-w-[84rem] px-5 pb-14 pt-14 md:px-8">
         <div className="grid gap-4 lg:grid-cols-2">
           <div
             className="rounded-[1.75rem] border bg-white/85 p-6 shadow-sm"
@@ -1068,7 +1107,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section id="about" className="landing-zone-support mx-auto w-full max-w-[90rem] scroll-mt-16 px-5 pb-12 pt-12 md:px-8">
+      <section id="about" className="landing-zone-support mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-12 pt-12 md:px-8">
         <div
           className="grid gap-6 rounded-[2rem] border px-6 py-7 md:px-8 md:py-8 lg:grid-cols-[1.05fr_0.95fr]"
           style={{ background: '#ffffff', borderColor: theme.border }}
@@ -1116,7 +1155,7 @@ export default function SmartPDMLanding() {
       </section>
 
       {generalSettings.landing_faqs.length ? (
-      <section id="faq" className="landing-zone-support mx-auto w-full max-w-[90rem] scroll-mt-6 px-5 pb-12 md:px-8">
+      <section id="faq" className="landing-zone-support mx-auto w-full max-w-[84rem] scroll-mt-6 px-5 pb-12 md:px-8">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
           style={{ background: '#fffdfb', borderColor: theme.border }}
@@ -1152,7 +1191,7 @@ export default function SmartPDMLanding() {
       </section>
       ) : null}
 
-      <section id="contact" className="landing-zone-support mx-auto w-full max-w-[90rem] scroll-mt-16 px-5 pb-14 md:px-8">
+      <section id="contact" className="landing-zone-support mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-14 md:px-8">
         <div
           className="rounded-[2rem] border px-6 py-6 md:px-8"
           style={{ background: theme.base, borderColor: theme.border }}
@@ -1223,9 +1262,9 @@ export default function SmartPDMLanding() {
       </section>
       </main>
 
-      <footer className="landing-footer border-t-4 px-5 py-8" style={{ borderTopColor: theme.accent, background: theme.pageBg }}>
-        <div className="mx-auto max-w-[90rem]">
-          <div className="grid gap-6 rounded-t-[2rem] border-2 bg-white/85 px-6 py-6 md:grid-cols-[1fr_auto] md:items-center md:px-8" style={{ borderColor: theme.base }}>
+      <footer className="landing-footer overflow-hidden border-t-4 px-5 pt-8" style={{ borderTopColor: theme.accent, background: theme.pageBg }}>
+        <div className="mx-auto max-w-[84rem]">
+          <div className="grid gap-6 px-1 pb-8 md:grid-cols-[1fr_auto] md:items-center">
             <div>
               <p className="text-sm font-bold text-stone-900">SMaRT-PDM</p>
               <p className="mt-1 text-sm text-stone-600">{generalSettings.office_name}</p>
@@ -1273,7 +1312,15 @@ export default function SmartPDMLanding() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 rounded-b-[2rem] border-t-4 px-6 py-4 text-center md:flex-row md:items-center md:justify-between md:px-8 md:text-left" style={{ background: theme.dark, borderTopColor: theme.accent }}>
+          <div
+            className="relative flex flex-col gap-2 border-t-4 px-1 py-4 text-center md:flex-row md:items-center md:justify-between md:text-left"
+            style={{
+              background: theme.dark,
+              borderTopColor: theme.accent,
+              boxShadow: `0 0 0 100vmax ${theme.dark}`,
+              clipPath: 'inset(0 -100vmax)',
+            }}
+          >
             <p className="text-xs font-semibold text-white">
               SMaRT-PDM · Office for Scholarship and Financial Assistance
             </p>

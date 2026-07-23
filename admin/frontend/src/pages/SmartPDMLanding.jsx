@@ -154,17 +154,6 @@ function Button({
   );
 }
 
-function PortalChip({ label, href }) {
-  return (
-    <Link
-      to={href}
-      className="rounded-full border border-white/15 bg-white/8 px-4 py-2 text-[13px] font-semibold text-white/90 transition hover:bg-white/12 hover:text-white"
-    >
-      {label}
-    </Link>
-  );
-}
-
 function FeatureCard({ icon: Icon, title, description, theme }) {
   return (
     <div className="rounded-2xl border border-stone-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -592,7 +581,61 @@ export default function SmartPDMLanding() {
             linear-gradient(180deg, #f4f0e9 0%, #ffffff 70%);
         }
       `}</style>
+      <header className="border-b-4 bg-[#f7f8f4]" style={{ borderBottomColor: theme.accent }}>
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-4 md:py-5">
+          <Link to="/landing" className="flex min-w-0 items-center gap-3">
+            <img
+              src={pdmLogo}
+              alt="PDM seal"
+              className="h-14 w-14 shrink-0 object-contain md:h-16 md:w-16"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-black uppercase leading-tight tracking-tight md:text-xl" style={{ color: theme.dark }}>
+                Pambayang Dalubhasaan ng Marilao
+              </span>
+              <span className="mt-0.5 block text-xs font-semibold italic text-stone-600 md:text-sm">
+                Abangan Norte, Marilao, Bulacan
+              </span>
+            </span>
+          </Link>
+          <div className="hidden text-right sm:block">
+            <p className="text-xs font-black uppercase tracking-[0.18em]" style={{ color: theme.danger }}>
+              SMaRT-PDM
+            </p>
+            <p className="mt-1 text-xs text-stone-500">OSFA Scholarship Monitoring System</p>
+          </div>
+        </div>
+      </header>
+
+      <nav
+        aria-label="Landing page navigation"
+        className="sticky top-0 z-50 border-b shadow-md"
+        style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent }}
+      >
+        <div className="mx-auto flex max-w-6xl items-center overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {[
+            ['Home', '#home'],
+            ['Staff Portals', '#portals'],
+            ['Features', '#features'],
+            ['Applicant Guide', '#guide'],
+            ['Partners', '#partners'],
+            ['About OSFA', '#about'],
+            ['FAQ', '#faq'],
+            ['Contact', '#contact'],
+          ].map(([label, href]) => (
+            <a
+              key={href}
+              href={href}
+              className="shrink-0 border-b-2 border-transparent px-3 py-3 text-xs font-bold uppercase tracking-[0.08em] text-white/80 transition hover:border-[var(--nav-accent)] hover:text-white md:px-4"
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
       <section
+        id="home"
         className="landing-hero relative overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${theme.dark} 0%, ${theme.base} 58%, ${theme.heroEnd} 100%)`,
@@ -631,34 +674,7 @@ export default function SmartPDMLanding() {
           />
         </div>
 
-        <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
-              <img
-                src={pdmLogo}
-                alt="PDM Logo"
-                className="h-12 w-12 object-contain"
-              />
-            </div>
-
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-white">
-                SMaRT-PDM
-              </p>
-              <p className="text-[11px] text-white/60">
-                Scholarship Monitoring System
-              </p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-2 md:flex">
-            {portalLinks.map((item) => (
-              <PortalChip key={item.href} {...item} />
-            ))}
-          </nav>
-        </header>
-
-        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-8 lg:grid-cols-[1.05fr_0.95fr] lg:pb-20 lg:pt-14">
+        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-16 pt-12 lg:grid-cols-[1.05fr_0.95fr] lg:pb-20 lg:pt-16">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
               <span className="h-2 w-2 rounded-full" style={{ background: theme.accent }} />
@@ -697,7 +713,7 @@ export default function SmartPDMLanding() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-white/15 bg-white/10 p-3 shadow-2xl backdrop-blur">
+          <div id="portals" className="scroll-mt-16 rounded-[2rem] border border-white/15 bg-white/10 p-3 shadow-2xl backdrop-blur">
             <div className="rounded-[1.5rem] bg-white p-5 shadow-xl">
               <div className="flex items-center justify-between border-b border-stone-100 pb-4">
                 <div>
@@ -820,7 +836,7 @@ export default function SmartPDMLanding() {
         </section>
       ) : null}
 
-      <section className="landing-zone-discover mx-auto w-full max-w-6xl px-5 py-12">
+      <section id="features" className="landing-zone-discover mx-auto w-full max-w-6xl scroll-mt-16 px-5 py-12">
         <div className="mb-7 flex flex-col justify-between gap-3 md:flex-row md:items-end">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
@@ -844,7 +860,7 @@ export default function SmartPDMLanding() {
       </section>
 
       {benefactors.length ? (
-        <section className="landing-zone-discover mx-auto w-full max-w-6xl px-5 pb-12">
+        <section id="partners" className="landing-zone-discover mx-auto w-full max-w-6xl scroll-mt-16 px-5 pb-12">
           <div
             className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
             style={{ background: '#ffffff', borderColor: theme.border }}
@@ -903,7 +919,7 @@ export default function SmartPDMLanding() {
         </section>
       ) : null}
 
-      <section className="landing-zone-process mx-auto w-full max-w-6xl px-5 pb-14 pt-12">
+      <section id="guide" className="landing-zone-process mx-auto w-full max-w-6xl scroll-mt-16 px-5 pb-14 pt-12">
         <div
           className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
           style={{ background: '#fffdfb', borderColor: theme.border }}
@@ -1005,7 +1021,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-12 pt-12">
+      <section id="about" className="landing-zone-support mx-auto w-full max-w-6xl scroll-mt-16 px-5 pb-12 pt-12">
         <div
           className="grid gap-6 rounded-[2rem] border px-6 py-7 md:px-8 md:py-8 lg:grid-cols-[1.05fr_0.95fr]"
           style={{ background: '#ffffff', borderColor: theme.border }}
@@ -1089,7 +1105,7 @@ export default function SmartPDMLanding() {
       </section>
       ) : null}
 
-      <section className="landing-zone-support mx-auto w-full max-w-6xl px-5 pb-14">
+      <section id="contact" className="landing-zone-support mx-auto w-full max-w-6xl scroll-mt-16 px-5 pb-14">
         <div
           className="rounded-[2rem] border px-6 py-6 md:px-8"
           style={{ background: theme.base, borderColor: theme.border }}
@@ -1160,9 +1176,9 @@ export default function SmartPDMLanding() {
       </section>
       </main>
 
-      <footer className="landing-footer border-t-4 px-5 py-8" style={{ borderTopColor: theme.accent }}>
+      <footer className="landing-footer border-t-4 px-5 py-8" style={{ borderTopColor: theme.accent, background: theme.pageBg }}>
         <div className="mx-auto max-w-6xl">
-          <div className="grid gap-6 rounded-[2rem] border border-stone-200 bg-stone-50/60 px-6 py-6 md:grid-cols-[1fr_auto] md:items-center md:px-8">
+          <div className="grid gap-6 rounded-t-[2rem] border-2 bg-white/85 px-6 py-6 md:grid-cols-[1fr_auto] md:items-center md:px-8" style={{ borderColor: theme.base }}>
             <div>
               <p className="text-sm font-bold text-stone-900">SMaRT-PDM</p>
               <p className="mt-1 text-sm text-stone-600">{generalSettings.office_name}</p>
@@ -1193,12 +1209,12 @@ export default function SmartPDMLanding() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-2 text-center md:flex-row md:items-center md:justify-between md:text-left">
-            <p className="text-xs font-semibold text-stone-600">
+          <div className="flex flex-col gap-2 rounded-b-[2rem] border-t-4 px-6 py-4 text-center md:flex-row md:items-center md:justify-between md:px-8 md:text-left" style={{ background: theme.dark, borderTopColor: theme.accent }}>
+            <p className="text-xs font-semibold text-white">
               SMaRT-PDM · Office for Scholarship and Financial Assistance
             </p>
 
-            <p className="text-xs text-stone-400">
+            <p className="text-xs text-white/65">
               © {new Date().getFullYear()} Pambayang Dalubhasaan ng Marilao
             </p>
           </div>

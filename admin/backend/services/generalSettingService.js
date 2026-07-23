@@ -36,6 +36,37 @@ const DEFAULT_LANDING_CONTENT = {
     "SMaRT-PDM is the scholarship monitoring platform of Pambayang Dalubhasaan ng Marilao and OSFA. Confirm important announcements through this site, the OSFA office, or PDM's official Facebook page.",
 };
 
+const DEFAULT_POLICY_CONTENT = {
+  effective_date: '2026-07-23',
+  privacy_icon: 'shield-check',
+  privacy_intro:
+    'This notice explains how Pambayang Dalubhasaan ng Marilao, through the Office for Scholarship and Financial Assistance, handles personal information in SMaRT-PDM. It should be read together with scholarship-specific notices and consent statements shown during application.',
+  privacy_sections: [
+    { title: 'Information covered by this notice', body: 'SMaRT-PDM may process identity and contact details, enrollment and academic information, scholarship application responses, uploaded supporting documents, endorsement and review records, account activity, and technical information needed to operate and secure the service.' },
+    { title: 'Why information is processed', body: 'Information is used to receive and evaluate scholarship applications, verify eligibility and requirements, coordinate authorized office reviews, communicate updates, administer scholar obligations and benefits, maintain records, prevent misuse, and comply with applicable institutional and legal responsibilities.' },
+    { title: 'Access and disclosure', body: 'Access is limited to authorized PDM and OSFA personnel and designated reviewing offices according to their responsibilities. Information may also be disclosed when required by law, regulation, audit, or a lawful request. SMaRT-PDM does not present student records as public information.' },
+    { title: 'Retention and protection', body: 'Records are retained only for as long as needed for scholarship administration, institutional recordkeeping, dispute resolution, audit, and applicable legal requirements. PDM applies administrative and technical safeguards, but no electronic system can guarantee absolute security.' },
+    { title: 'Your privacy rights', body: 'Subject to applicable rules, data subjects may request access or correction, raise a concern about processing, and ask about retention or disposal. Some records may need to be preserved when required for an active application, scholarship administration, audit, or legal obligation.' },
+  ],
+  consent_icon: 'database',
+  consent_title: 'Data Processing Consent',
+  consent_body:
+    'Where consent is the appropriate basis for processing, applicants will be asked to confirm a specific consent statement before submitting information. Consent should be informed and freely given, and may be withdrawn for future consent-based processing by contacting OSFA. Withdrawal does not invalidate processing already performed and may affect services that cannot be completed without the required information.',
+  consent_note:
+    'Certain scholarship and institutional records may still be processed or retained when another lawful or institutional basis applies. Contact OSFA using the details published on the landing page for questions or requests.',
+  terms_icon: 'file-text',
+  terms_intro:
+    'These terms govern access to and use of SMaRT-PDM. They are intended to protect applicants, scholars, staff, institutional records, and the integrity of scholarship processes.',
+  terms_sections: [
+    { title: 'Purpose and acceptance', body: 'SMaRT-PDM supports scholarship applications, document review, endorsement, communication, monitoring, and related OSFA services. By using the platform, you agree to use it only for legitimate PDM scholarship activities and to follow these terms and applicable institutional policies.' },
+    { title: 'Account responsibility', body: 'Users must provide accurate information, protect their credentials, and promptly report suspected unauthorized access. Actions performed through an account may be treated as actions of the registered user unless reported and verified otherwise.' },
+    { title: 'Acceptable use', body: 'Users must not submit false or misleading records, impersonate another person, access data without authorization, disrupt the service, bypass security controls, upload malicious material, or use information obtained through the platform for an unrelated purpose.' },
+    { title: 'Applications and decisions', body: 'Submission through SMaRT-PDM does not guarantee eligibility, endorsement, approval, payment, or continued scholarship status. Decisions remain subject to the rules of each scholarship program, document verification, available funding, and authorized institutional review.' },
+    { title: 'Availability and changes', body: 'PDM may maintain, update, suspend, or restrict the platform when reasonably necessary. Notices, schedules, features, and these terms may be updated to reflect operational, institutional, or legal changes. Material updates should be communicated through official channels.' },
+    { title: 'Official communications', body: 'Users should verify important scholarship information through SMaRT-PDM, OSFA, or PDM’s official communication channels. PDM is not responsible for instructions circulated through unofficial accounts or unverified third parties.' },
+  ],
+};
+
 const DEFAULT_GENERAL_SETTINGS = {
   general_settings_id: 1,
   institution_name: 'Pambayang Dalubhasaan ng Marilao',
@@ -49,6 +80,7 @@ const DEFAULT_GENERAL_SETTINGS = {
   eligibility_summary:
     'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
   landing_content: DEFAULT_LANDING_CONTENT,
+  policy_content: DEFAULT_POLICY_CONTENT,
   featured_notice: {
     title: 'Welcome to SMaRT-PDM',
     message: 'Check the mobile application and official OSFA channels for current scholarship updates.',
@@ -158,6 +190,38 @@ function sanitizeLandingContent(content = {}) {
   };
 }
 
+const POLICY_ICONS = new Set(['shield-check', 'file-text', 'database', 'lock-keyhole', 'scale', 'landmark']);
+
+function sanitizePolicySections(items, defaults) {
+  const source = Array.isArray(items) ? items : defaults;
+  return defaults.map((fallback, index) => ({
+    title: safeText(source[index]?.title, 160) || fallback.title,
+    body: safeText(source[index]?.body, 1800) || fallback.body,
+  }));
+}
+
+function sanitizePolicyIcon(value, fallback) {
+  const icon = safeText(value, 40).toLowerCase();
+  return POLICY_ICONS.has(icon) ? icon : fallback;
+}
+
+function sanitizePolicyContent(content = {}) {
+  const defaults = DEFAULT_POLICY_CONTENT;
+  return {
+    effective_date: normalizeDate(content.effective_date) || defaults.effective_date,
+    privacy_icon: sanitizePolicyIcon(content.privacy_icon, defaults.privacy_icon),
+    privacy_intro: safeText(content.privacy_intro, 1600) || defaults.privacy_intro,
+    privacy_sections: sanitizePolicySections(content.privacy_sections, defaults.privacy_sections),
+    consent_icon: sanitizePolicyIcon(content.consent_icon, defaults.consent_icon),
+    consent_title: safeText(content.consent_title, 160) || defaults.consent_title,
+    consent_body: safeText(content.consent_body, 1800) || defaults.consent_body,
+    consent_note: safeText(content.consent_note, 1200) || defaults.consent_note,
+    terms_icon: sanitizePolicyIcon(content.terms_icon, defaults.terms_icon),
+    terms_intro: safeText(content.terms_intro, 1600) || defaults.terms_intro,
+    terms_sections: sanitizePolicySections(content.terms_sections, defaults.terms_sections),
+  };
+}
+
 function isFeaturedNoticePublished(notice = {}) {
   if (!notice.is_visible || !notice.title || !notice.message) return false;
   const today = getManilaDateKey();
@@ -226,6 +290,7 @@ function sanitizeSettings(payload = {}) {
     eligibility_summary:
       safeText(payload.eligibility_summary, 1200) || DEFAULT_GENERAL_SETTINGS.eligibility_summary,
     landing_content: sanitizeLandingContent(payload.landing_content),
+    policy_content: sanitizePolicyContent(payload.policy_content),
     featured_notice: sanitizeFeaturedNotice(payload.featured_notice),
     landing_faqs: sanitizeFaqs(payload.landing_faqs),
     global_deadline:
@@ -274,6 +339,7 @@ function buildFallbackSettings() {
   return {
     ...DEFAULT_GENERAL_SETTINGS,
     landing_content: sanitizeLandingContent(DEFAULT_GENERAL_SETTINGS.landing_content),
+    policy_content: sanitizePolicyContent(DEFAULT_GENERAL_SETTINGS.policy_content),
     featured_notice: sanitizeFeaturedNotice(DEFAULT_GENERAL_SETTINGS.featured_notice),
     landing_faqs: sanitizeFaqs(DEFAULT_GENERAL_SETTINGS.landing_faqs),
   };
@@ -287,7 +353,7 @@ async function getGeneralSettings() {
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, policy_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .eq('general_settings_id', 1)
     .maybeSingle();
@@ -303,6 +369,7 @@ async function getGeneralSettings() {
   return {
     ...source,
     landing_content: sanitizeLandingContent(source.landing_content),
+    policy_content: sanitizePolicyContent(source.policy_content),
     featured_notice: sanitizeFeaturedNotice(source.featured_notice),
     landing_faqs: sanitizeFaqs(source.landing_faqs),
   };
@@ -341,7 +408,7 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     .from(TABLE_NAME)
     .upsert(upsertPayload, { onConflict: 'general_settings_id' })
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, policy_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .single();
 

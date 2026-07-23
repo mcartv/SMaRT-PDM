@@ -27,10 +27,16 @@ import {
     HelpCircle,
     Megaphone,
     Loader2,
+    ShieldCheck,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
+import {
+    DEFAULT_POLICY_CONTENT,
+    POLICY_ICON_OPTIONS,
+    mergePolicyContent,
+} from '@/constants/policyContent';
 import { toast } from 'sonner';
 import { C, FieldLabel, GroupCard, Toggle, EmptyState } from './components/MaintenanceShared';
 
@@ -227,6 +233,7 @@ export default function GeneralPanel() {
     const [aboutOsfa, setAboutOsfa] = useState(DEFAULT_ABOUT_OSFA);
     const [eligibilitySummary, setEligibilitySummary] = useState(DEFAULT_ELIGIBILITY_SUMMARY);
     const [landingContent, setLandingContent] = useState(DEFAULT_LANDING_CONTENT);
+    const [policyContent, setPolicyContent] = useState(DEFAULT_POLICY_CONTENT);
     const [featuredNotice, setFeaturedNotice] = useState(DEFAULT_FEATURED_NOTICE);
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
@@ -280,6 +287,7 @@ export default function GeneralPanel() {
             setAboutOsfa(payload?.about_osfa || DEFAULT_ABOUT_OSFA);
             setEligibilitySummary(payload?.eligibility_summary || DEFAULT_ELIGIBILITY_SUMMARY);
             setLandingContent(mergeLandingContent(payload?.landing_content));
+            setPolicyContent(mergePolicyContent(payload?.policy_content));
             setFeaturedNotice(normalizeFeaturedNotice(payload?.featured_notice));
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
             setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
@@ -335,6 +343,9 @@ export default function GeneralPanel() {
                 }
                 if (payload?.landing_content && typeof payload.landing_content === 'object') {
                     setLandingContent(mergeLandingContent(payload.landing_content));
+                }
+                if (payload?.policy_content && typeof payload.policy_content === 'object') {
+                    setPolicyContent(mergePolicyContent(payload.policy_content));
                 }
                 if (payload?.featured_notice && typeof payload.featured_notice === 'object') {
                     setFeaturedNotice(normalizeFeaturedNotice(payload.featured_notice));
@@ -418,6 +429,14 @@ export default function GeneralPanel() {
         );
     };
 
+    const savePolicyContent = async () => {
+        await updateGeneralSettings(
+            { policy_content: policyContent },
+            'policy',
+            'Privacy, consent, and terms content saved successfully.'
+        );
+    };
+
     const saveApplicationSettings = async () => {
         await updateGeneralSettings(
             {
@@ -450,12 +469,30 @@ export default function GeneralPanel() {
         showSuccess('Landing-page text restored locally. Save to apply.');
     };
 
+    const restorePolicyDefaults = () => {
+        setPolicyContent(DEFAULT_POLICY_CONTENT);
+        showSuccess('Policy content restored locally. Save to apply.');
+    };
+
     const updateLandingField = (field, value) => {
         setLandingContent((current) => ({ ...current, [field]: value }));
     };
 
     const updateLandingItem = (collection, index, field, value) => {
         setLandingContent((current) => ({
+            ...current,
+            [collection]: current[collection].map((item, itemIndex) =>
+                itemIndex === index ? { ...item, [field]: value } : item
+            ),
+        }));
+    };
+
+    const updatePolicyField = (field, value) => {
+        setPolicyContent((current) => ({ ...current, [field]: value }));
+    };
+
+    const updatePolicySection = (collection, index, field, value) => {
+        setPolicyContent((current) => ({
             ...current,
             [collection]: current[collection].map((item, itemIndex) =>
                 itemIndex === index ? { ...item, [field]: value } : item
@@ -603,7 +640,7 @@ export default function GeneralPanel() {
                 ) : (
                     <Save size={14} className="mr-1.5" />
                 )}
-                {savingKey === key ? 'Saving' : savedKey === key ? 'Saved' : 'Save'}
+                {savingKey === key ? 'Saving' : savedKey === key ? 'Saved' : 'Save Changes'}
             </Button>
         </>
     );
@@ -813,6 +850,18 @@ export default function GeneralPanel() {
                                     >
                                         Landing FAQs
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveLandingSection('policy')}
+                                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                            activeLandingSection === 'policy'
+                                                ? 'text-white shadow-sm'
+                                                : 'text-stone-600 hover:text-stone-900'
+                                        }`}
+                                        style={activeLandingSection === 'policy' ? { background: C.brownMid } : undefined}
+                                    >
+                                        Policy Content
+                                    </button>
                                 </div>
                             </div>
 
@@ -884,33 +933,32 @@ export default function GeneralPanel() {
                             ) : null}
 
                             {activeLandingSection === 'copy' ? (
-                                <GroupCard title="Landing Page Text" icon={LayoutTemplate}>
+                                <GroupCard title="Editable Landing Page Content" icon={LayoutTemplate}>
                                     <div className="space-y-5">
-                                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-100 bg-stone-50 px-3 py-2.5">
-                                            <div>
-                                                <p className="text-xs font-semibold text-stone-800">Public page copy</p>
-                                                <p className="text-[11px] text-stone-500">Edit wording without changing the landing-page layout, routes, or icons.</p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <Button type="button" variant="outline" className="h-8 rounded-lg border-stone-200 px-3 text-xs" onClick={restoreLandingCopyDefaults}>
-                                                    <RotateCcw size={13} className="mr-1.5" /> Restore
-                                                </Button>
-                                                <Button type="button" className="h-8 rounded-lg border-none px-3 text-xs text-white" style={{ background: savedKey === 'copy' ? C.green : C.brownMid }} onClick={saveLandingCopy} disabled={savingKey === 'copy'}>
-                                                    {savingKey === 'copy' ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
-                                                    {savingKey === 'copy' ? 'Saving' : savedKey === 'copy' ? 'Saved' : 'Save'}
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <div><FieldLabel>Hero Badge</FieldLabel><Input value={landingContent.hero_badge} onChange={(e) => updateLandingField('hero_badge', e.target.value)} maxLength={80} /></div>
-                                            <div><FieldLabel>Hero Title</FieldLabel><Input value={landingContent.hero_title} onChange={(e) => updateLandingField('hero_title', e.target.value)} maxLength={180} /></div>
-                                            <div className="md:col-span-2"><FieldLabel>Hero Description</FieldLabel><textarea value={landingContent.hero_description} onChange={(e) => updateLandingField('hero_description', e.target.value)} rows={3} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
-                                            <div><FieldLabel>Mobile App Title</FieldLabel><Input value={landingContent.mobile_app_title} onChange={(e) => updateLandingField('mobile_app_title', e.target.value)} maxLength={100} /></div>
-                                            <div><FieldLabel>Mobile App Description</FieldLabel><Input value={landingContent.mobile_app_description} onChange={(e) => updateLandingField('mobile_app_description', e.target.value)} maxLength={400} /></div>
+                                        <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3">
+                                            <p className="text-xs font-semibold text-stone-800">One save applies all Page Text sections</p>
+                                            <p className="mt-1 text-[11px] leading-5 text-stone-500">Review Hero & App, Applicant Guide, Platform Features, and Campus & Credibility, then use the action bar at the bottom.</p>
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">1. Hero & Mobile App</p>
+                                                <p className="mt-1 text-xs text-stone-500">The first message and mobile-app information visitors see.</p>
+                                            </div>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div><FieldLabel>Hero Badge</FieldLabel><Input value={landingContent.hero_badge} onChange={(e) => updateLandingField('hero_badge', e.target.value)} maxLength={80} /></div>
+                                                <div><FieldLabel>Hero Title</FieldLabel><Input value={landingContent.hero_title} onChange={(e) => updateLandingField('hero_title', e.target.value)} maxLength={180} /></div>
+                                                <div className="md:col-span-2"><FieldLabel>Hero Description</FieldLabel><textarea value={landingContent.hero_description} onChange={(e) => updateLandingField('hero_description', e.target.value)} rows={3} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                                <div><FieldLabel>Mobile App Title</FieldLabel><Input value={landingContent.mobile_app_title} onChange={(e) => updateLandingField('mobile_app_title', e.target.value)} maxLength={100} /></div>
+                                                <div><FieldLabel>Mobile App Description</FieldLabel><Input value={landingContent.mobile_app_description} onChange={(e) => updateLandingField('mobile_app_description', e.target.value)} maxLength={400} /></div>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">2. Applicant Guide</p>
+                                                <p className="mt-1 text-xs text-stone-500">Heading, introduction, and the four application steps.</p>
+                                            </div>
                                             <FieldLabel>Applicant Guide Heading</FieldLabel>
                                             <Input value={landingContent.guide_title} onChange={(e) => updateLandingField('guide_title', e.target.value)} maxLength={160} />
                                             <div className="mt-3"><FieldLabel>Guide Introduction</FieldLabel><Input value={landingContent.guide_description} onChange={(e) => updateLandingField('guide_description', e.target.value)} maxLength={400} /></div>
@@ -926,6 +974,10 @@ export default function GeneralPanel() {
                                         </div>
 
                                         <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">3. Platform Features</p>
+                                                <p className="mt-1 text-xs text-stone-500">Heading, introduction, and four feature descriptions.</p>
+                                            </div>
                                             <FieldLabel>Features Heading</FieldLabel>
                                             <Input value={landingContent.features_title} onChange={(e) => updateLandingField('features_title', e.target.value)} maxLength={160} />
                                             <div className="mt-3"><FieldLabel>Features Introduction</FieldLabel><Input value={landingContent.features_description} onChange={(e) => updateLandingField('features_description', e.target.value)} maxLength={400} /></div>
@@ -940,14 +992,126 @@ export default function GeneralPanel() {
                                             </div>
                                         </div>
 
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <div className="rounded-xl border border-stone-200 p-4">
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">4. Campus & Credibility</p>
+                                                <p className="mt-1 text-xs text-stone-500">Institutional campus message and official-platform verification guidance.</p>
+                                            </div>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="rounded-lg bg-stone-50 p-3">
                                                 <FieldLabel>Campus Heading</FieldLabel><Input value={landingContent.campus_title} onChange={(e) => updateLandingField('campus_title', e.target.value)} maxLength={160} />
                                                 <div className="mt-3"><FieldLabel>Campus Description</FieldLabel><textarea value={landingContent.campus_description} onChange={(e) => updateLandingField('campus_description', e.target.value)} rows={4} maxLength={400} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
-                                            </div>
-                                            <div className="rounded-xl border border-stone-200 p-4">
+                                                </div>
+                                                <div className="rounded-lg bg-stone-50 p-3">
                                                 <FieldLabel>Official Platform Heading</FieldLabel><Input value={landingContent.credibility_title} onChange={(e) => updateLandingField('credibility_title', e.target.value)} maxLength={180} />
                                                 <div className="mt-3"><FieldLabel>Verification Description</FieldLabel><textarea value={landingContent.credibility_description} onChange={(e) => updateLandingField('credibility_description', e.target.value)} rows={4} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-xs font-semibold text-stone-800">Page Text actions</p>
+                                                <p className="mt-1 text-[11px] text-stone-500">Restore affects the form locally. Select Save Changes to publish.</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                                                {renderSectionActions(restoreLandingCopyDefaults, saveLandingCopy, 'copy')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </GroupCard>
+                            ) : null}
+
+                            {activeLandingSection === 'policy' ? (
+                                <GroupCard title="Privacy, Consent & Terms" icon={ShieldCheck}>
+                                    <div className="space-y-5">
+                                        <div className="rounded-lg border border-amber-100 bg-amber-50/70 px-4 py-3">
+                                            <p className="text-xs font-semibold text-stone-800">Review before publishing</p>
+                                            <p className="mt-1 text-[11px] leading-5 text-stone-500">Policy changes affect public institutional statements. Have final wording reviewed by the authorized PDM office.</p>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">1. Shared Policy Settings</p>
+                                                <p className="mt-1 text-xs text-stone-500">Set the public effective date used by both pages.</p>
+                                            </div>
+                                            <div className="max-w-xs">
+                                                <FieldLabel>Effective Date</FieldLabel>
+                                                <Input type="date" value={policyContent.effective_date} onChange={(e) => updatePolicyField('effective_date', e.target.value)} />
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">2. Privacy Notice</p>
+                                                <p className="mt-1 text-xs text-stone-500">Choose its page icon and edit the introduction and five notice sections.</p>
+                                            </div>
+                                            <div className="max-w-xs">
+                                                <FieldLabel>Privacy Page Icon</FieldLabel>
+                                                <select value={policyContent.privacy_icon} onChange={(e) => updatePolicyField('privacy_icon', e.target.value)} className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-700">
+                                                    {POLICY_ICON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="mt-4"><FieldLabel>Privacy Introduction</FieldLabel><textarea value={policyContent.privacy_intro} onChange={(e) => updatePolicyField('privacy_intro', e.target.value)} rows={4} maxLength={1600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                            <div className="mt-4 space-y-3">
+                                                {policyContent.privacy_sections.map((section, index) => (
+                                                    <div key={`privacy-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                        <FieldLabel>Privacy Section {index + 1}</FieldLabel>
+                                                        <Input value={section.title} onChange={(e) => updatePolicySection('privacy_sections', index, 'title', e.target.value)} maxLength={160} />
+                                                        <textarea value={section.body} onChange={(e) => updatePolicySection('privacy_sections', index, 'body', e.target.value)} rows={4} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">3. Data Processing Consent</p>
+                                                <p className="mt-1 text-xs text-stone-500">Edit the consent section displayed inside the Privacy Notice.</p>
+                                            </div>
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div>
+                                                    <FieldLabel>Consent Icon</FieldLabel>
+                                                    <select value={policyContent.consent_icon} onChange={(e) => updatePolicyField('consent_icon', e.target.value)} className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-700">
+                                                        {POLICY_ICON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div><FieldLabel>Consent Heading</FieldLabel><Input value={policyContent.consent_title} onChange={(e) => updatePolicyField('consent_title', e.target.value)} maxLength={160} /></div>
+                                            </div>
+                                            <div className="mt-4"><FieldLabel>Consent Statement</FieldLabel><textarea value={policyContent.consent_body} onChange={(e) => updatePolicyField('consent_body', e.target.value)} rows={5} maxLength={1800} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                            <div className="mt-4"><FieldLabel>Consent Additional Note</FieldLabel><textarea value={policyContent.consent_note} onChange={(e) => updatePolicyField('consent_note', e.target.value)} rows={4} maxLength={1200} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <div className="mb-4">
+                                                <p className="text-sm font-semibold text-stone-900">4. Terms of Use</p>
+                                                <p className="mt-1 text-xs text-stone-500">Choose its page icon and edit the introduction and six terms sections.</p>
+                                            </div>
+                                            <div className="max-w-xs">
+                                                <FieldLabel>Terms Page Icon</FieldLabel>
+                                                <select value={policyContent.terms_icon} onChange={(e) => updatePolicyField('terms_icon', e.target.value)} className="h-10 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-700">
+                                                    {POLICY_ICON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="mt-4"><FieldLabel>Terms Introduction</FieldLabel><textarea value={policyContent.terms_intro} onChange={(e) => updatePolicyField('terms_intro', e.target.value)} rows={4} maxLength={1600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                            <div className="mt-4 space-y-3">
+                                                {policyContent.terms_sections.map((section, index) => (
+                                                    <div key={`terms-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                        <FieldLabel>Terms Section {index + 1}</FieldLabel>
+                                                        <Input value={section.title} onChange={(e) => updatePolicySection('terms_sections', index, 'title', e.target.value)} maxLength={160} />
+                                                        <textarea value={section.body} onChange={(e) => updatePolicySection('terms_sections', index, 'body', e.target.value)} rows={4} maxLength={1800} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-xs font-semibold text-stone-800">Policy Content actions</p>
+                                                <p className="mt-1 text-[11px] text-stone-500">Restore changes the form locally. Save Changes publishes all policy sections and icons.</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                                                {renderSectionActions(restorePolicyDefaults, savePolicyContent, 'policy')}
                                             </div>
                                         </div>
                                     </div>

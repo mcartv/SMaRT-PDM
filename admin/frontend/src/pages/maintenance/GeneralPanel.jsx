@@ -791,18 +791,30 @@ export default function GeneralPanel() {
                         title="Office & Contact"
                         description="Manage institution identity, office details, and public contact information."
                         actions={
-                            <>
-                                <div className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1">
-                                    <Toggle
-                                        value={officeEditing}
-                                        onChange={setOfficeEditing}
-                                        labels={['Edit mode: On', 'Edit mode: Off']}
+                            <button
+                                type="button"
+                                aria-pressed={officeEditing}
+                                onClick={() => setOfficeEditing((current) => !current)}
+                                className={`inline-flex h-9 w-[142px] items-center justify-between rounded-full border px-3 text-xs font-semibold shadow-sm transition-colors ${
+                                    officeEditing
+                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                        : 'border-stone-300 bg-white text-stone-700 hover:border-stone-400 hover:bg-stone-50'
+                                }`}
+                            >
+                                <span>Edit mode</span>
+                                <span
+                                    className={`relative h-5 w-9 rounded-full transition-colors ${
+                                        officeEditing ? 'bg-emerald-500' : 'bg-stone-300'
+                                    }`}
+                                    aria-hidden="true"
+                                >
+                                    <span
+                                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                                            officeEditing ? 'translate-x-[18px]' : 'translate-x-0.5'
+                                        }`}
                                     />
-                                </div>
-                                {officeEditing
-                                    ? renderSectionActions(restoreOfficeDefaults, saveOfficeSettings, 'office')
-                                    : null}
-                            </>
+                                </span>
+                            </button>
                         }
                     >
                         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -883,6 +895,17 @@ export default function GeneralPanel() {
                                 </div>
                             </GroupCard>
                         </div>
+                        {officeEditing ? (
+                            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold text-stone-800">Office editing is active</p>
+                                    <p className="mt-1 text-[11px] text-stone-500">Review both information groups before saving.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                                    {renderSectionActions(restoreOfficeDefaults, saveOfficeSettings, 'office')}
+                                </div>
+                            </div>
+                        ) : null}
                     </SectionFrame>
                 ) : null}
 

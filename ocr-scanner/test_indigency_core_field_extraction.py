@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 
 from extraction.indigency_core_field_extraction import (
+    IndigencyExtractionConfig,
     REQUIRED_FIELDS,
     extract_indigency_core_fields,
 )
@@ -715,11 +716,20 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
         self.assertEqual(diagnostics.positional_validation_status, "valid")
         self.assertFalse(diagnostics.crop_attempted)
 
+    def test_detached_noise_configuration_uses_calibrated_defaults(self):
+        config = IndigencyExtractionConfig()
+
+        self.assertEqual(config.minimum_leading_word_confidence, 85.0)
+        self.assertEqual(config.maximum_trailing_noise_confidence, 40.0)
+        self.assertEqual(config.minimum_confidence_drop, 40.0)
+        self.assertEqual(config.minimum_detached_gap_ratio, 2.0)
+        self.assertEqual(config.maximum_detached_tokens_removed, 1)
+
     def test_inconclusive_trailing_noise_uses_validated_crop_fallback(self):
         cases = (
-            (95.0, 40.0, 4.0),
-            (95.0, 29.0, 3.0),
-            (69.0, 29.0, 4.0),
+            (95.0, 40.0, 3.0),
+            (95.0, 29.0, 2.0),
+            (84.9, 29.0, 3.0),
         )
         for preceding_confidence, trailing_confidence, gap_ratio in cases:
             with self.subTest(
@@ -765,6 +775,43 @@ class IndigencyCoreFieldExtractionTest(unittest.TestCase):
                     "unsafe_to_filter",
                 )
                 self.assertEqual(field.diagnostics.value_source, "crop_ocr")
+
+    def test_insufficient_confidence_drop_does_not_remove_trailing_token(self):
+        data = _valid_word_data(header_text="BARANGAY SAMPLE NOISE")
+        indexes = [
+            index
+            for index, block in enumerate(data["block_num"])
+            if block == 2 and data["par_num"][index] == 1
+        ]
+        preceding, trailing = indexes[-2:]
+        data["conf"][preceding] = 85
+        data["conf"][trailing] = 50
+        data["left"][trailing] = (
+            data["left"][preceding] + data["width"][preceding] + 100
+        )
+        config = IndigencyExtractionConfig(
+            maximum_trailing_noise_confidence=80,
+        )
+
+        result = extract_indigency_core_fields(
+            self.image,
+            word_reader=lambda *_args: data,
+            field_reader=lambda crop, field_name: (
+                "FALLBACK PLACE"
+                if field_name == "issuing_barangay"
+                else _field_reader(crop, field_name)
+            ),
+            config=config,
+        )
+        field = next(
+            item for item in result.data.fields if item.name == "issuing_barangay"
+        )
+
+        self.assertTrue(field.success)
+        self.assertEqual(field.raw_text, "FALLBACK PLACE")
+        self.assertEqual(field.diagnostics.removed_token_count, 0)
+        self.assertEqual(field.diagnostics.token_filter_status, "unsafe_to_filter")
+        self.assertEqual(field.diagnostics.value_source, "crop_ocr")
 
     def test_multiple_trailing_noise_tokens_are_not_removed(self):
         data = _valid_word_data(header_text="BARANGAY SAMPLE NOISE EXTRA")

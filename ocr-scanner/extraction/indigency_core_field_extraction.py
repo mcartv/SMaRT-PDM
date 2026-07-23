@@ -46,9 +46,10 @@ class IndigencyExtractionConfig:
     maximum_deskew_degrees: float = 7.0
     crop_padding_pixels: int = 4
     maximum_barangay_length: int = 80
-    minimum_leading_word_confidence: float = 70.0
+    minimum_leading_word_confidence: float = 85.0
     maximum_trailing_noise_confidence: float = 40.0
-    minimum_detached_gap_ratio: float = 3.0
+    minimum_confidence_drop: float = 40.0
+    minimum_detached_gap_ratio: float = 2.0
     maximum_detached_tokens_removed: int = 1
 
 
@@ -753,9 +754,19 @@ def _filter_detached_barangay_noise(
     strong_predecessor = (
         previous.confidence >= config.minimum_leading_word_confidence
     )
+    sufficient_confidence_drop = (
+        previous.confidence - trailing.confidence
+        >= config.minimum_confidence_drop
+    )
     removal_allowed = config.maximum_detached_tokens_removed >= 1
 
-    if low_confidence and detached and strong_predecessor and removal_allowed:
+    if (
+        low_confidence
+        and detached
+        and strong_predecessor
+        and sufficient_confidence_drop
+        and removal_allowed
+    ):
         return ordered[:-1], "detached_low_confidence_removed", 1
 
     all_words_strong = all(

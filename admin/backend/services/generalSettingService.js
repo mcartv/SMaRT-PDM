@@ -2,6 +2,40 @@ const supabase = require('../config/supabase');
 
 const TABLE_NAME = 'general_settings';
 
+const DEFAULT_LANDING_CONTENT = {
+  hero_badge: 'OSFA Digital Scholarship Platform',
+  hero_title: 'Scholarship access, tracking, and updates in one system.',
+  hero_description:
+    'SMaRT-PDM helps applicants, scholars, and authorized staff manage scholarship applications, document updates, monitoring, and announcements through a centralized web and mobile platform.',
+  mobile_app_title: 'Scholar Mobile App',
+  mobile_app_description:
+    'Install the APK to track application updates and scholarship activity from your phone.',
+  guide_title: 'Get started in four clear steps',
+  guide_description:
+    'Prepare your information, submit the application, monitor its status, and wait for the authorized office review.',
+  guide_steps: [
+    { title: 'Prepare your information', description: 'Review the scholarship notice and prepare accurate personal, academic, and supporting information.' },
+    { title: 'Submit your application', description: 'Complete the application and upload the documents requested for the scholarship program.' },
+    { title: 'Monitor your status', description: 'Follow application updates, document review, and office announcements through SMaRT-PDM.' },
+    { title: 'Wait for endorsement', description: 'OSFA and the designated offices review qualified applications before final scholar activation.' },
+  ],
+  features_title: 'Built for scholarship operations',
+  features_description:
+    'Designed for applicants, scholars, and OSFA staff who need a clean, direct, and reliable workflow.',
+  feature_items: [
+    { title: 'Application Tracking', description: 'Applicants can monitor submission progress and requirements.' },
+    { title: 'Live Announcements', description: 'Scholars receive updates from OSFA and department offices.' },
+    { title: 'Centralized Messaging', description: 'Communication stays organized inside one scholarship platform.' },
+    { title: 'Secure Access', description: 'Role-based portals protect sensitive scholarship workflows.' },
+  ],
+  campus_title: 'Scholarship support built around PDM students.',
+  campus_description:
+    'One connected platform for scholarship access, office endorsement, requirements, and student progress.',
+  credibility_title: 'Verify scholarship information through official channels.',
+  credibility_description:
+    "SMaRT-PDM is the scholarship monitoring platform of Pambayang Dalubhasaan ng Marilao and OSFA. Confirm important announcements through this site, the OSFA office, or PDM's official Facebook page.",
+};
+
 const DEFAULT_GENERAL_SETTINGS = {
   general_settings_id: 1,
   institution_name: 'Pambayang Dalubhasaan ng Marilao',
@@ -14,6 +48,7 @@ const DEFAULT_GENERAL_SETTINGS = {
     'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
   eligibility_summary:
     'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
+  landing_content: DEFAULT_LANDING_CONTENT,
   featured_notice: {
     title: 'Welcome to SMaRT-PDM',
     message: 'Check the mobile application and official OSFA channels for current scholarship updates.',
@@ -90,6 +125,39 @@ function sanitizeFeaturedNotice(notice = {}) {
   };
 }
 
+function sanitizeLandingItems(items, defaults) {
+  const source = Array.isArray(items) ? items : defaults;
+  return defaults.map((fallback, index) => ({
+    title: safeText(source[index]?.title, 120) || fallback.title,
+    description: safeText(source[index]?.description, 500) || fallback.description,
+  }));
+}
+
+function sanitizeLandingContent(content = {}) {
+  const defaults = DEFAULT_LANDING_CONTENT;
+  return {
+    hero_badge: safeText(content.hero_badge, 80) || defaults.hero_badge,
+    hero_title: safeText(content.hero_title, 180) || defaults.hero_title,
+    hero_description: safeText(content.hero_description, 600) || defaults.hero_description,
+    mobile_app_title: safeText(content.mobile_app_title, 100) || defaults.mobile_app_title,
+    mobile_app_description:
+      safeText(content.mobile_app_description, 400) || defaults.mobile_app_description,
+    guide_title: safeText(content.guide_title, 160) || defaults.guide_title,
+    guide_description: safeText(content.guide_description, 400) || defaults.guide_description,
+    guide_steps: sanitizeLandingItems(content.guide_steps, defaults.guide_steps),
+    features_title: safeText(content.features_title, 160) || defaults.features_title,
+    features_description:
+      safeText(content.features_description, 400) || defaults.features_description,
+    feature_items: sanitizeLandingItems(content.feature_items, defaults.feature_items),
+    campus_title: safeText(content.campus_title, 160) || defaults.campus_title,
+    campus_description: safeText(content.campus_description, 400) || defaults.campus_description,
+    credibility_title:
+      safeText(content.credibility_title, 180) || defaults.credibility_title,
+    credibility_description:
+      safeText(content.credibility_description, 600) || defaults.credibility_description,
+  };
+}
+
 function isFeaturedNoticePublished(notice = {}) {
   if (!notice.is_visible || !notice.title || !notice.message) return false;
   const today = getManilaDateKey();
@@ -157,6 +225,7 @@ function sanitizeSettings(payload = {}) {
       safeText(payload.about_osfa, 2000) || DEFAULT_GENERAL_SETTINGS.about_osfa,
     eligibility_summary:
       safeText(payload.eligibility_summary, 1200) || DEFAULT_GENERAL_SETTINGS.eligibility_summary,
+    landing_content: sanitizeLandingContent(payload.landing_content),
     featured_notice: sanitizeFeaturedNotice(payload.featured_notice),
     landing_faqs: sanitizeFaqs(payload.landing_faqs),
     global_deadline:
@@ -204,6 +273,7 @@ function sanitizeFaqs(faqs) {
 function buildFallbackSettings() {
   return {
     ...DEFAULT_GENERAL_SETTINGS,
+    landing_content: sanitizeLandingContent(DEFAULT_GENERAL_SETTINGS.landing_content),
     featured_notice: sanitizeFeaturedNotice(DEFAULT_GENERAL_SETTINGS.featured_notice),
     landing_faqs: sanitizeFaqs(DEFAULT_GENERAL_SETTINGS.landing_faqs),
   };
@@ -217,7 +287,7 @@ async function getGeneralSettings() {
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .eq('general_settings_id', 1)
     .maybeSingle();
@@ -232,6 +302,7 @@ async function getGeneralSettings() {
   const source = data || buildFallbackSettings();
   return {
     ...source,
+    landing_content: sanitizeLandingContent(source.landing_content),
     featured_notice: sanitizeFeaturedNotice(source.featured_notice),
     landing_faqs: sanitizeFaqs(source.landing_faqs),
   };
@@ -270,7 +341,7 @@ async function updateGeneralSettings(payload = {}, actor = {}) {
     .from(TABLE_NAME)
     .upsert(upsertPayload, { onConflict: 'general_settings_id' })
     .select(
-      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
+      'general_settings_id, institution_name, office_name, office_email, office_address, landline_number, office_hours, about_osfa, eligibility_summary, landing_content, featured_notice, landing_faqs, global_deadline, applications_open, updated_at, updated_by_user_id'
     )
     .single();
 

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
 import { toast } from 'sonner';
 import { C, FieldLabel, GroupCard, Toggle, EmptyState } from './components/MaintenanceShared';
 
@@ -225,6 +226,7 @@ export default function GeneralPanel() {
     const [officeHours, setOfficeHours] = useState(DEFAULT_OFFICE.office_hours);
     const [aboutOsfa, setAboutOsfa] = useState(DEFAULT_ABOUT_OSFA);
     const [eligibilitySummary, setEligibilitySummary] = useState(DEFAULT_ELIGIBILITY_SUMMARY);
+    const [landingContent, setLandingContent] = useState(DEFAULT_LANDING_CONTENT);
     const [featuredNotice, setFeaturedNotice] = useState(DEFAULT_FEATURED_NOTICE);
     const [landingFaqs, setLandingFaqs] = useState(DEFAULT_FAQS);
     const [globalDeadline, setGlobalDeadline] = useState(DEFAULT_APPLICATION.global_deadline);
@@ -277,6 +279,7 @@ export default function GeneralPanel() {
             setOfficeHours(payload?.office_hours || DEFAULT_OFFICE.office_hours);
             setAboutOsfa(payload?.about_osfa || DEFAULT_ABOUT_OSFA);
             setEligibilitySummary(payload?.eligibility_summary || DEFAULT_ELIGIBILITY_SUMMARY);
+            setLandingContent(mergeLandingContent(payload?.landing_content));
             setFeaturedNotice(normalizeFeaturedNotice(payload?.featured_notice));
             setLandingFaqs(normalizeFaqs(payload?.landing_faqs));
             setGlobalDeadline(payload?.global_deadline || DEFAULT_APPLICATION.global_deadline);
@@ -329,6 +332,9 @@ export default function GeneralPanel() {
                 }
                 if (typeof payload?.eligibility_summary === 'string') {
                     setEligibilitySummary(payload.eligibility_summary);
+                }
+                if (payload?.landing_content && typeof payload.landing_content === 'object') {
+                    setLandingContent(mergeLandingContent(payload.landing_content));
                 }
                 if (payload?.featured_notice && typeof payload.featured_notice === 'object') {
                     setFeaturedNotice(normalizeFeaturedNotice(payload.featured_notice));
@@ -404,6 +410,14 @@ export default function GeneralPanel() {
         );
     };
 
+    const saveLandingCopy = async () => {
+        await updateGeneralSettings(
+            { landing_content: landingContent },
+            'copy',
+            'Landing-page text saved successfully.'
+        );
+    };
+
     const saveApplicationSettings = async () => {
         await updateGeneralSettings(
             {
@@ -429,6 +443,24 @@ export default function GeneralPanel() {
         setAboutOsfa(DEFAULT_ABOUT_OSFA);
         setEligibilitySummary(DEFAULT_ELIGIBILITY_SUMMARY);
         showSuccess('Landing About OSFA and eligibility content restored locally. Save to apply.');
+    };
+
+    const restoreLandingCopyDefaults = () => {
+        setLandingContent(DEFAULT_LANDING_CONTENT);
+        showSuccess('Landing-page text restored locally. Save to apply.');
+    };
+
+    const updateLandingField = (field, value) => {
+        setLandingContent((current) => ({ ...current, [field]: value }));
+    };
+
+    const updateLandingItem = (collection, index, field, value) => {
+        setLandingContent((current) => ({
+            ...current,
+            [collection]: current[collection].map((item, itemIndex) =>
+                itemIndex === index ? { ...item, [field]: value } : item
+            ),
+        }));
     };
 
     const restoreFeaturedNoticeDefaults = () => {
@@ -759,6 +791,18 @@ export default function GeneralPanel() {
                                     </button>
                                     <button
                                         type="button"
+                                        onClick={() => setActiveLandingSection('copy')}
+                                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                            activeLandingSection === 'copy'
+                                                ? 'text-white shadow-sm'
+                                                : 'text-stone-600 hover:text-stone-900'
+                                        }`}
+                                        style={activeLandingSection === 'copy' ? { background: C.brownMid } : undefined}
+                                    >
+                                        Page Text
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={() => setActiveLandingSection('faq')}
                                         className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                                             activeLandingSection === 'faq'
@@ -836,6 +880,77 @@ export default function GeneralPanel() {
                                         </p>
                                     </div>
                                 </div>
+                                </GroupCard>
+                            ) : null}
+
+                            {activeLandingSection === 'copy' ? (
+                                <GroupCard title="Landing Page Text" icon={LayoutTemplate}>
+                                    <div className="space-y-5">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-100 bg-stone-50 px-3 py-2.5">
+                                            <div>
+                                                <p className="text-xs font-semibold text-stone-800">Public page copy</p>
+                                                <p className="text-[11px] text-stone-500">Edit wording without changing the landing-page layout, routes, or icons.</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button type="button" variant="outline" className="h-8 rounded-lg border-stone-200 px-3 text-xs" onClick={restoreLandingCopyDefaults}>
+                                                    <RotateCcw size={13} className="mr-1.5" /> Restore
+                                                </Button>
+                                                <Button type="button" className="h-8 rounded-lg border-none px-3 text-xs text-white" style={{ background: savedKey === 'copy' ? C.green : C.brownMid }} onClick={saveLandingCopy} disabled={savingKey === 'copy'}>
+                                                    {savingKey === 'copy' ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
+                                                    {savingKey === 'copy' ? 'Saving' : savedKey === 'copy' ? 'Saved' : 'Save'}
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div><FieldLabel>Hero Badge</FieldLabel><Input value={landingContent.hero_badge} onChange={(e) => updateLandingField('hero_badge', e.target.value)} maxLength={80} /></div>
+                                            <div><FieldLabel>Hero Title</FieldLabel><Input value={landingContent.hero_title} onChange={(e) => updateLandingField('hero_title', e.target.value)} maxLength={180} /></div>
+                                            <div className="md:col-span-2"><FieldLabel>Hero Description</FieldLabel><textarea value={landingContent.hero_description} onChange={(e) => updateLandingField('hero_description', e.target.value)} rows={3} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                            <div><FieldLabel>Mobile App Title</FieldLabel><Input value={landingContent.mobile_app_title} onChange={(e) => updateLandingField('mobile_app_title', e.target.value)} maxLength={100} /></div>
+                                            <div><FieldLabel>Mobile App Description</FieldLabel><Input value={landingContent.mobile_app_description} onChange={(e) => updateLandingField('mobile_app_description', e.target.value)} maxLength={400} /></div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <FieldLabel>Applicant Guide Heading</FieldLabel>
+                                            <Input value={landingContent.guide_title} onChange={(e) => updateLandingField('guide_title', e.target.value)} maxLength={160} />
+                                            <div className="mt-3"><FieldLabel>Guide Introduction</FieldLabel><Input value={landingContent.guide_description} onChange={(e) => updateLandingField('guide_description', e.target.value)} maxLength={400} /></div>
+                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                                {landingContent.guide_steps.map((item, index) => (
+                                                    <div key={`guide-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                        <FieldLabel>Step {index + 1}</FieldLabel>
+                                                        <Input value={item.title} onChange={(e) => updateLandingItem('guide_steps', index, 'title', e.target.value)} maxLength={120} />
+                                                        <textarea value={item.description} onChange={(e) => updateLandingItem('guide_steps', index, 'description', e.target.value)} rows={3} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-stone-200 p-4">
+                                            <FieldLabel>Features Heading</FieldLabel>
+                                            <Input value={landingContent.features_title} onChange={(e) => updateLandingField('features_title', e.target.value)} maxLength={160} />
+                                            <div className="mt-3"><FieldLabel>Features Introduction</FieldLabel><Input value={landingContent.features_description} onChange={(e) => updateLandingField('features_description', e.target.value)} maxLength={400} /></div>
+                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                                {landingContent.feature_items.map((item, index) => (
+                                                    <div key={`feature-${index}`} className="rounded-lg bg-stone-50 p-3">
+                                                        <FieldLabel>Feature {index + 1}</FieldLabel>
+                                                        <Input value={item.title} onChange={(e) => updateLandingItem('feature_items', index, 'title', e.target.value)} maxLength={120} />
+                                                        <textarea value={item.description} onChange={(e) => updateLandingItem('feature_items', index, 'description', e.target.value)} rows={3} maxLength={500} className="mt-2 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="rounded-xl border border-stone-200 p-4">
+                                                <FieldLabel>Campus Heading</FieldLabel><Input value={landingContent.campus_title} onChange={(e) => updateLandingField('campus_title', e.target.value)} maxLength={160} />
+                                                <div className="mt-3"><FieldLabel>Campus Description</FieldLabel><textarea value={landingContent.campus_description} onChange={(e) => updateLandingField('campus_description', e.target.value)} rows={4} maxLength={400} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                            </div>
+                                            <div className="rounded-xl border border-stone-200 p-4">
+                                                <FieldLabel>Official Platform Heading</FieldLabel><Input value={landingContent.credibility_title} onChange={(e) => updateLandingField('credibility_title', e.target.value)} maxLength={180} />
+                                                <div className="mt-3"><FieldLabel>Verification Description</FieldLabel><textarea value={landingContent.credibility_description} onChange={(e) => updateLandingField('credibility_description', e.target.value)} rows={4} maxLength={600} className="w-full rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2 text-sm" /></div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </GroupCard>
                             ) : null}
 

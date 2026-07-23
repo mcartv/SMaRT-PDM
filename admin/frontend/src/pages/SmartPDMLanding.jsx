@@ -23,6 +23,7 @@ import {
 import useLandingTheme from '@/hooks/useLandingTheme';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landingContent';
 
 import pdmLogo from '../assets/pdm-logo.png';
 import pdmFacade from '../assets/PDM-Facade.png';
@@ -38,33 +39,6 @@ const portalLinks = [
   { label: 'Program Director', href: '/pd/login' },
 ];
 
-const howItWorks = [
-  {
-    step: '01',
-    title: 'Prepare your information',
-    description:
-      'Review the scholarship notice and prepare accurate personal, academic, and supporting information.',
-  },
-  {
-    step: '02',
-    title: 'Submit your application',
-    description:
-      'Complete the application and upload the documents requested for the scholarship program.',
-  },
-  {
-    step: '03',
-    title: 'Monitor your status',
-    description:
-      'Follow application updates, document review, and office announcements through SMaRT-PDM.',
-  },
-  {
-    step: '04',
-    title: 'Wait for endorsement',
-    description:
-      'OSFA and the designated offices review qualified applications before final scholar activation.',
-  },
-];
-
 function normalizePublicFaqItems(items = []) {
   return (Array.isArray(items) ? items : [])
     .filter((item) => item?.is_archived !== true)
@@ -75,28 +49,7 @@ function normalizePublicFaqItems(items = []) {
     .filter((item) => item.question && item.answer);
 }
 
-const features = [
-  {
-    icon: FileCheck2,
-    title: 'Application Tracking',
-    description: 'Applicants can monitor submission progress and requirements.',
-  },
-  {
-    icon: Bell,
-    title: 'Live Announcements',
-    description: 'Scholars receive updates from OSFA and department offices.',
-  },
-  {
-    icon: MessageSquare,
-    title: 'Centralized Messaging',
-    description: 'Communication stays organized inside one scholarship platform.',
-  },
-  {
-    icon: LockKeyhole,
-    title: 'Secure Access',
-    description: 'Role-based portals protect sensitive scholarship workflows.',
-  },
-];
+const featureIcons = [FileCheck2, Bell, MessageSquare, LockKeyhole];
 
 const defaultFaqItems = [
   {
@@ -348,6 +301,7 @@ export default function SmartPDMLanding() {
       'The Office for Scholarship and Financial Assistance helps manage scholarship access, application review coordination, and student support monitoring for qualified PDM students. Through SMaRT-PDM, applicants and offices can follow a clearer workflow for requirements, endorsement, status tracking, and final scholar readiness.',
     eligibility_summary:
       'Scholarship eligibility varies by program. Applicants must be enrolled at PDM, meet the academic and financial qualifications of the selected scholarship, and submit complete and accurate information for OSFA review.',
+    landing_content: DEFAULT_LANDING_CONTENT,
     featured_notice: null,
     featured_notice_next_change_at: null,
     landing_faqs: defaultFaqItems,
@@ -447,6 +401,7 @@ export default function SmartPDMLanding() {
             office_hours: payload?.office_hours || current.office_hours,
             about_osfa: payload?.about_osfa || current.about_osfa,
             eligibility_summary: payload?.eligibility_summary || current.eligibility_summary,
+            landing_content: mergeLandingContent(payload?.landing_content),
             featured_notice: payload?.featured_notice || null,
             featured_notice_next_change_at: payload?.featured_notice_next_change_at || null,
             landing_faqs: Array.isArray(payload?.landing_faqs)
@@ -482,6 +437,7 @@ export default function SmartPDMLanding() {
         office_hours: settings?.office_hours || current.office_hours,
         about_osfa: settings?.about_osfa || current.about_osfa,
         eligibility_summary: settings?.eligibility_summary || current.eligibility_summary,
+        landing_content: mergeLandingContent(settings?.landing_content),
         featured_notice:
           Object.prototype.hasOwnProperty.call(settings, 'featured_notice')
             ? settings.featured_notice
@@ -705,17 +661,15 @@ export default function SmartPDMLanding() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">
               <span className="h-2 w-2 rounded-full bg-yellow-400" />
-              OSFA Digital Scholarship Platform
+              {generalSettings.landing_content.hero_badge}
             </div>
 
             <h1 className="mt-5 max-w-xl text-3xl font-bold leading-tight text-white md:text-4xl">
-              Scholarship access, tracking, and updates in one system.
+              {generalSettings.landing_content.hero_title}
             </h1>
 
             <p className="mt-4 max-w-xl text-sm leading-7 text-white/72">
-              SMaRT-PDM helps applicants, scholars, and authorized staff manage
-              scholarship applications, document updates, monitoring, and
-              announcements through a centralized web and mobile platform.
+              {generalSettings.landing_content.hero_description}
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -802,11 +756,10 @@ export default function SmartPDMLanding() {
 
                   <div>
                     <p className="text-sm font-bold text-stone-900">
-                      Scholar Mobile App
+                      {generalSettings.landing_content.mobile_app_title}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-stone-600">
-                      Install the APK to track application updates and
-                      scholarship activity from your phone.
+                      {generalSettings.landing_content.mobile_app_description}
                     </p>
 
                   </div>
@@ -873,19 +826,18 @@ export default function SmartPDMLanding() {
               Platform Features
             </p>
             <h2 className="mt-2 text-2xl font-bold text-stone-900">
-              Built for scholarship operations
+              {generalSettings.landing_content.features_title}
             </h2>
           </div>
 
           <p className="max-w-md text-sm leading-6 text-stone-500">
-            Designed for applicants, scholars, and OSFA staff who need a clean,
-            direct, and reliable workflow.
+            {generalSettings.landing_content.features_description}
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {features.map((feature) => (
-            <FeatureCard key={feature.title} {...feature} theme={theme} />
+          {generalSettings.landing_content.feature_items.map((feature, index) => (
+            <FeatureCard key={feature.title} {...feature} icon={featureIcons[index]} theme={theme} />
           ))}
         </div>
       </section>
@@ -961,18 +913,18 @@ export default function SmartPDMLanding() {
                 Applicant Quick Guide
               </p>
               <h2 className="mt-2 text-2xl font-bold text-stone-900">
-                Get started in four clear steps
+                {generalSettings.landing_content.guide_title}
               </h2>
             </div>
 
             <p className="max-w-md text-sm leading-6 text-stone-500">
-              A shorter overview for applicants and offices so the process is easier to understand at a glance.
+              {generalSettings.landing_content.guide_description}
             </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {howItWorks.map((item) => (
-              <StepCard key={item.step} {...item} theme={theme} />
+            {generalSettings.landing_content.guide_steps.map((item, index) => (
+              <StepCard key={`${index}-${item.title}`} {...item} step={String(index + 1).padStart(2, '0')} theme={theme} />
             ))}
           </div>
         </div>
@@ -998,10 +950,10 @@ export default function SmartPDMLanding() {
               Pambayang Dalubhasaan ng Marilao
             </p>
             <h2 className="mt-3 text-2xl font-bold leading-tight md:text-3xl">
-              Scholarship support built around PDM students.
+              {generalSettings.landing_content.campus_title}
             </h2>
             <p className="mt-3 max-w-lg text-sm leading-6 text-white/80">
-              One connected platform for scholarship access, office endorsement, requirements, and student progress.
+              {generalSettings.landing_content.campus_description}
             </p>
           </div>
         </div>
@@ -1043,12 +995,10 @@ export default function SmartPDMLanding() {
               Official PDM–OSFA Platform
             </p>
             <h2 className="mt-2 text-xl font-bold">
-              Verify scholarship information through official channels.
+              {generalSettings.landing_content.credibility_title}
             </h2>
             <p className="mt-3 text-sm leading-7 text-white/75">
-              SMaRT-PDM is the scholarship monitoring platform of Pambayang
-              Dalubhasaan ng Marilao and OSFA. Confirm important announcements
-              through this site, the OSFA office, or PDM&apos;s official Facebook page.
+              {generalSettings.landing_content.credibility_description}
             </p>
           </div>
         </div>

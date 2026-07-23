@@ -300,9 +300,9 @@ export default function SmartPDMLanding() {
   const hasFeaturedNotice = Boolean(generalSettings.featured_notice);
   const navigationItems = [
     ['Home', '#home'],
-    ...(benefactors.length ? [['Partners', '#partners']] : []),
-    ['Applicant Guide', '#guide'],
-    ['About OSFA', '#about'],
+    ...(benefactors.length ? [['Benefactors', '#partners']] : []),
+    ['Guide', '#guide'],
+    ['About', '#about'],
     ['FAQ', '#faq'],
     ['Contact', '#contact'],
   ];
@@ -678,7 +678,7 @@ export default function SmartPDMLanding() {
         }
       `}</style>
       <header className="border-b-4 bg-[#f7f8f4]" style={{ borderBottomColor: theme.accent }}>
-        <div className="mx-auto flex w-full max-w-[84rem] items-center justify-between gap-4 px-5 py-4 md:px-8 md:py-5">
+        <div className="flex w-full items-center justify-between gap-4 px-5 py-4 md:px-8 md:py-5 lg:px-10">
           <Link to="/landing" className="flex min-w-0 items-center gap-3">
             <span className="flex shrink-0 items-center gap-2" aria-label="PDM and Municipality of Marilao">
               <img
@@ -716,7 +716,7 @@ export default function SmartPDMLanding() {
         className="sticky top-0 z-50 border-b shadow-md"
         style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent }}
       >
-        <div className="mx-auto flex max-w-[84rem] items-center overflow-x-auto px-5 md:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-full items-center overflow-x-auto px-5 md:px-8 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {navigationItems.map(([label, href]) => (
             <a
               key={href}
@@ -980,17 +980,46 @@ export default function SmartPDMLanding() {
               </p>
             </div>
 
+            <style>{`
+              @keyframes benefactor-carousel-scroll {
+                from { transform: translateX(0); }
+                to { transform: translateX(-50%); }
+              }
+              .benefactor-carousel-track {
+                animation: benefactor-carousel-scroll ${Math.max(18, benefactors.length * 6)}s linear infinite;
+              }
+              .benefactor-carousel:hover .benefactor-carousel-track,
+              .benefactor-carousel:focus-within .benefactor-carousel-track {
+                animation-play-state: paused;
+              }
+              @media (prefers-reduced-motion: reduce) {
+                .benefactor-carousel-track { animation: none; transform: none; }
+              }
+            `}</style>
+
             <div
-              className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              className="benefactor-carousel overflow-hidden rounded-[1.5rem]"
+              aria-roledescription="carousel"
               aria-label="Scholarship benefactors"
             >
-              {benefactors.map((benefactor) => (
-                <BenefactorCard
-                  key={benefactor.benefactor_id}
-                  benefactor={benefactor}
-                  theme={theme}
-                />
-              ))}
+              <div className="benefactor-carousel-track flex w-max">
+                {[0, 1].map((copyIndex) => (
+                  <div
+                    key={`benefactor-set-${copyIndex}`}
+                    className="flex shrink-0 gap-4 pr-4"
+                    aria-hidden={copyIndex === 1 ? 'true' : undefined}
+                  >
+                    {benefactors.map((benefactor) => (
+                      <div
+                        key={`${copyIndex}-${benefactor.benefactor_id}`}
+                        className="w-[280px] shrink-0 sm:w-[320px] lg:w-[350px]"
+                      >
+                        <BenefactorCard benefactor={benefactor} theme={theme} />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
 
           </div>
@@ -1254,8 +1283,8 @@ export default function SmartPDMLanding() {
       </section>
       </main>
 
-      <footer className="landing-footer overflow-hidden border-t-4 px-5 pt-8" style={{ borderTopColor: theme.accent, background: theme.pageBg }}>
-        <div className="mx-auto max-w-[84rem]">
+      <footer className="landing-footer overflow-hidden border-t-4 px-5 pt-8 md:px-8 lg:px-10" style={{ borderTopColor: theme.accent, background: theme.pageBg }}>
+        <div className="w-full">
           <div className="grid gap-6 px-1 pb-8 md:grid-cols-[1fr_auto] md:items-center">
             <div>
               <p className="text-sm font-bold text-stone-900">SMaRT-PDM</p>
@@ -1305,7 +1334,7 @@ export default function SmartPDMLanding() {
           </div>
 
           <div
-            className="relative flex flex-col gap-2 border-t-4 px-1 py-4 text-center md:flex-row md:items-center md:justify-between md:text-left"
+            className="relative flex flex-col gap-4 border-t-4 px-1 py-5 text-center md:flex-row md:items-center md:justify-between md:text-left"
             style={{
               background: theme.dark,
               borderTopColor: theme.accent,
@@ -1313,6 +1342,20 @@ export default function SmartPDMLanding() {
               clipPath: 'inset(0 -100vmax)',
             }}
           >
+            <div className="flex items-center justify-center gap-3" aria-label="PDM and Municipality of Marilao">
+              <img
+                src={pdmLogo}
+                alt="PDM seal"
+                className="h-12 w-12 object-contain"
+              />
+              <span className="h-9 w-px bg-white/25" aria-hidden="true" />
+              <img
+                src={marilaoLogo}
+                alt="Municipality of Marilao seal"
+                className="h-11 w-11 rounded-full bg-white object-contain"
+              />
+            </div>
+
             <p className="text-xs font-semibold text-white">
               SMaRT-PDM · Office for Scholarship and Financial Assistance
             </p>

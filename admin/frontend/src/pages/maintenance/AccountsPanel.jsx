@@ -64,7 +64,7 @@ const ROLE_OPTIONS = [
     {
         value: 'pd',
         label: 'Program Director',
-        department: '',
+        department: 'Office of the College of Hospitality and Tourism Management',
         position: 'Program Director',
     },
     {
@@ -174,30 +174,35 @@ function normalizeDepartment(role, department, assignedCourses = []) {
 
 function DepartmentField({ role, value, onChange, disabled = false }) {
     const options = DEPARTMENT_OPTIONS[role] || [];
+    const selectedOption = options.find((option) => option.value === value);
 
     return (
-        <div>
+        <div className="min-w-0">
             <FieldLabel>Department / Office</FieldLabel>
             <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
-                <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                <SelectTrigger
+                    className="h-9 w-full min-w-0 rounded-lg border-stone-200 text-sm [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate"
+                    title={selectedOption?.value || ''}
+                >
                     <SelectValue placeholder="Select department or office" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" align="start" className="w-[var(--radix-select-trigger-width)]">
                     {options.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                            <span className="flex flex-col">
-                                <span>{option.label}</span>
-                                {option.hint ? (
-                                    <span className="text-[11px] text-stone-500">{option.hint} courses</span>
-                                ) : null}
-                            </span>
+                        <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            className="py-2"
+                        >
+                            {option.hint ? `${option.label} (${option.hint})` : option.label}
                         </SelectItem>
                     ))}
                 </SelectContent>
             </Select>
             {role === 'pd' ? (
                 <p className="mt-1 text-[11px] text-stone-500">
-                    Choose the office that supervises the assigned courses.
+                    {selectedOption?.hint
+                        ? `Course group: ${selectedOption.hint}`
+                        : 'Choose the office that supervises the assigned courses.'}
                 </p>
             ) : null}
         </div>
@@ -474,7 +479,7 @@ function StaffCreateModal({
             onClick={onClose}
         >
             <div
-                className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
+                className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
@@ -537,7 +542,7 @@ function StaffCreateModal({
                                 onValueChange={handleRoleChange}
                                 disabled={saving}
                             >
-                                <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                                <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm">
                                     <SelectValue />
                                 </SelectTrigger>
 
@@ -567,7 +572,7 @@ function StaffCreateModal({
 
                     <CourseAssignmentField form={form} setField={setField} courses={courses} disabled={saving} />
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                         <DepartmentField
                             role={form.role}
                             value={form.department}
@@ -684,7 +689,7 @@ function StaffEditModal({
             onClick={onClose}
         >
             <div
-                className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
+                className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-stone-200 bg-white shadow-xl"
                 onClick={(event) => event.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-4 py-3">
@@ -747,7 +752,7 @@ function StaffEditModal({
                                 onValueChange={handleRoleChange}
                                 disabled={saving}
                             >
-                                <SelectTrigger className="h-9 rounded-lg border-stone-200 text-sm">
+                                <SelectTrigger className="h-9 w-full rounded-lg border-stone-200 text-sm">
                                     <SelectValue />
                                 </SelectTrigger>
 
@@ -775,7 +780,7 @@ function StaffEditModal({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
                         <DepartmentField
                             role={form.role}
                             value={form.department}

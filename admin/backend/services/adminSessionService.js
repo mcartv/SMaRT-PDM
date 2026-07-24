@@ -23,12 +23,7 @@ const SESSION_SCOPE = String(
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .slice(0, 30) || (IS_PRODUCTION ? 'production' : 'development');
-const MAX_ACTIVE_DEVICES = Math.max(
-    1,
-    Number(
-        process.env.ADMIN_MAX_ACTIVE_DEVICES || (IS_PRODUCTION ? 1 : 2)
-    ) || 1
-);
+const MAX_ACTIVE_DEVICES = null; // Unlimited concurrent Admin devices.
 
 class AdminSessionError extends Error {
     constructor(message, { statusCode = 401, code = 'ADMIN_SESSION_ERROR' } = {}) {
@@ -110,10 +105,14 @@ function getRequestIp(req) {
     return forwarded || req.ip || req.socket?.remoteAddress || null;
 }
 
-function sanitizeClientId(value, fieldName) {
+function sanitizeClientId(value, fieldName, { allowGenerated = false } = {}) {
     const normalized = String(value || '').trim();
 
     if (!normalized) {
+        if (allowGenerated) {
+            return `${fieldName}-${crypto.randomUUID()}`;
+        }
+
         throw new AdminSessionError(`${fieldName} is required.`, {
             statusCode: 400,
             code: `MISSING_${fieldName.toUpperCase()}`,
@@ -191,8 +190,8 @@ async function createAdminSession({
         });
     }
 
-    const cleanDeviceId = sanitizeClientId(deviceId, 'deviceId');
-    const cleanPageId = sanitizeClientId(pageId, 'pageId');
+    const cleanDeviceId = sanitizeClientId(deviceId, 'deviceId', { allowGenerated: true });
+    const cleanPageId = sanitizeClientId(pageId, 'pageId', { allowGenerated: true });
     const ttlSeconds = sessionTtlSeconds(Boolean(stayLoggedIn));
     const sessionId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
@@ -269,23 +268,6 @@ async function createAdminSession({
             );
         }
 
-        const activeOtherDevices = new Set(
-            activeResult.rows
-                .filter((session) => session.device_id !== cleanDeviceId)
-                .map((session) => session.device_id)
-        );
-
-        if (activeOtherDevices.size >= MAX_ACTIVE_DEVICES) {
-            throw new AdminSessionError(
-                `This Admin account already has ${MAX_ACTIVE_DEVICES} active ${
-                    MAX_ACTIVE_DEVICES === 1 ? 'device' : 'devices'
-                } in the ${SESSION_SCOPE} environment. Log out an active device before signing in here.`,
-                {
-                    statusCode: 409,
-                    code: 'ADMIN_ACTIVE_DEVICE_LIMIT_REACHED',
-                }
-            );
-        }
 
         await client.query(
             `
@@ -465,34 +447,6 @@ async function resumeAdminSession({ rawToken, deviceId, pageId }) {
             );
         }
 
-        const otherActiveResult = await client.query(
-            `
-            SELECT COUNT(DISTINCT device_id)::integer AS active_devices
-            FROM admin_sessions
-            WHERE user_id = $1
-              AND session_scope = $2
-              AND session_id <> $3
-              AND device_id <> $4
-              AND is_active = true
-              AND logged_out_at IS NULL
-              AND expires_at > now()
-            `,
-            [userId, SESSION_SCOPE, session.session_id, cleanDeviceId]
-        );
-
-        const otherActiveDevices = Number(
-            otherActiveResult.rows[0]?.active_devices || 0
-        );
-
-        if (otherActiveDevices >= MAX_ACTIVE_DEVICES) {
-            throw new AdminSessionError(
-                `The ${SESSION_SCOPE} Admin device limit has been reached.`,
-                {
-                    statusCode: 409,
-                    code: 'ADMIN_ACTIVE_DEVICE_LIMIT_REACHED',
-                }
-            );
-        }
 
         await client.query(
             `

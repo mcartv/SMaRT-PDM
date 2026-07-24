@@ -144,6 +144,49 @@ router.post('/message-created', requireInternalSecret, (req, res) => {
     });
 });
 
+router.post('/notification-created', requireInternalSecret, (req, res) => {
+    const io = req.app.get('io');
+
+    if (!io) {
+        return res.status(500).json({
+            success: false,
+            message: 'Admin Socket.IO instance is missing',
+        });
+    }
+
+    const raw = req.body?.notification || req.body || {};
+    const userId = cleanId(raw.user_id || raw.userId);
+    const notificationId = cleanId(
+        raw.notification_id || raw.notificationId || raw.id
+    );
+
+    if (!userId || !notificationId) {
+        return res.status(400).json({
+            success: false,
+            message: 'user_id and notification_id are required',
+        });
+    }
+
+    const payload = {
+        ...raw,
+        notification_id: notificationId,
+        notificationId,
+        user_id: userId,
+        userId,
+    };
+
+    io.to(`user:${userId}`).emit('notification:new', payload);
+    io.to(`user:${userId}`).emit('notification:created', payload);
+
+    return res.json({
+        success: true,
+        emitted: true,
+        event: 'notification-created',
+        userId,
+        notificationId,
+    });
+});
+
 router.post('/ro-updated', requireInternalSecret, (req, res) => {
     const io = req.app.get('io');
 

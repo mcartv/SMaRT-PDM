@@ -41,6 +41,7 @@ const reportRoutes = require('../routes/reportRoutes');
 const roSettingRoutes = require('../routes/roSettingRoutes');
 const themeSettingRoutes = require('../routes/themeSettingRoutes');
 const generalSettingRoutes = require('../routes/generalSettingRoutes');
+const personalToolRoutes = require('../routes/personalToolRoutes');
 
 const piRoutes = require('../routes/piRoutes');
 const piIotOcrRoutes = require('../routes/piIotOcrRoutes');
@@ -52,6 +53,7 @@ const {
 const internalRealtimeRoutes = require('../routes/internalRealtimeRoutes');
 
 const announcementService = require('../services/announcementService');
+const personalToolService = require('../services/personalToolService');
 const { configureRealtimeBridge } = require('../services/realtimeBridgeService');
 const socketEvents = require('../utils/socketEvents');
 const supabase = require('../config/supabase');
@@ -257,6 +259,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/ro-settings', roSettingRoutes);
 app.use('/api/theme-settings', themeSettingRoutes);
 app.use('/api/general-settings', generalSettingRoutes);
+app.use('/api/personal-tools', personalToolRoutes);
 
 app.use('/api/pi', piRoutes);
 app.use('/api/internal/realtime', internalRealtimeRoutes);
@@ -327,36 +330,17 @@ app.use((err, req, res, next) => {
 // SOCKET HELPERS
 // =========================
 
-function decodeJwtPayloadUnsafe(token) {
-  try {
-    if (!token) return {};
-
-    const parts = String(token).split('.');
-    if (parts.length < 2) return {};
-
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const json = Buffer.from(base64, 'base64').toString('utf8');
-
-    return JSON.parse(json) || {};
-  } catch {
-    return {};
-  }
-}
-
-function verifyOrDecodeToken(token) {
+function verifySocketToken(token) {
   const rawToken = String(token || '').replace(/^Bearer\s+/i, '').trim();
 
-  if (!rawToken) return {};
+  if (!rawToken || !process.env.JWT_SECRET) return {};
 
   try {
-    if (process.env.JWT_SECRET) {
-      return jwt.verify(rawToken, process.env.JWT_SECRET) || {};
-    }
+    return jwt.verify(rawToken, process.env.JWT_SECRET) || {};
   } catch (error) {
-    console.warn('[Socket] JWT verify failed, falling back to decode:', error.message);
+    console.warn('[Socket] JWT verify failed:', error.message);
+    return {};
   }
-
-  return decodeJwtPayloadUnsafe(rawToken);
 }
 
 function extractUserIdFromPayload(payload = {}) {
@@ -390,22 +374,8 @@ function extractTokenFromSocket(socket) {
 }
 
 function extractUserIdFromSocket(socket) {
-  const auth = socket.handshake?.auth || {};
-  const query = socket.handshake?.query || {};
-
-  const directUserId =
-    auth.userId ||
-    auth.user_id ||
-    query.userId ||
-    query.user_id ||
-    '';
-
-  if (directUserId) {
-    return directUserId.toString().trim();
-  }
-
   const token = extractTokenFromSocket(socket);
-  const decoded = verifyOrDecodeToken(token);
+  const decoded = verifySocketToken(token);
 
   return extractUserIdFromPayload(decoded);
 }
@@ -436,18 +406,10 @@ function joinSocketToUserRoom(socket, rawUserId) {
 }
 
 function handleJoinPayload(socket, payload = {}) {
-  let userId = '';
-
-  if (typeof payload === 'string') {
-    userId = payload;
-  } else if (payload && typeof payload === 'object') {
-    userId = extractUserIdFromPayload(payload);
-
-    if (!userId && payload.token) {
-      const decoded = verifyOrDecodeToken(payload.token);
-      userId = extractUserIdFromPayload(decoded);
-    }
-  }
+  const suppliedToken =
+    payload && typeof payload === 'object' ? payload.token : '';
+  const decoded = verifySocketToken(suppliedToken || extractTokenFromSocket(socket));
+  const userId = extractUserIdFromPayload(decoded);
 
   return joinSocketToUserRoom(socket, userId);
 }
@@ -585,6 +547,11 @@ if (!global._announcementSchedulerRunning) {
       }
 
       await runDepartmentDigestScheduler();
+
+      const dueReminders = await personalToolService.processDueReminders();
+      dueReminders.forEach(({ userId, notification }) => {
+        socketEvents.notificationCreated(io, userId, notification);
+      });
     } catch (err) {
       console.error('Scheduler Error:', err.message);
     } finally {

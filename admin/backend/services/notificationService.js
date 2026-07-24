@@ -1,4 +1,6 @@
 const supabase = require('../config/supabase');
+const db = require('../config/db');
+const { resolveStaffRole } = require('../utils/staffRoles');
 
 const AUDIENCE_TO_ROLE_FILTER = {
     all: null,
@@ -147,6 +149,113 @@ async function createUserNotification({
 }
 
 exports.createUserNotification = createUserNotification;
+
+async function getStaffTargets({ roles = [], courseId = null, excludeUserIds = [] } = {}) {
+    const normalizedRoles = new Set(
+        (Array.isArray(roles) ? roles : [roles])
+            .map((role) => String(role || '').trim().toLowerCase())
+            .filter(Boolean)
+    );
+    const excluded = new Set(
+        (Array.isArray(excludeUserIds) ? excludeUserIds : [excludeUserIds])
+            .map((id) => String(id || '').trim())
+            .filter(Boolean)
+    );
+
+    if (!normalizedRoles.size) return [];
+
+    const { rows } = await db.query(
+        `
+        SELECT
+            u.user_id,
+            u.email,
+            u.role AS user_role,
+            ap.admin_id,
+            ap.first_name,
+            ap.last_name,
+            ap.department,
+            ap.position
+        FROM users u
+        INNER JOIN admin_profiles ap ON ap.user_id = u.user_id
+        WHERE COALESCE(ap.is_archived, false) = false
+        `
+    );
+
+    let targets = rows
+        .map((row) => ({
+            ...row,
+            resolved_role: resolveStaffRole(row),
+        }))
+        .filter((row) => normalizedRoles.has(row.resolved_role))
+        .filter((row) => !excluded.has(String(row.user_id)))
+        .map((row) => ({
+            user_id: row.user_id,
+            role: row.resolved_role,
+            email: row.email,
+            name:
+                [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+                row.email ||
+                'Staff user',
+        }));
+
+    if (courseId && normalizedRoles.has('pd')) {
+        const assignmentResult = await db.query(
+            `
+            SELECT pd_user_id
+            FROM program_director_course_assignments
+            WHERE course_id = $1
+              AND is_active = true
+            `,
+            [courseId]
+        );
+        const assignedPdIds = new Set(
+            assignmentResult.rows.map((row) => String(row.pd_user_id))
+        );
+
+        targets = targets.filter(
+            (target) =>
+                target.role !== 'pd' || assignedPdIds.has(String(target.user_id))
+        );
+    }
+
+    return targets;
+}
+
+async function createStaffNotifications({
+    roles,
+    type,
+    title,
+    message,
+    referenceId = null,
+    referenceType = null,
+    courseId = null,
+    excludeUserIds = [],
+}) {
+    const targets = await getStaffTargets({ roles, courseId, excludeUserIds });
+    const notifications = [];
+
+    for (const target of targets) {
+        const notification = await createUserNotification({
+            userId: target.user_id,
+            type,
+            title,
+            message,
+            referenceId,
+            referenceType,
+        });
+
+        notifications.push({
+            ...notification,
+            target_user_id: target.user_id,
+            target_role: target.role,
+        });
+    }
+
+    return notifications;
+}
+
+exports.getStaffTargets = getStaffTargets;
+exports.createStaffNotifications = createStaffNotifications;
 
 async function getMyNotifications(userId, query = {}) {
     if (!userId) {

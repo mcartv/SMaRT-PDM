@@ -792,6 +792,56 @@ async function notifyNextStage({ slipId, queueKey, studentName, courseId = null 
     return created;
 }
 
+async function notifyAdminOfEndorsementOutcome({
+    slipId,
+    studentName,
+    overallStatus,
+}) {
+    const status = safeText(overallStatus).toLowerCase();
+    const outcomes = {
+        completed: {
+            title: 'Endorsement completed',
+            message: `${studentName} completed SDO, Guidance, and Program Director endorsement.`,
+        },
+        rejected: {
+            title: 'Endorsement rejected by PD',
+            message: `${studentName}'s endorsement was rejected by the Program Director.`,
+        },
+        guidance_rejected: {
+            title: 'Endorsement rejected by Guidance',
+            message: `${studentName}'s endorsement was rejected by Guidance.`,
+        },
+        held: {
+            title: 'Endorsement placed on hold',
+            message: `${studentName}'s endorsement requires counseling or Guidance follow-up.`,
+        },
+        disqualified_major: {
+            title: 'Major offense recorded',
+            message: `${studentName}'s endorsement stopped in SDO because of a major offense.`,
+        },
+    };
+    const outcome = outcomes[status];
+
+    if (!outcome) return [];
+
+    try {
+        return await notificationService.createStaffNotifications({
+            roles: ['admin'],
+            type: 'Endorsement Update',
+            title: outcome.title,
+            message: outcome.message,
+            referenceId: slipId,
+            referenceType: 'endorsement_slip',
+        });
+    } catch (error) {
+        console.error(
+            'ENDORSEMENT ADMIN NOTIFICATION ERROR:',
+            error.message || error
+        );
+        return [];
+    }
+}
+
 function buildPdfVerificationUrl(token) {
     return `${FRONTEND_BASE_URL}/endorsement/verify/${token}`;
 }
@@ -1406,12 +1456,22 @@ async function applyStageAction(queueKey, slipId, payload, actor) {
 
         await client.query('commit');
 
-        const notifications = await notifyNextStage({
+        const nextStageNotifications = await notifyNextStage({
             slipId,
             queueKey,
             studentName: currentSlip.student_name || 'A student',
             courseId: currentSlip.course_id,
         });
+
+        const adminNotifications = await notifyAdminOfEndorsementOutcome({
+            slipId,
+            studentName: currentSlip.student_name || 'A student',
+            overallStatus: updated.rows[0].overall_status,
+        });
+        const notifications = [
+            ...(nextStageNotifications || []),
+            ...(adminNotifications || []),
+        ];
 
         let finalizedDetail = await fetchSlipDetail(slipId, actor);
         let pdfError = null;

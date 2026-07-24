@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const { ensureStudentForUser } = require('./studentAccountService');
+const notificationService = require('./notificationService');
 
 const APPLICATION_DRAFT_TABLE = 'application_form_drafts';
 const ENDORSEMENT_SLIP_BUCKET =
@@ -90,6 +91,27 @@ function createHttpError(statusCode, message) {
 
 function safeText(value) {
     return value === null || value === undefined ? '' : String(value).trim();
+}
+
+function getStudentDisplayName(student = {}) {
+    return (
+        [student.first_name, student.middle_name, student.last_name]
+            .map(safeText)
+            .filter(Boolean)
+            .join(' ') || student.pdm_id || 'An applicant'
+    );
+}
+
+async function createStaffNotificationsSafely(payload, context) {
+    try {
+        return await notificationService.createStaffNotifications(payload);
+    } catch (error) {
+        console.error(
+            `${context || 'STAFF'} NOTIFICATION ERROR:`,
+            error?.message || error
+        );
+        return [];
+    }
 }
 
 function firstNonEmpty(...values) {
@@ -2138,7 +2160,7 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const { data: application, error: appError } = await supabase
         .from('applications')
-        .select('application_id, student_id, opening_id, program_id')
+        .select('application_id, student_id, opening_id, program_id, document_status')
         .eq('application_id', targetDocument.application_id)
         .eq('student_id', student.student_id)
         .maybeSingle();
@@ -2223,6 +2245,50 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
             document_status: allRequiredUploaded ? 'Documents Ready' : 'Missing Docs',
         })
         .eq('application_id', application.application_id);
+
+    const studentName = getStudentDisplayName(student);
+    const wasDocumentsReady =
+        safeText(application.document_status).toLowerCase() === 'documents ready';
+
+    if (allRequiredUploaded && !wasDocumentsReady) {
+        await createStaffNotificationsSafely(
+            {
+                roles: ['admin'],
+                type: 'Application Documents',
+                title: 'Requirements ready for review',
+                message: `${studentName} uploaded all required application documents.`,
+                referenceId: application.application_id,
+                referenceType: 'application_document',
+            },
+            'DOCUMENT COMPLETION'
+        );
+    }
+
+    if (normalizedType === 'Grade Report') {
+        const { data: activeSlip, error: activeSlipError } = await supabase
+            .from('endorsement_slips')
+            .select('slip_id, current_stage')
+            .eq('application_id', application.application_id)
+            .eq('current_stage', 'pending_pd')
+            .maybeSingle();
+
+        if (activeSlipError) {
+            console.error('GRADE ENDORSEMENT LOOKUP ERROR:', activeSlipError);
+        } else if (activeSlip?.slip_id) {
+            await createStaffNotificationsSafely(
+                {
+                    roles: ['pd'],
+                    courseId: student.course_id,
+                    type: 'Grade Document',
+                    title: 'Grade document ready',
+                    message: `${studentName} uploaded a grade document for PD review.`,
+                    referenceId: activeSlip.slip_id,
+                    referenceType: 'endorsement_slip',
+                },
+                'PD GRADE'
+            );
+        }
+    }
 
     return getMyDocuments(userId);
 }
@@ -2393,9 +2459,9 @@ async function createRequiredDocumentSlots(applicationId, studentId) {
 }
 
 async function ensureApplicationEndorsementSlip(application = {}) {
-    if (!application?.application_id || !application?.student_id) return;
+    if (!application?.application_id || !application?.student_id) return null;
 
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('endorsement_slips')
         .insert({
             application_id: application.application_id,
@@ -2403,12 +2469,14 @@ async function ensureApplicationEndorsementSlip(application = {}) {
             opening_id: application.opening_id || null,
             current_stage: 'pending_sdo',
             overall_status: 'pending_sdo',
-        });
+        })
+        .select('slip_id')
+        .single();
 
-    if (!error) return;
+    if (!error) return data || null;
 
     if (error.code === '23505') {
-        return;
+        return null;
     }
 
     if (isMissingSchemaError(error)) {
@@ -2894,7 +2962,21 @@ async function submitMyApplicationForm(userId, payload = {}) {
     }
 
     await createRequiredDocumentSlots(application.application_id, student.student_id);
-    await ensureApplicationEndorsementSlip(application);
+    const createdSlip = await ensureApplicationEndorsementSlip(application);
+
+    if (createdSlip?.slip_id) {
+        await createStaffNotificationsSafely(
+            {
+                roles: ['sdo'],
+                type: 'Endorsement Slip',
+                title: 'New SDO approval request',
+                message: `${getStudentDisplayName(student)} submitted a scholarship application and is ready for SDO review.`,
+                referenceId: createdSlip.slip_id,
+                referenceType: 'endorsement_slip',
+            },
+            'SDO QUEUE'
+        );
+    }
 
     await supabase
         .from('students')

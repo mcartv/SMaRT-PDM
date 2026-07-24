@@ -80,12 +80,34 @@ function buildNotificationTarget(portalRootPath, notification) {
     return `/admin/applications/${referenceId}/documents`;
   }
 
+  if (
+    referenceType === 'profile_photo_review' &&
+    referenceId &&
+    portalRootPath === '/admin'
+  ) {
+    return `/admin/profile-photos/${referenceId}`;
+  }
+
+  if (['staff_account', 'staff_profile'].includes(referenceType)) {
+    if (portalRootPath === '/admin') {
+      return referenceType === 'staff_profile'
+        ? '/admin/adminprofile'
+        : '/admin/maintenance';
+    }
+
+    return `${portalRootPath}/profile`;
+  }
+
   if (['message', 'message_room', 'chat'].includes(referenceType) && portalRootPath === '/admin') {
     return '/admin/messages';
   }
 
   if (['scholar', 'student'].includes(referenceType) && portalRootPath === '/admin') {
     return '/admin/scholars';
+  }
+
+  if (referenceType === 'personal_reminder' && referenceId) {
+    return `${portalRootPath}/dashboard`;
   }
 
   return null;
@@ -260,6 +282,19 @@ export default function usePortalNotifications({
       const target = buildNotificationTarget(portalRootPath, notification);
       if (target) {
         navigate(target);
+
+        if (
+          String(notification.reference_type || '').toLowerCase() ===
+          'personal_reminder'
+        ) {
+          window.setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent('personal-planner:open', {
+                detail: { eventId: notification.reference_id },
+              })
+            );
+          }, 0);
+        }
       }
     },
     [markAsRead, portalRootPath]

@@ -73,7 +73,12 @@ async function relayMessageCreated(payload = {}) {
     return postToAdminBackend('/api/internal/realtime/message-created', payload);
 }
 
+async function relayNotificationCreated(payload = {}) {
+    return postToAdminBackend('/api/internal/realtime/notification-created', payload);
+}
+
 module.exports = {
     relayRoUpdated,
     relayMessageCreated,
+    relayNotificationCreated,
 };

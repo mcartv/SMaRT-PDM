@@ -265,23 +265,34 @@ export default function DepartmentPortalLayout({
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen((current) => !current)}
-                className="relative rounded-full border border-stone-200 bg-white p-2 transition-colors hover:bg-stone-100"
-                title="Notifications"
+                className="relative rounded-xl border border-stone-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-stone-100"
+                style={notifOpen ? { borderColor: theme.accentSoft, background: theme.accentSoft } : undefined}
+                title="Open notifications"
+                aria-label="Open notifications"
+                aria-expanded={notifOpen}
               >
-                <Bell className="h-4 w-4 text-stone-600" />
+                <Bell className="h-4 w-4" style={{ color: theme.base }} />
                 {unreadCount > 0 ? (
                   <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-white bg-red-500" />
                 ) : null}
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl">
-                  <div className="border-b border-stone-100 bg-stone-50/60 px-4 py-3">
+                <div className="absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+                  <div className="border-b border-stone-100 bg-stone-50/80 px-4 py-3.5">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold text-stone-800">Recent Alerts</p>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border"
+                          style={{ borderColor: theme.accentSoft, background: theme.accentSoft, color: theme.base }}
+                        >
+                          <Bell className="h-4 w-4" />
+                        </div>
+                        <p className="text-sm font-semibold text-stone-900">Notifications</p>
+                      </div>
                       {unreadCount > 0 ? (
                         <span
-                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide"
                           style={{ background: theme.accentSoft, color: theme.base }}
                         >
                           {unreadCount} New
@@ -289,7 +300,7 @@ export default function DepartmentPortalLayout({
                       ) : null}
                     </div>
                   </div>
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto">
                     {notifications.length > 0 ? (
                       <>
                         {newNotifications.length > 0 ? (
@@ -307,8 +318,8 @@ export default function DepartmentPortalLayout({
                               setNotifOpen(false);
                               openNotification(item, navigate);
                             }}
-                            className="w-full border-b border-stone-50 px-4 py-3 text-left transition-colors"
-                            style={{ background: theme.accentSoft }}
+                            className="w-full border-b border-stone-100 border-l-4 px-4 py-3 text-left transition hover:brightness-[0.98]"
+                            style={{ borderLeftColor: theme.base, background: theme.accentSoft }}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <p className="text-xs font-semibold text-stone-900">
@@ -367,12 +378,12 @@ export default function DepartmentPortalLayout({
                     )}
                   </div>
                   {notifications.length > 0 ? (
-                    <div className="border-t border-stone-100 bg-stone-50/60 px-4 py-3">
+                    <div className="flex justify-end border-t border-stone-100 bg-stone-50/80 px-4 py-3">
                       <button
                         type="button"
                         onClick={markAllAsRead}
                         disabled={markingAll || unreadCount === 0}
-                        className="text-[11px] font-semibold text-stone-600 transition hover:text-stone-900 disabled:cursor-not-allowed disabled:text-stone-400"
+                        className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {markingAll ? 'Marking...' : unreadCount > 0 ? 'Mark all as read' : 'All caught up'}
                       </button>
@@ -383,21 +394,23 @@ export default function DepartmentPortalLayout({
             </div>
 
             <PortalQuickTools
-              storageKey={`${portalKey}-portal-quick-notes`}
+              tokenStorageKey={tokenStorageKey}
               noteTitle={`${officeName} Notes`}
+              notificationOpen={notifOpen}
+              onToolOpen={() => setNotifOpen(false)}
             />
 
             <button
               type="button"
               onClick={() => navigate(profilePath || dashboardPath)}
-              className="flex cursor-pointer items-center gap-3 rounded-full border border-stone-200 bg-stone-50/80 py-1.5 pl-1.5 pr-3 transition-colors hover:bg-stone-100"
+              className="group flex cursor-pointer items-center gap-2.5 rounded-full border border-stone-200 bg-white py-1.5 pl-1.5 pr-2 shadow-sm transition hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)]"
               title="Open Profile"
             >
               {profileImage ? (
                 <img
                   src={profileImage}
                   alt={displayName}
-                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm"
+                  className="h-8 w-8 shrink-0 rounded-full border-2 border-white object-cover shadow-sm ring-1 ring-[var(--portal-border)]"
                 />
               ) : (
                 <div
@@ -412,6 +425,7 @@ export default function DepartmentPortalLayout({
                 <p className="truncate text-[12px] font-semibold text-stone-800">{displayName}</p>
                 <p className="truncate text-[10px] font-medium text-stone-500">{displayPosition}</p>
               </div>
+              <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--portal-base)] sm:block" />
             </button>
           </div>
         </header>

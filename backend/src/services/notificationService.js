@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
+const { relayNotificationCreated } = require('./adminRealtimeRelayService');
 
 let ioInstance = null;
 
@@ -343,8 +344,120 @@ async function createUserNotification({
   if (error) throw error;
 
   emitNotificationCreated(userId, data);
+  relayNotificationCreated({ notification: normalizeNotification(data) }).catch(
+    (error) => {
+      console.error(
+        '[Notification Relay] failed:',
+        error?.message || error
+      );
+    }
+  );
 
   return data;
+}
+
+function resolveStaffRole(profile = {}) {
+  const department = normalizeText(profile.department);
+  const position = normalizeText(profile.position);
+
+  if (
+    position.includes('program director') ||
+    position.includes('program chair') ||
+    department.includes('program department')
+  ) {
+    return 'pd';
+  }
+  if (department.includes('guidance') || position.includes('guidance')) {
+    return 'guidance';
+  }
+  if (
+    department.includes('student welfare') ||
+    department.includes('student disciplin') ||
+    position.includes('sdo')
+  ) {
+    return 'sdo';
+  }
+  if (
+    department.includes('osfa') ||
+    department.includes('scholarship and financial assistance') ||
+    position.includes('osfa administrator')
+  ) {
+    return 'admin';
+  }
+
+  return null;
+}
+
+async function getStaffTargets({ roles = [], courseId = null } = {}) {
+  const normalizedRoles = new Set(
+    (Array.isArray(roles) ? roles : [roles])
+      .map(normalizeText)
+      .filter(Boolean)
+  );
+
+  if (!normalizedRoles.size) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from('admin_profiles')
+    .select(
+      'user_id, first_name, last_name, department, position, is_archived'
+    )
+    .or('is_archived.eq.false,is_archived.is.null');
+
+  if (profilesError) throw profilesError;
+
+  let targets = (profiles || [])
+    .map((profile) => ({
+      ...profile,
+      role: resolveStaffRole(profile),
+    }))
+    .filter((profile) => normalizedRoles.has(profile.role));
+
+  if (courseId && normalizedRoles.has('pd')) {
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('program_director_course_assignments')
+      .select('pd_user_id')
+      .eq('course_id', courseId)
+      .eq('is_active', true);
+
+    if (assignmentError) throw assignmentError;
+
+    const assignedPdIds = new Set(
+      (assignments || []).map((row) => String(row.pd_user_id))
+    );
+
+    targets = targets.filter(
+      (target) =>
+        target.role !== 'pd' || assignedPdIds.has(String(target.user_id))
+    );
+  }
+
+  return targets;
+}
+
+async function createStaffNotifications({
+  roles,
+  type,
+  title,
+  message,
+  referenceId = null,
+  referenceType = null,
+  courseId = null,
+}) {
+  const targets = await getStaffTargets({ roles, courseId });
+
+  return Promise.all(
+    targets.map((target) =>
+      createUserNotification({
+        userId: target.user_id,
+        type,
+        title,
+        message,
+        referenceId,
+        referenceType,
+      })
+    )
+  );
 }
 
 async function getMyNotifications(userId, query = {}) {
@@ -544,6 +657,8 @@ async function createInternalUserNotification(req) {
 module.exports = {
   configureNotificationService,
   createUserNotification,
+  createStaffNotifications,
+  getStaffTargets,
   createInternalUserNotification,
   getMyNotifications,
   getUnreadCount,

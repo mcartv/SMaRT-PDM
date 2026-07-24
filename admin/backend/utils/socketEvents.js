@@ -176,6 +176,10 @@ const socketEvents = {
     notificationArchived: (io, userId, data) => emitToUser(io, userId, 'notification:archived', data),
     notificationRestored: (io, userId, data) => emitToUser(io, userId, 'notification:restored', data),
 
+    /** Private staff notes and reminders. */
+    personalToolsUpdated: (io, userId, data) =>
+        emitToUser(io, userId, 'personal-tools:updated', data),
+
     /** Messages and rooms. */
     messageCreated: (io, data, options = {}) => emitMessageEvent(io, 'message:created', data, options),
     messageRead: (io, data, options = {}) => emitMessageEvent(io, 'message:read', data, options),

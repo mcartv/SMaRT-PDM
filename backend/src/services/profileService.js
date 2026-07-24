@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const notificationService = require('./notificationService');
 const {
   AVATAR_BUCKET,
   ensureAvatarBucketExists,
@@ -529,6 +530,36 @@ async function uploadAvatar(userId, file) {
 
   if (reviewError) throw reviewError;
 
+  const profile = await getMyProfile(userId);
+  const profileDetails = profile?.profile || {};
+  const studentName =
+    [
+      profileDetails.first_name,
+      profileDetails.middle_name,
+      profileDetails.last_name,
+    ]
+      .map(safeText)
+      .filter(Boolean)
+      .join(' ') ||
+    profileDetails.pdm_id ||
+    'An applicant';
+
+  await notificationService
+    .createStaffNotifications({
+      roles: ['admin'],
+      type: 'Profile Photo',
+      title: 'Profile photo awaiting review',
+      message: `${studentName} uploaded a new profile photo for approval.`,
+      referenceId: review.review_id,
+      referenceType: 'profile_photo_review',
+    })
+    .catch((notificationError) => {
+      console.error(
+        'PROFILE PHOTO STAFF NOTIFICATION ERROR:',
+        notificationError?.message || notificationError
+      );
+    });
+
   return {
     message: 'Profile photo submitted for review.',
     review: {
@@ -538,7 +569,7 @@ async function uploadAvatar(userId, file) {
       pending_url: await resolveAvatarUrl(review.storage_path),
     },
     pendingAvatarUrl: await resolveAvatarUrl(storagePath),
-    ...(await getMyProfile(userId)),
+    ...profile,
   };
 }
 

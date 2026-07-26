@@ -136,13 +136,64 @@ def _indigency_result(status="review_required", success=True, issue_code=None):
             SimpleNamespace(
                 fields=fields,
                 field_count=3,
+                raw_text="RAW POSITIONAL OCR",
                 detection_variant="otsu_threshold",
             )
             if success
             else None
         ),
         issues=[{"code": issue_code}] if issue_code else [],
-        metrics={"field_count": 3, "manual_review_required": True},
+        metrics={
+            "field_count": 3,
+            "manual_review_required": True,
+            "orientation_screen_seconds": 1.0,
+            "whole_page_ocr_seconds": 1.0,
+            "field_crop_ocr_seconds": 0.5,
+            "total_structured_extraction_seconds": 1.5,
+            "candidate_attempt_count": 2,
+            "psm11_attempt_count": 1,
+            "psm6_attempt_count": 1,
+            "evidence_fusion_used": True,
+            "fused_orientation": "original",
+            "field_source_conflict_count": 0,
+            "screening_budget_exhausted": False,
+            "timeout_count": 0,
+            "selected_processing_path": "original_same_orientation_fusion",
+        },
+    )
+
+
+def _grade_form_result(success=True, issue_code=None):
+    field = SimpleNamespace(
+        field_name="general_weighted_average",
+        raw_text="2.50" if success else "",
+        normalized_value="2.50" if success else "",
+        success=success,
+        review_required=True,
+        issue_codes=() if success else (issue_code or "gwa_value_not_found",),
+        value_source="positional" if success else "none",
+        label_type="Cumulative GWA",
+        normalized_bounds=(0.7, 0.8, 0.1, 0.03) if success else None,
+    )
+    return _stage_result(
+        status="review_required",
+        success=success,
+        data=SimpleNamespace(
+            field=field,
+            raw_text="RAW GRADE FORM OCR",
+            detection_variant="upright_positional_label",
+        ),
+        issues=[{"code": issue_code}] if issue_code else [],
+        metrics={
+            "processing_seconds": 2.0,
+            "positional_ocr_seconds": 1.5,
+            "field_crop_ocr_seconds": 0.0,
+            "ocr_attempt_count": 1,
+            "word_count": 20,
+            "label_count": 1,
+            "value_candidate_count": 1 if success else 0,
+            "upright_only": True,
+        },
     )
 
 
@@ -189,7 +240,10 @@ class JobWorkerTest(unittest.TestCase):
 
         self.assertTrue(success)
         self.capture.assert_called_once()
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_called_once_with(
+            CAPTURE_PATH,
+            apply_correction=True,
+        )
         self.assertEqual(payload["status"], "completed")
         self.assertEqual(payload["raw_text"], "RAW OCR")
         self.assertEqual(payload["source_payload"]["capture_status"], CAPTURED)
@@ -223,7 +277,38 @@ class JobWorkerTest(unittest.TestCase):
             ],
         )
 
-    def test_grade_form_uses_generic_ocr_for_same_captured_image(self):
+    @patch("job_worker.write_text_file")
+    @patch("job_worker.clear_tmp_files")
+    def test_generic_ocr_can_bypass_spell_correction(
+        self, clear_files, write_file
+    ):
+        self.generic_ocr_patcher.stop()
+        reader = MagicMock(return_value="  RAW OCR  ")
+        corrector = MagicMock(return_value="MUST NOT RUN")
+        try:
+            raw_text, corrected_text = job_worker._run_generic_ocr(
+                CAPTURE_PATH,
+                text_reader=reader,
+                text_corrector=corrector,
+                apply_correction=False,
+            )
+        finally:
+            self.generic_ocr = self.generic_ocr_patcher.start()
+
+        clear_files.assert_called_once()
+        corrector.assert_not_called()
+        self.assertEqual((raw_text, corrected_text), ("RAW OCR", "RAW OCR"))
+        self.assertEqual(
+            write_file.call_args_list,
+            [
+                call("/tmp/ocr_raw.txt", "RAW OCR"),
+                call("/tmp/ocr_result.txt", "RAW OCR"),
+            ],
+        )
+
+    @patch("job_worker.extract_grade_form_gwa")
+    def test_grade_form_uses_structured_gwa_pipeline_for_same_capture(self, extract):
+        extract.return_value = _grade_form_result()
         with patch("job_worker.register_psa_birth_form") as birth, patch(
             "job_worker.extract_indigency_core_fields"
         ) as indigency:
@@ -232,13 +317,149 @@ class JobWorkerTest(unittest.TestCase):
             )
 
         self.assertTrue(success)
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.load_image.assert_called_once_with(CAPTURE_PATH)
+        extract.assert_called_once()
+        self.generic_ocr.assert_not_called()
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["source_payload"]["worker_status"], "completed")
+        self.assertEqual(
+            payload["source_payload"]["review_state"],
+            "review_required",
+        )
+        self.assertTrue(payload["manual_review_required"])
+        self.assertTrue(payload["extracted_fields"]["review_required"])
+        self.assertEqual(payload["ocr_confidence"], None)
+        self.assertEqual(
+            tuple(payload["extracted_fields"]["fields"]),
+            ("general_weighted_average",),
+        )
+        self.assertEqual(
+            payload["source_payload"]["mode"],
+            "grade_form_gwa_pipeline",
+        )
+        self.assertEqual(
+            payload["source_payload"]["structured_field_keys"],
+            ["general_weighted_average"],
+        )
+        self.assertLessEqual(
+            payload["source_payload"]["performance_metrics"][
+                "processing_seconds"
+            ],
+            15.0,
+        )
         birth.assert_not_called()
         indigency.assert_not_called()
-        self.assertEqual(payload["source_payload"]["mode"], "interactive_camera")
+
+    @patch("job_worker.extract_grade_form_gwa")
+    def test_grade_form_failed_field_keeps_raw_manual_review(self, extract):
+        extract.return_value = _grade_form_result(
+            success=False,
+            issue_code="gwa_value_not_found",
+        )
+
+        success, payload = job_worker.run_scan(
+            self.request("student_grade_forms")
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["source_payload"]["worker_status"], "completed")
+        self.assertEqual(
+            payload["source_payload"]["review_state"],
+            "review_required",
+        )
+        field = payload["extracted_fields"]["fields"][
+            "general_weighted_average"
+        ]
+        self.assertFalse(field["success"])
+        self.assertEqual(field["raw_text"], "")
+        self.assertEqual(
+            payload["source_payload"]["ocr_issue_codes"],
+            ["gwa_value_not_found"],
+        )
+
+    @patch("job_worker.extract_grade_form_gwa")
+    def test_grade_form_empty_positional_text_uses_uncorrected_raw_fallback(
+        self,
+        extract,
+    ):
+        result = _grade_form_result(success=False)
+        result.data.raw_text = ""
+        extract.return_value = result
+
+        success, payload = job_worker.run_scan(
+            self.request("student_grade_forms")
+        )
+
+        self.assertTrue(success)
+        self.generic_ocr.assert_called_once_with(
+            CAPTURE_PATH,
+            apply_correction=False,
+        )
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["source_payload"]["worker_status"], "completed")
+        self.assertEqual(
+            payload["source_payload"]["review_state"],
+            "review_required",
+        )
+
+    @patch("job_worker.extract_grade_form_gwa")
+    def test_grade_form_extractor_exception_keeps_safe_raw_fallback(self, extract):
+        extract.side_effect = RuntimeError("private grade details")
+
+        success, payload = job_worker.run_scan(
+            self.request("student_grade_forms")
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["source_payload"]["worker_status"], "completed")
+        self.assertEqual(
+            payload["source_payload"]["review_state"],
+            "review_required",
+        )
+        self.assertEqual(payload["raw_text"], "RAW OCR")
+        self.assertEqual(
+            payload["source_payload"]["ocr_issue_codes"],
+            ["gwa_value_not_found"],
+        )
+        self.assertNotIn("private grade details", str(payload))
+
+    @patch("job_worker.extract_grade_form_gwa")
+    def test_grade_form_review_state_does_not_replace_lifecycle_status(self, extract):
+        extract.return_value = _grade_form_result()
+
+        success, payload = job_worker.run_scan(
+            self.request("student_grade_forms")
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "completed")
+        self.assertNotEqual(payload["status"], "review_required")
+        self.assertTrue(payload["manual_review_required"])
+        self.assertTrue(payload["extracted_fields"]["review_required"])
+        self.assertEqual(
+            payload["source_payload"]["review_state"],
+            "review_required",
+        )
+
+    @patch("job_worker.extract_grade_form_gwa")
+    def test_grade_form_does_not_expose_unrelated_structured_fields(self, extract):
+        extract.return_value = _grade_form_result()
+
+        _, payload = job_worker.run_scan(
+            self.request("student_grade_forms")
+        )
+
+        fields = payload["extracted_fields"]["fields"]
+        self.assertEqual(set(fields), {"general_weighted_average"})
+        self.assertNotIn("student_name", fields)
+        self.assertNotIn("subjects", fields)
+        self.assertNotIn("gwa", fields)
 
     @patch("job_worker.extract_indigency_core_fields")
-    def test_indigency_uses_generic_ocr_then_existing_structured_extractor(self, extract):
+    def test_indigency_reuses_bounded_positional_ocr_text(self, extract):
         extract.return_value = _indigency_result()
 
         success, payload = job_worker.run_scan(
@@ -246,13 +467,35 @@ class JobWorkerTest(unittest.TestCase):
         )
 
         self.assertTrue(success)
-        self.generic_ocr.assert_called_once_with(CAPTURE_PATH)
+        self.generic_ocr.assert_not_called()
         self.load_image.assert_called_once_with(CAPTURE_PATH)
         extract.assert_called_once()
+        self.assertEqual(payload["raw_text"], "RAW POSITIONAL OCR")
         self.assertEqual(payload["status"], "review_required")
         self.assertEqual(
             set(payload["extracted_fields"]["fields"]),
             {"certificate_subject_name", "issue_date", "issuing_barangay"},
+        )
+        self.assertEqual(
+            payload["source_payload"]["performance_metrics"][
+                "candidate_attempt_count"
+            ],
+            2,
+        )
+        self.assertTrue(
+            payload["source_payload"]["performance_metrics"][
+                "evidence_fusion_used"
+            ]
+        )
+        self.assertEqual(
+            payload["source_payload"]["performance_metrics"][
+                "fused_orientation"
+            ],
+            "original",
+        )
+        self.assertNotIn(
+            "raw_text",
+            payload["source_payload"]["performance_metrics"],
         )
 
     @patch("job_worker.extract_indigency_core_fields")

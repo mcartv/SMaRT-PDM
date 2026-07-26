@@ -382,11 +382,15 @@ export function buildExtractedData(activeDoc, application) {
   const hasStructuredIndigencyFields =
     documentKey === 'certificate_of_indigency' &&
     Object.keys(structuredFields).length > 0;
+  const hasStructuredGradeFields =
+    documentKey === 'student_grade_forms' &&
+    Object.keys(structuredFields).length > 0;
   const manualReviewRequired =
     ocr.review_required === true ||
     ocr.structured_fields?.review_required === true ||
     hasStructuredBirthFields ||
-    hasStructuredIndigencyFields;
+    hasStructuredIndigencyFields ||
+    hasStructuredGradeFields;
   const identityReview = hasStructuredBirthFields
     ? reviewBirthApplicantIdentity({
       applicantName: student.name,
@@ -450,6 +454,38 @@ export function buildExtractedData(activeDoc, application) {
         badge: 'Provisional OCR',
       });
     });
+  } else if (hasStructuredGradeFields) {
+    const field = structuredFields.general_weighted_average;
+    const normalizedValue =
+      field && typeof field === 'object'
+        ? String(field.normalized_value || '').trim()
+        : '';
+    const rawCandidate =
+      field && typeof field === 'object'
+        ? String(field.raw_text || '').trim()
+        : String(field || '').trim();
+
+    if (normalizedValue) {
+      extractedFields.push({
+        label: 'General Weighted Average',
+        value: normalizedValue,
+        badge: 'Provisional OCR',
+      });
+    } else if (rawCandidate) {
+      extractedFields.push({
+        label: 'GWA OCR Candidate',
+        value: rawCandidate,
+        badge: 'Unnormalized OCR',
+        note: 'Decimal placement requires administrator verification.',
+      });
+    } else {
+      extractedFields.push({
+        label: 'General Weighted Average',
+        value: 'Not extracted',
+        badge: 'Manual Review',
+        note: 'The GWA value was not detected. Review the document manually.',
+      });
+    }
   } else if (!reviewOnly && typeof ocr.extracted_name === 'string' && ocr.extracted_name.trim()) {
     extractedFields.push({
       label: 'Extracted Name',
@@ -1132,10 +1168,15 @@ function OCRPanel({
                     <p className="text-sm font-medium text-stone-800 mt-0.5">
                       {item.value}
                     </p>
+                    {item.note ? (
+                      <p className="mt-1 text-[11px] text-orange-700">
+                        {item.note}
+                      </p>
+                    ) : null}
                   </div>
                   <span
                     className={`text-[10px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${
-                      item.badge === 'Provisional OCR'
+                      ['Provisional OCR', 'Unnormalized OCR', 'Manual Review'].includes(item.badge)
                         ? 'bg-orange-50 text-orange-700'
                         : 'bg-green-50 text-green-700'
                     }`}

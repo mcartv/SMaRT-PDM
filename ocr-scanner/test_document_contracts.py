@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from document_contracts import (
     build_extracted_fields,
+    build_grade_form_extracted_fields_from_result,
     build_indigency_extracted_fields_from_result,
     get_contract,
 )
@@ -54,13 +55,110 @@ class DocumentContractsTest(unittest.TestCase):
             },
         )
 
-    def test_pending_documents_are_explicitly_marked_for_review(self):
-        for key in ("student_grade_forms",):
-            with self.subTest(key=key):
-                payload = build_extracted_fields(key, "sample text")
-                self.assertTrue(payload["review_required"])
-                self.assertEqual(payload["contract_status"], "pending_approval")
-                self.assertEqual(payload["fields"], {})
+    def test_grade_form_contract_is_limited_to_approved_gwa_field(self):
+        contract = get_contract("student_grade_forms")
+
+        self.assertEqual(contract.status, "approved")
+        self.assertEqual(
+            [field.name for field in contract.fields],
+            ["general_weighted_average"],
+        )
+        self.assertEqual(contract.source_regions, ["Labeled cumulative GWA row"])
+
+    def test_grade_form_placeholder_does_not_fabricate_fields(self):
+        payload = build_extracted_fields("student_grade_forms", "sample text")
+
+        self.assertTrue(payload["review_required"])
+        self.assertEqual(payload["contract_status"], "approved")
+        self.assertEqual(payload["fields"], {})
+
+    def test_grade_form_result_persists_only_provisional_gwa(self):
+        field = SimpleNamespace(
+            field_name="general_weighted_average",
+            raw_text="2.50",
+            normalized_value="2.50",
+            success=True,
+            review_required=True,
+            issue_codes=(),
+            value_source="positional",
+            label_type="Cumulative GWA",
+            normalized_bounds=(0.7, 0.8, 0.1, 0.03),
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(
+                field=field,
+                detection_variant="upright_positional_label",
+            )
+        )
+
+        payload = build_grade_form_extracted_fields_from_result(
+            "PRIVATE RAW DOCUMENT OCR",
+            extraction_result,
+        )
+
+        self.assertEqual(payload["contract_status"], "approved")
+        self.assertTrue(payload["review_required"])
+        self.assertEqual(
+            tuple(payload["fields"]),
+            ("general_weighted_average",),
+        )
+        persisted = payload["fields"]["general_weighted_average"]
+        self.assertEqual(persisted["raw_text"], "2.50")
+        self.assertEqual(persisted["normalized_value"], "2.50")
+        self.assertEqual(persisted["value_source"], "positional")
+        self.assertNotIn("student_name", payload["fields"])
+        self.assertNotIn("subjects", payload["fields"])
+        self.assertNotIn("gwa", payload["fields"])
+
+    def test_grade_form_failed_extraction_does_not_fabricate_value(self):
+        payload = build_grade_form_extracted_fields_from_result(
+            "PRIVATE RAW DOCUMENT OCR",
+            None,
+        )
+
+        field = payload["fields"]["general_weighted_average"]
+        self.assertEqual(field["raw_text"], "")
+        self.assertEqual(field["normalized_value"], "")
+        self.assertFalse(field["success"])
+        self.assertTrue(field["review_required"])
+        self.assertEqual(field["value_source"], "none")
+
+    def test_grade_form_failed_candidate_is_preserved_for_manual_review(self):
+        field = SimpleNamespace(
+            field_name="general_weighted_average",
+            raw_text="168",
+            normalized_value=None,
+            success=False,
+            review_required=True,
+            issue_codes=("gwa_decimal_not_confirmed",),
+            value_source="crop_ocr_candidate",
+            label_type="Cumulative GWA",
+            normalized_bounds=(0.7, 0.8, 0.1, 0.03),
+        )
+        extraction_result = SimpleNamespace(
+            data=SimpleNamespace(
+                field=field,
+                detection_variant="upright_positional_label",
+            )
+        )
+
+        payload = build_grade_form_extracted_fields_from_result(
+            "PRIVATE RAW DOCUMENT OCR",
+            extraction_result,
+        )
+
+        persisted = payload["fields"]["general_weighted_average"]
+        self.assertFalse(persisted["success"])
+        self.assertEqual(persisted["raw_text"], "168")
+        self.assertEqual(persisted["normalized_value"], "")
+        self.assertEqual(
+            persisted["value_source"],
+            "crop_ocr_candidate",
+        )
+        self.assertEqual(
+            persisted["issue_codes"],
+            ["gwa_decimal_not_confirmed"],
+        )
 
     def test_indigency_contract_does_not_fabricate_structured_fields(self):
         payload = build_extracted_fields(

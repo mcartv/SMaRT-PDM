@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 import re
+import time
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
@@ -16,7 +17,6 @@ from .ocr_engine import (
     OCRBinaryUnavailableError,
     OCRExecutionError,
     OCRInputError,
-    ocr_image,
 )
 from .stage_result import StageResult
 
@@ -40,6 +40,7 @@ class IndigencyExtractionConfig:
     language: str = "eng"
     oem: int = 3
     page_segmentation_mode: int = 6
+    screen_page_segmentation_mode: int = 11
     minimum_word_confidence: float = 15.0
     title_maximum_y: float = 0.45
     elevated_deskew_degrees: float = 3.0
@@ -51,6 +52,16 @@ class IndigencyExtractionConfig:
     minimum_confidence_drop: float = 40.0
     minimum_detached_gap_ratio: float = 2.0
     maximum_detached_tokens_removed: int = 1
+    screening_maximum_dimension: int = 850
+    fallback_screening_maximum_dimension: int = 700
+    minimum_screen_word_count: int = 12
+    screen_timeout_seconds: float = 4.0
+    screening_budget_seconds: float = 14.0
+    crop_timeout_seconds: float = 5.0
+    field_crop_budget_seconds: float = 12.0
+    total_request_timeout_seconds: float = 35.0
+    external_hard_timeout_seconds: float = 40.0
+    maximum_candidate_attempts: int = 7
 
 
 @dataclass(frozen=True)
@@ -116,6 +127,7 @@ class IndigencyFieldResult:
 class IndigencyExtractionOutput:
     fields: tuple[IndigencyFieldResult, ...]
     field_count: int
+    raw_text: str
     detection_variant: str
     selected_orientation: str
     selected_detection_variant: str
@@ -123,6 +135,29 @@ class IndigencyExtractionOutput:
     deskew_angle_degrees: float
     title_anchor: str
     anchor_metadata: Mapping[str, Mapping[str, Any]]
+
+
+@dataclass(frozen=True)
+class ScreeningPass:
+    orientation: str
+    page_segmentation_mode: int
+    variant: str
+    words: tuple[PositionalWord, ...]
+    score: tuple[int, int, int, int, int]
+    screen_shape: tuple[int, ...]
+
+    @property
+    def source_name(self) -> str:
+        return f"{self.variant}_psm{self.page_segmentation_mode}"
+
+
+@dataclass(frozen=True)
+class FieldEvidence:
+    screening_pass: ScreeningPass
+    words: tuple[PositionalWord, ...]
+    anchor: str
+    comparison_value: str
+    positional_value_valid: bool
 
 
 WordReader = Callable[[np.ndarray, str, IndigencyExtractionConfig], Mapping[str, Sequence[Any]]]
@@ -177,6 +212,26 @@ def _orientation_candidates(
         ),
         ("180", cv2.rotate(image, cv2.ROTATE_180)),
     )
+
+
+def _oriented_image(image: np.ndarray, orientation: str) -> np.ndarray:
+    candidates = dict(_orientation_candidates(image))
+    if orientation not in candidates:
+        raise ValueError("unsupported orientation")
+    return candidates[orientation]
+
+
+def _resize_for_screening(image: np.ndarray, maximum_dimension: int) -> np.ndarray:
+    height, width = image.shape[:2]
+    longest = max(height, width)
+    if longest <= maximum_dimension:
+        return image.copy()
+    scale = maximum_dimension / float(longest)
+    target = (
+        max(1, int(round(width * scale))),
+        max(1, int(round(height * scale))),
+    )
+    return cv2.resize(image, target, interpolation=cv2.INTER_AREA)
 
 
 def _grayscale(image: np.ndarray) -> np.ndarray:
@@ -237,17 +292,56 @@ def _default_word_reader(
     _variant: str,
     config: IndigencyExtractionConfig,
 ) -> Mapping[str, Sequence[Any]]:
-    tesseract_config = f"--oem {config.oem} --psm {config.page_segmentation_mode}"
+    tesseract_config = (
+        f"--oem {config.oem} "
+        f"--psm {config.page_segmentation_mode}"
+    )
     return pytesseract.image_to_data(
         image,
         lang=config.language,
         config=tesseract_config,
         output_type=pytesseract.Output.DICT,
+        timeout=config.screen_timeout_seconds,
     )
 
 
-def _default_field_reader(image: np.ndarray, _field_name: str) -> str:
-    return ocr_image(image)
+def _default_field_reader(
+    image: np.ndarray,
+    _field_name: str,
+    config: IndigencyExtractionConfig,
+    timeout_seconds: float | None = None,
+) -> str:
+    tesseract_config = f"--oem {config.oem} --psm {config.page_segmentation_mode}"
+    timeout = (
+        config.crop_timeout_seconds
+        if timeout_seconds is None
+        else max(0.1, min(config.crop_timeout_seconds, timeout_seconds))
+    )
+    started = time.monotonic()
+    gray = _grayscale(image)
+    text = pytesseract.image_to_string(
+        gray,
+        lang=config.language,
+        config=tesseract_config,
+        timeout=timeout,
+    )
+    if _normalize_field_text(text):
+        return text
+    remaining = timeout - (time.monotonic() - started)
+    if remaining <= 0.1:
+        return ""
+    _, threshold = cv2.threshold(
+        gray,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )
+    return pytesseract.image_to_string(
+        threshold,
+        lang=config.language,
+        config=tesseract_config,
+        timeout=remaining,
+    )
 
 
 def _parse_words(
@@ -326,6 +420,23 @@ def _group_paragraphs(words: Sequence[PositionalWord]) -> tuple[tuple[Positional
     return tuple(sorted(ordered, key=lambda group: min(word.top for word in group)))
 
 
+def _positional_raw_text(words: Sequence[PositionalWord]) -> str:
+    lines: dict[tuple[int, int, int], list[PositionalWord]] = {}
+    for word in words:
+        lines.setdefault((word.block, word.paragraph, word.line), []).append(word)
+    ordered_lines = sorted(
+        lines.values(),
+        key=lambda line: (
+            min(word.top for word in line),
+            min(word.left for word in line),
+        ),
+    )
+    return "\n".join(
+        " ".join(word.text for word in sorted(line, key=lambda word: word.left))
+        for line in ordered_lines
+    ).strip()
+
+
 def _title_candidate(
     words: Sequence[PositionalWord],
     image_height: int,
@@ -351,7 +462,7 @@ def _variant_score(
     words: Sequence[PositionalWord],
     image_height: int,
     config: IndigencyExtractionConfig,
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int, int]:
     title_present = int(
         _title_candidate(words, image_height, config.title_maximum_y) is not None
     )
@@ -365,11 +476,98 @@ def _variant_score(
             for paragraph in paragraphs
         )
     )
+    title = _title_candidate(words, image_height, config.title_maximum_y)
+    barangay_present = int(
+        title is not None
+        and len(_issuing_barangay_candidates(words, title)) == 1
+    )
     return (
         title_present,
         subject_present,
         date_present,
+        barangay_present,
         len(words),
+    )
+
+
+def _complete_structural_evidence(
+    score: Sequence[int],
+    config: IndigencyExtractionConfig,
+) -> bool:
+    return (
+        len(score) == 5
+        and tuple(score[:3]) == (1, 1, 1)
+        and score[4] >= config.minimum_screen_word_count
+    )
+
+
+def _fused_structural_score(
+    passes: Sequence[ScreeningPass],
+) -> tuple[int, int, int, int, int]:
+    if not passes:
+        return (0, 0, 0, 0, 0)
+    return (
+        max(item.score[0] for item in passes),
+        max(item.score[1] for item in passes),
+        max(item.score[2] for item in passes),
+        max(item.score[3] for item in passes),
+        max(item.score[4] for item in passes),
+    )
+
+
+def _meaningful_structural_evidence(
+    screening_pass: ScreeningPass,
+    config: IndigencyExtractionConfig,
+) -> bool:
+    return (
+        any(screening_pass.score[:4])
+        and screening_pass.score[4] >= config.minimum_screen_word_count
+    )
+
+
+def _complete_fused_evidence(
+    passes: Sequence[ScreeningPass],
+    config: IndigencyExtractionConfig,
+) -> bool:
+    return _complete_structural_evidence(
+        _fused_structural_score(passes),
+        config,
+    )
+
+
+def _structural_rank(screening_pass: ScreeningPass) -> int:
+    return sum(screening_pass.score[:4])
+
+
+def _comparison_key(value: Any) -> str:
+    normalized = _normalize_field_text(value).casefold()
+    return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+
+
+def _map_words_to_image(
+    words: Sequence[PositionalWord],
+    source_shape: tuple[int, ...],
+    target_shape: tuple[int, ...],
+) -> tuple[PositionalWord, ...]:
+    source_height, source_width = source_shape[:2]
+    target_height, target_width = target_shape[:2]
+    scale_x = target_width / float(source_width)
+    scale_y = target_height / float(source_height)
+    return tuple(
+        PositionalWord(
+            text=word.text,
+            normalized=word.normalized,
+            confidence=word.confidence,
+            left=max(0, int(round(word.left * scale_x))),
+            top=max(0, int(round(word.top * scale_y))),
+            width=max(1, int(round(word.width * scale_x))),
+            height=max(1, int(round(word.height * scale_y))),
+            block=word.block,
+            paragraph=word.paragraph,
+            line=word.line,
+            order=word.order,
+        )
+        for word in words
     )
 
 
@@ -583,6 +781,20 @@ def _read_field(
     if not words:
         return _empty_field(name, variant, issue_code)
     bounds = _bounds(words, source_image.shape)
+    positional_text = _normalize_field_text(
+        " ".join(word.text for word in words)
+    )
+    if positional_text:
+        return IndigencyFieldResult(
+            name=name,
+            raw_text=positional_text,
+            success=True,
+            review_required=True,
+            issue_codes=(),
+            detection_variant=variant,
+            anchor=anchor,
+            normalized_bounds=_normalized_bounds(bounds, source_image.shape),
+        )
     crop = _crop(source_image, bounds, config.crop_padding_pixels)
     if crop.size == 0:
         return _empty_field(name, variant, issue_code)
@@ -796,6 +1008,122 @@ def _valid_barangay_value(
         and any(character.isalpha() for character in value)
         and value.casefold() != "barangay"
     )
+
+
+def _subject_evidence(
+    screening_pass: ScreeningPass,
+) -> tuple[FieldEvidence | None, bool]:
+    paragraphs = _subject_paragraphs(_group_paragraphs(screening_pass.words))
+    if len(paragraphs) != 1:
+        return None, len(paragraphs) > 1
+    selected = _subject_words(paragraphs[0])
+    if not selected:
+        return None, False
+    value = _normalize_field_text(" ".join(word.text for word in selected))
+    return (
+        FieldEvidence(
+            screening_pass=screening_pass,
+            words=selected,
+            anchor="this is to certify that",
+            comparison_value=_comparison_key(value),
+            positional_value_valid=bool(value),
+        ),
+        False,
+    )
+
+
+def _date_evidence(
+    screening_pass: ScreeningPass,
+) -> tuple[FieldEvidence | None, bool]:
+    candidates = _date_candidates(_group_paragraphs(screening_pass.words))
+    if len(candidates) != 1:
+        return None, len(candidates) > 1
+    anchor, selected = candidates[0]
+    ordered = tuple(sorted(selected, key=lambda word: word.order))
+    value = " ".join(
+        token
+        for token in (
+            _sanitize_positional_date_token(word.text)
+            for word in ordered
+        )
+        if token
+    )
+    return (
+        FieldEvidence(
+            screening_pass=screening_pass,
+            words=ordered,
+            anchor=anchor,
+            comparison_value=_comparison_key(value),
+            positional_value_valid=_valid_visible_date(value),
+        ),
+        False,
+    )
+
+
+def _barangay_evidence(
+    screening_pass: ScreeningPass,
+    config: IndigencyExtractionConfig,
+) -> tuple[FieldEvidence | None, bool]:
+    title = _title_candidate(
+        screening_pass.words,
+        screening_pass.screen_shape[0],
+        config.title_maximum_y,
+    )
+    if title is None:
+        return None, False
+    candidates = _issuing_barangay_candidates(screening_pass.words, title)
+    if len(candidates) != 1:
+        return None, len(candidates) > 1
+    selected = tuple(candidates[0])
+    filtered, filter_status, _removed = _filter_detached_barangay_noise(
+        selected,
+        config,
+    )
+    value, contains_control = _normalize_barangay_value(
+        " ".join(word.text for word in filtered)
+    )
+    valid = (
+        filter_status != "unsafe_to_filter"
+        and _valid_barangay_value(
+            value,
+            contains_control=contains_control,
+            maximum_length=config.maximum_barangay_length,
+        )
+    )
+    return (
+        FieldEvidence(
+            screening_pass=screening_pass,
+            words=selected,
+            anchor=" ".join(word.text for word in selected),
+            comparison_value=_comparison_key(value),
+            positional_value_valid=valid,
+        ),
+        False,
+    )
+
+
+def _select_field_evidence(
+    evidence: Sequence[FieldEvidence],
+    *,
+    ambiguous_in_pass: bool,
+) -> tuple[FieldEvidence | None, bool]:
+    if ambiguous_in_pass or not evidence:
+        return None, False
+
+    valid = [item for item in evidence if item.positional_value_valid]
+    compared = valid if valid else list(evidence)
+    values = {
+        item.comparison_value
+        for item in compared
+        if item.comparison_value
+    }
+    if len(values) > 1:
+        return None, True
+    if valid:
+        return valid[0], False
+    if compared and len(values) <= 1:
+        return compared[0], False
+    return None, False
 
 
 def _read_issuing_barangay_field(
@@ -1023,6 +1351,7 @@ def extract_indigency_core_fields(
     field_reader: FieldReader | None = None,
     config: IndigencyExtractionConfig | None = None,
 ) -> StageResult[IndigencyExtractionOutput]:
+    extraction_started = time.monotonic()
     resolved = config or IndigencyExtractionConfig()
     try:
         source = _validate_image(image)
@@ -1036,58 +1365,429 @@ def extract_indigency_core_fields(
             metrics={"manual_review_required": True},
         )
 
-    detection_reader = word_reader or _default_word_reader
-    ocr_reader = field_reader or _default_field_reader
-    candidates: list[
-        tuple[
-            tuple[int, int, int, int],
-            str,
-            str,
-            tuple[PositionalWord, ...],
-            np.ndarray,
-            float,
-        ]
-    ] = []
+    deadline = extraction_started + resolved.total_request_timeout_seconds
+    screening_deadline = min(
+        deadline,
+        extraction_started + resolved.screening_budget_seconds,
+    )
+    field_crop_deadline = deadline
+
+    orientation_screen_seconds = 0.0
+    whole_page_ocr_seconds = 0.0
+    field_crop_ocr_seconds = 0.0
+    timeout_count = 0
     candidate_count = 0
-    for orientation, oriented_source in _orientation_candidates(source):
-        angle = _estimate_deskew_angle(
-            oriented_source,
-            resolved.maximum_deskew_degrees,
+    crop_ocr_attempt_count = 0
+    otsu_used = False
+    screening_timeout_occurred = False
+    screening_budget_exhausted = False
+    psm11_attempt_count = 0
+    psm6_attempt_count = 0
+    evidence_fusion_used = False
+    field_source_conflict_count = 0
+    fused_orientation = "none"
+
+    def performance_metrics(**extra: Any) -> dict[str, Any]:
+        return {
+            "orientation_screen_seconds": round(
+                orientation_screen_seconds,
+                6,
+            ),
+            "whole_page_ocr_seconds": round(
+                whole_page_ocr_seconds,
+                6,
+            ),
+            "field_crop_ocr_seconds": round(
+                field_crop_ocr_seconds,
+                6,
+            ),
+            "total_structured_extraction_seconds": round(
+                time.monotonic() - extraction_started,
+                6,
+            ),
+            "candidate_attempt_count": candidate_count,
+            "candidate_count": candidate_count,
+            "screen_ocr_attempt_count": candidate_count,
+            "crop_ocr_attempt_count": crop_ocr_attempt_count,
+            "timeout_count": timeout_count,
+            "otsu_used": otsu_used,
+            "psm11_attempt_count": psm11_attempt_count,
+            "psm6_attempt_count": psm6_attempt_count,
+            "evidence_fusion_used": evidence_fusion_used,
+            "fused_orientation": fused_orientation,
+            "field_source_conflict_count": field_source_conflict_count,
+            "screening_budget_exhausted": screening_budget_exhausted,
+            "bounded_attempts_exhausted": (
+                candidate_count >= resolved.maximum_candidate_attempts
+            ),
+            "full_resolution_whole_page_ocr_used": False,
+            "exhaustive_fallback_used": False,
+            "screening_budget_seconds": resolved.screening_budget_seconds,
+            "field_crop_budget_seconds": resolved.field_crop_budget_seconds,
+            "internal_request_budget_seconds": (
+                resolved.total_request_timeout_seconds
+            ),
+            "external_hard_timeout_seconds": (
+                resolved.external_hard_timeout_seconds
+            ),
+            **extra,
+        }
+
+    def read_screen_words(
+        detection_image: np.ndarray,
+        variant: str,
+        page_segmentation_mode: int,
+    ) -> Mapping[str, Sequence[Any]]:
+        remaining = min(
+            resolved.screen_timeout_seconds,
+            screening_deadline - time.monotonic(),
+            deadline - time.monotonic(),
         )
-        transformed_candidate = _deskew(oriented_source, -angle)
-        for variant, detection_image in _detection_variants(transformed_candidate):
-            candidate_count += 1
-            try:
-                words = _parse_words(
-                    detection_reader(detection_image.copy(), variant, resolved),
-                    resolved,
-                )
-                candidates.append(
-                    (
-                        _variant_score(
-                            words,
-                            transformed_candidate.shape[0],
-                            resolved,
-                        ),
-                        orientation,
-                        variant,
-                        words,
-                        transformed_candidate,
-                        angle,
+        if remaining <= 0.1:
+            raise RuntimeError("screening time budget exhausted")
+
+        screen_config = replace(
+            resolved,
+            page_segmentation_mode=page_segmentation_mode,
+            screen_timeout_seconds=max(0.1, remaining),
+        )
+        if word_reader is None:
+            return _default_word_reader(
+                detection_image,
+                variant,
+                screen_config,
+            )
+        return word_reader(
+            detection_image,
+            variant,
+            screen_config,
+        )
+
+    def base_ocr_reader(crop: np.ndarray, name: str) -> Any:
+        remaining = min(
+            resolved.crop_timeout_seconds,
+            field_crop_deadline - time.monotonic(),
+            deadline - time.monotonic(),
+        )
+        if remaining <= 0.1:
+            raise RuntimeError("field crop time budget exhausted")
+        if field_reader is None:
+            return _default_field_reader(
+                crop,
+                name,
+                resolved,
+                remaining,
+            )
+        return field_reader(crop, name)
+
+    def timed_field_reader(crop: np.ndarray, name: str) -> Any:
+        nonlocal crop_ocr_attempt_count
+        nonlocal field_crop_ocr_seconds
+        nonlocal timeout_count
+
+        now = time.monotonic()
+        if now >= deadline or now >= field_crop_deadline:
+            timeout_count += 1
+            raise RuntimeError("structured extraction time budget exhausted")
+
+        crop_ocr_attempt_count += 1
+        started = time.monotonic()
+        try:
+            return base_ocr_reader(crop, name)
+        except RuntimeError as exc:
+            message = str(exc).casefold()
+            if (
+                "timeout" in message
+                or "time budget" in message
+                or time.monotonic() >= deadline
+                or time.monotonic() >= field_crop_deadline
+            ):
+                timeout_count += 1
+            raise
+        finally:
+            field_crop_ocr_seconds += time.monotonic() - started
+
+    primary_screen_source = _resize_for_screening(
+        source,
+        resolved.screening_maximum_dimension,
+    )
+    fallback_screen_source = _resize_for_screening(
+        source,
+        resolved.fallback_screening_maximum_dimension,
+    )
+    candidates: list[ScreeningPass] = []
+
+    def screen_orientation(
+        orientation: str,
+        variant: str,
+        page_segmentation_mode: int,
+        source_image: np.ndarray | None = None,
+    ) -> ScreeningPass | None:
+        nonlocal candidate_count
+        nonlocal orientation_screen_seconds
+        nonlocal whole_page_ocr_seconds
+        nonlocal timeout_count
+        nonlocal otsu_used
+        nonlocal psm11_attempt_count
+        nonlocal psm6_attempt_count
+        nonlocal screening_timeout_occurred
+        nonlocal screening_budget_exhausted
+
+        now = time.monotonic()
+        if candidate_count >= resolved.maximum_candidate_attempts:
+            return None
+        if now >= deadline or now >= screening_deadline:
+            screening_budget_exhausted = True
+            return None
+
+        selected_source = (
+            primary_screen_source
+            if source_image is None
+            else source_image
+        )
+        oriented_screen = _oriented_image(selected_source, orientation)
+        gray = _grayscale(oriented_screen)
+        if variant == "grayscale":
+            detection_image = gray
+        elif variant == "otsu_threshold":
+            otsu_used = True
+            _, detection_image = cv2.threshold(
+                gray,
+                0,
+                255,
+                cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+            )
+        else:
+            raise ValueError("unsupported screening variant")
+
+        candidate_count += 1
+        if page_segmentation_mode == resolved.screen_page_segmentation_mode:
+            psm11_attempt_count += 1
+        elif page_segmentation_mode == resolved.page_segmentation_mode:
+            psm6_attempt_count += 1
+        started = time.monotonic()
+        try:
+            words = _parse_words(
+                read_screen_words(
+                    detection_image.copy(),
+                    variant,
+                    page_segmentation_mode,
+                ),
+                resolved,
+            )
+        except (
+            pytesseract.TesseractNotFoundError,
+            OCRBinaryUnavailableError,
+            OCRExecutionError,
+            ValueError,
+            TypeError,
+            KeyError,
+            IndexError,
+        ) as exc:
+            message = str(exc).casefold()
+            if "timeout" in message or "time budget" in message:
+                timeout_count += 1
+                screening_timeout_occurred = True
+            return None
+        except RuntimeError as exc:
+            message = str(exc).casefold()
+            if (
+                "timeout" in message
+                or "time budget" in message
+                or time.monotonic() >= screening_deadline
+            ):
+                timeout_count += 1
+                screening_timeout_occurred = True
+            return None
+        except Exception as exc:
+            message = str(exc).casefold()
+            if "timeout" in message or "time budget" in message:
+                timeout_count += 1
+                screening_timeout_occurred = True
+            return None
+        finally:
+            duration = time.monotonic() - started
+            orientation_screen_seconds += duration
+            whole_page_ocr_seconds += duration
+            if time.monotonic() >= screening_deadline:
+                screening_budget_exhausted = True
+
+        candidate = ScreeningPass(
+            orientation=orientation,
+            page_segmentation_mode=page_segmentation_mode,
+            variant=variant,
+            words=words,
+            score=_variant_score(
+                words,
+                oriented_screen.shape[0],
+                resolved,
+            ),
+            screen_shape=oriented_screen.shape,
+        )
+        candidates.append(candidate)
+        return candidate
+
+    selected_processing_path = "original_same_orientation_fusion"
+    original_psm11 = screen_orientation(
+        "original",
+        "grayscale",
+        resolved.screen_page_segmentation_mode,
+    )
+    original_psm6 = screen_orientation(
+        "original",
+        "grayscale",
+        resolved.page_segmentation_mode,
+    )
+    original_passes = [
+        item
+        for item in (original_psm11, original_psm6)
+        if item is not None
+    ]
+    selected_orientation = "original"
+    selected_passes = original_passes
+
+    if _complete_fused_evidence(original_passes, resolved):
+        evidence_fusion_used = not any(
+            _complete_structural_evidence(item.score, resolved)
+            for item in original_passes
+        )
+        fused_orientation = "original"
+    else:
+        rotated_psm11: list[ScreeningPass] = []
+        for orientation in (
+            "clockwise_90",
+            "counterclockwise_90",
+            "180",
+        ):
+            candidate = screen_orientation(
+                orientation,
+                "grayscale",
+                resolved.screen_page_segmentation_mode,
+            )
+            if candidate is not None:
+                rotated_psm11.append(candidate)
+
+        orientation_psm11 = [
+            item
+            for item in (original_psm11, *rotated_psm11)
+            if item is not None
+        ]
+        meaningful = [
+            item
+            for item in orientation_psm11
+            if _meaningful_structural_evidence(item, resolved)
+        ]
+        if meaningful:
+            strongest_rank = max(_structural_rank(item) for item in meaningful)
+            strongest = [
+                item
+                for item in meaningful
+                if _structural_rank(item) == strongest_rank
+            ]
+        else:
+            strongest = []
+
+        if len(strongest) != 1:
+            timed_out = (
+                screening_timeout_occurred
+                or screening_budget_exhausted
+                or time.monotonic() >= deadline
+            )
+            issue_code = (
+                "INDIGENCY_PROCESSING_TIMEOUT"
+                if timed_out
+                else (
+                    "INDIGENCY_WORD_DATA_UNAVAILABLE"
+                    if not candidates
+                    else (
+                        "INDIGENCY_ORIENTATION_AMBIGUOUS"
+                        if len(strongest) > 1
+                        else "INDIGENCY_DOCUMENT_NOT_DETECTED"
                     )
                 )
-            except (
-                pytesseract.TesseractNotFoundError,
-                OCRBinaryUnavailableError,
-                OCRExecutionError,
-                ValueError,
-                TypeError,
-                KeyError,
-                IndexError,
-            ):
-                continue
-            except Exception:
-                continue
+            )
+            return StageResult(
+                stage=STAGE_NAME,
+                success=False,
+                status="review_required",
+                data=None,
+                issues=[
+                    _issue(issue_code),
+                    _issue("INDIGENCY_MANUAL_REVIEW_REQUIRED"),
+                ],
+                metrics=performance_metrics(
+                    manual_review_required=True,
+                    selected_processing_path="bounded_screening_unresolved",
+                ),
+            )
+
+        selected_psm11 = strongest[0]
+        selected_orientation = selected_psm11.orientation
+        selected_psm6 = (
+            original_psm6
+            if selected_orientation == "original"
+            else screen_orientation(
+                selected_orientation,
+                "grayscale",
+                resolved.page_segmentation_mode,
+                source_image=fallback_screen_source,
+            )
+        )
+        selected_passes = [
+            item
+            for item in (selected_psm11, selected_psm6)
+            if item is not None
+        ]
+        selected_processing_path = "rotated_same_orientation_fusion"
+
+        if not _complete_fused_evidence(selected_passes, resolved):
+            fused_score = _fused_structural_score(selected_passes)
+            missing_title_or_subject = not fused_score[0] or not fused_score[1]
+            otsu_psm = (
+                resolved.screen_page_segmentation_mode
+                if missing_title_or_subject
+                else resolved.page_segmentation_mode
+            )
+            otsu_pass = screen_orientation(
+                selected_orientation,
+                "otsu_threshold",
+                otsu_psm,
+                source_image=fallback_screen_source,
+            )
+            if otsu_pass is not None:
+                selected_passes.append(otsu_pass)
+            selected_processing_path = "rotated_fusion_with_otsu"
+
+        if not _complete_fused_evidence(selected_passes, resolved):
+            timed_out = (
+                screening_timeout_occurred
+                or screening_budget_exhausted
+                or time.monotonic() >= deadline
+            )
+            return StageResult(
+                stage=STAGE_NAME,
+                success=False,
+                status="review_required",
+                data=None,
+                issues=[
+                    _issue(
+                        "INDIGENCY_PROCESSING_TIMEOUT"
+                        if timed_out
+                        else "INDIGENCY_DOCUMENT_NOT_DETECTED"
+                    ),
+                    _issue("INDIGENCY_MANUAL_REVIEW_REQUIRED"),
+                ],
+                metrics=performance_metrics(
+                    manual_review_required=True,
+                    selected_processing_path="bounded_screening_unresolved",
+                ),
+            )
+
+        evidence_fusion_used = not any(
+            _complete_structural_evidence(item.score, resolved)
+            for item in selected_passes
+        )
+        fused_orientation = selected_orientation
 
     if not candidates:
         return StageResult(
@@ -1096,85 +1796,226 @@ def extract_indigency_core_fields(
             status="failed",
             data=None,
             issues=[_issue("INDIGENCY_WORD_DATA_UNAVAILABLE")],
-            metrics={
-                "manual_review_required": True,
-                "candidate_count": candidate_count,
-            },
+            metrics=performance_metrics(
+                manual_review_required=True,
+                selected_processing_path="word_data_unavailable",
+            ),
         )
-    (
-        _,
+
+    oriented_source = _oriented_image(
+        source,
         selected_orientation,
-        variant,
-        words,
-        transformed_source,
-        angle,
-    ) = max(candidates, key=lambda candidate: candidate[0])
-    title = _title_candidate(words, transformed_source.shape[0], resolved.title_maximum_y)
-    if title is None:
-        return StageResult(
-            stage=STAGE_NAME,
-            success=False,
-            status="failed",
-            data=None,
-            issues=[_issue("INDIGENCY_DOCUMENT_NOT_DETECTED")],
-            metrics={
-                "manual_review_required": True,
-                "word_count": len(words),
-                "deskew_angle_degrees": abs(angle),
-                "selected_orientation": selected_orientation,
-                "selected_detection_variant": variant,
-                "candidate_count": candidate_count,
-            },
+    )
+    selected_screen_source = _oriented_image(
+        (
+            primary_screen_source
+            if selected_orientation == "original"
+            else fallback_screen_source
+        ),
+        selected_orientation,
+    )
+    angle = _estimate_deskew_angle(
+        selected_screen_source,
+        resolved.maximum_deskew_degrees,
+    )
+    transformed_source = oriented_source
+
+    field_crop_deadline = min(
+        deadline,
+        time.monotonic() + resolved.field_crop_budget_seconds,
+    )
+
+    issues: list[dict[str, str]] = []
+    title_sources = [
+        item
+        for item in selected_passes
+        if _title_candidate(
+            item.words,
+            item.screen_shape[0],
+            resolved.title_maximum_y,
+        )
+        is not None
+    ]
+    title_source = title_sources[0]
+    title_screen_words = _title_candidate(
+        title_source.words,
+        title_source.screen_shape[0],
+        resolved.title_maximum_y,
+    )
+    title = _map_words_to_image(
+        title_screen_words or (),
+        title_source.screen_shape,
+        transformed_source.shape,
+    )
+
+    subject_evidence: list[FieldEvidence] = []
+    date_evidence: list[FieldEvidence] = []
+    barangay_evidence: list[FieldEvidence] = []
+    subject_ambiguous = False
+    date_ambiguous = False
+    barangay_ambiguous = False
+    for screening_pass in selected_passes:
+        item, ambiguous = _subject_evidence(screening_pass)
+        subject_ambiguous = subject_ambiguous or ambiguous
+        if item is not None:
+            subject_evidence.append(item)
+
+        item, ambiguous = _date_evidence(screening_pass)
+        date_ambiguous = date_ambiguous or ambiguous
+        if item is not None:
+            date_evidence.append(item)
+
+        item, ambiguous = _barangay_evidence(screening_pass, resolved)
+        barangay_ambiguous = barangay_ambiguous or ambiguous
+        if item is not None:
+            barangay_evidence.append(item)
+
+    subject_source, subject_conflict = _select_field_evidence(
+        subject_evidence,
+        ambiguous_in_pass=subject_ambiguous,
+    )
+    date_source, date_conflict = _select_field_evidence(
+        date_evidence,
+        ambiguous_in_pass=date_ambiguous,
+    )
+    barangay_source, barangay_conflict = _select_field_evidence(
+        barangay_evidence,
+        ambiguous_in_pass=barangay_ambiguous,
+    )
+    field_source_conflict_count = sum(
+        (subject_conflict, date_conflict, barangay_conflict)
+    )
+
+    def mapped_evidence(
+        evidence: FieldEvidence | None,
+    ) -> tuple[tuple[PositionalWord, ...] | None, str, str]:
+        if evidence is None:
+            return None, "", "fused_unresolved"
+        return (
+            _map_words_to_image(
+                evidence.words,
+                evidence.screening_pass.screen_shape,
+                transformed_source.shape,
+            ),
+            evidence.anchor,
+            evidence.screening_pass.source_name,
         )
 
-    paragraphs = _group_paragraphs(words)
-    subject_paragraphs = _subject_paragraphs(paragraphs)
-    issues: list[dict[str, str]] = []
-    if len(subject_paragraphs) == 1:
-        subject_selection = _subject_words(subject_paragraphs[0])
+    subject_selection, subject_anchor, subject_variant = mapped_evidence(
+        subject_source
+    )
+    date_selection, date_anchor, date_variant = mapped_evidence(date_source)
+    barangay_selection, _barangay_anchor, barangay_variant = mapped_evidence(
+        barangay_source
+    )
+
+    if subject_conflict or subject_ambiguous:
+        subject_field = _empty_field(
+            "certificate_subject_name",
+            "fused_conflict",
+            "CERTIFICATE_SUBJECT_NOT_EXTRACTED",
+            *(("FIELD_SOURCE_CONFLICT",) if subject_conflict else ()),
+        )
     else:
-        subject_selection = None
-        if len(subject_paragraphs) > 1:
-            issues.append(
-                _issue("FIELD_ANCHOR_AMBIGUOUS", "certificate_subject_name")
-            )
-
-    barangay_candidates = _issuing_barangay_candidates(words, title)
-    if len(barangay_candidates) > 1:
-        issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issuing_barangay"))
-
-    dates = _date_candidates(paragraphs)
-    date_selection = dates[0][1] if len(dates) == 1 else None
-    date_anchor = dates[0][0] if len(dates) == 1 else ""
-    if len(dates) > 1:
-        issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", "issue_date"))
-
-    fields = (
-        _read_field(
+        subject_field = _read_field(
             "certificate_subject_name",
             subject_selection,
-            "this is to certify that",
+            subject_anchor,
             transformed_source,
-            variant,
-            ocr_reader,
+            subject_variant,
+            timed_field_reader,
             resolved,
-        ),
-        _read_date_field(
+        )
+
+    if date_conflict or date_ambiguous:
+        date_field = _empty_field(
+            "issue_date",
+            "fused_conflict",
+            "ISSUE_DATE_NOT_EXTRACTED",
+            *(("FIELD_SOURCE_CONFLICT",) if date_conflict else ()),
+        )
+    else:
+        date_field = _read_date_field(
             date_selection,
             date_anchor,
             transformed_source,
-            variant,
-            ocr_reader,
+            date_variant,
+            timed_field_reader,
             resolved,
-        ),
-        _read_issuing_barangay_field(
-            barangay_candidates,
+        )
+
+    if barangay_ambiguous:
+        ambiguous_pass = next(
+            item
+            for item in selected_passes
+            if (
+                (
+                    pass_title := _title_candidate(
+                        item.words,
+                        item.screen_shape[0],
+                        resolved.title_maximum_y,
+                    )
+                )
+                is not None
+                and len(
+                    _issuing_barangay_candidates(item.words, pass_title)
+                )
+                > 1
+            )
+        )
+        ambiguous_title = _title_candidate(
+            ambiguous_pass.words,
+            ambiguous_pass.screen_shape[0],
+            resolved.title_maximum_y,
+        )
+        ambiguous_candidates = [
+            _map_words_to_image(
+                candidate,
+                ambiguous_pass.screen_shape,
+                transformed_source.shape,
+            )
+            for candidate in _issuing_barangay_candidates(
+                ambiguous_pass.words,
+                ambiguous_title or (),
+            )
+        ]
+        barangay_field = _read_issuing_barangay_field(
+            ambiguous_candidates,
             transformed_source,
-            variant,
-            ocr_reader,
+            ambiguous_pass.source_name,
+            timed_field_reader,
             resolved,
-        ),
-    )
+        )
+    elif barangay_conflict:
+        barangay_field = _empty_field(
+            "issuing_barangay",
+            "fused_conflict",
+            "ISSUING_BARANGAY_NOT_EXTRACTED",
+            "FIELD_SOURCE_CONFLICT",
+        )
+    else:
+        barangay_field = _read_issuing_barangay_field(
+            [barangay_selection] if barangay_selection else (),
+            transformed_source,
+            barangay_variant,
+            timed_field_reader,
+            resolved,
+        )
+
+    fields = (subject_field, date_field, barangay_field)
+    for field_name, ambiguous in (
+        ("certificate_subject_name", subject_ambiguous),
+        ("issue_date", date_ambiguous),
+        ("issuing_barangay", barangay_ambiguous),
+    ):
+        if ambiguous:
+            issues.append(_issue("FIELD_ANCHOR_AMBIGUOUS", field_name))
+    if not title:
+        issues.append(
+            _issue(
+                "INDIGENCY_DOCUMENT_NOT_DETECTED",
+            )
+        )
     for field in fields:
         for code in field.issue_codes:
             issues.append(_issue(code, field.name))
@@ -1194,12 +2035,16 @@ def extract_indigency_core_fields(
             for field in fields
         }
     )
+    # Raw snapshot selection does not influence any field or orientation decision.
+    raw_text_source = max(selected_passes, key=lambda item: len(item.words))
+    selected_detection_variant = "same_orientation_fusion"
     output = IndigencyExtractionOutput(
         fields=fields,
         field_count=len(fields),
-        detection_variant=variant,
+        raw_text=_positional_raw_text(raw_text_source.words),
+        detection_variant=selected_detection_variant,
         selected_orientation=selected_orientation,
-        selected_detection_variant=variant,
+        selected_detection_variant=selected_detection_variant,
         candidate_count=candidate_count,
         deskew_angle_degrees=float(angle),
         title_anchor=" ".join(word.text for word in title),
@@ -1211,15 +2056,21 @@ def extract_indigency_core_fields(
         status="review_required",
         data=output,
         issues=issues,
-        metrics={
-            "field_count": len(fields),
-            "successful_field_count": sum(field.success for field in fields),
-            "failed_field_count": sum(not field.success for field in fields),
-            "word_count": len(words),
-            "deskew_angle_degrees": abs(angle),
-            "selected_orientation": selected_orientation,
-            "selected_detection_variant": variant,
-            "candidate_count": candidate_count,
-            "manual_review_required": True,
-        },
+        metrics=performance_metrics(
+            field_count=len(fields),
+            successful_field_count=sum(
+                field.success
+                for field in fields
+            ),
+            failed_field_count=sum(
+                not field.success
+                for field in fields
+            ),
+            word_count=max(len(item.words) for item in selected_passes),
+            deskew_angle_degrees=abs(angle),
+            selected_orientation=selected_orientation,
+            selected_detection_variant=selected_detection_variant,
+            selected_processing_path=selected_processing_path,
+            manual_review_required=True,
+        ),
     )

@@ -126,6 +126,124 @@ test('grade-form review-only behavior remains unchanged', () => {
   assert.equal(activeDoc.status, 'pending');
 });
 
+test('structured grade form renders a normalized GWA provisionally', () => {
+  const activeDoc = {
+    id: 'student_grade_forms',
+    document_key: 'student_grade_forms',
+    status: 'uploaded',
+    ocr: {
+      raw_text: 'PRIVATE FULL PAGE OCR',
+      review_required: true,
+      structured_fields: {
+        document_type: 'student_grade_forms',
+        review_required: true,
+        contract_status: 'approved',
+        fields: {
+          general_weighted_average: {
+            raw_text: '168',
+            normalized_value: '1.68',
+            success: true,
+            value_source: 'crop_ocr_decimal_recovery',
+          },
+        },
+      },
+    },
+  };
+
+  const mapped = buildExtractedData(activeDoc, {
+    student: { name: 'Application Profile Name' },
+  });
+
+  assert.equal(mapped.reviewOnly, true);
+  assert.equal(mapped.manualReviewRequired, true);
+  assert.deepEqual(mapped.extractedFields, [
+    {
+      label: 'General Weighted Average',
+      value: '1.68',
+      badge: 'Provisional OCR',
+    },
+  ]);
+  assert.equal(buildRawOcrSnapshot(activeDoc), 'PRIVATE FULL PAGE OCR');
+});
+
+test('structured grade form renders an unnormalized OCR candidate', () => {
+  const activeDoc = {
+    id: 'student_grade_forms',
+    document_key: 'student_grade_forms',
+    status: 'uploaded',
+    ocr: {
+      raw_text: 'PRIVATE FULL PAGE OCR',
+      review_required: true,
+      structured_fields: {
+        document_type: 'student_grade_forms',
+        review_required: true,
+        contract_status: 'approved',
+        fields: {
+          general_weighted_average: {
+            raw_text: '168',
+            normalized_value: '',
+            success: false,
+            issue_codes: ['gwa_decimal_not_confirmed'],
+            value_source: 'crop_ocr_candidate',
+          },
+        },
+      },
+    },
+  };
+
+  const mapped = buildExtractedData(activeDoc, {
+    student: { name: 'Application Profile Name' },
+  });
+
+  assert.equal(mapped.reviewOnly, true);
+  assert.equal(mapped.manualReviewRequired, true);
+  assert.deepEqual(mapped.extractedFields, [
+    {
+      label: 'GWA OCR Candidate',
+      value: '168',
+      badge: 'Unnormalized OCR',
+      note: 'Decimal placement requires administrator verification.',
+    },
+  ]);
+  assert.equal(buildRawOcrSnapshot(activeDoc), 'PRIVATE FULL PAGE OCR');
+});
+
+test('structured grade form without a candidate shows manual review state', () => {
+  const mapped = buildExtractedData(
+    {
+      id: 'student_grade_forms',
+      document_key: 'student_grade_forms',
+      ocr: {
+        review_required: true,
+        structured_fields: {
+          document_type: 'student_grade_forms',
+          review_required: true,
+          contract_status: 'approved',
+          fields: {
+            general_weighted_average: {
+              raw_text: '',
+              normalized_value: '',
+              success: false,
+              issue_codes: ['gwa_value_not_found'],
+              value_source: 'none',
+            },
+          },
+        },
+      },
+    },
+    { student: { name: 'Application Profile Name' } }
+  );
+
+  assert.deepEqual(mapped.extractedFields, [
+    {
+      label: 'General Weighted Average',
+      value: 'Not extracted',
+      badge: 'Manual Review',
+      note: 'The GWA value was not detected. Review the document manually.',
+    },
+  ]);
+});
+
 test('structured indigency fields render provisionally without identity matching', () => {
   const activeDoc = {
     id: 'certificate_of_indigency',

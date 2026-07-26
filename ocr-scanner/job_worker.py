@@ -31,9 +31,11 @@ from capture_session import CANCELLED, CAPTURED, CaptureSessionResult, run_captu
 from document_contracts import (
     build_birth_extracted_fields_from_ocr_result,
     build_extracted_fields,
+    build_grade_form_extracted_fields_from_result,
     build_indigency_extracted_fields_from_result,
     get_contract,
 )
+from extraction.grade_form_gwa_extraction import extract_grade_form_gwa
 from extraction.indigency_core_field_extraction import extract_indigency_core_fields
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
@@ -76,6 +78,7 @@ def _run_generic_ocr(
     *,
     text_reader=None,
     text_corrector=None,
+    apply_correction: bool = True,
 ) -> Tuple[str, str]:
     clear_tmp_files()
     resolved_reader = text_reader if text_reader is not None else extract_text
@@ -86,18 +89,21 @@ def _run_generic_ocr(
     if not raw_text:
         return "", ""
 
-    try:
-        if text_corrector is None:
-            from spell_check import correct_ocr_text
-
-            text_corrector = correct_ocr_text
-
-        corrected_text = (
-            (text_corrector(raw_text, aggressive=False) or raw_text).strip()
-            or raw_text
-        )
-    except Exception:
+    if not apply_correction:
         corrected_text = raw_text
+    else:
+        try:
+            if text_corrector is None:
+                from spell_check import correct_ocr_text
+
+                text_corrector = correct_ocr_text
+
+            corrected_text = (
+                (text_corrector(raw_text, aggressive=False) or raw_text).strip()
+                or raw_text
+            )
+        except Exception:
+            corrected_text = raw_text
 
     write_text_file("/tmp/ocr_raw.txt", raw_text)
     write_text_file("/tmp/ocr_result.txt", corrected_text)
@@ -131,6 +137,12 @@ def _is_indigency_job(request: Dict) -> bool:
     document_key = str(request.get("document_key") or "").strip()
     contract = get_contract(document_key)
     return bool(contract and contract.document_key == "certificate_of_indigency")
+
+
+def _is_grade_form_job(request: Dict) -> bool:
+    document_key = str(request.get("document_key") or "").strip()
+    contract = get_contract(document_key)
+    return bool(contract and contract.document_key == "student_grade_forms")
 
 
 def _empty_birth_extracted_fields() -> Dict[str, object]:
@@ -492,8 +504,42 @@ def _run_generic_document_scan(
     student_name = str(request.get("student_name") or "")
     document_key = str(request.get("document_key") or "")
     document_type = str(build_document_type(request))
+    is_indigency = _is_indigency_job(request)
+    extraction_result = None
+    extraction_status = "not_started"
+    extraction_issue_codes: list[str] = []
+    if is_indigency:
+        try:
+            source_image = _load_registered_image(capture_path)
+            if source_image is None:
+                extraction_status = "failed"
+                extraction_issue_codes = ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"]
+            else:
+                extraction_result = extract_indigency_core_fields(source_image)
+                extraction_status = str(
+                    getattr(extraction_result, "status", "failed") or "failed"
+                )
+                extraction_issue_codes = _issue_codes(extraction_result)
+        except Exception:
+            extraction_result = None
+            extraction_status = "failed"
+            extraction_issue_codes = ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"]
 
-    raw_text, corrected_text = _run_generic_ocr(capture_path)
+        raw_text = str(
+            getattr(getattr(extraction_result, "data", None), "raw_text", "")
+            or ""
+        ).strip()
+        if not raw_text:
+            raw_text, _ = _run_generic_ocr(
+                capture_path,
+                apply_correction=False,
+            )
+        corrected_text = raw_text
+    else:
+        raw_text, corrected_text = _run_generic_ocr(
+            capture_path,
+            apply_correction=True,
+        )
     extracted_fields = build_extracted_fields(document_key, raw_text)
     contract = get_contract(document_key)
     if raw_text:
@@ -503,27 +549,8 @@ def _run_generic_document_scan(
         status = "failed"
         error_message = "OCR scan failed or returned empty raw_text."
 
-    if _is_indigency_job(request):
-        extraction_result = None
-        extraction_status = "not_started"
-        extraction_issue_codes: list[str] = []
+    if is_indigency:
         if status == "completed":
-            try:
-                source_image = _load_registered_image(capture_path)
-                if source_image is None:
-                    extraction_status = "failed"
-                    extraction_issue_codes = ["INDIGENCY_SOURCE_IMAGE_UNAVAILABLE"]
-                else:
-                    extraction_result = extract_indigency_core_fields(source_image)
-                    extraction_status = str(
-                        getattr(extraction_result, "status", "failed") or "failed"
-                    )
-                    extraction_issue_codes = _issue_codes(extraction_result)
-            except Exception:
-                extraction_result = None
-                extraction_status = "failed"
-                extraction_issue_codes = ["INDIGENCY_STRUCTURED_EXTRACTION_FAILED"]
-
             # Usable whole-document OCR remains the authoritative scan outcome.
             status = "review_required"
             error_message = None
@@ -534,6 +561,24 @@ def _run_generic_document_scan(
         )
         preprocessing_variant = str(
             extracted_fields.get("preprocessing_variant") or "positional_ocr"
+        )
+        extraction_metrics = dict(
+            getattr(extraction_result, "metrics", {}) or {}
+        )
+        performance_metric_keys = (
+            "orientation_screen_seconds",
+            "whole_page_ocr_seconds",
+            "field_crop_ocr_seconds",
+            "total_structured_extraction_seconds",
+            "candidate_attempt_count",
+            "psm11_attempt_count",
+            "psm6_attempt_count",
+            "evidence_fusion_used",
+            "fused_orientation",
+            "field_source_conflict_count",
+            "screening_budget_exhausted",
+            "timeout_count",
+            "selected_processing_path",
         )
         payload = {
             "status": status,
@@ -566,6 +611,11 @@ def _run_generic_document_scan(
                 "structured_field_keys": sorted(
                     extracted_fields.get("fields", {}).keys()
                 ),
+                "performance_metrics": {
+                    key: extraction_metrics[key]
+                    for key in performance_metric_keys
+                    if key in extraction_metrics
+                },
             },
             "error_message": error_message,
         }
@@ -598,6 +648,106 @@ def _run_generic_document_scan(
     return status == "completed", payload
 
 
+def _run_grade_form_scan(
+    request: Dict,
+    capture_path: str,
+) -> Tuple[bool, Dict]:
+    request_id = get_request_id(request)
+    application_id = str(request.get("application_id") or "")
+    student_id = str(request.get("student_id") or "")
+    student_name = str(request.get("student_name") or "")
+    document_key = str(request.get("document_key") or "")
+    document_type = str(build_document_type(request))
+    extraction_result = None
+    extraction_issue_codes: list[str] = []
+
+    source_image = _load_registered_image(capture_path)
+    if source_image is not None:
+        try:
+            extraction_result = extract_grade_form_gwa(source_image)
+            extraction_issue_codes = _issue_codes(extraction_result)
+        except Exception:
+            extraction_result = None
+            extraction_issue_codes = ["gwa_value_not_found"]
+    else:
+        extraction_issue_codes = ["gwa_value_not_found"]
+
+    raw_text = str(
+        getattr(getattr(extraction_result, "data", None), "raw_text", "")
+        or ""
+    ).strip()
+    if not raw_text:
+        raw_text, _ = _run_generic_ocr(
+            capture_path,
+            apply_correction=False,
+        )
+
+    extracted_fields = build_grade_form_extracted_fields_from_result(
+        raw_text,
+        extraction_result,
+    )
+    status = "completed" if raw_text else "failed"
+    error_message = (
+        None
+        if raw_text
+        else "Grade Form OCR failed or returned empty raw_text."
+    )
+    extraction_status = str(
+        getattr(extraction_result, "status", "failed") or "failed"
+    )
+    extraction_metrics = dict(
+        getattr(extraction_result, "metrics", {}) or {}
+    )
+    performance_metric_keys = (
+        "processing_seconds",
+        "positional_ocr_seconds",
+        "field_crop_ocr_seconds",
+        "ocr_attempt_count",
+        "word_count",
+        "label_count",
+        "value_candidate_count",
+        "upright_only",
+    )
+    payload = {
+        "status": status,
+        "raw_text": raw_text,
+        "ocr_confidence": None,
+        "document_type": "student_grade_forms",
+        "manual_review_required": True,
+        "preprocessing_variant": "upright_positional_label",
+        "extracted_fields": extracted_fields,
+        "source_payload": {
+            "source": "pi-worker-iot-ocr-request",
+            "mode": "grade_form_gwa_pipeline",
+            "request_id": request_id,
+            "application_id": application_id,
+            "student_id": student_id,
+            "student_name": student_name,
+            "document_key": document_key,
+            "document_type": document_type,
+            "document_contract_status": "approved",
+            "capture_status": CAPTURED,
+            "capture_error_code": None,
+            "cancelled": False,
+            "returncode": 0 if raw_text else 1,
+            "ocr_status": extraction_status,
+            "ocr_issue_codes": extraction_issue_codes,
+            "manual_review_required": True,
+            "review_state": "review_required",
+            "worker_status": status,
+            "preprocessing_variant": "upright_positional_label",
+            "structured_field_keys": ["general_weighted_average"],
+            "performance_metrics": {
+                key: extraction_metrics[key]
+                for key in performance_metric_keys
+                if key in extraction_metrics
+            },
+        },
+        "error_message": error_message,
+    }
+    return status == "completed", payload
+
+
 def run_scan(request: Dict) -> Tuple[bool, Dict]:
     request_ref = _safe_request_ref(get_request_id(request))
     document_key = str(request.get("document_key") or "unknown")
@@ -617,6 +767,8 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
 
     if _is_birth_certificate_job(request):
         return _run_birth_certificate_scan(request, capture_result.capture_path)
+    if _is_grade_form_job(request):
+        return _run_grade_form_scan(request, capture_result.capture_path)
     return _run_generic_document_scan(request, capture_result.capture_path)
 
 

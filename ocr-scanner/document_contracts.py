@@ -57,6 +57,16 @@ _INDIGENCY_CONTRACT = DocumentContract(
     ],
 )
 
+_GRADE_FORM_CONTRACT = DocumentContract(
+    document_key="student_grade_forms",
+    document_type="Student Grade Form",
+    status="approved",
+    source_regions=["Labeled cumulative GWA row"],
+    fields=[
+        ContractField("general_weighted_average"),
+    ],
+)
+
 
 CONTRACTS: Dict[str, DocumentContract] = {
     "certificate_of_birth": _BIRTH_CONTRACT,
@@ -65,21 +75,7 @@ CONTRACTS: Dict[str, DocumentContract] = {
     "birth_certificate": _BIRTH_CONTRACT,
     "certificate_of_indigency": _INDIGENCY_CONTRACT,
     "indigency": _INDIGENCY_CONTRACT,
-    "student_grade_forms": DocumentContract(
-        document_key="student_grade_forms",
-        document_type="Student Grade Form",
-        status="pending_approval",
-        source_regions=["Header", "Student Info", "Subjects Table", "GWA"],
-        fields=[
-            ContractField("student_number", status="pending_approval"),
-            ContractField("student_name", status="pending_approval"),
-            ContractField("course", status="pending_approval"),
-            ContractField("semester", status="pending_approval"),
-            ContractField("academic_year", status="pending_approval"),
-            ContractField("subjects", status="pending_approval"),
-            ContractField("gwa", status="pending_approval"),
-        ],
-    ),
+    "student_grade_forms": _GRADE_FORM_CONTRACT,
 }
 
 
@@ -368,4 +364,45 @@ def build_indigency_extracted_fields_from_result(
             or ""
         ),
         "fields": fields,
+    }
+
+
+def build_grade_form_extracted_fields_from_result(
+    raw_text: str,
+    extraction_result: Any,
+) -> Dict[str, Any]:
+    contract = get_contract("student_grade_forms")
+    field = getattr(getattr(extraction_result, "data", None), "field", None)
+    field_payload = {
+        "raw_text": str(getattr(field, "raw_text", "") or ""),
+        "normalized_value": str(
+            getattr(field, "normalized_value", "") or ""
+        ),
+        "success": bool(getattr(field, "success", False)),
+        "review_required": True,
+        "issue_codes": list(getattr(field, "issue_codes", ())),
+        "value_source": str(getattr(field, "value_source", "none") or "none"),
+        "label_type": str(getattr(field, "label_type", "") or ""),
+        "normalized_bounds": getattr(field, "normalized_bounds", None),
+    }
+    if field_payload["value_source"] not in {"positional", "crop_ocr", "crop_ocr_candidate", "crop_ocr_decimal_recovery", "none"}:
+        field_payload["value_source"] = "none"
+
+    return {
+        "document_type": "student_grade_forms",
+        "review_required": True,
+        "contract_status": contract.status if contract else "missing",
+        "source_regions": list(contract.source_regions) if contract else [],
+        "raw_text": raw_text or "",
+        "preprocessing_variant": str(
+            getattr(
+                getattr(extraction_result, "data", None),
+                "detection_variant",
+                "",
+            )
+            or ""
+        ),
+        "fields": {
+            "general_weighted_average": field_payload,
+        },
     }

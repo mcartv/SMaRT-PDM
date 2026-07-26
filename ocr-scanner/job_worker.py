@@ -16,7 +16,7 @@ import os
 import signal
 import threading
 import time
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import cv2
 
@@ -41,6 +41,7 @@ from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import extract_psa_birth_row_text
 from extraction.psa_form_registration import register_psa_birth_form
 from ocr import extract_text
+from runtime.state_publisher import NullStatePublisher, StatePublisher
 
 load_dotenv()
 
@@ -54,6 +55,70 @@ logging.basicConfig(
 )
 log = logging.getLogger("iot-worker")
 _shutdown_requested = threading.Event()
+
+
+_STATE_CAMERA_STATUS = {
+    "starting": "checking",
+    "idle": "ready",
+    "claiming_request": "ready",
+    "no_pending_request": "ready",
+    "request_claimed": "ready",
+    "starting_preview": "starting",
+    "waiting_for_capture": "preview_active",
+    "capturing": "capture_in_progress",
+    "preprocessing": "captured",
+    "running_ocr": "captured",
+    "extracting_fields": "captured",
+    "submitting_result": "captured",
+    "completed": "ready",
+    "failed": "error",
+    "stopping": "stopped",
+}
+
+
+def _application_reference(request: Dict) -> str:
+    return str(
+        request.get("pdm_id")
+        or request.get("application_number")
+        or request.get("application_id")
+        or ""
+    )
+
+
+def _publish_worker_state(
+    publisher,
+    worker_state: str,
+    *,
+    request: Optional[Dict] = None,
+    camera_status: Optional[str] = None,
+    safe_message: Optional[str] = None,
+    failure_stage: Optional[str] = None,
+    safe_error_code: Optional[str] = None,
+) -> bool:
+    """Publish privacy-safe state without allowing publication to stop OCR."""
+
+    if publisher is None:
+        return True
+
+    request = request or {}
+    try:
+        return bool(
+            publisher.publish(
+                worker_state=worker_state,
+                request_reference=get_request_id(request),
+                application_reference=_application_reference(request),
+                document_key=request.get("document_key"),
+                camera_status=(
+                    camera_status
+                    or _STATE_CAMERA_STATUS.get(worker_state, "unknown")
+                ),
+                safe_message=safe_message,
+                failure_stage=failure_stage,
+                safe_error_code_value=safe_error_code,
+            )
+        )
+    except Exception:
+        return False
 
 
 def clear_tmp_files() -> None:
@@ -748,13 +813,26 @@ def _run_grade_form_scan(
     return status == "completed", payload
 
 
-def run_scan(request: Dict) -> Tuple[bool, Dict]:
+def run_scan(
+    request: Dict,
+    *,
+    state_publisher=None,
+) -> Tuple[bool, Dict]:
     request_ref = _safe_request_ref(get_request_id(request))
     document_key = str(request.get("document_key") or "unknown")
     log.info("Starting capture request=%s document=%s", request_ref, document_key)
 
+    def capture_state_callback(worker_state: str, camera_status: str) -> None:
+        _publish_worker_state(
+            state_publisher,
+            worker_state,
+            request=request,
+            camera_status=camera_status,
+        )
+
     capture_result = run_capture_session(
         should_stop=_shutdown_requested.is_set,
+        state_callback=capture_state_callback,
     )
     if capture_result.status != CAPTURED:
         log.info(
@@ -763,7 +841,49 @@ def run_scan(request: Dict) -> Tuple[bool, Dict]:
             capture_result.status,
             capture_result.error_code or "none",
         )
+        _publish_worker_state(
+            state_publisher,
+            "failed",
+            request=request,
+            failure_stage=(
+                "waiting_for_capture"
+                if capture_result.status == CANCELLED
+                else "capturing"
+            ),
+            safe_error_code=(
+                "capture_cancelled"
+                if capture_result.status == CANCELLED
+                else capture_result.error_code or "capture_failed"
+            ),
+            safe_message=(
+                "The OCR request was cancelled on the device."
+                if capture_result.status == CANCELLED
+                else "Document capture failed."
+            ),
+        )
         return _capture_outcome_payload(request, capture_result)
+
+    _publish_worker_state(
+        state_publisher,
+        "preprocessing",
+        request=request,
+    )
+    _publish_worker_state(
+        state_publisher,
+        "running_ocr",
+        request=request,
+    )
+
+    if (
+        _is_birth_certificate_job(request)
+        or _is_grade_form_job(request)
+        or _is_indigency_job(request)
+    ):
+        _publish_worker_state(
+            state_publisher,
+            "extracting_fields",
+            request=request,
+        )
 
     if _is_birth_certificate_job(request):
         return _run_birth_certificate_scan(request, capture_result.capture_path)
@@ -794,11 +914,25 @@ def submit_and_verify(api: ApiClient, request_id: str, payload: Dict) -> bool:
     return True
 
 
-def main():
+def main(*, state_publisher=None):
     log.info(
         "Starting Pi IoT OCR worker | poll=%ss | mode=interactive",
         POLL_INTERVAL_SECONDS,
     )
+
+    publisher = state_publisher
+    if publisher is None:
+        try:
+            publisher = StatePublisher(logger=log)
+        except Exception:
+            publisher = NullStatePublisher()
+
+    try:
+        publisher.start_heartbeat()
+    except Exception:
+        publisher = NullStatePublisher()
+
+    _publish_worker_state(publisher, "starting")
 
     api = ApiClient()
     last_idle_log = 0.0
@@ -809,36 +943,105 @@ def main():
     signal.signal(signal.SIGINT, request_shutdown)
     signal.signal(signal.SIGTERM, request_shutdown)
 
-    while not _shutdown_requested.is_set():
+    _publish_worker_state(publisher, "idle")
+
+    try:
+        while not _shutdown_requested.is_set():
+            request: Optional[Dict] = None
+            try:
+                _publish_worker_state(publisher, "claiming_request")
+                request = api.get_next_job()
+
+                if not request:
+                    _publish_worker_state(publisher, "no_pending_request")
+                    now = time.time()
+                    if now - last_idle_log >= 60:
+                        log.info("Idle: waiting for OCR request...")
+                        last_idle_log = now
+                    time.sleep(POLL_INTERVAL_SECONDS)
+                    _publish_worker_state(publisher, "idle")
+                    continue
+
+                request_id = get_request_id(request)
+                if not request_id:
+                    log.warning("Request missing request_id; skipping")
+                    _publish_worker_state(
+                        publisher,
+                        "failed",
+                        request=request,
+                        failure_stage="request_claimed",
+                        safe_error_code="request_id_missing",
+                        safe_message="The OCR request is missing its reference.",
+                    )
+                    time.sleep(POLL_INTERVAL_SECONDS)
+                    _publish_worker_state(publisher, "idle")
+                    continue
+
+                log.info("Claimed request=%s", _safe_request_ref(request_id))
+                _publish_worker_state(
+                    publisher,
+                    "request_claimed",
+                    request=request,
+                )
+                _success, payload = run_scan(
+                    request,
+                    state_publisher=publisher,
+                )
+                _publish_worker_state(
+                    publisher,
+                    "submitting_result",
+                    request=request,
+                )
+                submitted = submit_and_verify(api, request_id, payload)
+
+                payload_status = str(payload.get("status") or "failed")
+                if submitted and payload_status not in {"failed", "cancelled"}:
+                    _publish_worker_state(
+                        publisher,
+                        "completed",
+                        request=request,
+                    )
+                else:
+                    _publish_worker_state(
+                        publisher,
+                        "failed",
+                        request=request,
+                        failure_stage="submitting_result",
+                        safe_error_code=(
+                            "result_submission_failed"
+                            if not submitted
+                            else f"request_{payload_status}"
+                        ),
+                        safe_message=(
+                            "The OCR result could not be submitted."
+                            if not submitted
+                            else "Document processing did not complete successfully."
+                        ),
+                    )
+
+            except KeyboardInterrupt:
+                _shutdown_requested.set()
+                break
+            except Exception:
+                log.error("Unexpected worker error")
+                _publish_worker_state(
+                    publisher,
+                    "failed",
+                    request=request,
+                    failure_stage="claiming_request",
+                    safe_error_code="worker_iteration_failed",
+                    safe_message="The OCR worker encountered an operational error.",
+                )
+
+            if not _shutdown_requested.is_set():
+                time.sleep(POLL_INTERVAL_SECONDS)
+                _publish_worker_state(publisher, "idle")
+    finally:
+        _publish_worker_state(publisher, "stopping")
         try:
-            request = api.get_next_job()
-
-            if not request:
-                now = time.time()
-                if now - last_idle_log >= 60:
-                    log.info("Idle: waiting for OCR request...")
-                    last_idle_log = now
-                time.sleep(POLL_INTERVAL_SECONDS)
-                continue
-
-            request_id = get_request_id(request)
-            if not request_id:
-                log.warning("Request missing request_id; skipping")
-                time.sleep(POLL_INTERVAL_SECONDS)
-                continue
-
-            log.info("Claimed request=%s", _safe_request_ref(request_id))
-            _success, payload = run_scan(request)
-            submit_and_verify(api, request_id, payload)
-
-        except KeyboardInterrupt:
-            _shutdown_requested.set()
-            break
+            publisher.close()
         except Exception:
-            log.error("Unexpected worker error")
-
-        if not _shutdown_requested.is_set():
-            time.sleep(POLL_INTERVAL_SECONDS)
+            pass
 
     log.info("Worker stopped")
 

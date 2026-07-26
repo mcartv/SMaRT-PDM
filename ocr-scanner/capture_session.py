@@ -13,6 +13,21 @@ CANCELLED = "cancelled"
 FAILED = "failed"
 
 
+def _notify_state(
+    state_callback: Optional[Callable[[str, str], None]],
+    worker_state: str,
+    camera_status: str,
+) -> None:
+    """Notify observers without allowing visualization failures to stop capture."""
+
+    if state_callback is None:
+        return
+    try:
+        state_callback(worker_state, camera_status)
+    except Exception:
+        pass
+
+
 @dataclass(frozen=True)
 class CaptureSessionResult:
     status: str
@@ -36,6 +51,7 @@ def run_capture_session(
     buttons=None,
     path_exists: Callable[[str], bool] = os.path.isfile,
     should_stop: Optional[Callable[[], bool]] = None,
+    state_callback: Optional[Callable[[str, str], None]] = None,
 ) -> CaptureSessionResult:
     """Capture one image after LEFT, or cancel before capture with RIGHT."""
 
@@ -58,6 +74,7 @@ def run_capture_session(
         except Exception:
             return CaptureSessionResult(FAILED, error_code="INPUT_DEVICE_UNAVAILABLE")
 
+        _notify_state(state_callback, "starting_preview", "starting")
         try:
             if not resolved_camera.start_preview():
                 return CaptureSessionResult(FAILED, error_code="PREVIEW_START_FAILED")
@@ -66,6 +83,11 @@ def run_capture_session(
         except Exception:
             return CaptureSessionResult(FAILED, error_code="PREVIEW_START_FAILED")
 
+        _notify_state(
+            state_callback,
+            "waiting_for_capture",
+            "preview_active",
+        )
         try:
             pressed = resolved_buttons.wait_for_press(should_stop=should_stop)
         except (InterruptedError, KeyboardInterrupt):
@@ -78,6 +100,7 @@ def run_capture_session(
         if pressed != "left":
             return CaptureSessionResult(FAILED, error_code="CAPTURE_SESSION_INTERRUPTED")
 
+        _notify_state(state_callback, "capturing", "capture_in_progress")
         try:
             captured = resolved_camera.capture_image(restart_preview=False)
         except (InterruptedError, KeyboardInterrupt):

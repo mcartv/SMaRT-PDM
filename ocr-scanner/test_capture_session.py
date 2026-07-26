@@ -80,12 +80,21 @@ class FakeButtons:
 
 
 class CaptureSessionTest(unittest.TestCase):
-    def run_session(self, camera, buttons, *, exists=True, should_stop=None):
+    def run_session(
+        self,
+        camera,
+        buttons,
+        *,
+        exists=True,
+        should_stop=None,
+        state_callback=None,
+    ):
         return run_capture_session(
             camera=camera,
             buttons=buttons,
             path_exists=lambda _path: exists,
             should_stop=should_stop,
+            state_callback=state_callback,
         )
 
     def assert_cleaned(self, camera, buttons):
@@ -106,6 +115,43 @@ class CaptureSessionTest(unittest.TestCase):
         self.assertEqual(camera.capture_restart_values, [False])
         self.assertEqual(buttons.start_calls, 1)
         self.assertEqual(buttons.wait_calls, 1)
+        self.assert_cleaned(camera, buttons)
+
+    def test_capture_state_callback_reports_authoritative_lifecycle(self):
+        camera = FakeCamera()
+        buttons = FakeButtons("left")
+        states = []
+
+        result = self.run_session(
+            camera,
+            buttons,
+            state_callback=lambda state, camera_status: states.append(
+                (state, camera_status)
+            ),
+        )
+
+        self.assertEqual(result.status, CAPTURED)
+        self.assertEqual(
+            states,
+            [
+                ("starting_preview", "starting"),
+                ("waiting_for_capture", "preview_active"),
+                ("capturing", "capture_in_progress"),
+            ],
+        )
+
+    def test_state_callback_failure_does_not_interrupt_capture(self):
+        camera = FakeCamera()
+        buttons = FakeButtons("left")
+
+        result = self.run_session(
+            camera,
+            buttons,
+            state_callback=MagicMock(side_effect=RuntimeError("gui unavailable")),
+        )
+
+        self.assertEqual(result.status, CAPTURED)
+        self.assertEqual(camera.capture_attempts, 1)
         self.assert_cleaned(camera, buttons)
 
     def test_right_cancels_without_capture(self):

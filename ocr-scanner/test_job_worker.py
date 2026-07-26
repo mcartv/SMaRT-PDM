@@ -699,6 +699,78 @@ class JobWorkerTest(unittest.TestCase):
         birth.assert_not_called()
         indigency.assert_not_called()
 
+    def test_run_scan_publishes_capture_and_processing_states(self):
+        publisher = MagicMock()
+
+        def capture_with_states(**kwargs):
+            callback = kwargs["state_callback"]
+            callback("starting_preview", "starting")
+            callback("waiting_for_capture", "preview_active")
+            callback("capturing", "capture_in_progress")
+            return CaptureSessionResult(CAPTURED, CAPTURE_PATH)
+
+        self.capture.side_effect = capture_with_states
+
+        success, _payload = job_worker.run_scan(
+            self.request("unknown_key"),
+            state_publisher=publisher,
+        )
+
+        self.assertTrue(success)
+        states = [
+            call_args.kwargs["worker_state"]
+            for call_args in publisher.publish.call_args_list
+        ]
+        self.assertEqual(
+            states,
+            [
+                "starting_preview",
+                "waiting_for_capture",
+                "capturing",
+                "preprocessing",
+                "running_ocr",
+            ],
+        )
+        for call_args in publisher.publish.call_args_list:
+            self.assertNotIn("student_name", call_args.kwargs)
+            self.assertNotIn("Private Student Name", str(call_args.kwargs))
+
+    def test_state_publication_failure_does_not_stop_scan(self):
+        publisher = MagicMock()
+        publisher.publish.side_effect = RuntimeError("state storage unavailable")
+
+        success, payload = job_worker.run_scan(
+            self.request("unknown_key"),
+            state_publisher=publisher,
+        )
+
+        self.assertTrue(success)
+        self.assertEqual(payload["status"], "completed")
+        self.capture.assert_called_once()
+        self.generic_ocr.assert_called_once()
+
+    def test_capture_failure_publishes_safe_failure_state(self):
+        publisher = MagicMock()
+        self.capture.return_value = CaptureSessionResult(
+            FAILED,
+            error_code="PREVIEW_START_FAILED",
+        )
+
+        success, _payload = job_worker.run_scan(
+            self.request("student_grade_forms"),
+            state_publisher=publisher,
+        )
+
+        self.assertFalse(success)
+        failure_call = publisher.publish.call_args_list[-1]
+        self.assertEqual(failure_call.kwargs["worker_state"], "failed")
+        self.assertEqual(failure_call.kwargs["failure_stage"], "capturing")
+        self.assertEqual(
+            failure_call.kwargs["safe_error_code_value"],
+            "PREVIEW_START_FAILED",
+        )
+        self.assertNotIn("student_name", failure_call.kwargs)
+
     def test_worker_flow_has_no_subprocess_or_second_confirmation(self):
         source = inspect.getsource(job_worker)
         self.assertNotIn("subprocess.run", source)

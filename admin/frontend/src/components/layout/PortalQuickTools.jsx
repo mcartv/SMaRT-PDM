@@ -6,16 +6,10 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Cloud,
-  CloudFog,
-  CloudLightning,
-  CloudRain,
-  CloudSun,
   Clock3,
   FileText,
   LoaderCircle,
   Plus,
-  Sun,
   Trash2,
   X,
 } from 'lucide-react';
@@ -24,31 +18,6 @@ import { useSocketEvent } from '@/hooks/useSocket';
 
 const MAX_NOTE_LENGTH = 2000;
 const MAX_EVENTS = 30;
-const WEATHER_REFRESH_INTERVAL = 15 * 60 * 1000;
-const MARILAO_WEATHER_URL =
-  'https://api.open-meteo.com/v1/forecast?latitude=14.7574&longitude=120.9483&current=temperature_2m,weather_code,is_day&temperature_unit=celsius&timezone=Asia%2FManila';
-
-function getWeatherMeta(code, isDay) {
-  if (code === 0) {
-    return { label: 'Clear', Icon: isDay ? Sun : CloudSun };
-  }
-  if ([1, 2].includes(code)) {
-    return { label: 'Partly cloudy', Icon: CloudSun };
-  }
-  if (code === 3) {
-    return { label: 'Cloudy', Icon: Cloud };
-  }
-  if ([45, 48].includes(code)) {
-    return { label: 'Foggy', Icon: CloudFog };
-  }
-  if ([95, 96, 99].includes(code)) {
-    return { label: 'Thunderstorm', Icon: CloudLightning };
-  }
-  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
-    return { label: 'Rainy', Icon: CloudRain };
-  }
-  return { label: 'Cloudy', Icon: Cloud };
-}
 
 function toLocalDateInput(date = new Date()) {
   const offset = date.getTimezoneOffset() * 60000;
@@ -169,7 +138,6 @@ export default function PortalQuickTools({
   const [eventTime, setEventTime] = useState('');
   const [selectedDate, setSelectedDate] = useState(() => toLocalDateInput());
   const [plannerTargetEventId, setPlannerTargetEventId] = useState('');
-  const [weather, setWeather] = useState(null);
   const [visibleMonth, setVisibleMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
   );
@@ -177,47 +145,6 @@ export default function PortalQuickTools({
   const calendarRef = useRef(null);
   const noteSaveTimerRef = useRef(null);
   const currentNoteRef = useRef('');
-
-  useEffect(() => {
-    let active = true;
-    let controller = new AbortController();
-
-    const loadWeather = async () => {
-      controller.abort();
-      controller = new AbortController();
-
-      try {
-        const response = await fetch(MARILAO_WEATHER_URL, {
-          signal: controller.signal,
-        });
-        if (!response.ok) return;
-
-        const payload = await response.json();
-        const current = payload?.current;
-        if (!active || !Number.isFinite(current?.temperature_2m)) return;
-
-        setWeather({
-          temperature: Math.round(current.temperature_2m),
-          code: Number(current.weather_code),
-          isDay: Number(current.is_day) === 1,
-        });
-      } catch (error) {
-        if (error.name !== 'AbortError') {
-          // Weather is supplementary, so a failed request should not affect portal tools.
-          setWeather(null);
-        }
-      }
-    };
-
-    loadWeather();
-    const interval = window.setInterval(loadWeather, WEATHER_REFRESH_INTERVAL);
-
-    return () => {
-      active = false;
-      controller.abort();
-      window.clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     if (!notificationOpen) return;
@@ -334,9 +261,6 @@ export default function PortalQuickTools({
     seconds,
   } = formatDateParts(now);
   const today = toLocalDateInput(now);
-  const weatherMeta = weather
-    ? getWeatherMeta(weather.code, weather.isDay)
-    : null;
 
   const calendarDays = useMemo(() => buildCalendarDays(visibleMonth), [visibleMonth]);
   const selectedEvents = useMemo(
@@ -584,7 +508,7 @@ export default function PortalQuickTools({
             setNotesOpen(false);
             onToolOpen?.();
           }}
-          className="group flex h-14 min-w-[336px] cursor-pointer items-center rounded-[20px] border border-stone-200 bg-white px-3 shadow-[0_2px_7px_rgba(28,25,23,0.08)] transition-colors duration-200 hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)] active:brightness-[0.98] focus:outline-none focus:ring-4 focus:ring-[var(--portal-accent-soft)]"
+          className="group flex h-14 min-w-[310px] cursor-pointer items-center rounded-[20px] border border-stone-200 bg-white px-3 shadow-[0_2px_7px_rgba(28,25,23,0.08)] transition-colors duration-200 hover:border-[var(--portal-border)] hover:bg-[var(--portal-accent-soft)] active:brightness-[0.98] focus:outline-none focus:ring-4 focus:ring-[var(--portal-accent-soft)]"
           title="Open personal planner"
           aria-label={`${dayName}, ${monthShort} ${dayNumber}, ${year}. ${timeLabel}:${seconds} ${dayPeriod}. Open calendar and reminders.`}
           aria-expanded={calendarOpen}
@@ -606,24 +530,9 @@ export default function PortalQuickTools({
           </div>
 
           <div className="min-w-[145px] px-2.5 text-left">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-[10px] font-semibold uppercase leading-3 tracking-[0.14em] text-stone-500">
-                {dayNameLong}
-              </p>
-              {weather && weatherMeta ? (
-                <span
-                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold tabular-nums text-stone-700"
-                  title={`${weatherMeta.label} in Marilao, Bulacan`}
-                >
-                  <weatherMeta.Icon
-                    className={`h-3.5 w-3.5 ${
-                      weather.code === 0 ? 'text-amber-500' : 'text-[var(--portal-base)]'
-                    }`}
-                  />
-                  {weather.temperature}&deg;C
-                </span>
-              ) : null}
-            </div>
+            <p className="truncate text-[10px] font-semibold uppercase leading-3 tracking-[0.14em] text-stone-500">
+              {dayNameLong}
+            </p>
             <p className="mt-1 truncate text-sm font-semibold leading-4 text-stone-900">
               {monthLong} {dayNumber}, {year}
             </p>

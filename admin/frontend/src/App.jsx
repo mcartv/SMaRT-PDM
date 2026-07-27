@@ -50,6 +50,7 @@ import { PrivacyNotice, TermsOfUse } from './pages/PublicPolicyPages';
 import SDOLogin from './pages/SDOLogin';
 import SDODashboard from './pages/SDODashboard';
 import SDOScholarList from './pages/SDOScholarList';
+import SDOStudentsWithRecords from './pages/SDOStudentsWithRecords';
 import SDOProfile from './pages/SDOProfile';
 import SDOMaintenance from './pages/SDOMaintenance';
 
@@ -122,7 +123,10 @@ export default function App() {
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />
-          <Route path="messages" element={<AdminMessages />} />
+          <Route
+            path="messages"
+            element={<AdminMessages displayMode="page" tokenStorageKey="adminToken" portalKey="admin" />}
+          />
           <Route path="announcements" element={<AnnouncementsManagement />} />
           <Route path="profile-photos" element={<ProfilePhotoQueue />} />
           <Route path="profile-photos/:reviewId" element={<ProfilePhotoQueue />} />
@@ -177,6 +181,10 @@ export default function App() {
               />
             }
           />
+          <Route
+            path="messages"
+            element={<AdminMessages displayMode="page" tokenStorageKey="pdToken" portalKey="pd" />}
+          />
           <Route path="profile" element={<PDProfile />} />
           <Route path="maintenance" element={<PDMaintenance />} />
         </Route>
@@ -225,6 +233,16 @@ export default function App() {
                 tokenStorageKey="guidanceToken"
                 allowedReportTypes={['guidance']}
                 defaultReportType="guidance"
+              />
+            }
+          />
+          <Route
+            path="messages"
+            element={
+              <AdminMessages
+                displayMode="page"
+                tokenStorageKey="guidanceToken"
+                portalKey="guidance"
               />
             }
           />
@@ -279,7 +297,12 @@ export default function App() {
               />
             }
           />
+          <Route
+            path="messages"
+            element={<AdminMessages displayMode="page" tokenStorageKey="sdoToken" portalKey="sdo" />}
+          />
           <Route path="scholars" element={<SDOScholarList />} />
+          <Route path="students-with-records" element={<SDOStudentsWithRecords />} />
           <Route path="profile" element={<SDOProfile />} />
           <Route path="maintenance" element={<SDOMaintenance />} />
         </Route>

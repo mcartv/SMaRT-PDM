@@ -8,6 +8,19 @@ let globalSocket = null;
 let joinedUserId = '';
 
 function getStoredSocketToken() {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const portalTokenKey = [
+    ['/admin', 'adminToken'],
+    ['/sdo', 'sdoToken'],
+    ['/guidance', 'guidanceToken'],
+    ['/pd', 'pdToken'],
+  ].find(([portalPath]) => pathname.startsWith(portalPath))?.[1];
+
+  if (portalTokenKey) {
+    const portalToken = sessionStorage.getItem(portalTokenKey);
+    if (portalToken) return portalToken;
+  }
+
   return (
     sessionStorage.getItem('adminToken') ||
     sessionStorage.getItem('pdToken') ||
@@ -99,9 +112,26 @@ function emitUserJoin(socket) {
 }
 
 export const initializeSocket = () => {
+  const token = getStoredSocketToken();
+  const userId = getSocketUserId();
+  const role = getSocketRole();
+
   if (globalSocket) {
+    const connectedToken = globalSocket.auth?.token || '';
+
+    if (connectedToken !== token) {
+      joinedUserId = '';
+      globalSocket.auth = { token, userId, role };
+      globalSocket.io.opts.query = { userId, role };
+      globalSocket.disconnect();
+      globalSocket.connect();
+      return globalSocket;
+    }
+
     if (globalSocket.connected) {
       emitUserJoin(globalSocket);
+    } else {
+      globalSocket.connect();
     }
 
     return globalSocket;
@@ -114,13 +144,13 @@ export const initializeSocket = () => {
     reconnectionAttempts: Infinity,
     transports: ['websocket', 'polling'],
     auth: {
-      token: getStoredSocketToken(),
-      userId: getSocketUserId(),
-      role: getSocketRole(),
+      token,
+      userId,
+      role,
     },
     query: {
-      userId: getSocketUserId(),
-      role: getSocketRole(),
+      userId,
+      role,
     },
   });
 
@@ -158,20 +188,28 @@ export const reconnectSocketWithLatestToken = () => {
     return initializeSocket();
   }
 
+  const token = getStoredSocketToken();
+  const userId = getSocketUserId();
+  const role = getSocketRole();
+  const tokenChanged = (globalSocket.auth?.token || '') !== token;
+
   joinedUserId = '';
 
   globalSocket.auth = {
-    token: getStoredSocketToken(),
-    userId: getSocketUserId(),
-    role: getSocketRole(),
+    token,
+    userId,
+    role,
   };
 
   globalSocket.io.opts.query = {
-    userId: getSocketUserId(),
-    role: getSocketRole(),
+    userId,
+    role,
   };
 
-  if (globalSocket.connected) {
+  if (tokenChanged && globalSocket.connected) {
+    globalSocket.disconnect();
+    globalSocket.connect();
+  } else if (globalSocket.connected) {
     emitUserJoin(globalSocket);
   } else {
     globalSocket.connect();

@@ -14,6 +14,10 @@ function isAdminLike(req) {
   return ['admin', 'osfa_admin', 'sdo', 'guidance', 'pd'].includes(getCurrentRole(req));
 }
 
+function isSystemAdmin(req) {
+  return ['admin', 'osfa_admin'].includes(getCurrentRole(req));
+}
+
 function normalizeId(value) {
   return String(value || '').trim();
 }
@@ -274,17 +278,20 @@ async function fetchConversationMessages(leftUserId, rightUserId) {
       u.role AS sender_role,
       COALESCE(
         NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
+        NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
         u.username,
         u.email,
         'Unknown'
       ) AS sender_name,
-      s.profile_photo_url AS sender_profile_photo_url,
-      s.profile_photo_url AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
     LEFT JOIN students s
       ON s.user_id = m.sender_id
+    LEFT JOIN admin_profiles ap
+      ON ap.user_id = m.sender_id
     WHERE m.room_id IS NULL
       AND (
         (m.sender_id = $1 AND m.receiver_id = $2)
@@ -382,17 +389,20 @@ async function createPrivateMessage({
       u.role AS sender_role,
       COALESCE(
         NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
+        NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
         u.username,
         u.email,
         'Unknown'
       ) AS sender_name,
-      s.profile_photo_url AS sender_profile_photo_url,
-      s.profile_photo_url AS sender_avatar_url
+      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
+      COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
     FROM messages m
     LEFT JOIN users u
       ON u.user_id = m.sender_id
     LEFT JOIN students s
       ON s.user_id = m.sender_id
+    LEFT JOIN admin_profiles ap
+      ON ap.user_id = m.sender_id
     WHERE m.message_id = $1
     LIMIT 1;
     `,
@@ -820,17 +830,20 @@ exports.getConversations = async (req, res) => {
         u.role,
         COALESCE(
           NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
+          NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
           u.username,
           u.email,
           'Unknown user'
         ) AS name,
-        s.pdm_id AS student_number,
+        COALESCE(s.pdm_id, ap.department, INITCAP(COALESCE(u.role, 'staff'))) AS student_number,
         s.profile_photo_url AS avatar_url
       FROM ranked r
       LEFT JOIN users u
         ON u.user_id = r.counterparty_id
       LEFT JOIN students s
         ON s.user_id = r.counterparty_id
+      LEFT JOIN admin_profiles ap
+        ON ap.user_id = r.counterparty_id
       WHERE r.rn = 1
       ORDER BY r.sent_at DESC, r.message_id DESC;
       `,
@@ -1233,7 +1246,7 @@ exports.getRooms = async (req, res) => {
 
     let result;
 
-    if (isAdminLike(req)) {
+    if (isSystemAdmin(req)) {
       result = await db.query(
         `
         SELECT
@@ -1298,7 +1311,7 @@ exports.createRoom = async (req, res) => {
     }
 
     if (!isAdminLike(req)) {
-      return res.status(403).json({ message: 'Only administrators can create group chats.' });
+      return res.status(403).json({ message: 'Staff messaging access is required.' });
     }
 
     const roomName =
@@ -1394,7 +1407,7 @@ exports.getRoomMessages = async (req, res) => {
       [roomId, currentUserId]
     );
 
-    if (!membership.rows.length && !isAdminLike(req)) {
+    if (!membership.rows.length && !isSystemAdmin(req)) {
       return res.status(403).json({ message: 'You are not a member of this room.' });
     }
 
@@ -1413,17 +1426,20 @@ exports.getRoomMessages = async (req, res) => {
         u.role AS sender_role,
         COALESCE(
           NULLIF(TRIM(CONCAT(s.first_name, ' ', s.last_name)), ''),
+          NULLIF(TRIM(CONCAT(ap.first_name, ' ', ap.last_name)), ''),
           u.username,
           u.email,
           'Unknown'
         ) AS sender_name,
-        s.profile_photo_url AS sender_profile_photo_url,
-        s.profile_photo_url AS sender_avatar_url
+        COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_profile_photo_url,
+        COALESCE(s.profile_photo_url, ap.profile_photo_url) AS sender_avatar_url
       FROM messages m
       LEFT JOIN users u
         ON u.user_id = m.sender_id
       LEFT JOIN students s
         ON s.user_id = m.sender_id
+      LEFT JOIN admin_profiles ap
+        ON ap.user_id = m.sender_id
       WHERE m.room_id = $1
       ORDER BY m.sent_at ASC, m.message_id ASC;
       `,
@@ -1497,8 +1513,19 @@ exports.addRoomMembers = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    if (!isAdminLike(req)) {
-      return res.status(403).json({ message: 'Only administrators can add room members.' });
+    const roomAccess = await db.query(
+      `
+      SELECT is_admin
+      FROM chat_room_members
+      WHERE room_id = $1
+        AND user_id = $2
+      LIMIT 1;
+      `,
+      [roomId, currentUserId]
+    );
+
+    if (!isSystemAdmin(req) && roomAccess.rows[0]?.is_admin !== true) {
+      return res.status(403).json({ message: 'Only the group owner can add contacts.' });
     }
 
     const memberIds =
@@ -1842,6 +1869,137 @@ exports.getScholarMembers = async (req, res) => {
 
     return res.status(500).json({
       message: 'Failed to load scholar member list',
+      error: err.message,
+    });
+  }
+};
+
+exports.getMessagingContacts = async (req, res) => {
+  try {
+    const currentUserId = getCurrentUserId(req);
+    const role = getCurrentRole(req);
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    if (!isAdminLike(req)) {
+      return res.status(403).json({ message: 'Staff messaging access is required.' });
+    }
+
+    const studentParams = [currentUserId];
+    let pdCourseFilter = '';
+    if (role === 'pd') {
+      pdCourseFilter = `
+        AND EXISTS (
+          SELECT 1
+          FROM program_director_course_assignments assignment
+          WHERE assignment.pd_user_id = $1
+            AND assignment.course_id = s.course_id
+            AND assignment.is_active = true
+        )
+      `;
+    }
+
+    const studentsResult = await db.query(
+      `
+      SELECT
+        u.user_id,
+        u.role,
+        s.student_id,
+        s.pdm_id AS student_number,
+        s.first_name,
+        s.last_name,
+        s.profile_photo_url,
+        COALESCE(c.course_code, c.course_name, 'Student') AS program_name
+      FROM students s
+      JOIN users u ON u.user_id = s.user_id
+      LEFT JOIN academic_course c ON c.course_id = s.course_id
+      WHERE COALESCE(s.is_archived, false) = false
+        AND u.user_id <> $1
+        ${pdCourseFilter}
+      ORDER BY s.last_name ASC NULLS LAST, s.first_name ASC NULLS LAST
+      `,
+      studentParams
+    );
+
+    const staffResult = await db.query(
+      `
+      SELECT
+        u.user_id,
+        u.role,
+        ap.first_name,
+        ap.last_name,
+        ap.department,
+        ap.position,
+        ap.profile_photo_url
+      FROM users u
+      JOIN admin_profiles ap ON ap.user_id = u.user_id
+      WHERE LOWER(COALESCE(u.role, '')) IN ('admin', 'osfa_admin', 'sdo', 'guidance', 'pd')
+        AND COALESCE(ap.is_archived, false) = false
+        AND u.user_id <> $1
+      ORDER BY ap.last_name ASC NULLS LAST, ap.first_name ASC NULLS LAST
+      `,
+      [currentUserId]
+    );
+
+    const studentItems = studentsResult.rows.map((row) => ({
+      user_id: row.user_id,
+      userId: row.user_id,
+      student_id: row.student_id,
+      studentId: row.student_id,
+      student_number: row.student_number,
+      studentNumber: row.student_number,
+      first_name: row.first_name,
+      firstName: row.first_name,
+      last_name: row.last_name,
+      lastName: row.last_name,
+      student_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
+      studentName: [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Unknown Student',
+      avatar_url: row.profile_photo_url,
+      avatarUrl: row.profile_photo_url,
+      program_name: row.program_name,
+      programName: row.program_name,
+      benefactor_name: 'Student',
+      benefactorName: 'Student',
+      role: row.role,
+      contact_type: 'student',
+    }));
+
+    const staffItems = staffResult.rows.map((row) => {
+      const name = [row.first_name, row.last_name].filter(Boolean).join(' ') || 'Staff Account';
+      const roleLabel = String(row.role || 'staff')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (character) => character.toUpperCase());
+      return {
+        user_id: row.user_id,
+        userId: row.user_id,
+        student_id: '',
+        studentId: '',
+        student_number: row.department || roleLabel,
+        studentNumber: row.department || roleLabel,
+        first_name: row.first_name,
+        firstName: row.first_name,
+        last_name: row.last_name,
+        lastName: row.last_name,
+        student_name: name,
+        studentName: name,
+        avatar_url: row.profile_photo_url,
+        avatarUrl: row.profile_photo_url,
+        program_name: row.department || 'Staff Office',
+        programName: row.department || 'Staff Office',
+        benefactor_name: roleLabel,
+        benefactorName: roleLabel,
+        role: row.role,
+        position: row.position,
+        contact_type: 'staff',
+      };
+    });
+
+    return res.json({ items: [...staffItems, ...studentItems] });
+  } catch (err) {
+    console.error('GET MESSAGING CONTACTS ERROR:', err.message);
+    return res.status(500).json({
+      message: 'Failed to load messaging contacts',
       error: err.message,
     });
   }

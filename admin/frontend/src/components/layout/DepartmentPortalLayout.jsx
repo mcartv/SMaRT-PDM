@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
+  MessageSquareMore,
   Settings,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
@@ -16,6 +17,7 @@ import usePortalNotifications from '../../hooks/usePortalNotifications';
 import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
+import AdminMessages from '../../pages/AdminMessages';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -63,6 +65,7 @@ export default function DepartmentPortalLayout({
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const {
     notifications,
     newNotifications,
@@ -78,7 +81,18 @@ export default function DepartmentPortalLayout({
     portalRootPath: `/${portalKey}`,
   });
 
-  useDocumentTitleBadge('SMaRT-PDM', unreadCount);
+  useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
+
+  useEffect(() => {
+    const handleMessageUnread = (event) => {
+      if (event.detail?.portalKey === portalKey) {
+        setMessageUnreadCount(Number(event.detail?.count || 0));
+      }
+    };
+
+    window.addEventListener('portal-messages:unread', handleMessageUnread);
+    return () => window.removeEventListener('portal-messages:unread', handleMessageUnread);
+  }, [portalKey]);
 
   useEffect(() => {
     const token = sessionStorage.getItem(tokenStorageKey);
@@ -146,6 +160,7 @@ export default function DepartmentPortalLayout({
     { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
     ...(queuePath ? [{ path: queuePath, label: 'My Queue', icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
+    { path: `/${portalKey}/messages`, label: 'Messages', icon: MessageSquareMore },
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
     ...(maintenancePath ? [{ path: maintenancePath, label: 'Maintenance', icon: Settings }] : []),
   ];
@@ -201,7 +216,7 @@ export default function DepartmentPortalLayout({
               to={item.path}
               onClick={(event) => handleNavRefresh(event, item.path)}
               className={({ isActive }) =>
-                `group flex items-center ${
+                `group relative flex items-center ${
                   collapsed ? 'justify-center' : 'gap-3'
                 } rounded-xl px-3 py-2.5 text-sm transition-all ${
                   isActive ? 'text-white shadow-sm' : 'hover:bg-white/10'
@@ -215,6 +230,15 @@ export default function DepartmentPortalLayout({
             >
               <item.icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate font-medium">{item.label}</span>}
+              {item.label === 'Messages' && messageUnreadCount > 0 && (
+                <span
+                  className={`flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ${
+                    collapsed ? 'absolute right-1.5 top-1.5' : 'ml-auto'
+                  }`}
+                >
+                  {messageUnreadCount > 9 ? '9+' : messageUnreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -436,6 +460,10 @@ export default function DepartmentPortalLayout({
           </div>
         </main>
       </div>
+
+      {!location.pathname.endsWith('/messages') && (
+        <AdminMessages tokenStorageKey={tokenStorageKey} portalKey={portalKey} />
+      )}
     </div>
   );
 }

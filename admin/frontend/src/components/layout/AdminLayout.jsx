@@ -16,6 +16,7 @@ import {
   Briefcase,
   LifeBuoy,
   Image,
+  MessageSquareMore,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
@@ -47,6 +48,7 @@ const navItems = [
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
+  { path: '/admin/messages', icon: MessageSquareMore, label: 'Messages' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/profile-photos', icon: Image, label: 'Profile Photos' },
@@ -61,6 +63,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const { theme } = usePortalTheme('admin');
   const {
     notifications: notifs,
@@ -77,7 +80,18 @@ export default function AdminLayout() {
     portalRootPath: '/admin',
   });
 
-  useDocumentTitleBadge('SMaRT-PDM', unreadCount);
+  useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
+
+  useEffect(() => {
+    const handleMessageUnread = (event) => {
+      if (event.detail?.portalKey === 'admin') {
+        setMessageUnreadCount(Number(event.detail?.count || 0));
+      }
+    };
+
+    window.addEventListener('portal-messages:unread', handleMessageUnread);
+    return () => window.removeEventListener('portal-messages:unread', handleMessageUnread);
+  }, []);
 
   useEffect(() => {
     const initializeLayout = () => {
@@ -219,7 +233,7 @@ export default function AdminLayout() {
                 item.path === '/admin/openings'
               }
               className={({ isActive }) =>
-                `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
+                `group relative flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-xl px-3 py-2.5 text-sm transition-all ${isActive
                   ? 'bg-[#9a5d3a] text-white shadow-sm'
                   : 'hover:bg-white/7'
                 }`
@@ -235,6 +249,15 @@ export default function AdminLayout() {
                   }`}
               />
               {!collapsed && <span className="truncate font-medium">{item.label}</span>}
+              {item.label === 'Messages' && messageUnreadCount > 0 && (
+                <span
+                  className={`flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ${
+                    collapsed ? 'absolute right-1.5 top-1.5' : 'ml-auto'
+                  }`}
+                >
+                  {messageUnreadCount > 9 ? '9+' : messageUnreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -478,7 +501,7 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        <AdminMessages />
+        {!location.pathname.endsWith('/messages') && <AdminMessages />}
       </div>
     </div>
   );

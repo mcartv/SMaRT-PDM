@@ -24,7 +24,7 @@ const config = {
   },
   auditEntries: [
     {
-      action: 'Updated scholar probation status',
+      action: 'Updated scholar disciplinary standing',
       actor: 'SDO Officer',
       time: 'Apr 08, 2026 · 10:15 AM',
       status: 'Success',

@@ -10,6 +10,8 @@ import {
   ChevronRight,
   LogOut,
   Settings,
+  Users,
+  MessageSquareMore,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
@@ -17,6 +19,7 @@ import usePortalNotifications from '../../hooks/usePortalNotifications';
 import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
+import AdminMessages from '../../pages/AdminMessages';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -37,6 +40,8 @@ const navItems = [
   { path: '/sdo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/sdo/queue', label: 'My Queue', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
+  { path: '/sdo/students-with-records', label: 'Students with Records', icon: Users },
+  { path: '/sdo/messages', label: 'Messages', icon: MessageSquareMore },
   { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
   { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
@@ -50,6 +55,7 @@ export default function SDOLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const { theme } = usePortalTheme('sdo');
   const {
     notifications: notifs,
@@ -66,7 +72,18 @@ export default function SDOLayout() {
     portalRootPath: '/sdo',
   });
 
-  useDocumentTitleBadge('SMaRT-PDM', unreadCount);
+  useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
+
+  useEffect(() => {
+    const handleMessageUnread = (event) => {
+      if (event.detail?.portalKey === 'sdo') {
+        setMessageUnreadCount(Number(event.detail?.count || 0));
+      }
+    };
+
+    window.addEventListener('portal-messages:unread', handleMessageUnread);
+    return () => window.removeEventListener('portal-messages:unread', handleMessageUnread);
+  }, []);
 
   useEffect(() => {
     const token = sessionStorage.getItem('sdoToken');
@@ -225,7 +242,7 @@ export default function SDOLayout() {
               to={item.path}
               onClick={(event) => handleNavRefresh(event, item.path)}
               className={({ isActive }) =>
-                `flex items-center ${
+                `relative flex items-center ${
                   collapsed ? 'justify-center' : 'gap-3'
                 } px-3 py-2.5 rounded-xl text-sm transition-all group ${
                   isActive ? 'text-white shadow-sm' : 'hover:bg-white/10'
@@ -239,6 +256,15 @@ export default function SDOLayout() {
             >
               <item.icon className="w-4 h-4 shrink-0" />
               {!collapsed && <span className="font-medium truncate">{item.label}</span>}
+              {item.label === 'Messages' && messageUnreadCount > 0 && (
+                <span
+                  className={`flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ${
+                    collapsed ? 'absolute right-1.5 top-1.5' : 'ml-auto'
+                  }`}
+                >
+                  {messageUnreadCount > 9 ? '9+' : messageUnreadCount}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -467,6 +493,10 @@ export default function SDOLayout() {
           </div>
         </main>
       </div>
+
+      {!location.pathname.endsWith('/messages') && (
+        <AdminMessages tokenStorageKey="sdoToken" portalKey="sdo" />
+      )}
     </div>
   );
 }

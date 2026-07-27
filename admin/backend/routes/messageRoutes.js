@@ -18,6 +18,7 @@ router.patch('/thread/read', protect, messageController.markThreadRead);
   Keep this before dynamic routes.
 */
 router.get('/members/scholars', protect, messageController.getScholarMembers);
+router.get('/members/contacts', protect, messageController.getMessagingContacts);
 
 /*
   ARCHIVED THREADS

@@ -23,10 +23,6 @@ import API_BASE_URL from '@/api'
 
 const MESSAGING_API_BASE = API_BASE_URL
 
-function getAdminMessagingToken() {
-  return sessionStorage.getItem('adminToken') || ''
-}
-
 function parseMessagingToken(token) {
   try {
     if (!token) return {}
@@ -124,7 +120,7 @@ function normalizeScholarMember(raw = {}) {
     studentNumber: raw.student_number?.toString() || '',
     firstName: raw.first_name?.toString() || '',
     lastName: raw.last_name?.toString() || '',
-    studentName: raw.student_name?.toString() || 'Unknown Scholar',
+    studentName: raw.student_name?.toString() || 'Unknown Contact',
     avatarUrl:
       raw.avatarUrl?.toString() ||
       raw.profilePhotoUrl?.toString() ||
@@ -140,7 +136,7 @@ function toScholarSearchItem(raw = {}) {
   return {
     id: raw.userId || '',
     type: 'private',
-    name: raw.studentName || 'Unknown Scholar',
+    name: raw.studentName || 'Unknown Contact',
     studentNumber: raw.studentNumber || raw.studentId || '',
     studentId: raw.studentId || '',
     firstName: raw.firstName || '',
@@ -265,7 +261,7 @@ function ThreadRow({ item, isActive, onClick, onToggleRead, onArchive }) {
       className={`relative border-b border-stone-100 transition ${hasUnread
         ? 'border-l-4 border-l-red-500 bg-red-50/70'
         : isActive
-          ? 'bg-amber-50/60'
+          ? 'bg-[var(--portal-accent-soft)]'
           : 'bg-white hover:bg-stone-50'
         }`}
     >
@@ -515,12 +511,12 @@ function MessageBubble({ message, isMine }) {
     <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 shadow-sm sm:max-w-[70%] ${isMine
-          ? 'bg-[#7c4a2e] text-white'
+          ? 'bg-[var(--portal-base)] text-white'
           : 'border border-stone-200 bg-white text-stone-800'
           }`}
       >
         <p className="whitespace-pre-wrap text-sm leading-6">{message.messageBody}</p>
-        <div className={`mt-1.5 text-[10px] ${isMine ? 'text-amber-100' : 'text-stone-400'}`}>
+        <div className={`mt-1.5 text-[10px] ${isMine ? 'text-white/70' : 'text-stone-400'}`}>
           {formatMessageTime(message.sentAt)}
         </div>
       </div>
@@ -614,7 +610,7 @@ function CreateGroupModal({
           <div>
             <h3 className="text-base font-semibold text-stone-900">Create Group Chat</h3>
             <p className="mt-1 text-xs text-stone-500">
-              Select scholars by program and benefactor.
+              Select students and staff by program, office, or role.
             </p>
           </div>
 
@@ -634,13 +630,13 @@ function CreateGroupModal({
               value={roomName}
               onChange={(event) => setRoomName(event.target.value)}
               placeholder="Group name"
-              className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             />
 
             <select
               value={programFilter}
               onChange={(event) => setProgramFilter(event.target.value)}
-              className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             >
               {programOptions.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -650,7 +646,7 @@ function CreateGroupModal({
             <select
               value={benefactorFilter}
               onChange={(event) => setBenefactorFilter(event.target.value)}
-              className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-10 rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             >
               {benefactorOptions.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -663,8 +659,8 @@ function CreateGroupModal({
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search scholar, student number, program, or benefactor"
-              className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              placeholder="Search students or staff by name, ID, program, office, or role"
+              className="h-10 w-full rounded-xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             />
           </div>
         </div>
@@ -674,7 +670,7 @@ function CreateGroupModal({
             {loadingScholars ? (
               <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading scholars
+                Loading contacts
               </div>
             ) : filteredScholars.length ? (
               <div className="space-y-2">
@@ -685,7 +681,7 @@ function CreateGroupModal({
                     <label
                       key={item.userId}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition ${checked
-                        ? 'border-[#7c4a2e] bg-amber-50'
+                        ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)]'
                         : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
@@ -693,7 +689,7 @@ function CreateGroupModal({
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleMember(item.userId)}
-                        className="mt-1 h-4 w-4 accent-[#7c4a2e]"
+                        className="mt-1 h-4 w-4 accent-[var(--portal-base)]"
                       />
 
                       <div className="min-w-0 flex-1">
@@ -703,7 +699,7 @@ function CreateGroupModal({
                           </p>
 
                           {checked && (
-                            <span className="inline-flex items-center rounded-full bg-[#7c4a2e] px-2 py-0.5 text-[10px] font-semibold text-white">
+                            <span className="inline-flex items-center rounded-full bg-[var(--portal-base)] px-2 py-0.5 text-[10px] font-semibold text-white">
                               <Check className="mr-1 h-3 w-3" />
                               Selected
                             </span>
@@ -729,7 +725,7 @@ function CreateGroupModal({
               </div>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-stone-500">
-                No scholars match the current filters.
+                No contacts match the current filters.
               </div>
             )}
           </div>
@@ -787,7 +783,7 @@ function CreateGroupModal({
                 memberIds: [currentUserId, ...selectedMembers].filter(Boolean),
               })
             }
-            className="inline-flex h-10 items-center rounded-xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center rounded-xl bg-[var(--portal-base)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {creating ? (
               <>
@@ -888,9 +884,9 @@ function AddMembersModal({
       >
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
           <div>
-            <h3 className="text-lg font-semibold text-stone-900">Add Scholars To Group</h3>
+            <h3 className="text-lg font-semibold text-stone-900">Add Contacts To Group</h3>
             <p className="mt-1 text-sm text-stone-500">
-              Search scholars, filter them, then add them to the selected group chat.
+              Search students or staff, then add them to the selected group chat.
             </p>
           </div>
 
@@ -909,14 +905,14 @@ function AddMembersModal({
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search student ID, first name, last name, program, or benefactor"
-              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              placeholder="Search by name, ID, program, office, or role"
+              className="h-11 w-full rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             />
 
             <select
               value={programFilter}
               onChange={(event) => setProgramFilter(event.target.value)}
-              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             >
               {programOptions.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -926,7 +922,7 @@ function AddMembersModal({
             <select
               value={benefactorFilter}
               onChange={(event) => setBenefactorFilter(event.target.value)}
-              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+              className="h-11 rounded-2xl border border-stone-200 px-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
             >
               {benefactorOptions.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -940,7 +936,7 @@ function AddMembersModal({
             {loadingScholars ? (
               <div className="flex h-full items-center justify-center gap-2 text-sm text-stone-500">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                Loading scholars
+                Loading contacts
               </div>
             ) : filteredScholars.length ? (
               <div className="space-y-2">
@@ -951,7 +947,7 @@ function AddMembersModal({
                     <label
                       key={item.userId}
                       className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${checked
-                        ? 'border-[#7c4a2e] bg-amber-50'
+                        ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)]'
                         : 'border-stone-200 bg-white hover:bg-stone-50'
                         }`}
                     >
@@ -959,7 +955,7 @@ function AddMembersModal({
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleMember(item.userId)}
-                        className="mt-1 h-4 w-4 accent-[#7c4a2e]"
+                        className="mt-1 h-4 w-4 accent-[var(--portal-base)]"
                       />
 
                       <div className="min-w-0 flex-1">
@@ -969,7 +965,7 @@ function AddMembersModal({
                           </p>
 
                           {checked && (
-                            <span className="inline-flex items-center rounded-full bg-[#7c4a2e] px-2 py-0.5 text-[10px] font-semibold text-white">
+                            <span className="inline-flex items-center rounded-full bg-[var(--portal-base)] px-2 py-0.5 text-[10px] font-semibold text-white">
                               <Check className="mr-1 h-3 w-3" />
                               Selected
                             </span>
@@ -995,13 +991,13 @@ function AddMembersModal({
               </div>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-stone-500">
-                No scholars match the current filters.
+                No contacts match the current filters.
               </div>
             )}
           </div>
 
           <div className="w-[260px] border-l border-stone-100 bg-stone-50/70 px-5 py-4">
-            <p className="text-sm font-semibold text-stone-900">Selected Scholars</p>
+            <p className="text-sm font-semibold text-stone-900">Selected Contacts</p>
             <p className="mt-1 text-xs text-stone-500">
               {selectedMembers.length} selected
             </p>
@@ -1028,7 +1024,7 @@ function AddMembersModal({
                 })
               ) : (
                 <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-4 py-4 text-sm text-stone-500">
-                  No scholars selected yet.
+                  No contacts selected yet.
                 </div>
               )}
             </div>
@@ -1048,7 +1044,7 @@ function AddMembersModal({
             type="button"
             disabled={adding || !selectedMembers.length}
             onClick={() => onAdd(selectedMembers)}
-            className="inline-flex h-11 items-center rounded-2xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 items-center rounded-2xl bg-[var(--portal-base)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {adding ? (
               <>
@@ -1068,13 +1064,18 @@ function AddMembersModal({
   )
 }
 
-export default function AdminMessages() {
-  const token = getAdminMessagingToken()
+export default function AdminMessages({
+  tokenStorageKey = 'adminToken',
+  portalKey = 'admin',
+  displayMode = 'floating',
+}) {
+  const isPageMode = displayMode === 'page'
+  const token = sessionStorage.getItem(tokenStorageKey) || ''
   const tokenPayload = parseMessagingToken(token)
   const currentUserId =
     tokenPayload.user_id || tokenPayload.userId || tokenPayload.sub || tokenPayload.id || ''
 
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(isPageMode)
   const [searchTerm, setSearchTerm] = useState('')
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
 
@@ -1115,6 +1116,14 @@ export default function AdminMessages() {
       ),
     [conversations, rooms]
   )
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('portal-messages:unread', {
+        detail: { portalKey, count: totalUnreadCount },
+      })
+    )
+  }, [portalKey, totalUnreadCount])
 
   const scholarByUserId = useMemo(
     () =>
@@ -1304,14 +1313,14 @@ export default function AdminMessages() {
     try {
       setLoadingScholars(true)
 
-      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/members/scholars`, {
+      const response = await fetch(`${MESSAGING_API_BASE}/api/messages/members/contacts`, {
         headers: buildMessagingHeaders(token),
       })
 
-      const payload = await parseApiResponse(response, 'Failed to load scholar members.')
+      const payload = await parseApiResponse(response, 'Failed to load contacts.')
       setScholars((payload.items || []).map(normalizeScholarMember))
     } catch (err) {
-      setError(err.message || 'Failed to load scholar members.')
+      setError(err.message || 'Failed to load contacts.')
     } finally {
       setLoadingScholars(false)
     }
@@ -1830,10 +1839,10 @@ export default function AdminMessages() {
   }
 
   useEffect(() => {
-    if (!isOpen) return
-
     if (!token || !currentUserId) {
-      setError('Admin authentication is required to open messaging.')
+      if (isOpen) {
+        setError('Your staff session is required to open messaging.')
+      }
       setLoadingConversations(false)
       return
     }
@@ -2017,7 +2026,7 @@ export default function AdminMessages() {
               type: 'private',
               name:
                 senderId === currentUserId
-                  ? 'Scholar'
+                  ? 'Contact'
                   : message.senderName || 'New Conversation',
               studentNumber: '',
               lastMessage: message.messageBody,
@@ -2321,21 +2330,23 @@ export default function AdminMessages() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 z-40 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#7c4a2e] text-white shadow-xl transition hover:bg-[#6f4229] ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
-          }`}
-        title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
-      >
-        <MessageSquareMore className="h-7 w-7" />
+      {!isPageMode && (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
+            }`}
+          title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
+        >
+          <MessageSquareMore className="h-6 w-6" />
 
-        {totalUnreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-md">
-            {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-          </span>
-        )}
-      </button>
+          {totalUnreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-md">
+              {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
       <CreateGroupModal
         open={createRoomOpen}
@@ -2367,10 +2378,29 @@ export default function AdminMessages() {
       />
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6">
-          <div className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl">
+        <div
+          className={
+            isPageMode
+              ? 'h-[calc(100vh-9rem)] min-h-[560px] w-full'
+              : 'fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6'
+          }
+        >
+          <div
+            className={`flex w-full flex-col overflow-hidden border border-stone-200 bg-white ${
+              isPageMode
+                ? 'h-full rounded-2xl shadow-sm'
+                : 'h-[85vh] max-w-6xl rounded-3xl shadow-2xl'
+            }`}
+          >
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3 sm:px-5">
-              <div className="text-sm font-semibold text-stone-900">Messages</div>
+              <div>
+                <div className="text-sm font-semibold text-stone-900">Messages</div>
+                {isPageMode && (
+                  <p className="mt-0.5 text-xs text-stone-500">
+                    Direct and group conversations for your account.
+                  </p>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 {activeType === 'group' && activeRoomId ? (
@@ -2413,13 +2443,15 @@ export default function AdminMessages() {
                   <RefreshCw className="h-4 w-4" />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                {!isPageMode && (
+                  <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2439,7 +2471,7 @@ export default function AdminMessages() {
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
                       placeholder="Search..."
-                      className="h-10 w-full rounded-lg border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+                      className="h-10 w-full rounded-lg border border-stone-200 bg-white pl-10 pr-4 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
                     />
                   </div>
 
@@ -2448,7 +2480,7 @@ export default function AdminMessages() {
                       type="button"
                       onClick={() => setShowUnreadOnly((current) => !current)}
                       className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition ${showUnreadOnly
-                        ? 'border-[#7c4a2e] bg-amber-50 text-[#7c4a2e]'
+                        ? 'border-[var(--portal-base)] bg-[var(--portal-accent-soft)] text-[var(--portal-base)]'
                         : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300 hover:bg-stone-50'
                         }`}
                     >
@@ -2574,13 +2606,13 @@ export default function AdminMessages() {
                               ? 'Write a message to the group...'
                               : 'Write a reply...'
                           }
-                          className="min-h-[72px] flex-1 resize-none rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-800 outline-none transition focus:border-[#7c4a2e] focus:ring-2 focus:ring-[#7c4a2e]/15"
+                          className="min-h-[72px] flex-1 resize-none rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-800 outline-none transition focus:border-[var(--portal-base)] focus:ring-2 focus:ring-[var(--portal-accent-soft)]"
                         />
 
                         <button
                           type="submit"
                           disabled={sending || !draft.trim()}
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#7c4a2e] px-4 text-sm font-semibold text-white transition hover:bg-[#6f4229] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--portal-base)] px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {sending ? (
                             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -2596,7 +2628,7 @@ export default function AdminMessages() {
                   </>
                 ) : (
                   <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 px-6 text-center">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-[#7c4a2e]">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--portal-accent-soft)] text-[var(--portal-base)]">
                       <MessageSquareMore className="h-6 w-6" />
                     </div>
                     <div>

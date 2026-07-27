@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Loader2, RefreshCcw, Search, Upload } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSearch,
+  FileSpreadsheet,
+  Loader2,
+  RefreshCcw,
+  Search,
+  Upload,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { buildApiUrl } from '@/api';
@@ -24,7 +37,9 @@ export default function SDOStudentRegistryImport({ palette }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [previewing, setPreviewing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
   const [importSummary, setImportSummary] = useState(null);
   const [search, setSearch] = useState('');
@@ -64,9 +79,47 @@ export default function SDOStudentRegistryImport({ palette }) {
     if (!payload.module || payload.module === 'student_registry') loadRegistry({ soft: true });
   }, [loadRegistry]);
 
-  const importFile = async () => {
+  useSocketEvent('sdo-records:updated', () => {
+    loadRegistry({ soft: true });
+  }, [loadRegistry]);
+
+  const previewFile = async () => {
     if (!file) {
       toast.info('Choose a CSV or XLSX file first.');
+      return;
+    }
+
+    setPreviewing(true);
+    setError('');
+    setPreview(null);
+
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch(`${API_URL}/import/preview`, {
+        method: 'POST',
+        headers: headers(),
+        body,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.message || 'Preview failed.');
+
+      setPreview(data);
+      toast.success('File review completed', {
+        description: `${data.counts?.ready || 0} ready, ${data.counts?.duplicate || 0} duplicates, ${(data.counts?.unmatched || 0) + (data.counts?.invalid || 0)} need correction.`,
+      });
+    } catch (requestError) {
+      const message = requestError.message || 'Preview failed.';
+      setError(message);
+      toast.error('Unable to review the file', { description: message });
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const importFile = async () => {
+    if (!file || !preview?.counts?.ready) {
+      toast.info('Review the file and make sure it has records ready to import.');
       return;
     }
 
@@ -84,11 +137,12 @@ export default function SDOStudentRegistryImport({ palette }) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || data.message || 'Import failed.');
 
-      toast.success('SDO student list imported', {
+      toast.success('Disciplinary records imported', {
         description: `${data.imported || 0} imported, ${(data.unmatched_rows || []).length} unmatched, ${data.duplicate_rows || 0} duplicates skipped.`,
       });
       setImportSummary(data);
       setFile(null);
+      setPreview(null);
       if (inputRef.current) inputRef.current.value = '';
       await loadRegistry({ soft: true });
     } catch (requestError) {
@@ -98,6 +152,13 @@ export default function SDOStudentRegistryImport({ palette }) {
     } finally {
       setImporting(false);
     }
+  };
+
+  const clearFile = () => {
+    setFile(null);
+    setPreview(null);
+    setError('');
+    if (inputRef.current) inputRef.current.value = '';
   };
 
   const courseOptions = useMemo(
@@ -147,7 +208,7 @@ export default function SDOStudentRegistryImport({ palette }) {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-stone-900">SDO Disciplinary Records</h2>
+          <h2 className="text-lg font-semibold text-stone-900">Disciplinary Record Import</h2>
           <p className="mt-1 text-sm text-stone-500">
             Match existing students by PDM ID and maintain their recorded offense history.
           </p>
@@ -178,29 +239,143 @@ export default function SDOStudentRegistryImport({ palette }) {
                 type="file"
                 accept=".csv,.xlsx"
                 className="sr-only"
-                onChange={(event) => setFile(event.target.files?.[0] || null)}
+                onChange={(event) => {
+                  setFile(event.target.files?.[0] || null);
+                  setPreview(null);
+                  setImportSummary(null);
+                  setError('');
+                }}
               />
             </label>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="h-9 rounded-lg">
-              <a href="/templates/sdo-student-list-import-template.csv" download>
+              <a href="/templates/sdo-disciplinary-records-import-template.csv" download>
                 <Download className="mr-2 h-4 w-4" /> Template
               </a>
             </Button>
+            {file ? (
+              <Button variant="outline" className="h-9 rounded-lg" onClick={clearFile}>
+                <X className="mr-2 h-4 w-4" /> Clear
+              </Button>
+            ) : null}
             <Button
               className="h-9 rounded-lg text-white"
               style={{ backgroundColor: palette.base }}
-              disabled={!file || importing}
-              onClick={importFile}
+              disabled={!file || previewing || importing}
+              onClick={previewFile}
             >
-              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-              Import Records
+              {previewing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileSearch className="mr-2 h-4 w-4" />
+              )}
+              {preview ? 'Review Again' : 'Review File'}
             </Button>
           </div>
         </div>
       </Card>
+
+      {preview ? (
+        <Card className="overflow-hidden border-stone-200 shadow-none">
+          <div className="border-b border-stone-100 px-4 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-stone-900">Import Preview</p>
+                <p className="mt-1 text-xs text-stone-500">
+                  Review every row before confirming. Only records marked Ready will be saved.
+                </p>
+              </div>
+              <span className="text-xs font-medium text-stone-500">{file?.name}</span>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                ['Total rows', preview.counts?.total || 0, 'stone'],
+                ['Ready', preview.counts?.ready || 0, 'green'],
+                ['Duplicates', preview.counts?.duplicate || 0, 'amber'],
+                ['Unmatched', preview.counts?.unmatched || 0, 'orange'],
+                ['Invalid', preview.counts?.invalid || 0, 'red'],
+              ].map(([label, value, tone]) => (
+                <div
+                  key={label}
+                  className={`rounded-xl border px-3 py-3 ${
+                    tone === 'green'
+                      ? 'border-green-200 bg-green-50'
+                      : tone === 'amber'
+                        ? 'border-amber-200 bg-amber-50'
+                        : tone === 'orange'
+                          ? 'border-orange-200 bg-orange-50'
+                          : tone === 'red'
+                            ? 'border-red-200 bg-red-50'
+                            : 'border-stone-200 bg-stone-50'
+                  }`}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">{label}</p>
+                  <p className="mt-1 text-xl font-semibold text-stone-900">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="max-h-[360px] overflow-auto">
+            <table className="w-full min-w-[900px] text-left text-xs">
+              <thead className="sticky top-0 bg-stone-50 text-[10px] uppercase tracking-wide text-stone-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Row</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">PDM ID</th>
+                  <th className="px-4 py-3 font-medium">Offense</th>
+                  <th className="px-4 py-3 font-medium">Incident Date</th>
+                  <th className="px-4 py-3 font-medium">Reference</th>
+                  <th className="px-4 py-3 font-medium">Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {(preview.rows || []).map((row) => {
+                  const statusClass =
+                    row.status === 'ready'
+                      ? 'bg-green-50 text-green-700'
+                      : row.status === 'duplicate'
+                        ? 'bg-amber-50 text-amber-700'
+                        : row.status === 'unmatched'
+                          ? 'bg-orange-50 text-orange-700'
+                          : 'bg-red-50 text-red-700';
+                  return (
+                    <tr key={`${row.row_number}-${row.student_number}-${row.status}`}>
+                      <td className="px-4 py-3 text-stone-500">{row.row_number}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusClass}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-stone-900">{row.student_number || '-'}</td>
+                      <td className="px-4 py-3 text-stone-700">{row.offense_type || '-'}</td>
+                      <td className="px-4 py-3 text-stone-600">{row.offense_incident_date || '-'}</td>
+                      <td className="px-4 py-3 text-stone-600">{row.case_reference_number || '-'}</td>
+                      <td className="px-4 py-3 text-stone-500">{row.reason}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-stone-100 bg-stone-50/70 px-4 py-3">
+            <p className="flex items-center gap-2 text-xs text-stone-600">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              Confirmation will recheck duplicates before saving.
+            </p>
+            <Button
+              className="h-9 rounded-lg text-white"
+              style={{ backgroundColor: palette.base }}
+              disabled={!preview.counts?.ready || importing}
+              onClick={importFile}
+            >
+              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              Confirm Import
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -238,7 +413,7 @@ export default function SDOStudentRegistryImport({ palette }) {
       <Card className="overflow-hidden border-stone-200 shadow-none">
         <div className="space-y-3 border-b border-stone-100 px-4 py-4">
           <div>
-            <p className="text-sm font-semibold text-stone-900">Recorded offenses</p>
+            <p className="text-sm font-semibold text-stone-900">Disciplinary Record Entries</p>
             <p className="text-xs text-stone-500">Only students already registered by Admin can receive imported SDO records.</p>
           </div>
           <div className="grid gap-2 md:grid-cols-[minmax(240px,1fr)_180px_140px_190px_auto]">

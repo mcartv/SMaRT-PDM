@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ArrowRight,
@@ -10,6 +10,7 @@ import {
   NotebookPen,
   RefreshCw,
   ShieldAlert,
+  Users,
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
@@ -39,7 +40,7 @@ function formatDate(value) {
   });
 }
 
-function SummaryCard({ icon: Icon, label, value, tone, theme }) {
+function SummaryCard({ icon, label, value, tone, theme }) {
   return (
     <Card
       className="rounded-[22px] shadow-none"
@@ -47,7 +48,7 @@ function SummaryCard({ icon: Icon, label, value, tone, theme }) {
     >
       <CardContent className="flex items-center gap-3 p-4">
         <div className={`rounded-2xl p-2.5 ${tone}`}>
-          <Icon className="h-4 w-4" />
+          {createElement(icon, { className: 'h-4 w-4' })}
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-stone-500">{label}</p>
@@ -68,6 +69,7 @@ const DASHBOARD_CONFIG = {
     trackerPath: '/sdo/tracker',
     reportsPath: '/sdo/reports',
     maintenancePath: '/sdo/maintenance',
+    recordsPath: '/sdo/students-with-records',
     detailBasePath: '/sdo/endorsements',
     accent: 'from-emerald-700 via-emerald-600 to-teal-600',
     accentSoft: 'bg-emerald-50 text-emerald-700',
@@ -213,8 +215,33 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [sdoRecordsSummary, setSdoRecordsSummary] = useState({
+    total_students: 0,
+    total_records: 0,
+    latest_record: null,
+  });
 
-  const loadRows = async ({ soft = false } = {}) => {
+  const loadSdoRecordsSummary = useCallback(async () => {
+    if (officeKey !== 'sdo') return;
+    try {
+      const response = await fetch(
+        buildApiUrl('/api/student-registry/sdo-records/summary'),
+        { headers: buildHeaders(tokenStorageKey) }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setSdoRecordsSummary({
+          total_students: Number(data.total_students || 0),
+          total_records: Number(data.total_records || 0),
+          latest_record: data.latest_record || null,
+        });
+      }
+    } catch {
+      // The endorsement dashboard remains usable if the optional records summary is unavailable.
+    }
+  }, [officeKey, tokenStorageKey]);
+
+  const loadRows = useCallback(async ({ soft = false } = {}) => {
     try {
       if (soft) {
         setRefreshing(true);
@@ -239,11 +266,12 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [tokenStorageKey]);
 
   useEffect(() => {
     loadRows();
-  }, [tokenStorageKey]);
+    loadSdoRecordsSummary();
+  }, [loadRows, loadSdoRecordsSummary]);
 
   useSocketEvent(
     'endorsement:updated',
@@ -251,6 +279,14 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
       loadRows({ soft: true });
     },
     [tokenStorageKey]
+  );
+
+  useSocketEvent(
+    'sdo-records:updated',
+    () => {
+      loadSdoRecordsSummary();
+    },
+    [officeKey, tokenStorageKey]
   );
 
   const cards = useMemo(() => config.cards(rows), [config, rows]);
@@ -301,6 +337,16 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
   const recentActivity = useMemo(() => {
     const activity = [];
 
+    if (officeKey === 'sdo' && sdoRecordsSummary.latest_record?.created_at) {
+      activity.push({
+        slip_id: `sdo-record-${sdoRecordsSummary.latest_record.record_id}`,
+        student_name: sdoRecordsSummary.latest_record.student_number,
+        stage_label: 'Disciplinary record imported',
+        status: sdoRecordsSummary.latest_record.offense_type,
+        acted_at: sdoRecordsSummary.latest_record.created_at,
+      });
+    }
+
     rows.forEach((row) => {
       (row.stages || []).forEach((stage) => {
         if (!stage?.acted_at) return;
@@ -317,7 +363,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
     return activity
       .sort((a, b) => new Date(b.acted_at).getTime() - new Date(a.acted_at).getTime())
       .slice(0, 4);
-  }, [rows]);
+  }, [officeKey, rows, sdoRecordsSummary.latest_record]);
 
   if (loading) {
     return (
@@ -406,6 +452,36 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
             />
           ))}
       </div>
+
+      {officeKey === 'sdo' ? (
+        <Card className="rounded-[22px] border-stone-200 shadow-none">
+          <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+              style={{ background: theme.accentSoft, color: theme.base }}
+            >
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-stone-900">Disciplinary Records</p>
+              <p className="mt-1 text-xs text-stone-500">
+                {sdoRecordsSummary.total_students} students with {sdoRecordsSummary.total_records} record entries
+                {sdoRecordsSummary.latest_record?.created_at
+                  ? ` · Latest update ${formatDate(sdoRecordsSummary.latest_record.created_at)}`
+                  : ''}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="shrink-0 border-stone-200"
+              onClick={() => navigate(config.recordsPath)}
+            >
+              View Students
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
         <Card className="rounded-[24px] border-stone-200 shadow-none">
@@ -507,6 +583,16 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
                 Reports
                 <ArrowRight className="h-4 w-4" />
               </Button>
+              {officeKey === 'sdo' ? (
+                <Button
+                  variant="outline"
+                  className="w-full justify-between border-stone-200"
+                  onClick={() => navigate(config.recordsPath)}
+                >
+                  Students with Records
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 className="w-full justify-between border-stone-200"

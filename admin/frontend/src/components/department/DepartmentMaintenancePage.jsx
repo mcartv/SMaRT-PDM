@@ -913,7 +913,7 @@ export default function DepartmentMaintenancePage({
     { key: 'general', label: 'General', icon: SlidersHorizontal },
     { key: 'account', label: 'Account', icon: User },
     ...(config.enableStudentRegistryImport
-      ? [{ key: 'student-list', label: 'Student List', icon: FileSpreadsheet }]
+      ? [{ key: 'student-list', label: 'Record Import', icon: FileSpreadsheet }]
       : []),
     { key: 'theme', label: 'Theme', icon: Palette },
     { key: 'audit', label: 'Audit', icon: ClipboardList },

@@ -54,6 +54,14 @@ exports.importRegistry = async (req, res) => {
       updated_at: new Date().toISOString(),
       imported_count: result?.imported ?? null,
     });
+    if (isSdo) {
+      socketEvents.sdoRecordsUpdated(io, {
+        action: 'import',
+        updated_at: new Date().toISOString(),
+        imported_count: result?.imported ?? 0,
+        total_rows: result?.total ?? 0,
+      });
+    }
 
     res.status(200).json({
       message: isSdo ? 'SDO disciplinary records imported successfully' : 'Registrar file imported successfully',
@@ -65,6 +73,69 @@ exports.importRegistry = async (req, res) => {
       message: 'Failed to import registrar file',
       error: err.message,
       details: err.details || err.hint || null,
+    });
+  }
+};
+
+exports.previewSdoImport = async (req, res) => {
+  try {
+    const result = await studentRegistryService.previewSdoDisciplinaryRecordsFile({
+      file: req.file,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('SDO RECORD IMPORT PREVIEW ERROR:', err);
+    res.status(err.statusCode || 500).json({
+      message: 'Failed to preview disciplinary records',
+      error: err.message,
+      details: err.details || null,
+    });
+  }
+};
+
+exports.getSdoStudentsWithRecords = async (req, res) => {
+  try {
+    const data = await studentRegistryService.listSdoStudentsWithRecords({
+      limit: req.query.limit,
+      offset: req.query.offset,
+      search: req.query.search,
+      course: req.query.course,
+      offense: req.query.offense,
+    });
+    res.json(data);
+  } catch (err) {
+    console.error('SDO STUDENTS WITH RECORDS ERROR:', err);
+    res.status(err.statusCode || 500).json({
+      message: 'Failed to load students with disciplinary records',
+      error: err.message,
+    });
+  }
+};
+
+exports.getSdoStudentRecordHistory = async (req, res) => {
+  try {
+    const data = await studentRegistryService.getSdoStudentRecordHistory(
+      req.params.studentNumber
+    );
+    res.json(data);
+  } catch (err) {
+    console.error('SDO STUDENT RECORD HISTORY ERROR:', err);
+    res.status(err.statusCode || 500).json({
+      message: 'Failed to load disciplinary record history',
+      error: err.message,
+    });
+  }
+};
+
+exports.getSdoRecordsSummary = async (req, res) => {
+  try {
+    const data = await studentRegistryService.getSdoRecordsSummary();
+    res.json(data);
+  } catch (err) {
+    console.error('SDO RECORDS SUMMARY ERROR:', err);
+    res.status(err.statusCode || 500).json({
+      message: 'Failed to load disciplinary records summary',
+      error: err.message,
     });
   }
 };

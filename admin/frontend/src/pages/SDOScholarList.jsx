@@ -126,7 +126,7 @@ function ScholarViewModal({ scholar, draft, onClose }) {
           <div>
             <h3 className="text-base font-semibold text-stone-800">Scholar Profile</h3>
             <p className="text-xs text-stone-500 mt-0.5">
-              Review scholar details before updating SDO probation status
+              Review scholar details before updating disciplinary standing
             </p>
           </div>
 
@@ -257,7 +257,7 @@ function ScholarViewModal({ scholar, draft, onClose }) {
                   <div className="rounded-lg border border-stone-200 px-3 py-3">
                     <div className="flex items-center gap-2 text-stone-500 mb-1">
                       <ShieldAlert size={13} />
-                      <span>Probation Status</span>
+                      <span>Disciplinary Standing</span>
                     </div>
                     <p className="font-medium text-stone-800">{displayStatus.label}</p>
                   </div>
@@ -282,7 +282,7 @@ function ScholarViewModal({ scholar, draft, onClose }) {
                   <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4">
                     <p className="text-xs text-stone-600 leading-relaxed">
                       Use this view to validate scholar identity, batch, section, program, and
-                      existing probation notes before saving an SDO status update.
+                      existing disciplinary remarks before saving an SDO update.
                     </p>
                   </div>
                 </CardContent>
@@ -514,7 +514,7 @@ export default function SDOScholarList() {
         )
       );
 
-      setFeedback(`Updated ${scholar.student_name}'s probation status.`);
+      setFeedback(`Updated ${scholar.student_name}'s disciplinary standing.`);
     } catch (err) {
       setError(err.message || 'Failed to save scholar update.');
     } finally {
@@ -600,7 +600,7 @@ export default function SDOScholarList() {
             Scholar Monitoring
           </h1>
           <p className="text-sm mt-0.5" style={{ color: C.muted }}>
-            Review scholar records and manage SDO probation updates.
+            Review scholar records and manage disciplinary standing.
           </p>
         </div>
 
@@ -732,7 +732,7 @@ export default function SDOScholarList() {
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Student ID</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Program</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3">Section</TableHead>
-                <TableHead className="text-xs font-medium text-stone-500 py-3 w-[160px]">Probation Status</TableHead>
+                <TableHead className="text-xs font-medium text-stone-500 py-3 w-[160px]">Disciplinary Standing</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 min-w-[280px]">Comment</TableHead>
                 <TableHead className="text-xs font-medium text-stone-500 py-3 text-right pr-5">Action</TableHead>
               </TableRow>
@@ -804,7 +804,7 @@ export default function SDOScholarList() {
                             handleDraftChange(scholar.scholar_id, 'comment', e.target.value, scholar)
                           }
                           rows={3}
-                          placeholder="Add disciplinary note or probation comment"
+                          placeholder="Add disciplinary remarks"
                           className="min-h-[88px] rounded-lg border-stone-200 text-sm resize-none bg-white"
                         />
                       </TableCell>

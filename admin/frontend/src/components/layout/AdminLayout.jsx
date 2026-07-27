@@ -16,7 +16,6 @@ import {
   Briefcase,
   LifeBuoy,
   Image,
-  MessageSquareMore,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import AdminMessages from '../../pages/AdminMessages';
@@ -48,7 +47,6 @@ const navItems = [
   { path: '/admin/obligations', icon: CheckSquare, label: 'Obligations' },
   { path: '/admin/payout', icon: Wallet, label: 'Payout' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
-  { path: '/admin/messages', icon: MessageSquareMore, label: 'Messages' },
   { path: '/admin/openings', icon: Briefcase, label: 'Openings' },
   { path: '/admin/announcements', icon: Megaphone, label: 'Announcements' },
   { path: '/admin/profile-photos', icon: Image, label: 'Profile Photos' },
@@ -249,15 +247,6 @@ export default function AdminLayout() {
                   }`}
               />
               {!collapsed && <span className="truncate font-medium">{item.label}</span>}
-              {item.label === 'Messages' && messageUnreadCount > 0 && (
-                <span
-                  className={`flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ${
-                    collapsed ? 'absolute right-1.5 top-1.5' : 'ml-auto'
-                  }`}
-                >
-                  {messageUnreadCount > 9 ? '9+' : messageUnreadCount}
-                </span>
-              )}
             </NavLink>
           ))}
         </nav>
@@ -501,7 +490,7 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        {!location.pathname.endsWith('/messages') && <AdminMessages />}
+        <AdminMessages />
       </div>
     </div>
   );

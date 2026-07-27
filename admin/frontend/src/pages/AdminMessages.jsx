@@ -1067,15 +1067,13 @@ function AddMembersModal({
 export default function AdminMessages({
   tokenStorageKey = 'adminToken',
   portalKey = 'admin',
-  displayMode = 'floating',
 }) {
-  const isPageMode = displayMode === 'page'
   const token = sessionStorage.getItem(tokenStorageKey) || ''
   const tokenPayload = parseMessagingToken(token)
   const currentUserId =
     tokenPayload.user_id || tokenPayload.userId || tokenPayload.sub || tokenPayload.id || ''
 
-  const [isOpen, setIsOpen] = useState(isPageMode)
+  const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showUnreadOnly, setShowUnreadOnly] = useState(false)
 
@@ -2330,23 +2328,21 @@ export default function AdminMessages({
 
   return (
     <>
-      {!isPageMode && (
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
-            }`}
-          title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
-        >
-          <MessageSquareMore className="h-6 w-6" />
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className={`fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--portal-base)] text-white shadow-xl transition hover:brightness-95 ${totalUnreadCount > 0 ? 'ring-4 ring-red-200' : ''
+          }`}
+        title={totalUnreadCount > 0 ? `${totalUnreadCount} unread message(s)` : 'Messages'}
+      >
+        <MessageSquareMore className="h-6 w-6" />
 
-          {totalUnreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-md">
-              {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-            </span>
-          )}
-        </button>
-      )}
+        {totalUnreadCount > 0 && (
+          <span className="absolute -right-1 -top-1 flex min-h-[24px] min-w-[24px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-md">
+            {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+          </span>
+        )}
+      </button>
 
       <CreateGroupModal
         open={createRoomOpen}
@@ -2378,29 +2374,10 @@ export default function AdminMessages({
       />
 
       {isOpen && (
-        <div
-          className={
-            isPageMode
-              ? 'h-[calc(100vh-9rem)] min-h-[560px] w-full'
-              : 'fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6'
-          }
-        >
-          <div
-            className={`flex w-full flex-col overflow-hidden border border-stone-200 bg-white ${
-              isPageMode
-                ? 'h-full rounded-2xl shadow-sm'
-                : 'h-[85vh] max-w-6xl rounded-3xl shadow-2xl'
-            }`}
-          >
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:p-6">
+          <div className="flex h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3 sm:px-5">
-              <div>
-                <div className="text-sm font-semibold text-stone-900">Messages</div>
-                {isPageMode && (
-                  <p className="mt-0.5 text-xs text-stone-500">
-                    Direct and group conversations for your account.
-                  </p>
-                )}
-              </div>
+              <div className="text-sm font-semibold text-stone-900">Messages</div>
 
               <div className="flex items-center gap-2">
                 {activeType === 'group' && activeRoomId ? (
@@ -2443,15 +2420,13 @@ export default function AdminMessages({
                   <RefreshCw className="h-4 w-4" />
                 </button>
 
-                {!isPageMode && (
-                  <button
-                    type="button"
-                    onClick={() => setIsOpen(false)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 transition hover:border-stone-300 hover:bg-stone-50"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
 

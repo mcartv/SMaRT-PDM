@@ -123,10 +123,7 @@ export default function App() {
           <Route path="obligations" element={<ROAdmin />} />
           <Route path="payout" element={<PayoutManagement />} />
           <Route path="reports" element={<ReportGeneration />} />
-          <Route
-            path="messages"
-            element={<AdminMessages displayMode="page" tokenStorageKey="adminToken" portalKey="admin" />}
-          />
+          <Route path="messages" element={<AdminMessages />} />
           <Route path="announcements" element={<AnnouncementsManagement />} />
           <Route path="profile-photos" element={<ProfilePhotoQueue />} />
           <Route path="profile-photos/:reviewId" element={<ProfilePhotoQueue />} />
@@ -181,10 +178,6 @@ export default function App() {
               />
             }
           />
-          <Route
-            path="messages"
-            element={<AdminMessages displayMode="page" tokenStorageKey="pdToken" portalKey="pd" />}
-          />
           <Route path="profile" element={<PDProfile />} />
           <Route path="maintenance" element={<PDMaintenance />} />
         </Route>
@@ -233,16 +226,6 @@ export default function App() {
                 tokenStorageKey="guidanceToken"
                 allowedReportTypes={['guidance']}
                 defaultReportType="guidance"
-              />
-            }
-          />
-          <Route
-            path="messages"
-            element={
-              <AdminMessages
-                displayMode="page"
-                tokenStorageKey="guidanceToken"
-                portalKey="guidance"
               />
             }
           />
@@ -296,10 +279,6 @@ export default function App() {
                 defaultReportType="sdo"
               />
             }
-          />
-          <Route
-            path="messages"
-            element={<AdminMessages displayMode="page" tokenStorageKey="sdoToken" portalKey="sdo" />}
           />
           <Route path="scholars" element={<SDOScholarList />} />
           <Route path="students-with-records" element={<SDOStudentsWithRecords />} />

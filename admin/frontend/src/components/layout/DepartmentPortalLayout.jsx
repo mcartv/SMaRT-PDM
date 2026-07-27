@@ -8,7 +8,6 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
-  MessageSquareMore,
   Settings,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
@@ -160,7 +159,6 @@ export default function DepartmentPortalLayout({
     { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
     ...(queuePath ? [{ path: queuePath, label: 'My Queue', icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
-    { path: `/${portalKey}/messages`, label: 'Messages', icon: MessageSquareMore },
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
     ...(maintenancePath ? [{ path: maintenancePath, label: 'Maintenance', icon: Settings }] : []),
   ];
@@ -230,15 +228,6 @@ export default function DepartmentPortalLayout({
             >
               <item.icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate font-medium">{item.label}</span>}
-              {item.label === 'Messages' && messageUnreadCount > 0 && (
-                <span
-                  className={`flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ${
-                    collapsed ? 'absolute right-1.5 top-1.5' : 'ml-auto'
-                  }`}
-                >
-                  {messageUnreadCount > 9 ? '9+' : messageUnreadCount}
-                </span>
-              )}
             </NavLink>
           ))}
         </nav>
@@ -461,9 +450,7 @@ export default function DepartmentPortalLayout({
         </main>
       </div>
 
-      {!location.pathname.endsWith('/messages') && (
-        <AdminMessages tokenStorageKey={tokenStorageKey} portalKey={portalKey} />
-      )}
+      <AdminMessages tokenStorageKey={tokenStorageKey} portalKey={portalKey} />
     </div>
   );
 }

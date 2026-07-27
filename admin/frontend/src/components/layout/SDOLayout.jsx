@@ -11,7 +11,6 @@ import {
   LogOut,
   Settings,
   Users,
-  MessageSquareMore,
 } from 'lucide-react';
 import pdmLogo from '../../assets/pdm-logo.png';
 import PortalQuickTools from './PortalQuickTools';
@@ -41,7 +40,6 @@ const navItems = [
   { path: '/sdo/queue', label: 'My Queue', icon: FileText },
   { path: '/sdo/tracker', label: 'All Applicants', icon: FileText },
   { path: '/sdo/students-with-records', label: 'Students with Records', icon: Users },
-  { path: '/sdo/messages', label: 'Messages', icon: MessageSquareMore },
   { path: '/sdo/reports', label: 'Reports', icon: BarChart3 },
   { path: '/sdo/scholars', label: 'Scholar List', icon: ShieldAlert },
   { path: '/sdo/maintenance', label: 'Maintenance', icon: Settings },
@@ -256,15 +254,6 @@ export default function SDOLayout() {
             >
               <item.icon className="w-4 h-4 shrink-0" />
               {!collapsed && <span className="font-medium truncate">{item.label}</span>}
-              {item.label === 'Messages' && messageUnreadCount > 0 && (
-                <span
-                  className={`flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ${
-                    collapsed ? 'absolute right-1.5 top-1.5' : 'ml-auto'
-                  }`}
-                >
-                  {messageUnreadCount > 9 ? '9+' : messageUnreadCount}
-                </span>
-              )}
             </NavLink>
           ))}
         </nav>
@@ -494,9 +483,7 @@ export default function SDOLayout() {
         </main>
       </div>
 
-      {!location.pathname.endsWith('/messages') && (
-        <AdminMessages tokenStorageKey="sdoToken" portalKey="sdo" />
-      )}
+      <AdminMessages tokenStorageKey="sdoToken" portalKey="sdo" />
     </div>
   );
 }

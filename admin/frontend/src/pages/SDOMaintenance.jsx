@@ -2,7 +2,7 @@ import DepartmentMaintenancePage from '@/components/department/DepartmentMainten
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 
-const config = {
+export const sdoMaintenanceConfig = {
   shortName: 'SDO',
   themePortalKey: 'sdo',
   pageSubtitle: 'SDO configuration and disciplinary monitoring maintenance',
@@ -50,7 +50,7 @@ export default function SDOMaintenance() {
 
   return (
     <DepartmentMaintenancePage
-      config={config}
+      config={sdoMaintenanceConfig}
       palette={palette}
       tokenStorageKey="sdoToken"
       profileStorageKey="sdoProfile"

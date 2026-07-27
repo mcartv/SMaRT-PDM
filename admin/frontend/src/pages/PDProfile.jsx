@@ -5,8 +5,14 @@ import {
   Shield,
 } from 'lucide-react';
 import OfficeProfilePage from '@/components/profile/OfficeProfilePage';
+import usePortalTheme from '@/hooks/usePortalTheme';
+import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
+import { pdMaintenanceConfig } from '@/pages/PDMaintenance';
 
 export default function PDProfile() {
+  const { theme } = usePortalTheme('pd', getPortalDefaultTheme('pd'));
+  const palette = buildMaintenancePalette(theme);
+
   return (
     <OfficeProfilePage
       storageKey="pdProfile"
@@ -18,6 +24,9 @@ export default function PDProfile() {
       roleFallback="PD Staff"
       avatarTone="#5f3d8a"
       bio="Handles final endorsement review, academic standing confirmation, and program-side approval decisions inside the SMaRT-PDM platform."
+      accountConfig={pdMaintenanceConfig}
+      palette={palette}
+      tokenStorageKey="pdToken"
       statCards={[
         { label: 'Endorsements', value: '88', icon: FileSearch, tone: 'green' },
         { label: 'Final Reviews', value: '36', icon: Shield, tone: 'stone' },

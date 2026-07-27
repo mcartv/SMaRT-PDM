@@ -2,7 +2,7 @@ import DepartmentMaintenancePage from '@/components/department/DepartmentMainten
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 
-const config = {
+export const pdMaintenanceConfig = {
   shortName: 'PD',
   themePortalKey: 'pd',
   pageSubtitle: 'Program Director configuration and endorsement maintenance',
@@ -49,7 +49,7 @@ export default function PDMaintenance() {
 
   return (
     <DepartmentMaintenancePage
-      config={config}
+      config={pdMaintenanceConfig}
       palette={palette}
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"

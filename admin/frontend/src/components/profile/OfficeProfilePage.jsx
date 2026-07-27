@@ -4,10 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  User,
-  Mail,
-  Phone,
-  Building2,
   Shield,
   Clock3,
   Activity,
@@ -15,10 +11,9 @@ import {
   Smartphone,
   BadgeCheck,
   Settings,
-  FileSearch,
   AlertTriangle,
-  PenTool,
 } from 'lucide-react';
+import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
 
 const SESSION_LOG = [
   {
@@ -37,13 +32,13 @@ const SESSION_LOG = [
   },
 ];
 
-function SectionCard({ title, subtitle, icon: Icon, children, action }) {
+function SectionCard({ title, subtitle, icon, children, action }) {
   return (
     <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-sm">
       <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/60 px-5 py-4">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white shadow-sm">
-            <Icon className="h-4 w-4 text-stone-600" />
+            {React.createElement(icon, { className: 'h-4 w-4 text-stone-600' })}
           </div>
           <div>
             <h3 className="text-sm font-semibold text-stone-800">{title}</h3>
@@ -58,11 +53,11 @@ function SectionCard({ title, subtitle, icon: Icon, children, action }) {
   );
 }
 
-function InfoRow({ icon: Icon, label, value }) {
+function InfoRow({ icon, label, value }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white">
-        <Icon className="h-4 w-4 text-stone-500" />
+        {React.createElement(icon, { className: 'h-4 w-4 text-stone-500' })}
       </div>
 
       <div className="min-w-0">
@@ -73,7 +68,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, tone = 'green' }) {
+function StatCard({ label, value, icon, tone = 'green' }) {
   const toneMap = {
     green: 'border-green-100 bg-green-50 text-green-700',
     amber: 'border-amber-100 bg-amber-50 text-amber-700',
@@ -84,7 +79,7 @@ function StatCard({ label, value, icon: Icon, tone = 'green' }) {
   return (
     <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-4">
       <div className={`flex h-9 w-9 items-center justify-center rounded-xl border ${toneMap[tone]}`}>
-        <Icon className="h-4 w-4" />
+        {React.createElement(icon, { className: 'h-4 w-4' })}
       </div>
       <p className="mt-4 text-2xl font-bold leading-none text-stone-900">{value}</p>
       <p className="mt-2 text-[11px] font-medium uppercase tracking-wider text-stone-500">
@@ -106,8 +101,11 @@ export default function OfficeProfilePage({
   statCards = [],
   activityLog = [],
   bio,
+  accountConfig,
+  palette,
+  tokenStorageKey,
 }) {
-  const [profile] = useState(() => {
+  const [profile, setProfile] = useState(() => {
     const saved = sessionStorage.getItem(storageKey);
     try {
       return saved ? JSON.parse(saved) : null;
@@ -152,7 +150,7 @@ export default function OfficeProfilePage({
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-stone-900">{heading}</h1>
           <p className="mt-1 text-sm text-stone-500">
-            View your account information, status, recent activity, and signed-in sessions.
+            Manage your profile and review your account activity.
           </p>
         </div>
 
@@ -217,49 +215,13 @@ export default function OfficeProfilePage({
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          <SectionCard
-            title="Account Information"
-            subtitle={`Read-only profile details for this ${portalName} account.`}
-            icon={User}
-            action={
-              <Badge variant="outline" className="hidden rounded-full border-stone-200 bg-white text-stone-500 sm:inline-flex">
-                View Only
-              </Badge>
-            }
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <InfoRow icon={User} label="Full Name" value={fullName} />
-              <InfoRow icon={Shield} label="Role" value={account.role} />
-              <InfoRow icon={Mail} label="Email Address" value={account.email} />
-              <InfoRow icon={Phone} label="Phone Number" value={account.phone} />
-              <InfoRow icon={Building2} label="Department" value={account.department} />
-              <InfoRow icon={Shield} label="Position / Role Title" value={account.position} />
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-              <p className="text-sm font-medium text-emerald-800">
-                Profile updates and account editing are managed in <span className="font-semibold">Maintenance</span>.
-              </p>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Slip Identity"
-            subtitle={`Current endorsement identity details for this ${portalName} account.`}
-            icon={PenTool}
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <InfoRow icon={User} label="Name on Slip" value={fullName} />
-              <InfoRow icon={Building2} label="Office / Department" value={account.department} />
-              <InfoRow icon={PenTool} label="Signature" value="Soon" />
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-              <p className="text-sm text-stone-700">
-                The current name and office/department above are the identity details that can be shown on endorsement slips. Signature can be added later when that feature is ready.
-              </p>
-            </div>
-          </SectionCard>
+          <DepartmentAccountPanel
+            config={accountConfig}
+            palette={palette}
+            tokenStorageKey={tokenStorageKey}
+            profileStorageKey={storageKey}
+            onProfileUpdated={setProfile}
+          />
 
           <SectionCard
             title="Recent Activity"
@@ -351,7 +313,7 @@ export default function OfficeProfilePage({
           >
             <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
               <p className="text-sm font-medium text-amber-800">
-                Keep this office account updated and use Maintenance for profile changes, contact details, and account review.
+                Keep your profile details current and never share your account credentials.
               </p>
             </div>
           </SectionCard>

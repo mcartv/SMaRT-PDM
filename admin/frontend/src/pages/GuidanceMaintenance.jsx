@@ -2,7 +2,7 @@ import DepartmentMaintenancePage from '@/components/department/DepartmentMainten
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 
-const config = {
+export const guidanceMaintenanceConfig = {
   shortName: 'Guidance',
   themePortalKey: 'guidance',
   pageSubtitle: 'Guidance Office configuration and counseling review maintenance',
@@ -49,7 +49,7 @@ export default function GuidanceMaintenance() {
 
   return (
     <DepartmentMaintenancePage
-      config={config}
+      config={guidanceMaintenanceConfig}
       palette={palette}
       tokenStorageKey="guidanceToken"
       profileStorageKey="guidanceProfile"

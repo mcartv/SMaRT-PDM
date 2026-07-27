@@ -46,12 +46,12 @@ function FieldLabel({ children }) {
   );
 }
 
-function GroupCard({ title, icon: Icon, children }) {
+function GroupCard({ title, icon, children }) {
   return (
     <Card className="overflow-hidden border-stone-200 bg-white shadow-none">
       <div className="flex items-center gap-2.5 border-b border-stone-100 bg-stone-50/60 px-4 py-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-stone-200 bg-white">
-          <Icon className="h-4 w-4 text-stone-600" />
+          {React.createElement(icon, { className: 'h-4 w-4 text-stone-600' })}
         </div>
         <p className="text-sm font-semibold text-stone-800">{title}</p>
       </div>
@@ -79,6 +79,7 @@ function useDepartmentAccountManager({
   config,
   tokenStorageKey,
   profileStorageKey,
+  onProfileUpdated,
 }) {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingAccount, setSavingAccount] = useState(false);
@@ -253,6 +254,22 @@ function useDepartmentAccountManager({
     setAccountFeedback('Profile photo selected. Click upload to save it.');
   };
 
+  const storeProfile = (savedProfile, accountValues = account) => {
+    const mergedProfile = {
+      ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
+      ...savedProfile,
+      name:
+        savedProfile.name ||
+        `${savedProfile.first_name || accountValues.first_name} ${
+          savedProfile.last_name || accountValues.last_name
+        }`.trim(),
+    };
+
+    sessionStorage.setItem(profileStorageKey, JSON.stringify(mergedProfile));
+    onProfileUpdated?.(mergedProfile);
+    return mergedProfile;
+  };
+
   const handleUploadPhoto = async () => {
     if (!photoFile) {
       setAccountFeedback('Please choose a profile photo first.');
@@ -296,14 +313,7 @@ function useDepartmentAccountManager({
         fileInputRef.current.value = '';
       }
 
-      sessionStorage.setItem(
-        profileStorageKey,
-        JSON.stringify({
-          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
-          ...savedProfile,
-          name: savedProfile.name || `${savedProfile.first_name || account.first_name} ${savedProfile.last_name || account.last_name}`.trim(),
-        })
-      );
+      storeProfile(savedProfile);
 
       setAccountFeedback(`${config.shortName} profile photo updated successfully.`);
     } catch (err) {
@@ -348,14 +358,7 @@ function useDepartmentAccountManager({
         fileInputRef.current.value = '';
       }
 
-      sessionStorage.setItem(
-        profileStorageKey,
-        JSON.stringify({
-          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
-          ...savedProfile,
-          name: savedProfile.name || `${savedProfile.first_name || account.first_name} ${savedProfile.last_name || account.last_name}`.trim(),
-        })
-      );
+      storeProfile(savedProfile);
 
       setAccountFeedback(`${config.shortName} profile photo removed successfully.`);
     } catch (err) {
@@ -405,14 +408,7 @@ function useDepartmentAccountManager({
 
       setAccount(updatedAccount);
       setInitialAccount(updatedAccount);
-      sessionStorage.setItem(
-        profileStorageKey,
-        JSON.stringify({
-          ...(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}')),
-          ...savedProfile,
-          name: savedProfile.name || `${updatedAccount.first_name} ${updatedAccount.last_name}`.trim(),
-        })
-      );
+      storeProfile(savedProfile, updatedAccount);
       setAccountFeedback(`${config.shortName} account updated successfully.`);
     } catch (err) {
       console.error(`${config.shortName.toUpperCase()} ACCOUNT SAVE ERROR:`, err);
@@ -535,11 +531,12 @@ function GeneralPanel({
   );
 }
 
-function AccountPanel({
+export function DepartmentAccountPanel({
   config,
   palette,
   tokenStorageKey,
   profileStorageKey,
+  onProfileUpdated,
 }) {
   const {
     loadingProfile,
@@ -564,18 +561,19 @@ function AccountPanel({
     config,
     tokenStorageKey,
     profileStorageKey,
+    onProfileUpdated,
   });
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-stone-900">Account Management</h2>
+        <h2 className="text-lg font-semibold text-stone-900">Profile & Account</h2>
         <p className="text-sm text-stone-500">
-          Update the active {config.shortName} account details, profile photo, and display information
+          Update your name, contact details, office information, and profile photo.
         </p>
       </div>
 
-      <GroupCard title={`${config.shortName} Account Management`} icon={User}>
+      <GroupCard title={`${config.shortName} Profile Details`} icon={User}>
         <div className="space-y-5">
           <div className={`rounded-xl border px-4 py-3 ${palette.infoBox}`}>
             <p className="text-sm font-medium">Manage the current office account in one place.</p>
@@ -767,7 +765,7 @@ function AccountPanel({
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
                 <p className="text-[10px] uppercase tracking-wide text-stone-400">Name on Slip</p>
                 <p className="mt-1 text-sm font-semibold text-stone-800">{displayName}</p>
@@ -776,17 +774,6 @@ function AccountPanel({
                 <p className="text-[10px] uppercase tracking-wide text-stone-400">Office / Department</p>
                 <p className="mt-1 text-sm font-semibold text-stone-800">{account.department || config.account.department}</p>
               </div>
-              <div className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wide text-stone-400">Signature</p>
-                <p className="mt-1 text-sm font-semibold text-stone-800">Soon</p>
-              </div>
-            </div>
-
-            <div className={`mt-4 rounded-xl border px-4 py-3 ${palette.infoBox}`}>
-              <p className="text-sm font-medium">Slip preview meaning</p>
-              <p className="mt-1 text-xs leading-5">
-                When this office clears, holds, rejects, or approves a slip, the saved name and office/department above are the identity details that should be shown on the endorsement record. Signature can be added later when you are ready for that feature.
-              </p>
             </div>
           </div>
 
@@ -810,7 +797,7 @@ function AccountPanel({
   );
 }
 
-function AuditPanel({ config, palette }) {
+function AuditPanel({ config }) {
   const auditEntries = config.auditEntries;
 
   return (
@@ -906,12 +893,10 @@ export default function DepartmentMaintenancePage({
   config,
   palette,
   tokenStorageKey = 'adminToken',
-  profileStorageKey = 'adminProfile',
 }) {
   const [tab, setTab] = useState('general');
   const tabs = [
     { key: 'general', label: 'General', icon: SlidersHorizontal },
-    { key: 'account', label: 'Account', icon: User },
     ...(config.enableStudentRegistryImport
       ? [{ key: 'student-list', label: 'Record Import', icon: FileSpreadsheet }]
       : []),
@@ -953,14 +938,6 @@ export default function DepartmentMaintenancePage({
               palette={palette}
             />
           )}
-          {tab === 'account' && (
-            <AccountPanel
-              config={config}
-              palette={palette}
-              tokenStorageKey={tokenStorageKey}
-              profileStorageKey={profileStorageKey}
-            />
-          )}
           {tab === 'student-list' && <SDOStudentRegistryImport palette={palette} />}
           {tab === 'theme' && (
             <ThemePanel
@@ -970,7 +947,7 @@ export default function DepartmentMaintenancePage({
               subtitle={`Choose a personal preset for your ${config.shortName} module shell and dashboard colors.`}
             />
           )}
-          {tab === 'audit' && <AuditPanel config={config} palette={palette} />}
+          {tab === 'audit' && <AuditPanel config={config} />}
         </div>
       </Card>
 

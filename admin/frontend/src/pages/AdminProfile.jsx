@@ -4,10 +4,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { buildApiUrl } from '@/api';
+import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
+import usePortalTheme from '@/hooks/usePortalTheme';
+import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
 import {
-    User,
-    Mail,
-    Phone,
     Building2,
     Shield,
     Clock3,
@@ -18,7 +18,6 @@ import {
     BadgeCheck,
     Settings,
     ChevronRight,
-    KeyRound,
     Loader2,
     AlertCircle,
     RefreshCw,
@@ -89,13 +88,13 @@ function formatAuditAction(item = {}) {
     return item.module ? `${action} · ${item.module}` : action;
 }
 
-function SectionCard({ title, subtitle, icon: Icon, children, action }) {
+function SectionCard({ title, subtitle, icon, children, action }) {
     return (
         <Card className="overflow-hidden rounded-2xl border-stone-200 bg-white shadow-none">
             <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-4 py-4">
                 <div className="flex items-start gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white">
-                        <Icon className="h-4 w-4 text-stone-600" />
+                        {React.createElement(icon, { className: 'h-4 w-4 text-stone-600' })}
                     </div>
 
                     <div>
@@ -114,12 +113,12 @@ function SectionCard({ title, subtitle, icon: Icon, children, action }) {
     );
 }
 
-function InfoRow({ icon: Icon, label, value }) {
+function InfoRow({ icon, label, value }) {
     return (
         <div className="rounded-xl border border-stone-100 bg-stone-50/40 px-4 py-3">
             <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-white">
-                    <Icon className="h-4 w-4 text-stone-500" />
+                    {React.createElement(icon, { className: 'h-4 w-4 text-stone-500' })}
                 </div>
 
                 <div className="min-w-0">
@@ -135,7 +134,22 @@ function InfoRow({ icon: Icon, label, value }) {
     );
 }
 
+const adminProfileConfig = {
+    shortName: 'Admin',
+    account: {
+        first_name: 'OSFA',
+        last_name: 'Administrator',
+        email: 'admin@pdm.edu.ph',
+        phone_number: '',
+        position: 'OSFA Administrator',
+        department: 'Office for Scholarship and Financial Assistance',
+        role: 'Admin',
+    },
+};
+
 export default function AdminProfile() {
+    const { theme } = usePortalTheme('admin', getPortalDefaultTheme('admin'));
+    const palette = buildMaintenancePalette(theme);
     const [savedProfile] = useState(() => {
         const saved = sessionStorage.getItem('adminProfile');
         try {
@@ -145,7 +159,7 @@ export default function AdminProfile() {
         }
     });
 
-    const [adminData] = useState({
+    const [adminData, setAdminData] = useState({
         firstName: savedProfile?.first_name || 'Carmelita',
         lastName: savedProfile?.last_name || 'Dela Cruz',
         email: savedProfile?.email || 'cdelacruz@pdm.edu.ph',
@@ -169,6 +183,26 @@ export default function AdminProfile() {
     const [sessionsLoading, setSessionsLoading] = useState(true);
     const [activityError, setActivityError] = useState('');
     const [sessionsError, setSessionsError] = useState('');
+
+    const handleProfileUpdated = useCallback((profile = {}) => {
+        setAdminData((current) => ({
+            ...current,
+            firstName: profile.first_name || current.firstName,
+            lastName: profile.last_name || current.lastName,
+            email: profile.email || current.email,
+            phone: profile.phone_number || profile.phone || '',
+            position: profile.position || current.position,
+            department: profile.department || current.department,
+            role: profile.role || current.role,
+            status: profile.is_active === false ? 'Inactive' : 'Active',
+            avatarUrl:
+                profile.avatar_url ||
+                profile.profile_photo_url ||
+                profile.photo_url ||
+                profile.image_url ||
+                '',
+        }));
+    }, []);
 
     const loadRecentActivity = useCallback(async () => {
         try {
@@ -306,35 +340,13 @@ export default function AdminProfile() {
 
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
                 <div className="space-y-5 xl:col-span-2">
-                    <SectionCard
-                        title="Account Information"
-                        subtitle="Read-only profile details for this admin account."
-                        icon={User}
-                        action={
-                            <Badge
-                                variant="outline"
-                                className="hidden rounded-full border-stone-200 bg-white text-stone-500 sm:inline-flex"
-                            >
-                                View Only
-                            </Badge>
-                        }
-                    >
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <InfoRow icon={User} label="Full Name" value={fullName} />
-                            <InfoRow icon={Shield} label="Role" value={adminData.role} />
-                            <InfoRow icon={Mail} label="Email Address" value={adminData.email} />
-                            <InfoRow icon={Phone} label="Phone Number" value={adminData.phone} />
-                            <InfoRow icon={Building2} label="Department" value={adminData.department} />
-                            <InfoRow icon={KeyRound} label="Position / Role Title" value={adminData.position} />
-                        </div>
-
-                        <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-                            <p className="text-sm font-medium text-amber-800">
-                                Profile updates and account editing are managed in{' '}
-                                <span className="font-semibold">Maintenance</span>.
-                            </p>
-                        </div>
-                    </SectionCard>
+                    <DepartmentAccountPanel
+                        config={adminProfileConfig}
+                        palette={palette}
+                        tokenStorageKey="adminToken"
+                        profileStorageKey="adminProfile"
+                        onProfileUpdated={handleProfileUpdated}
+                    />
 
                     <SectionCard
                         title="Recent Activity"
@@ -513,7 +525,7 @@ export default function AdminProfile() {
 
                     <SectionCard
                         title="Administrative Actions"
-                        subtitle="Profile modifications should be handled elsewhere."
+                        subtitle="Open system-wide configuration and maintenance tools."
                         icon={Settings}
                     >
                         <button
@@ -523,7 +535,7 @@ export default function AdminProfile() {
                             <div>
                                 <p className="text-sm font-semibold text-stone-800">Open Maintenance</p>
                                 <p className="mt-0.5 text-xs text-stone-500">
-                                    Edit admin details, account settings, and maintenance records.
+                                    Manage system settings, themes, accounts, and maintenance records.
                                 </p>
                             </div>
                             <ChevronRight className="h-4 w-4 text-stone-400" />

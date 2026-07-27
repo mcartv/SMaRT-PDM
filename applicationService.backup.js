@@ -2508,9 +2508,6 @@ exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
                 a.opening_id,
                 a.application_status,
                 a.activation_status,
-                a.selection_status,
-                a.queue_position,
-                a.fcfs_completed_at,
                 st.user_id AS student_user_id,
                 st.is_active_scholar,
                 st.scholarship_status,
@@ -2564,34 +2561,6 @@ exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
         }
 
         const capacity = Number(row.allocated_slots || 0);
-
-        // FCFS is authoritative: only applicants inside the opening's reserved
-        // positions may be activated as scholars. Different openings maintain
-        // independent queues.
-        const queuePosition = Number(row.queue_position || 0);
-        const selectionStatus = String(row.selection_status || '').trim().toLowerCase();
-
-        if (!row.fcfs_completed_at || queuePosition <= 0) {
-            throw buildHttpError(
-                409,
-                'This applicant is not yet ranked. Requirements and endorsement must both be complete.'
-            );
-        }
-
-        if (selectionStatus === 'waitlisted' || (capacity > 0 && queuePosition > capacity)) {
-            throw buildHttpError(
-                409,
-                `This applicant is waitlisted at FCFS position #${queuePosition}.`
-            );
-        }
-
-        if (!['reserved', 'selected', 'promoted'].includes(selectionStatus)) {
-            throw buildHttpError(
-                409,
-                'This applicant does not currently hold a reserved scholarship slot.'
-            );
-        }
-
         const countResult = await client.query(
             `
             SELECT count(*)::int AS occupied_slots
@@ -2728,4 +2697,3 @@ module.exports = {
     resolveIotExtractedName,
     resolveStoredExtractedName,
 };
-

@@ -241,8 +241,8 @@ function compareFcfs(a, b) {
     }
 
     const completedDifference =
-        toTimestamp(a?.fcfs_completed_at) -
-        toTimestamp(b?.fcfs_completed_at);
+        toTimestamp(a?.requirements_completed_at) -
+        toTimestamp(b?.requirements_completed_at);
 
     if (completedDifference !== 0) return completedDifference;
 
@@ -852,7 +852,7 @@ export default function OpeningApplications() {
             apps
                 .filter(
                     (app) =>
-                        app.fcfs_completed_at ||
+                        app.requirements_completed_at ||
                         Number(app.queue_position) > 0
                 )
                 .sort(compareFcfs),
@@ -1408,4 +1408,3 @@ export default function OpeningApplications() {
         </div>
     );
 }
-

@@ -91,8 +91,8 @@ function compareFcfs(a, b) {
   }
 
   const completedDifference =
-    toTimestamp(a?.fcfs_completed_at) -
-    toTimestamp(b?.fcfs_completed_at);
+    toTimestamp(a?.requirements_completed_at) -
+    toTimestamp(b?.requirements_completed_at);
 
   if (completedDifference !== 0) return completedDifference;
 
@@ -112,7 +112,7 @@ function getFcfsLabel(row) {
   if (Number.isFinite(queuePosition) && queuePosition > 0) {
     return `#${queuePosition}`;
   }
-  return row?.fcfs_completed_at ? 'Queued' : 'Not ranked';
+  return row?.requirements_completed_at ? 'Queued' : 'Not ranked';
 }
 
 async function parseErrorResponse(response, fallback = 'Request failed') {
@@ -275,7 +275,6 @@ function normalizeApplicantRow(app) {
     uploaded_required_count: Number(app.uploaded_required_count || 0),
     requirements_status: app.requirements_status || null,
     requirements_completed_at: app.requirements_completed_at || null,
-    fcfs_completed_at: app.fcfs_completed_at || null,
     requirements_verified_at: app.requirements_verified_at || null,
     queue_position:
       app.queue_position != null ? Number(app.queue_position) : null,
@@ -818,7 +817,7 @@ function RegistryTable({
                             </span>
                           </td>
                           <td className="px-3 py-3 align-top whitespace-nowrap text-xs text-stone-600">
-                            {formatDate(row.fcfs_completed_at)}
+                            {formatDate(row.requirements_completed_at)}
                           </td>
                           <td className="px-3 py-3 align-top">
                             {row.endorsement_slip_id ? (
@@ -1204,7 +1203,7 @@ export default function ApplicationReview() {
       if (row.requirements_complete) current.requirementsComplete += 1;
       if (row.endorsement_complete) current.endorsementComplete += 1;
       if (row.scholar_activation_ready) current.scholarReady += 1;
-      if (row.scholar_activation_ready && (row.fcfs_completed_at || Number(row.queue_position) > 0)) {
+      if (row.requirements_completed_at || Number(row.queue_position) > 0) {
         current.fcfsQueued += 1;
         current.fcfsApplicants.push(row);
         current.fcfsApplicants.sort(compareFcfs);
@@ -1469,7 +1468,7 @@ export default function ApplicationReview() {
               onApproveScholar={setActivationCandidate}
               approvalLoadingId={approvalLoadingId}
               title="Activation Readiness Queue"
-              subtitle="FCFS order is based on the exact time both verified requirements and endorsement became complete. Application submission is used only as a tie-breaker."
+              subtitle="FCFS order is based on the last valid required-document submission, then application submission as the tie-breaker."
               mode="readiness"
               page={page}
               totalPages={readinessTotalPages}

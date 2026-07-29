@@ -223,26 +223,28 @@ export default function OfficeProfilePage({
             onProfileUpdated={setProfile}
           />
 
-          <SectionCard
-            title="Recent Activity"
-            subtitle={`Latest actions performed using this ${portalName} account.`}
-            icon={Activity}
-          >
-            <div className="space-y-2">
-              {activityLog.map((item, index) => (
-                <div
-                  key={`${item.action}-${index}`}
-                  className="flex flex-col gap-2 rounded-2xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                    <p className="text-sm font-medium text-stone-700">{item.action}</p>
+          {activityLog.length ? (
+            <SectionCard
+              title="Recent Activity"
+              subtitle={`Latest actions performed using this ${portalName} account.`}
+              icon={Activity}
+            >
+              <div className="space-y-2">
+                {activityLog.map((item, index) => (
+                  <div
+                    key={`${item.action}-${index}`}
+                    className="flex flex-col gap-2 rounded-2xl border border-stone-100 bg-stone-50/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                      <p className="text-sm font-medium text-stone-700">{item.action}</p>
+                    </div>
+                    <p className="whitespace-nowrap text-xs text-stone-400">{item.time}</p>
                   </div>
-                  <p className="whitespace-nowrap text-xs text-stone-400">{item.time}</p>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
+                ))}
+              </div>
+            </SectionCard>
+          ) : null}
         </div>
 
         <div className="space-y-6">

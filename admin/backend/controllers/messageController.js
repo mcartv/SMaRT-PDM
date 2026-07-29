@@ -11,7 +11,7 @@ function getCurrentRole(req) {
 }
 
 function isAdminLike(req) {
-  return ['admin', 'osfa_admin', 'sdo', 'guidance', 'pd'].includes(getCurrentRole(req));
+  return ['admin', 'osfa_admin', 'sdo', 'guidance', 'pd', 'ro_coordinator'].includes(getCurrentRole(req));
 }
 
 function isSystemAdmin(req) {

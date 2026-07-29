@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 
-const PORTAL_KEYS = ['admin', 'sdo', 'guidance', 'pd', 'landing'];
+const PORTAL_KEYS = ['admin', 'sdo', 'guidance', 'pd', 'ro_coordinator', 'landing'];
 const PRESET_KEYS = ['default', 'forest', 'ocean', 'royal', 'sunset', 'slate', 'rose', 'midnight', 'emerald', 'crimson', 'golden', 'lavender', 'arctic', 'coral', 'mint', 'custom'];
 const TABLE_NAME = 'portal_theme_settings';
 const PERSONAL_TABLE_NAME = 'staff_portal_theme_settings';

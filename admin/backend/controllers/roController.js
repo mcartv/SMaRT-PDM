@@ -82,6 +82,22 @@ function writeAudit(req, actionTaken, entityId, description, metadata = {}) {
   }
 }
 
+function emitCoordinatorNotifications(req, entries = []) {
+  const io = req.app?.get?.('io');
+  if (!io) return;
+
+  entries.forEach((entry) => {
+    const userId = entry?.coordinator?.user_id;
+    const notification = entry?.notification;
+    if (userId && notification) {
+      socketEvents.notificationCreated(io, userId, {
+        ...notification,
+        target_user_id: userId,
+      });
+    }
+  });
+}
+
 exports.getSummary = async (req, res) => {
   try {
     const data = await roService.getSummary();
@@ -109,6 +125,7 @@ exports.assignScholarRO = async (req, res) => {
       req.body || {},
       req.user || {}
     );
+    emitCoordinatorNotifications(req, [data]);
 
     emitRoUpdated(req, 'assign', {
       student_id: req.params.studentId,
@@ -118,9 +135,9 @@ exports.assignScholarRO = async (req, res) => {
 
     writeAudit(
       req,
-      'ASSIGN_RO',
+      'SEND_RO_COORDINATOR_REQUEST',
       data?.assignment?.ro_id || req.params.studentId,
-      'Assigned Return of Obligation to scholar.',
+      'Sent Return of Obligation request to an RO Coordinator.',
       {
         student_id: req.params.studentId,
         body_keys: Object.keys(req.body || {}),
@@ -140,6 +157,7 @@ exports.batchAssignScholarsRO = async (req, res) => {
       req.body || {},
       req.user || {}
     );
+    emitCoordinatorNotifications(req, data?.successful || []);
 
     emitRoUpdated(req, 'batch-assign', {
       total: data.total,

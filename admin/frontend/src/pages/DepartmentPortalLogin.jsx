@@ -14,6 +14,10 @@ export default function DepartmentPortalLogin({
   profileStorageKey,
   redirectPath,
   colors: fallbackColors,
+  featureLabels = [
+    'Role-specific endorsement queue',
+    'Protected access for assigned staff only',
+  ],
 }) {
   const navigate = useNavigate();
   const { theme: colors } = usePortalTheme(portalKey, fallbackColors, { publicOnly: true });
@@ -89,10 +93,9 @@ export default function DepartmentPortalLogin({
           </h2>
 
           <div className="max-w-xs space-y-3">
-            {[
-              { icon: FileCheck2, label: 'Role-specific endorsement queue' },
-              { icon: UserCheck, label: 'Protected access for assigned staff only' },
-            ].map(({ icon: Icon, label }) => (
+            {featureLabels.map((label, index) => {
+              const Icon = index === 0 ? FileCheck2 : UserCheck;
+              return (
               <div
                 key={label}
                 className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3"
@@ -105,7 +108,8 @@ export default function DepartmentPortalLogin({
                 </div>
                 <p className="text-sm font-medium text-white/90">{label}</p>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

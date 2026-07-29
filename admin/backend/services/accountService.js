@@ -27,6 +27,11 @@ const ROLE_CONFIG = {
         department: 'Student Welfare and Development Office',
         position: 'SDO Officer',
     },
+    ro_coordinator: {
+        dbRole: 'Admin',
+        department: '',
+        position: 'RO Coordinator',
+    },
 };
 
 const DEPARTMENTS_BY_ROLE = {
@@ -39,6 +44,7 @@ const DEPARTMENTS_BY_ROLE = {
     ],
     guidance: ['Guidance and Counseling Office'],
     sdo: ['Student Welfare and Development Office'],
+    ro_coordinator: [],
 };
 
 const ROLE_VALUES = Object.keys(ROLE_CONFIG);
@@ -49,7 +55,7 @@ const staffAccountSchema = z
         last_name: z.string().trim().min(1, 'Last name is required.'),
         email: z.string().trim().toLowerCase().email('A valid email address is required.'),
         phone_number: z.string().trim().optional().default(''),
-        role: z.enum(['admin', 'pd', 'guidance', 'sdo'], {
+        role: z.enum(['admin', 'pd', 'guidance', 'sdo', 'ro_coordinator'], {
             error: 'Invalid role selected.',
         }),
         department: z.string().trim().optional().default(''),
@@ -85,11 +91,128 @@ function validateDepartment(role, value) {
         throw createHttpError(400, 'Select a department or office.');
     }
 
+    if (role === 'ro_coordinator') {
+        return department;
+    }
+
     if (!allowedDepartments.includes(department)) {
         throw createHttpError(400, 'The selected department or office is not valid for this role.');
     }
 
     return department;
+}
+
+async function validateRoCoordinatorDepartment(department, client = db) {
+    const result = await client.query(
+        `SELECT department_name FROM ro_departments WHERE department_name = $1 AND is_active = true LIMIT 1`,
+        [department]
+    );
+
+    if (!result.rows.length) {
+        throw createHttpError(400, 'Select an active RO department, office, or faculty area.');
+    }
+
+    return result.rows[0].department_name;
+}
+
+async function assertRoCoordinatorAreaAvailable(department, excludedUserId = null, client = db) {
+    const result = await client.query(
+        `
+        SELECT rac.user_id
+        FROM ro_area_coordinators rac
+        JOIN ro_departments rd ON rd.department_id = rac.ro_area_id
+        WHERE LOWER(TRIM(rd.department_name)) = LOWER(TRIM($1))
+          AND rac.is_active = true
+          AND ($2::uuid IS NULL OR rac.user_id <> $2::uuid)
+        LIMIT 1
+        `,
+        [department, excludedUserId]
+    );
+
+    if (result.rows.length) {
+        throw createHttpError(409, 'This RO Area already has an active coordinator.');
+    }
+}
+
+async function syncStandaloneRoCoordinatorAssignment({
+    userId,
+    department,
+    actorUserId = null,
+    active = true,
+    client = db,
+}) {
+    await client.query(
+        `UPDATE ro_area_coordinators
+         SET is_active = false, archived_at = now(), updated_at = now()
+         WHERE user_id = $1 AND is_active = true`,
+        [userId]
+    );
+
+    if (!active) return;
+
+    const areaResult = await client.query(
+        `SELECT department_id
+         FROM ro_departments
+         WHERE LOWER(TRIM(department_name)) = LOWER(TRIM($1))
+           AND is_active = true
+         LIMIT 1`,
+        [department]
+    );
+    const areaId = areaResult.rows[0]?.department_id;
+    if (!areaId) {
+        throw createHttpError(400, 'Select an active RO Area.');
+    }
+
+    const existingResult = await client.query(
+        `SELECT coordinator_assignment_id
+         FROM ro_area_coordinators
+         WHERE ro_area_id = $1 AND user_id = $2
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [areaId, userId]
+    );
+
+    if (existingResult.rows.length) {
+        await client.query(
+            `UPDATE ro_area_coordinators
+             SET is_active = true,
+                 assigned_by_user_id = $2,
+                 assigned_at = now(),
+                 archived_at = NULL,
+                 updated_at = now()
+             WHERE coordinator_assignment_id = $1`,
+            [existingResult.rows[0].coordinator_assignment_id, actorUserId]
+        );
+    } else {
+        await client.query(
+            `INSERT INTO ro_area_coordinators (
+               ro_area_id, user_id, assigned_by_user_id
+             )
+             VALUES ($1, $2, $3)`,
+            [areaId, userId, actorUserId]
+        );
+    }
+}
+
+async function assertNoPendingRoRequests(department, client = db) {
+    const result = await client.query(
+        `
+        SELECT COUNT(*)::int AS pending_count
+        FROM ro_placements rp
+        JOIN ro_departments rd ON rd.department_id = rp.ro_area_id
+        WHERE LOWER(TRIM(rd.department_name)) = LOWER(TRIM($1))
+          AND rp.placement_status = 'Pending'
+        `,
+        [department]
+    );
+
+    const pendingCount = Number(result.rows[0]?.pending_count || 0);
+    if (pendingCount > 0) {
+        throw createHttpError(
+            409,
+            `This RO Coordinator still has ${pendingCount} pending request${pendingCount === 1 ? '' : 's'}. Resolve or reassign them first.`
+        );
+    }
 }
 
 function validatePassword(password, confirmPassword) {
@@ -308,8 +431,10 @@ async function createStaffAccount(payload, actorUserId = null) {
 
     const config = ROLE_CONFIG[role];
     const phoneNumber = safeText(phoneNumberInput) || null;
-    const department = validateDepartment(role, payload.department || config.department);
-    const position = safeText(payload.position) || config.position;
+    let department = validateDepartment(role, payload.department || config.department);
+    const position = role === 'ro_coordinator'
+        ? config.position
+        : safeText(payload.position) || config.position;
     const passwordHash = await bcrypt.hash(password, 12);
 
     const client = await db.connect();
@@ -318,6 +443,10 @@ async function createStaffAccount(payload, actorUserId = null) {
         await client.query('BEGIN');
 
         const photoEnabled = await hasAdminProfilePhotoColumn(client);
+        if (role === 'ro_coordinator') {
+            department = await validateRoCoordinatorDepartment(department, client);
+            await assertRoCoordinatorAreaAvailable(department, null, client);
+        }
 
         const duplicateEmail = await client.query(
             'SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
@@ -385,6 +514,14 @@ async function createStaffAccount(payload, actorUserId = null) {
                 client,
             });
         }
+        if (role === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId: user.user_id,
+                department,
+                actorUserId,
+                client,
+            });
+        }
 
         await client.query('COMMIT');
 
@@ -394,6 +531,15 @@ async function createStaffAccount(payload, actorUserId = null) {
         });
     } catch (error) {
         await client.query('ROLLBACK');
+
+        if (
+            error.code === '23505' &&
+            ['uq_active_ro_coordinator_area', 'uq_ro_area_active_coordinator'].includes(
+                error.constraint
+            )
+        ) {
+            throw createHttpError(409, 'This RO Area already has an active coordinator.');
+        }
 
         if (error.code === '23505') {
             throw createHttpError(400, 'An account with this email or username already exists.');
@@ -456,17 +602,37 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             : roleChanged
                 ? config.department
                 : safeText(current.department) || config.department;
-        const department = validateDepartment(nextRole, departmentInput);
+        let department = validateDepartment(nextRole, departmentInput);
+        if (nextRole === 'ro_coordinator') {
+            department = await validateRoCoordinatorDepartment(department, client);
+        }
 
-        const position = payload.position !== undefined
-            ? safeText(payload.position) || config.position
-            : roleChanged
-                ? config.position
-                : safeText(current.position) || config.position;
+        const position = nextRole === 'ro_coordinator'
+            ? config.position
+            : payload.position !== undefined
+                ? safeText(payload.position) || config.position
+                : roleChanged
+                    ? config.position
+                    : safeText(current.position) || config.position;
 
         const nextIsArchived = payload.is_archived !== undefined
             ? payload.is_archived === true
             : current.is_archived === true;
+
+        if (
+            currentRole === 'ro_coordinator' &&
+            (
+                nextRole !== 'ro_coordinator' ||
+                nextIsArchived ||
+                department.toLowerCase() !== safeText(current.department).toLowerCase()
+            )
+        ) {
+            await assertNoPendingRoRequests(current.department, client);
+        }
+
+        if (nextRole === 'ro_coordinator' && !nextIsArchived) {
+            await assertRoCoordinatorAreaAvailable(department, userId, client);
+        }
 
         if (!firstName) {
             throw createHttpError(400, 'First name is required.');
@@ -581,11 +747,38 @@ async function updateStaffAccount(userId, payload = {}, actorUserId = null) {
             await pdCourseAssignmentService.releaseAssignments(userId, client);
         }
 
+        if (nextRole === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId,
+                department,
+                actorUserId,
+                active: !nextIsArchived,
+                client,
+            });
+        } else if (currentRole === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId,
+                department: current.department,
+                actorUserId,
+                active: false,
+                client,
+            });
+        }
+
         await client.query('COMMIT');
 
         return getStaffAccountById(userId, true);
     } catch (error) {
         await client.query('ROLLBACK');
+
+        if (
+            error.code === '23505' &&
+            ['uq_active_ro_coordinator_area', 'uq_ro_area_active_coordinator'].includes(
+                error.constraint
+            )
+        ) {
+            throw createHttpError(409, 'This RO Area already has an active coordinator.');
+        }
 
         if (error.code === '23505') {
             throw createHttpError(400, 'An account with this email or username already exists.');
@@ -615,11 +808,33 @@ async function archiveStaffAccount(userId, actorUserId = null) {
     const client = await db.connect();
     try {
         await client.query('BEGIN');
+        const coordinatorPendingResult = await client.query(
+            `SELECT COUNT(*)::int AS pending_count
+             FROM ro_placements rp
+             JOIN ro_area_coordinators rac
+               ON rac.coordinator_assignment_id = rp.coordinator_assignment_id
+             WHERE rac.user_id = $1
+               AND rac.is_active = true
+               AND rp.placement_status = 'Pending'`,
+            [userId]
+        );
+        if (Number(coordinatorPendingResult.rows[0]?.pending_count || 0) > 0) {
+            throw createHttpError(
+                409,
+                'This account still has pending RO placement requests. Reassign them before archiving the account.'
+            );
+        }
         await client.query(
             `UPDATE admin_profiles SET is_archived = true WHERE user_id = $1`,
             [userId]
         );
         await pdCourseAssignmentService.releaseAssignments(userId, client);
+        await client.query(
+            `UPDATE ro_area_coordinators
+             SET is_active = false, archived_at = now(), updated_at = now()
+             WHERE user_id = $1 AND is_active = true`,
+            [userId]
+        );
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -642,14 +857,35 @@ async function restoreStaffAccount(userId) {
         return null;
     }
 
-    await db.query(
-        `
-        UPDATE admin_profiles
-        SET is_archived = false
-        WHERE user_id = $1
-        `,
-        [userId]
-    );
+    if (existing.role === 'ro_coordinator') {
+        await validateRoCoordinatorDepartment(existing.department);
+        await assertRoCoordinatorAreaAvailable(existing.department, userId);
+    }
+
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query(
+            `UPDATE admin_profiles
+             SET is_archived = false
+             WHERE user_id = $1`,
+            [userId]
+        );
+        if (existing.role === 'ro_coordinator') {
+            await syncStandaloneRoCoordinatorAssignment({
+                userId,
+                department: existing.department,
+                active: true,
+                client,
+            });
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 
     return getStaffAccountById(userId, true);
 }
@@ -710,8 +946,14 @@ async function updateCurrentStaffProfile(userId, payload = {}) {
             throw createHttpError(400, 'Another account is already using this email address.');
         }
 
-        const nextDepartment = department || currentProfile.department || '';
-        const nextPosition = position || currentProfile.position || '';
+        const currentRole = resolveStaffRole(currentProfile);
+        const identityLocked = currentRole === 'ro_coordinator';
+        const nextDepartment = identityLocked
+            ? currentProfile.department || ''
+            : department || currentProfile.department || '';
+        const nextPosition = identityLocked
+            ? currentProfile.position || 'RO Coordinator'
+            : position || currentProfile.position || '';
 
         await client.query(
             `

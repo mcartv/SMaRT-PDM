@@ -718,7 +718,7 @@ export function DepartmentAccountPanel({
                 value={account.position}
                 onChange={(e) => handleFieldChange('position', e.target.value)}
                 className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                disabled={loadingProfile || savingAccount}
+                disabled={loadingProfile || savingAccount || config.lockIdentityFields === true}
               />
             </div>
 
@@ -728,7 +728,7 @@ export function DepartmentAccountPanel({
                 value={account.department}
                 onChange={(e) => handleFieldChange('department', e.target.value)}
                 className="h-10 rounded-lg border-stone-200 bg-stone-50/50 text-sm"
-                disabled={loadingProfile || savingAccount}
+                disabled={loadingProfile || savingAccount || config.lockIdentityFields === true}
               />
             </div>
           </div>

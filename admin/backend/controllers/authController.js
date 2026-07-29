@@ -184,7 +184,7 @@ async function loginWithRole(req, res, role) {
         if (role === 'admin') {
             if (
                 !resolvedRole ||
-                !['admin', 'pd', 'guidance', 'sdo'].includes(resolvedRole)
+                !['admin', 'pd', 'guidance', 'sdo', 'ro_coordinator'].includes(resolvedRole)
             ) {
                 return res.status(403).json({
                     message: 'This account is not authorized for the admin portal',
@@ -196,6 +196,7 @@ async function loginWithRole(req, res, role) {
             pd: 'PD',
             guidance: 'Guidance',
             sdo: 'SDO',
+            ro_coordinator: 'RO Coordinator',
         };
 
         if (departmentPortalLabels[role] && resolvedRole !== role) {
@@ -287,6 +288,7 @@ exports.adminLogin = async (req, res) => loginWithRole(req, res, 'admin');
 exports.pdLogin = async (req, res) => loginWithRole(req, res, 'pd');
 exports.guidanceLogin = async (req, res) => loginWithRole(req, res, 'guidance');
 exports.sdoLogin = async (req, res) => loginWithRole(req, res, 'sdo');
+exports.roCoordinatorLogin = async (req, res) => loginWithRole(req, res, 'ro_coordinator');
 
 exports.resumeAdminSession = async (req, res) => {
     try {

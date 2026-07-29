@@ -14,6 +14,7 @@ function getStoredSocketToken() {
     ['/sdo', 'sdoToken'],
     ['/guidance', 'guidanceToken'],
     ['/pd', 'pdToken'],
+    ['/ro-coordinator', 'roCoordinatorToken'],
   ].find(([portalPath]) => pathname.startsWith(portalPath))?.[1];
 
   if (portalTokenKey) {
@@ -26,6 +27,7 @@ function getStoredSocketToken() {
     sessionStorage.getItem('pdToken') ||
     sessionStorage.getItem('guidanceToken') ||
     sessionStorage.getItem('sdoToken') ||
+    sessionStorage.getItem('roCoordinatorToken') ||
     ''
   );
 }

@@ -221,6 +221,14 @@ function getMainStatusCapsule(scholar) {
     return { label: 'Conflict', tone: 'red' };
   }
 
+  if (assignmentStatus === 'pending coordinator approval') {
+    return { label: 'Coordinator Approval', tone: 'blue' };
+  }
+
+  if (assignmentStatus === 'coordinator rejected') {
+    return { label: 'Returned by Coordinator', tone: 'red' };
+  }
+
   if (
     assignmentStatus === 'for validation' ||
     progressStatus === 'for validation'
@@ -520,27 +528,26 @@ function AssignModal({
   open,
   scholar,
   departments = [],
-  defaultRequiredHours = 20,
+  defaultRequiredHours = 0,
   loading,
   error,
   onClose,
   onSubmit,
 }) {
-  const [assignedArea, setAssignedArea] = useState('');
-  const [requiredHours, setRequiredHours] = useState('20');
-  const [remarks, setRemarks] = useState('');
-
-  useEffect(() => {
-    if (!open || !scholar) return;
-
-    setAssignedArea(scholar.assigned_area || scholar.assignedArea || '');
-    setRequiredHours(String(defaultRequiredHours || 20));
-    setRemarks(scholar.remarks || '');
-  }, [open, scholar, defaultRequiredHours]);
+  const hasPlacements =
+    Array.isArray(scholar?.placements) && scholar.placements.length > 0;
+  const [assignedArea, setAssignedArea] = useState(
+    hasPlacements ? '' : scholar?.assigned_area || scholar?.assignedArea || ''
+  );
+  const [remarks, setRemarks] = useState(scholar?.remarks || '');
 
   if (!open || !scholar) return null;
 
   const name = getScholarName(scholar);
+  const hasAssignment = Boolean(scholar.ro_id);
+  const obligationHours = hasAssignment
+    ? Number(scholar.required_hours || scholar.requiredHours || 0)
+    : Number(defaultRequiredHours || 0);
 
   const submit = () => {
     onSubmit({
@@ -548,7 +555,6 @@ function AssignModal({
       openingId: scholar.opening_id || null,
       programId: scholar.program_id || null,
       assignedArea,
-      requiredHours: Number(requiredHours || 0),
       remarks,
     });
   };
@@ -563,7 +569,9 @@ function AssignModal({
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-900">Assign RO</h3>
+          <h3 className="text-sm font-semibold text-stone-900">
+            {hasAssignment ? 'Add RO Placement' : 'Send RO Request'}
+          </h3>
 
           <button
             type="button"
@@ -586,7 +594,7 @@ function AssignModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Department
+                RO Area
               </span>
 
               <select
@@ -594,7 +602,7 @@ function AssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select department</option>
+                <option value="">Select an RO Area</option>
 
                 {assignedArea && !currentDepartmentExists ? (
                   <option value={assignedArea}>{assignedArea}</option>
@@ -604,27 +612,29 @@ function AssignModal({
                   <option
                     key={department.department_id}
                     value={department.department_name}
+                    disabled={!department.coordinator}
                   >
                     {department.department_name}
+                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No coordinator'}
                   </option>
                 ))}
               </select>
             </label>
 
-            <label className="block">
+            <div className="block">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
                 Required Hours
               </span>
 
-              <Input
-                type="number"
-                min="0"
-                value={requiredHours}
-                readOnly
-                disabled
-                className="rounded-xl border-stone-200 bg-stone-100 text-stone-500"
-              />
-            </label>
+              <div className="flex h-10 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3">
+                <span className="text-sm font-bold text-stone-800">
+                  {obligationHours > 0 ? `${obligationHours} hours total` : 'Not configured'}
+                </span>
+                <span className="text-[10px] font-semibold text-stone-400">
+                  {hasAssignment ? 'Shared across all placements' : 'From Obligation settings'}
+                </span>
+              </div>
+            </div>
 
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
@@ -662,7 +672,7 @@ function AssignModal({
             <Button
               type="button"
               onClick={submit}
-              disabled={loading || !assignedArea}
+              disabled={loading || !assignedArea || obligationHours <= 0}
               className="rounded-xl border-none px-5 text-xs font-bold text-white disabled:opacity-50"
               style={{ background: C.brownMid }}
             >
@@ -671,7 +681,7 @@ function AssignModal({
               ) : (
                 <Send className="mr-2 h-3.5 w-3.5" />
               )}
-              Save
+              Send Request
             </Button>
           </div>
         </CardContent>
@@ -684,7 +694,7 @@ function BatchAssignModal({
   open,
   selectedCount,
   departments = [],
-  defaultRequiredHours = 20,
+  defaultRequiredHours = 0,
   loading,
   error,
   onClose,
@@ -692,13 +702,6 @@ function BatchAssignModal({
 }) {
   const [assignedArea, setAssignedArea] = useState('');
   const [remarks, setRemarks] = useState('');
-
-  useEffect(() => {
-    if (!open) return;
-
-    setAssignedArea('');
-    setRemarks('');
-  }, [open]);
 
   if (!open) return null;
 
@@ -708,7 +711,7 @@ function BatchAssignModal({
 
       <Card className="relative w-full max-w-xl overflow-hidden rounded-2xl border-stone-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-stone-100 bg-stone-50/70 px-5 py-4">
-          <h3 className="text-sm font-semibold text-stone-900">Batch Assign RO</h3>
+          <h3 className="text-sm font-semibold text-stone-900">Send Batch RO Requests</h3>
 
           <button
             type="button"
@@ -730,7 +733,7 @@ function BatchAssignModal({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Department
+                RO Area
               </span>
 
               <select
@@ -738,14 +741,16 @@ function BatchAssignModal({
                 onChange={(e) => setAssignedArea(e.target.value)}
                 className="h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm text-stone-700 outline-none focus:border-orange-800 focus:ring-2 focus:ring-orange-800/20"
               >
-                <option value="">Select department</option>
+                <option value="">Select an RO Area</option>
 
                 {departments.map((department) => (
                   <option
                     key={department.department_id}
                     value={department.department_name}
+                    disabled={!department.coordinator}
                   >
                     {department.department_name}
+                    {department.coordinator ? ` — ${department.coordinator.name}` : ' — No coordinator'}
                   </option>
                 ))}
               </select>
@@ -756,13 +761,12 @@ function BatchAssignModal({
                 Required Hours
               </span>
 
-              <Input
-                type="number"
-                value={defaultRequiredHours}
-                readOnly
-                disabled
-                className="rounded-xl border-stone-200 bg-stone-100 text-stone-500"
-              />
+              <div className="flex h-10 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3">
+                <span className="text-sm font-bold text-stone-800">
+                  {defaultRequiredHours > 0 ? `${defaultRequiredHours} hours` : 'Not configured'}
+                </span>
+                <span className="text-[10px] font-semibold text-stone-400">From Obligation settings</span>
+              </div>
             </label>
 
             <label className="block sm:col-span-2">
@@ -800,7 +804,12 @@ function BatchAssignModal({
 
             <Button
               type="button"
-              disabled={loading || !assignedArea || selectedCount === 0}
+              disabled={
+                loading ||
+                !assignedArea ||
+                selectedCount === 0 ||
+                defaultRequiredHours <= 0
+              }
               onClick={() => onSubmit({ assignedArea, remarks })}
               className="rounded-xl border-none px-5 text-xs font-bold text-white disabled:opacity-50"
               style={{ background: C.brownMid }}
@@ -893,6 +902,12 @@ function LogsModal({ open, scholar, loading, error, onClose, onValidate, onBackT
                         <StatusChip tone="default">
                           {log.logStatus || log.log_status || 'Timed Out'}
                         </StatusChip>
+
+                        {log.assignedArea || log.assigned_area ? (
+                          <StatusChip tone="blue">
+                            {log.assignedArea || log.assigned_area}
+                          </StatusChip>
+                        ) : null}
                       </div>
 
                       <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
@@ -1084,12 +1099,7 @@ function RoDetailsModal({
 
   const name = getScholarName(scholar);
   const hasAssignment = !!scholar.ro_id;
-
-  const assignmentStatus =
-    scholar.assignment_status || scholar.assignmentStatus || 'Unassigned';
-
-  const progressStatus =
-    scholar.progress_status || scholar.progressStatus || 'Not Started';
+  const placements = Array.isArray(scholar.placements) ? scholar.placements : [];
 
   const {
     requiredMinutes,
@@ -1172,10 +1182,10 @@ function RoDetailsModal({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
               <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
-                Department
+                RO Areas
               </p>
               <p className="mt-1 text-sm font-black text-stone-900">
-                {scholar.assigned_area || scholar.assignedArea || 'N/A'}
+                {placements.length || (hasAssignment ? 1 : 0)}
               </p>
             </div>
 
@@ -1215,6 +1225,62 @@ function RoDetailsModal({
               <p className="mt-2 text-sm leading-6 text-stone-700">
                 {scholar.remarks}
               </p>
+            </div>
+          ) : null}
+
+          {hasAssignment ? (
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                    Placement Requests
+                  </p>
+                  <p className="mt-1 text-xs text-stone-500">
+                    Service hours may be completed in one or more approved RO Areas.
+                  </p>
+                </div>
+                <StatusChip tone="blue">
+                  {placements.length} {placements.length === 1 ? 'area' : 'areas'}
+                </StatusChip>
+              </div>
+
+              {placements.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {placements.map((placement) => {
+                    const status = placement.placement_status || 'Pending';
+                    const statusKey = normalizeStatus(status);
+                    const tone =
+                      statusKey === 'approved'
+                        ? 'green'
+                        : statusKey === 'rejected' || statusKey === 'cancelled'
+                          ? 'red'
+                          : 'amber';
+
+                    return (
+                      <div
+                        key={placement.placement_id}
+                        className="rounded-xl border border-stone-200 bg-stone-50/70 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-bold text-stone-900">
+                            {placement.assigned_area || 'RO Area'}
+                          </p>
+                          <StatusChip tone={tone}>{status}</StatusChip>
+                        </div>
+                        {placement.coordinator_remarks || placement.admin_remarks ? (
+                          <p className="mt-2 text-xs leading-5 text-stone-500">
+                            {placement.coordinator_remarks || placement.admin_remarks}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-500">
+                  This legacy assignment has no separate placement record yet.
+                </p>
+              )}
             </div>
           ) : null}
 
@@ -1274,7 +1340,7 @@ function RoDetailsModal({
             className="h-9 rounded-xl border-stone-200 text-xs"
           >
             <Send className="mr-2 h-3.5 w-3.5" />
-            {hasAssignment ? 'Edit' : 'Assign'}
+            {hasAssignment ? 'Add Placement' : 'Assign'}
           </Button>
 
           {hasAssignment ? (
@@ -1350,7 +1416,7 @@ export default function ROAdmin() {
     [token]
   );
 
-  const activeRequiredHours = Number(activeRoSetting?.required_hours || 20);
+  const activeRequiredHours = Number(activeRoSetting?.required_hours ?? 0);
 
   const activeFilterCount = [
     programId !== 'all',
@@ -1358,13 +1424,6 @@ export default function ROAdmin() {
     yearLevel !== 'all',
     statusFilter !== 'all',
   ].filter(Boolean).length;
-
-  const hasFilters =
-    search.trim() ||
-    programId !== 'all' ||
-    courseId !== 'all' ||
-    yearLevel !== 'all' ||
-    statusFilter !== 'all';
 
   const parseScholarRows = (data) => {
     return Array.isArray(data)
@@ -1666,12 +1725,6 @@ export default function ROAdmin() {
     setDetailsModalOpen(true);
   };
 
-  const openLogsModal = (scholar) => {
-    closeAllModals();
-    setSelectedScholar(scholar);
-    setLogsModalOpen(true);
-  };
-
   const closeAssignModal = () => {
     if (actionLoading) return;
     setAssignModalOpen(false);
@@ -1728,7 +1781,6 @@ export default function ROAdmin() {
           headers: authHeaders,
           body: JSON.stringify({
             ...payload,
-            requiredHours: activeRequiredHours,
           }),
         }
       );
@@ -1773,7 +1825,6 @@ export default function ROAdmin() {
         body: JSON.stringify({
           studentIds: assignableIds,
           assignedArea,
-          requiredHours: activeRequiredHours,
           remarks,
         }),
       });
@@ -1786,7 +1837,7 @@ export default function ROAdmin() {
 
       if (Number(data.failed_count || 0) > 0) {
         setBatchError(
-          `${data.success_count || 0} assigned, ${data.failed_count || 0} failed.`
+          `${data.success_count || 0} requests sent, ${data.failed_count || 0} failed.`
         );
       } else {
         setBatchModalOpen(false);
@@ -1908,6 +1959,11 @@ export default function ROAdmin() {
       />
 
       <AssignModal
+        key={
+          assignModalOpen
+            ? selectedScholar?.student_id || selectedScholar?.ro_id || 'open'
+            : 'closed'
+        }
         open={assignModalOpen}
         scholar={selectedScholar}
         departments={departments}
@@ -1919,6 +1975,7 @@ export default function ROAdmin() {
       />
 
       <BatchAssignModal
+        key={batchModalOpen ? 'batch-open' : 'batch-closed'}
         open={batchModalOpen}
         selectedCount={selectedIds.length}
         departments={departments}
@@ -2018,6 +2075,7 @@ export default function ROAdmin() {
                   setBatchModalOpen(true);
                 }}
                 size="sm"
+                disabled={activeRequiredHours <= 0}
                 className="h-11 rounded-2xl border-none px-4 text-white"
                 style={{ background: C.brownMid }}
               >
@@ -2033,6 +2091,15 @@ export default function ROAdmin() {
         <div className="flex gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      ) : null}
+
+      {activeRequiredHours <= 0 ? (
+        <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            Set and activate the required hours in Maintenance &gt; Obligation before sending RO requests.
+          </span>
         </div>
       ) : null}
 
@@ -2206,7 +2273,12 @@ export default function ROAdmin() {
                             }
                             variant="outline"
                             size="sm"
-                            disabled={actionLoading}
+                            disabled={actionLoading || (!hasAssignment && activeRequiredHours <= 0)}
+                            title={
+                              !hasAssignment && activeRequiredHours <= 0
+                                ? 'Configure required hours in Maintenance > Obligation first.'
+                                : undefined
+                            }
                             className="h-9 rounded-xl border-stone-200 px-3 text-xs"
                           >
                             {hasAssignment ? (

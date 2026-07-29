@@ -8,6 +8,7 @@ import AdminLayout from './components/layout/AdminLayout';
 import SDOLayout from './components/layout/SDOLayout';
 import PDLayout from './components/layout/PDLayout';
 import GuidanceLayout from './components/layout/GuidanceLayout';
+import ROCoordinatorLayout from './components/layout/ROCoordinatorLayout';
 
 // --- ADMIN PAGES ---
 import AdminLogin from './pages/AdminLogin';
@@ -40,6 +41,11 @@ import PDMaintenance from './pages/PDMaintenance';
 import GuidanceMaintenance from './pages/GuidanceMaintenance';
 import AllEndorsementsTracker from './pages/AllEndorsementsTracker';
 import EndorsementQueue from './pages/EndorsementQueue';
+import ROCoordinatorLogin from './pages/ROCoordinatorLogin';
+import ROCoordinatorDashboard from './pages/ROCoordinatorDashboard';
+import ROCoordinatorQueue from './pages/ROCoordinatorQueue';
+import ROCoordinatorProfile from './pages/ROCoordinatorProfile';
+import ROCoordinatorMaintenance from './pages/ROCoordinatorMaintenance';
 
 // --- LANDING ---
 import SmartPDMLanding from './pages/SmartPDMLanding';
@@ -83,6 +89,7 @@ export default function App() {
         <Route path="/pd/login" element={<PDLogin />} />
         <Route path="/guidance/login" element={<GuidanceLogin />} />
         <Route path="/sdo/login" element={<SDOLogin />} />
+        <Route path="/ro-coordinator/login" element={<ROCoordinatorLogin />} />
 
         {/* --- PROTECTED ADMIN PANEL --- */}
         <Route
@@ -175,6 +182,15 @@ export default function App() {
                 tokenStorageKey="pdToken"
                 allowedReportTypes={['pd']}
                 defaultReportType="pd"
+              />
+            }
+          />
+          <Route
+            path="ro-requests"
+            element={
+              <ROCoordinatorQueue
+                tokenStorageKey="pdToken"
+                portalKey="pd"
               />
             }
           />
@@ -284,6 +300,22 @@ export default function App() {
           <Route path="students-with-records" element={<SDOStudentsWithRecords />} />
           <Route path="profile" element={<SDOProfile />} />
           <Route path="maintenance" element={<SDOMaintenance />} />
+        </Route>
+
+        {/* --- PROTECTED RO COORDINATOR PANEL --- */}
+        <Route
+          path="/ro-coordinator"
+          element={
+            <ProtectedRoute storageKey="roCoordinatorToken" redirectTo="/ro-coordinator/login">
+              <ROCoordinatorLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<ROCoordinatorDashboard />} />
+          <Route path="queue" element={<ROCoordinatorQueue />} />
+          <Route path="profile" element={<ROCoordinatorProfile />} />
+          <Route path="maintenance" element={<ROCoordinatorMaintenance />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/admin/login" replace />} />

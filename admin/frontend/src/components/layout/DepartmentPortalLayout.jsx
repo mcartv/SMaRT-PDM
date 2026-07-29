@@ -5,6 +5,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -17,6 +18,7 @@ import { useSocketEvent } from '../../hooks/useSocket';
 import usePortalTheme from '../../hooks/usePortalTheme';
 import useDocumentTitleBadge from '../../hooks/useDocumentTitleBadge';
 import AdminMessages from '../../pages/AdminMessages';
+import { buildApiUrl } from '../../api';
 
 function resolveProfileImage(profile) {
   const candidates = [
@@ -40,6 +42,14 @@ function getInitials(profile, fallback) {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+function readStoredProfile(storageKey) {
+  try {
+    return JSON.parse(sessionStorage.getItem(storageKey) || '{}');
+  } catch {
+    return null;
+  }
+}
+
 export default function DepartmentPortalLayout({
   portalKey,
   title,
@@ -55,16 +65,19 @@ export default function DepartmentPortalLayout({
   trackerPath = '',
   reportsPath = '',
   maintenancePath = '',
+  roQueuePath = '',
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef(null);
   const { theme } = usePortalTheme(portalKey, colors);
+  const portalRootPath = `/${portalKey.replaceAll('_', '-')}`;
 
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => readStoredProfile(profileStorageKey));
   const [messageUnreadCount, setMessageUnreadCount] = useState(0);
+  const [hasRoCoordinatorAccess, setHasRoCoordinatorAccess] = useState(false);
   const {
     notifications,
     newNotifications,
@@ -77,7 +90,7 @@ export default function DepartmentPortalLayout({
     formatNotificationTime,
   } = usePortalNotifications({
     tokenStorageKey,
-    portalRootPath: `/${portalKey}`,
+    portalRootPath,
   });
 
   useDocumentTitleBadge('SMaRT-PDM', unreadCount + messageUnreadCount);
@@ -100,12 +113,26 @@ export default function DepartmentPortalLayout({
       return;
     }
 
-    try {
-      setProfile(JSON.parse(sessionStorage.getItem(profileStorageKey) || '{}'));
-    } catch {
-      setProfile(null);
-    }
   }, [loginPath, navigate, profileStorageKey, tokenStorageKey]);
+
+  useEffect(() => {
+    if (!roQueuePath) return undefined;
+
+    const token = sessionStorage.getItem(tokenStorageKey);
+    if (!token) return undefined;
+
+    const controller = new AbortController();
+    fetch(buildApiUrl('/api/ro-coordinator/summary'), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then((response) => setHasRoCoordinatorAccess(response.ok))
+      .catch((error) => {
+        if (error.name !== 'AbortError') setHasRoCoordinatorAccess(false);
+      });
+
+    return () => controller.abort();
+  }, [roQueuePath, tokenStorageKey]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -147,7 +174,7 @@ export default function DepartmentPortalLayout({
       replace: true,
       state: {
         ...(location.state || {}),
-        refreshAt: Date.now(),
+        refreshAt: event.timeStamp,
       },
     });
   };
@@ -155,11 +182,18 @@ export default function DepartmentPortalLayout({
   const profileImage = resolveProfileImage(profile);
   const displayName = profile?.name || officeName;
   const displayPosition = profile?.position || title;
+  const portalDisplayName = portalKey
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
   const navItems = [
     { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
     ...(queuePath ? [{ path: queuePath, label: 'My Queue', icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
+    ...(roQueuePath && hasRoCoordinatorAccess
+      ? [{ path: roQueuePath, label: 'RO Requests', icon: ClipboardCheck }]
+      : []),
     ...(maintenancePath ? [{ path: maintenancePath, label: 'Maintenance', icon: Settings }] : []),
   ];
   const outletKey = `${location.pathname}:${location.state?.refreshAt || 'base'}`;
@@ -198,7 +232,7 @@ export default function DepartmentPortalLayout({
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight text-white">
-                PDM · {portalKey.toUpperCase()}
+                PDM · {portalDisplayName}
               </p>
               <p className="truncate text-[11px]" style={{ color: theme.sub }}>
                 {officeName}

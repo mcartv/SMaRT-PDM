@@ -240,6 +240,40 @@ async function getDepartments(req, res) {
     }
 }
 
+async function setDepartmentCoordinator(req, res) {
+    try {
+        const result = await roSettingService.setDepartmentCoordinator(
+            req.params.departmentId,
+            req.body || {},
+            getActorUserId(req)
+        );
+
+        emitRoSettingUpdate(req, {
+            source: 'ro_area_coordinator',
+            action: 'assign',
+            department_id: req.params.departmentId,
+            data: result,
+        });
+
+        await writeRoSettingAudit(
+            req,
+            'ASSIGN_RO_AREA_COORDINATOR',
+            'Updated an RO Area coordinator assignment.',
+            'ro_area',
+            req.params.departmentId,
+            result,
+            req.body || {}
+        );
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('SET RO AREA COORDINATOR ERROR:', error);
+        return res.status(getSafeStatusCode(error)).json({
+            error: error.message || 'Failed to update the RO Area coordinator.',
+        });
+    }
+}
+
 async function createDepartment(req, res) {
     try {
         const result = await roSettingService.createDepartment(req.body || {});
@@ -343,6 +377,7 @@ module.exports = {
     activateSetting,
     applyActiveSettingToPending,
     getDepartments,
+    setDepartmentCoordinator,
     createDepartment,
     updateDepartment,
     toggleDepartment,

@@ -893,6 +893,40 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   Future<void> _timeIn(RoAssignment item) async {
+    final approvedPlacements = item.placements
+        .where((placement) => placement.isApproved)
+        .toList();
+    if (approvedPlacements.isEmpty) {
+      _showSnack('Wait for an RO Area coordinator to approve your placement.');
+      return;
+    }
+
+    RoPlacement selectedPlacement = approvedPlacements.first;
+    if (approvedPlacements.length > 1) {
+      final choice = await showDialog<RoPlacement>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('Where will you render service?'),
+          children: approvedPlacements
+              .map(
+                (placement) => SimpleDialogOption(
+                  onPressed: () => Navigator.of(context).pop(placement),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      placement.areaName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      );
+      if (choice == null) return;
+      selectedPlacement = choice;
+    }
+
     final input = await _showRoActionDialog(
       title: 'Time In',
       hint: 'Optional note before starting your RO session',
@@ -911,6 +945,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         studentNote: input.note,
         photo: input.photo,
       );
+      fields['placementId'] = selectedPlacement.placementId;
 
       final response = await _sendRoMultipart(
         path: '/api/ro/${item.roId}/time-in',
@@ -1301,6 +1336,7 @@ class RoAssignment {
     required this.conflictReason,
     required this.validationRemarks,
     required this.logs,
+    required this.placements,
     this.activeLog,
   });
 
@@ -1326,6 +1362,7 @@ class RoAssignment {
 
   final RoTimeLog? activeLog;
   final List<RoTimeLog> logs;
+  final List<RoPlacement> placements;
 
   bool get isCleared => roStatus.toLowerCase() == 'cleared';
 
@@ -1385,6 +1422,35 @@ class RoAssignment {
           .whereType<Map<String, dynamic>>()
           .map(RoTimeLog.fromJson)
           .toList(),
+      placements: (json['placements'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(RoPlacement.fromJson)
+          .toList(),
+    );
+  }
+}
+
+class RoPlacement {
+  const RoPlacement({
+    required this.placementId,
+    required this.areaName,
+    required this.status,
+    required this.coordinatorRemarks,
+  });
+
+  final String placementId;
+  final String areaName;
+  final String status;
+  final String coordinatorRemarks;
+
+  bool get isApproved => status.toLowerCase() == 'approved';
+
+  factory RoPlacement.fromJson(Map<String, dynamic> json) {
+    return RoPlacement(
+      placementId: json['placementId']?.toString() ?? '',
+      areaName: json['areaName']?.toString() ?? 'RO Area',
+      status: json['status']?.toString() ?? 'Pending',
+      coordinatorRemarks: json['coordinatorRemarks']?.toString() ?? '',
     );
   }
 }
@@ -1478,6 +1544,7 @@ class _AssignmentCard extends StatelessWidget {
     final canTimeIn =
         !item.isCleared &&
         item.isAcknowledged &&
+        item.placements.any((placement) => placement.isApproved) &&
         !item.hasConflict &&
         !isTimedIn &&
         !hasAnyActiveSession &&
@@ -1498,6 +1565,43 @@ class _AssignmentCard extends StatelessWidget {
             _NoticeHeader(item: item),
             const SizedBox(height: 16),
             _NoticeDetails(item: item, formatMinutes: formatMinutes),
+            if (item.placements.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: item.placements
+                    .map(
+                      (placement) => Chip(
+                        avatar: Icon(
+                          placement.isApproved
+                              ? Icons.check_circle_rounded
+                              : Icons.schedule_rounded,
+                          size: 16,
+                          color: placement.isApproved
+                              ? Colors.green.shade700
+                              : Colors.orange.shade700,
+                        ),
+                        label: Text(
+                          '${placement.areaName} - ${placement.status}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        backgroundColor: placement.isApproved
+                            ? Colors.green.shade50
+                            : Colors.orange.shade50,
+                        side: BorderSide(
+                          color: placement.isApproved
+                              ? Colors.green.shade200
+                              : Colors.orange.shade200,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
             const SizedBox(height: 16),
             _ProgressLine(
               label: 'Submitted',

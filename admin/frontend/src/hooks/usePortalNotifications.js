@@ -110,6 +110,14 @@ function buildNotificationTarget(portalRootPath, notification) {
     return `${portalRootPath}/dashboard`;
   }
 
+  if (referenceType === 'return_of_obligation') {
+    return portalRootPath === '/admin'
+      ? '/admin/obligations'
+      : portalRootPath === '/ro-coordinator'
+        ? '/ro-coordinator/queue'
+        : `${portalRootPath}/dashboard`;
+  }
+
   return null;
 }
 

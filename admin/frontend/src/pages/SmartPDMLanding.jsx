@@ -47,6 +47,7 @@ const portalLinks = [
   { label: 'SDO', href: '/sdo/login' },
   { label: 'Guidance', href: '/guidance/login' },
   { label: 'Program Director', href: '/pd/login' },
+  { label: 'RO Coordinator', href: '/ro-coordinator/login' },
 ];
 
 function normalizePublicFaqItems(items = []) {

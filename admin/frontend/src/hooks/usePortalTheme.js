@@ -8,6 +8,7 @@ const PORTAL_TOKEN_KEYS = {
   sdo: 'sdoToken',
   guidance: 'guidanceToken',
   pd: 'pdToken',
+  ro_coordinator: 'roCoordinatorToken',
 };
 
 function decodeTokenPayload(token) {

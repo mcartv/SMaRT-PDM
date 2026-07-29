@@ -14,6 +14,7 @@ export default function PDLayout() {
       trackerPath="/pd/tracker"
       reportsPath="/pd/reports"
       maintenancePath="/pd/maintenance"
+      roQueuePath="/pd/ro-requests"
       tokenStorageKey="pdToken"
       profileStorageKey="pdProfile"
       colors={{

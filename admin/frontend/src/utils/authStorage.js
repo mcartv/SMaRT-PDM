@@ -25,6 +25,12 @@ export const PORTAL_CONFIG = {
         redirectPath: '/sdo/dashboard',
         loginPath: '/sdo/login',
     },
+    ro_coordinator: {
+        tokenKey: 'roCoordinatorToken',
+        profileKey: 'roCoordinatorProfile',
+        redirectPath: '/ro-coordinator/dashboard',
+        loginPath: '/ro-coordinator/login',
+    },
 };
 
 const AUTH_STORAGE_KEYS = Object.values(PORTAL_CONFIG).flatMap((portal) => [

@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const db = require('../config/db');
 
 function createHttpError(statusCode, message) {
     const error = new Error(message);
@@ -13,8 +14,8 @@ function safeText(value) {
 function normalizeRequiredHours(value) {
     const parsed = Number.parseInt(value, 10);
 
-    if (!Number.isInteger(parsed) || parsed < 0) {
-        throw createHttpError(400, 'Required hours must be a valid non-negative number.');
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw createHttpError(400, 'Required hours must be a whole number greater than zero.');
     }
 
     return parsed;
@@ -25,7 +26,7 @@ function getSettingPayload(setting = {}) {
         setting_id: setting.setting_id || null,
         academic_year_id: setting.academic_year_id || null,
         period_id: setting.period_id || null,
-        required_hours: Number(setting.required_hours || 20),
+        required_hours: Number(setting.required_hours ?? 0),
         is_active: setting.is_active === true,
         allow_carry_over: setting.allow_carry_over !== false,
         remarks: setting.remarks || null,
@@ -206,27 +207,13 @@ async function getActiveSetting() {
     const setting = await fetchActiveSettingRow();
 
     return {
-        setting: setting
-            ? getSettingPayload(setting)
-            : {
-                setting_id: null,
-                academic_year_id: null,
-                period_id: null,
-                required_hours: 20,
-                is_active: true,
-                allow_carry_over: true,
-                remarks: 'Default RO setting',
-                created_at: null,
-                updated_at: null,
-                academic_years: null,
-                academic_period: null,
-            },
+        setting: setting ? getSettingPayload(setting) : null,
     };
 }
 
 async function createSetting(body = {}) {
     const requiredHours = normalizeRequiredHours(
-        body.required_hours ?? body.requiredHours ?? 20
+        body.required_hours ?? body.requiredHours ?? 8
     );
 
     const payload = {
@@ -423,16 +410,193 @@ async function getDepartments() {
 
     if (error) throw error;
 
+    const coordinatorResult = await db.query(
+        `
+        SELECT
+          rac.coordinator_assignment_id,
+          rac.ro_area_id,
+          rac.user_id,
+          ap.first_name,
+          ap.last_name,
+          ap.department,
+          ap.position
+        FROM ro_area_coordinators rac
+        JOIN admin_profiles ap ON ap.user_id = rac.user_id
+        WHERE rac.is_active = true
+          AND COALESCE(ap.is_archived, false) = false
+        `
+    );
+    const coordinators = new Map(
+        coordinatorResult.rows.map((row) => [
+            String(row.ro_area_id),
+            {
+                coordinator_assignment_id: row.coordinator_assignment_id,
+                user_id: row.user_id,
+                name: [row.first_name, row.last_name].filter(Boolean).join(' '),
+                department: row.department,
+                position: row.position,
+            },
+        ])
+    );
+    const candidateResult = await db.query(
+        `
+        SELECT user_id, first_name, last_name, department, position
+        FROM admin_profiles
+        WHERE COALESCE(is_archived, false) = false
+        ORDER BY first_name, last_name
+        `
+    );
+
     return {
-        items: Array.isArray(data) ? data.map(getDepartmentPayload) : [],
+        items: (Array.isArray(data) ? data : []).map((row) => {
+            const department = getDepartmentPayload(row);
+            return {
+                ...department,
+                coordinator: coordinators.get(String(department.department_id)) || null,
+            };
+        }),
+        coordinator_candidates: candidateResult.rows.map((row) => ({
+            user_id: row.user_id,
+            name: [row.first_name, row.last_name].filter(Boolean).join(' '),
+            department: row.department || '',
+            position: row.position || '',
+        })),
     };
+}
+
+async function setDepartmentCoordinator(departmentId, body = {}, actorUserId = null) {
+    if (!departmentId) {
+        throw createHttpError(400, 'RO Area is required.');
+    }
+
+    const userId = safeText(body.user_id || body.userId) || null;
+    const client = await db.connect();
+
+    try {
+        await client.query('BEGIN');
+        const areaResult = await client.query(
+            `SELECT department_id, department_name, is_active
+             FROM ro_departments
+             WHERE department_id = $1
+             FOR UPDATE`,
+            [departmentId]
+        );
+        const area = areaResult.rows[0];
+        if (!area) throw createHttpError(404, 'RO Area not found.');
+        if (!area.is_active) throw createHttpError(409, 'Activate this RO Area before assigning a coordinator.');
+
+        const pendingResult = await client.query(
+            `SELECT COUNT(*)::int AS pending_count
+             FROM ro_placements
+             WHERE ro_area_id = $1
+               AND placement_status = 'Pending'`,
+            [departmentId]
+        );
+        const pendingCount = Number(pendingResult.rows[0]?.pending_count || 0);
+
+        if (!userId && pendingCount > 0) {
+            throw createHttpError(
+                409,
+                `This RO Area still has ${pendingCount} pending request${pendingCount === 1 ? '' : 's'}. Reassign a coordinator instead of removing one.`
+            );
+        }
+
+        let assignment = null;
+        if (userId) {
+            const profileResult = await client.query(
+                `SELECT user_id, first_name, last_name, department, position
+                 FROM admin_profiles
+                 WHERE user_id = $1
+                   AND COALESCE(is_archived, false) = false
+                 LIMIT 1`,
+                [userId]
+            );
+            if (!profileResult.rows.length) {
+                throw createHttpError(400, 'Select an active staff account.');
+            }
+
+            await client.query(
+                `UPDATE ro_area_coordinators
+                 SET is_active = false, archived_at = now(), updated_at = now()
+                 WHERE ro_area_id = $1
+                   AND is_active = true
+                   AND user_id <> $2`,
+                [departmentId, userId]
+            );
+
+            const existingResult = await client.query(
+                `SELECT coordinator_assignment_id
+                 FROM ro_area_coordinators
+                 WHERE ro_area_id = $1 AND user_id = $2
+                 ORDER BY created_at DESC
+                 LIMIT 1`,
+                [departmentId, userId]
+            );
+
+            if (existingResult.rows.length) {
+                const result = await client.query(
+                    `UPDATE ro_area_coordinators
+                     SET is_active = true,
+                         assigned_by_user_id = $2,
+                         assigned_at = now(),
+                         archived_at = NULL,
+                         updated_at = now()
+                     WHERE coordinator_assignment_id = $1
+                     RETURNING *`,
+                    [existingResult.rows[0].coordinator_assignment_id, actorUserId]
+                );
+                assignment = result.rows[0];
+            } else {
+                const result = await client.query(
+                    `INSERT INTO ro_area_coordinators (
+                       ro_area_id, user_id, assigned_by_user_id
+                     )
+                     VALUES ($1, $2, $3)
+                     RETURNING *`,
+                    [departmentId, userId, actorUserId]
+                );
+                assignment = result.rows[0];
+            }
+
+            await client.query(
+                `UPDATE ro_placements
+                 SET coordinator_assignment_id = $2, updated_at = now()
+                 WHERE ro_area_id = $1
+                   AND placement_status = 'Pending'`,
+                [departmentId, assignment.coordinator_assignment_id]
+            );
+        } else {
+            await client.query(
+                `UPDATE ro_area_coordinators
+                 SET is_active = false, archived_at = now(), updated_at = now()
+                 WHERE ro_area_id = $1 AND is_active = true`,
+                [departmentId]
+            );
+        }
+
+        await client.query('COMMIT');
+        return {
+            message: userId
+                ? 'RO Area coordinator assigned successfully.'
+                : 'RO Area coordinator removed successfully.',
+            assignment,
+        };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        if (error.code === '23505' && error.constraint === 'uq_ro_area_active_coordinator') {
+            throw createHttpError(409, 'This RO Area already has an active coordinator.');
+        }
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 async function createDepartment(body = {}) {
     const departmentName = safeText(body.department_name || body.departmentName);
 
     if (!departmentName) {
-        throw createHttpError(400, 'Department name is required.');
+        throw createHttpError(400, 'RO Area name is required.');
     }
 
     const { data, error } = await supabase
@@ -446,14 +610,14 @@ async function createDepartment(body = {}) {
 
     if (error) {
         if (error.code === '23505') {
-            throw createHttpError(409, 'This RO department already exists.');
+            throw createHttpError(409, 'This RO Area already exists.');
         }
 
         throw error;
     }
 
     return {
-        message: 'RO department created successfully.',
+        message: 'RO Area created successfully.',
         department: getDepartmentPayload(data),
     };
 }
@@ -466,32 +630,67 @@ async function updateDepartment(departmentId, body = {}) {
     const departmentName = safeText(body.department_name || body.departmentName);
 
     if (!departmentName) {
-        throw createHttpError(400, 'Department name is required.');
+        throw createHttpError(400, 'RO Area name is required.');
     }
 
-    const { data, error } = await supabase
-        .from('ro_departments')
-        .update({
-            department_name: departmentName,
-        })
-        .eq('department_id', departmentId)
-        .select('department_id, department_name, is_active, created_at, updated_at')
-        .maybeSingle();
+    const client = await db.connect();
+    let data;
 
-    if (error) {
-        if (error.code === '23505') {
-            throw createHttpError(409, 'This RO department already exists.');
+    try {
+        await client.query('BEGIN');
+        const existingResult = await client.query(
+            `SELECT department_name FROM ro_departments WHERE department_id = $1 FOR UPDATE`,
+            [departmentId]
+        );
+        const existing = existingResult.rows[0];
+        if (!existing) {
+            throw createHttpError(404, 'RO Area not found.');
         }
 
-        throw error;
-    }
+        const updateResult = await client.query(
+            `
+            UPDATE ro_departments
+            SET department_name = $2, updated_at = now()
+            WHERE department_id = $1
+            RETURNING department_id, department_name, is_active, created_at, updated_at
+            `,
+            [departmentId, departmentName]
+        );
+        data = updateResult.rows[0];
 
-    if (!data) {
-        throw createHttpError(404, 'RO department not found.');
+        if (existing.department_name !== departmentName) {
+            await client.query(
+                `
+                UPDATE admin_profiles
+                SET department = $2
+                WHERE LOWER(TRIM(COALESCE(department, ''))) = LOWER(TRIM($1))
+                  AND LOWER(TRIM(COALESCE(position, ''))) = 'ro coordinator'
+                `,
+                [existing.department_name, departmentName]
+            );
+            await client.query(
+                `
+                UPDATE return_of_obligations
+                SET assigned_area = $2, updated_at = now()
+                WHERE LOWER(TRIM(COALESCE(assigned_area, ''))) = LOWER(TRIM($1))
+                `,
+                [existing.department_name, departmentName]
+            );
+        }
+
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        if (error.code === '23505') {
+            throw createHttpError(409, 'This RO Area already exists.');
+        }
+        throw error;
+    } finally {
+        client.release();
     }
 
     return {
-        message: 'RO department updated successfully.',
+        message: 'RO Area updated successfully.',
         department: getDepartmentPayload(data),
     };
 }
@@ -501,33 +700,60 @@ async function toggleDepartment(departmentId) {
         throw createHttpError(400, 'departmentId is required.');
     }
 
-    const { data: existing, error: existingError } = await supabase
-        .from('ro_departments')
-        .select('department_id, is_active')
-        .eq('department_id', departmentId)
-        .maybeSingle();
+    const client = await db.connect();
+    let data;
+    try {
+        await client.query('BEGIN');
+        const existingResult = await client.query(
+            `
+            SELECT department_id, department_name, is_active
+            FROM ro_departments
+            WHERE department_id = $1
+            FOR UPDATE
+            `,
+            [departmentId]
+        );
+        const existing = existingResult.rows[0];
+        if (!existing) throw createHttpError(404, 'RO Area not found.');
 
-    if (existingError) throw existingError;
+        if (existing.is_active) {
+            const coordinatorResult = await client.query(
+                `
+                SELECT 1
+                FROM ro_area_coordinators
+                WHERE ro_area_id = $1
+                  AND is_active = true
+                LIMIT 1
+                `,
+                [existing.department_id]
+            );
+            if (coordinatorResult.rows.length) {
+                throw createHttpError(409, 'Archive or reassign the active RO Coordinator before deactivating this RO Area.');
+            }
+        }
 
-    if (!existing) {
-        throw createHttpError(404, 'RO department not found.');
+        const updateResult = await client.query(
+            `
+            UPDATE ro_departments
+            SET is_active = NOT is_active, updated_at = now()
+            WHERE department_id = $1
+            RETURNING department_id, department_name, is_active, created_at, updated_at
+            `,
+            [departmentId]
+        );
+        data = updateResult.rows[0];
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
     }
-
-    const { data, error } = await supabase
-        .from('ro_departments')
-        .update({
-            is_active: !existing.is_active,
-        })
-        .eq('department_id', departmentId)
-        .select('department_id, department_name, is_active, created_at, updated_at')
-        .single();
-
-    if (error) throw error;
 
     return {
         message: data.is_active
-            ? 'RO department activated successfully.'
-            : 'RO department deactivated successfully.',
+            ? 'RO Area activated successfully.'
+            : 'RO Area deactivated successfully.',
         department: getDepartmentPayload(data),
     };
 }
@@ -543,4 +769,5 @@ module.exports = {
     createDepartment,
     updateDepartment,
     toggleDepartment,
+    setDepartmentCoordinator,
 };

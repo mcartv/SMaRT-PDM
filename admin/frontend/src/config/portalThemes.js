@@ -85,6 +85,23 @@ const DEFAULT_THEMES = {
     chartPositive: '#16a34a',
     chartNegative: '#dc2626',
   },
+  ro_coordinator: {
+    presetKey: 'default',
+    label: 'Default',
+    base: '#155e75',
+    text: '#ecfeff',
+    sub: '#a5f3fc',
+    active: '#0e7490',
+    mainBg: '#f3fafb',
+    accent: '#06b6d4',
+    accentSoft: '#cffafe',
+    chartPrimary: '#155e75',
+    chartSecondary: '#06b6d4',
+    chartTertiary: '#0d9488',
+    chartQuaternary: '#38bdf8',
+    chartPositive: '#16a34a',
+    chartNegative: '#dc2626',
+  },
 };
 
 const PRESET_OVERRIDES = {

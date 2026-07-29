@@ -653,6 +653,7 @@ const RO_SELECT = `
 const LOG_SELECT = `
   log_id,
   ro_id,
+  placement_id,
   student_id,
   time_in_at,
   time_out_at,
@@ -857,6 +858,73 @@ async function getLogsForRo(roId, studentId) {
   return data || [];
 }
 
+async function getPlacementsForRo(roId) {
+  const { data, error } = await supabase
+    .from('ro_placements')
+    .select(`
+      placement_id,
+      ro_id,
+      ro_area_id,
+      placement_status,
+      admin_remarks,
+      coordinator_remarks,
+      requested_at,
+      decided_at,
+      student_acknowledged_at,
+      conflict_reason,
+      created_at,
+      updated_at,
+      ro_departments (
+        department_name
+      )
+    `)
+    .eq('ro_id', roId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map((placement) => ({
+    placementId: placement.placement_id?.toString() || '',
+    roId: placement.ro_id?.toString() || '',
+    roAreaId: placement.ro_area_id?.toString() || '',
+    areaName: placement.ro_departments?.department_name?.toString() || '',
+    status: placement.placement_status?.toString() || 'Pending',
+    adminRemarks: placement.admin_remarks?.toString() || '',
+    coordinatorRemarks: placement.coordinator_remarks?.toString() || '',
+    requestedAt: placement.requested_at?.toString() || '',
+    decidedAt: placement.decided_at?.toString() || '',
+    acknowledgedAt: placement.student_acknowledged_at?.toString() || '',
+    conflictReason: placement.conflict_reason?.toString() || '',
+  }));
+}
+
+async function resolveApprovedPlacement(roId, placementId = null) {
+  let query = supabase
+    .from('ro_placements')
+    .select('placement_id, ro_id, ro_area_id, placement_status')
+    .eq('ro_id', roId)
+    .eq('placement_status', 'Approved')
+    .order('decided_at', { ascending: false });
+
+  if (placementId) query = query.eq('placement_id', placementId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const placements = data || [];
+  if (placementId && placements.length !== 1) {
+    throw createHttpError(400, 'Select an approved RO placement.');
+  }
+  if (!placementId && placements.length > 1) {
+    throw createHttpError(400, 'Choose the RO Area where you are rendering this service session.');
+  }
+  if (!placements.length) {
+    throw createHttpError(409, 'An RO Area coordinator must approve your placement before you can time in.');
+  }
+
+  return placements[0];
+}
+
 function mapLog(row = {}) {
   return {
     logId:
@@ -864,6 +932,9 @@ function mapLog(row = {}) {
 
     roId:
       row.ro_id?.toString() || '',
+
+    placementId:
+      row.placement_id?.toString() || '',
 
     studentId:
       row.student_id?.toString() ||
@@ -971,6 +1042,7 @@ async function mapRO(
       row.ro_id,
       student.student_id
     );
+  const placements = await getPlacementsForRo(row.ro_id);
 
   const activeLog =
     logs.find(
@@ -1058,8 +1130,11 @@ async function mapRO(
       'Not Started',
 
     assignedArea:
+      placements.find((placement) => placement.status === 'Approved')?.areaName ||
       row.assigned_area?.toString() ||
       '',
+
+    placements,
 
     assignmentStatus:
       row.assignment_status?.toString() ||
@@ -1734,6 +1809,10 @@ async function timeInMyRo(
       body.student_note ||
       body.note
     );
+  const placement = await resolveApprovedPlacement(
+    ro.ro_id,
+    normalizeValue(body.placementId || body.placement_id) || null
+  );
 
   const now =
     new Date().toISOString();
@@ -1745,6 +1824,7 @@ async function timeInMyRo(
     .from('ro_time_logs')
     .insert({
       ro_id: ro.ro_id,
+      placement_id: placement.placement_id,
 
       student_id:
         student.student_id,
@@ -1869,7 +1949,10 @@ async function timeInMyRo(
         insertedLog.log_id,
 
       has_proof:
-        Boolean(proof),
+          Boolean(proof),
+
+      placement_id:
+        placement.placement_id,
     },
   };
 }

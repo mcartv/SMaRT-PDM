@@ -79,6 +79,12 @@ const ROLE_OPTIONS = [
         department: 'Student Welfare and Development Office',
         position: 'SDO Officer',
     },
+    {
+        value: 'ro_coordinator',
+        label: 'RO Coordinator',
+        department: '',
+        position: 'RO Coordinator',
+    },
 ];
 
 const DEPARTMENT_OPTIONS = {
@@ -122,6 +128,7 @@ const DEPARTMENT_OPTIONS = {
             label: 'Student Welfare and Development Office',
         },
     ],
+    ro_coordinator: [],
 };
 
 const DEFAULT_FORM = {
@@ -167,13 +174,24 @@ function normalizeDepartment(role, department, assignedCourses = []) {
     const options = DEPARTMENT_OPTIONS[role] || [];
     const current = String(department || '').trim();
 
+    if (role === 'ro_coordinator') return current;
     if (options.some((option) => option.value === current)) return current;
     if (role === 'pd') return inferPdDepartment(assignedCourses);
     return options[0]?.value || '';
 }
 
-function DepartmentField({ role, value, onChange, disabled = false }) {
-    const options = DEPARTMENT_OPTIONS[role] || [];
+function DepartmentField({ role, value, onChange, disabled = false, roAreas = [] }) {
+    const options = role === 'ro_coordinator'
+        ? roAreas
+            .filter((area) => area.is_active !== false)
+            .map((area) => ({
+                value: area.department_name,
+                label: area.department_name,
+                hint: area.coordinator?.name
+                    ? `Assigned to ${area.coordinator.name}`
+                    : 'Available',
+            }))
+        : DEPARTMENT_OPTIONS[role] || [];
     const selectedOption = options.find((option) => option.value === value);
 
     return (
@@ -203,6 +221,10 @@ function DepartmentField({ role, value, onChange, disabled = false }) {
                     {selectedOption?.hint
                         ? `Course group: ${selectedOption.hint}`
                         : 'Choose the office that supervises the assigned courses.'}
+                </p>
+            ) : role === 'ro_coordinator' ? (
+                <p className="mt-1 text-[11px] text-stone-500">
+                    Select an active RO Area managed in Maintenance &gt; Obligation.
                 </p>
             ) : null}
         </div>
@@ -346,6 +368,7 @@ function roleTone(role) {
     if (role === 'pd') return 'bg-purple-50 text-purple-700 border-purple-100';
     if (role === 'guidance') return 'bg-blue-50 text-blue-700 border-blue-100';
     if (role === 'sdo') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    if (role === 'ro_coordinator') return 'bg-cyan-50 text-cyan-700 border-cyan-100';
 
     return 'bg-stone-50 text-stone-700 border-stone-100';
 }
@@ -355,6 +378,7 @@ function accountMatchesRoleGroup(account, roleFilter) {
     if (roleFilter === 'admin') return account.role === 'admin';
     if (roleFilter === 'office') return ['sdo', 'guidance'].includes(account.role);
     if (roleFilter === 'pd') return account.role === 'pd';
+    if (roleFilter === 'ro_coordinator') return account.role === 'ro_coordinator';
 
     return true;
 }
@@ -377,7 +401,7 @@ function validatePasswordFields(password, confirmPassword, required = true) {
     return '';
 }
 
-function validateCreateForm(form) {
+function validateCreateForm(form, roAreas = []) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
     }
@@ -389,7 +413,10 @@ function validateCreateForm(form) {
     if (!form.role) {
         return 'Select an account role.';
     }
-    if (!(DEPARTMENT_OPTIONS[form.role] || []).some((option) => option.value === form.department)) {
+    const departmentOptions = form.role === 'ro_coordinator'
+        ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
+        : (DEPARTMENT_OPTIONS[form.role] || []).map((option) => option.value);
+    if (!departmentOptions.includes(form.department)) {
         return 'Select a valid department or office.';
     }
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
@@ -397,7 +424,7 @@ function validateCreateForm(form) {
     return validatePasswordFields(form.password, form.confirm_password, true);
 }
 
-function validateEditForm(form) {
+function validateEditForm(form, roAreas = []) {
     if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
         return 'First name, last name, and email are required.';
     }
@@ -409,7 +436,10 @@ function validateEditForm(form) {
     if (!form.role) {
         return 'Select an account role.';
     }
-    if (!(DEPARTMENT_OPTIONS[form.role] || []).some((option) => option.value === form.department)) {
+    const departmentOptions = form.role === 'ro_coordinator'
+        ? roAreas.filter((area) => area.is_active !== false).map((area) => area.department_name)
+        : (DEPARTMENT_OPTIONS[form.role] || []).map((option) => option.value);
+    if (!departmentOptions.includes(form.department)) {
         return 'Select a valid department or office.';
     }
     if (form.role === 'pd' && !(form.course_ids || []).length) return 'Select at least one course for the Program Director.';
@@ -470,6 +500,7 @@ function StaffCreateModal({
     onClose,
     onSubmit,
     courses,
+    roAreas,
 }) {
     if (!open) return null;
 
@@ -578,6 +609,7 @@ function StaffCreateModal({
                             value={form.department}
                             onChange={(value) => setField('department', value)}
                             disabled={saving}
+                            roAreas={roAreas}
                         />
 
                         <div>
@@ -586,7 +618,7 @@ function StaffCreateModal({
                                 value={form.position}
                                 onChange={(event) => setField('position', event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
+                                disabled={saving || form.role === 'ro_coordinator'}
                             />
                         </div>
                     </div>
@@ -659,6 +691,7 @@ function StaffEditModal({
     onClose,
     onSave,
     courses,
+    roAreas,
     currentUserId,
 }) {
     if (!open) return null;
@@ -678,7 +711,9 @@ function StaffEditModal({
             ...current,
             role,
             course_ids: role === 'pd' ? current.course_ids : [],
-            department: defaults?.department || current.department,
+            department: role === 'ro_coordinator'
+                ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
+                : defaults?.department || current.department,
             position: defaults?.position || current.position,
         }));
     };
@@ -786,6 +821,7 @@ function StaffEditModal({
                             value={form.department}
                             onChange={(value) => setField('department', value)}
                             disabled={saving}
+                            roAreas={roAreas}
                         />
 
                         <div>
@@ -794,7 +830,7 @@ function StaffEditModal({
                                 value={form.position}
                                 onChange={(event) => setField('position', event.target.value)}
                                 className="h-9 rounded-lg border-stone-200 text-sm"
-                                disabled={saving}
+                                disabled={saving || form.role === 'ro_coordinator'}
                             />
                         </div>
                     </div>
@@ -993,6 +1029,7 @@ function StaffProfileModal({ account, onClose, onEdit }) {
 export default function AccountsPanel() {
     const [accounts, setAccounts] = useState([]);
     const [courses, setCourses] = useState([]);
+    const [roAreas, setRoAreas] = useState([]);
     const [form, setForm] = useState(DEFAULT_FORM);
     const [editForm, setEditForm] = useState(DEFAULT_FORM);
 
@@ -1062,12 +1099,14 @@ export default function AccountsPanel() {
             setLoading(true);
             setError('');
 
-            const [response, courseResponse] = await Promise.all([
+            const [response, courseResponse, roAreaResponse] = await Promise.all([
                 fetch(buildApiUrl('/api/accounts/staff'), { headers: getAuthHeaders() }),
                 fetch(buildApiUrl('/api/courses'), { headers: getAuthHeaders() }),
+                fetch(buildApiUrl('/api/ro-settings/departments'), { headers: getAuthHeaders() }),
             ]);
             const data = await response.json().catch(() => ({}));
             const courseData = await courseResponse.json().catch(() => []);
+            const roAreaData = await roAreaResponse.json().catch(() => ({}));
 
             if (!response.ok || data.success === false) {
                 throw new Error(
@@ -1077,9 +1116,11 @@ export default function AccountsPanel() {
                 );
             }
             if (!courseResponse.ok) throw new Error(courseData.message || 'Failed to load courses.');
+            if (!roAreaResponse.ok) throw new Error(roAreaData.error || 'Failed to load RO Areas.');
 
             setAccounts(Array.isArray(data.data) ? data.data : []);
             setCourses((Array.isArray(courseData) ? courseData : []).filter((course) => !course.is_archived));
+            setRoAreas(Array.isArray(roAreaData.items) ? roAreaData.items : []);
         } catch (err) {
             setError(err.message || 'Failed to load staff accounts.');
         } finally {
@@ -1115,7 +1156,9 @@ export default function AccountsPanel() {
         setForm((current) => ({
             ...current,
             role,
-            department: defaults?.department || current.department,
+            department: role === 'ro_coordinator'
+                ? roAreas.find((area) => area.is_active !== false && !area.coordinator)?.department_name || ''
+                : defaults?.department || current.department,
             position: defaults?.position || current.position,
             course_ids: role === 'pd' ? current.course_ids : [],
         }));
@@ -1180,7 +1223,7 @@ export default function AccountsPanel() {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        const validationError = validateCreateForm(form);
+        const validationError = validateCreateForm(form, roAreas);
 
         if (validationError) {
             setError(validationError);
@@ -1235,7 +1278,7 @@ export default function AccountsPanel() {
     };
 
     const handleUpdate = async () => {
-        const validationError = validateEditForm(editForm);
+        const validationError = validateEditForm(editForm, roAreas);
 
         if (validationError) {
             setEditError(validationError);
@@ -1342,6 +1385,7 @@ export default function AccountsPanel() {
                 onClose={closeCreateModal}
                 onSubmit={handleSubmit}
                 courses={courses}
+                roAreas={roAreas}
             />
 
             <StaffEditModal
@@ -1354,6 +1398,7 @@ export default function AccountsPanel() {
                 onClose={closeEditModal}
                 onSave={handleUpdate}
                 courses={courses}
+                roAreas={roAreas}
                 currentUserId={editingAccountId}
             />
 
@@ -1469,6 +1514,7 @@ export default function AccountsPanel() {
                                                         <SelectItem value="admin">Admin</SelectItem>
                                                         <SelectItem value="office">Office (SDO/GCO)</SelectItem>
                                                         <SelectItem value="pd">Program Director</SelectItem>
+                                                        <SelectItem value="ro_coordinator">RO Coordinator</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>

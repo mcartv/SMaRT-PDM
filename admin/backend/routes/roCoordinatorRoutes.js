@@ -12,5 +12,8 @@ router.get('/scholar-requests', controller.getScholarRequests);
 router.post('/scholar-requests', controller.createScholarRequest);
 router.patch('/scholar-requests/:requestId/cancel', controller.cancelScholarRequest);
 router.patch('/requests/:placementId/decision', controller.decideRequest);
+router.get('/attendance', controller.getAttendanceQueue);
+router.patch('/attendance/:logId/decision', controller.validateAttendance);
 
 module.exports = router;
+

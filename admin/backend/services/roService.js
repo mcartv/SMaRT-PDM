@@ -291,6 +291,10 @@ async function getLogsForROIds(roIds) {
       validated_minutes,
       validation_status,
       validation_remarks,
+      department_validation_status,
+      department_validation_remarks,
+      department_validated_by,
+      department_validated_at,
       validated_by,
       validated_at,
       auto_timed_out,
@@ -445,6 +449,15 @@ function serializeLog(log = {}) {
         validation_remarks: log.validation_remarks || '',
         validationRemarks: log.validation_remarks || '',
 
+        department_validation_status: log.department_validation_status || 'Pending',
+        departmentValidationStatus: log.department_validation_status || 'Pending',
+        department_validation_remarks: log.department_validation_remarks || '',
+        departmentValidationRemarks: log.department_validation_remarks || '',
+        department_validated_by: log.department_validated_by || null,
+        departmentValidatedBy: log.department_validated_by || null,
+        department_validated_at: log.department_validated_at || null,
+        departmentValidatedAt: log.department_validated_at || null,
+
         validated_by: log.validated_by || null,
         validatedBy: log.validated_by || null,
 
@@ -509,19 +522,21 @@ async function syncRoTotals(roId, user = {}) {
         .reduce((sum, log) => sum + toNumber(log.validated_minutes), 0);
 
     const requiredMinutes = toNumber(ro.required_hours) * 60;
-    const shouldClear = requiredMinutes > 0 && validatedMinutes >= requiredMinutes;
+    const readyForOsfaClearance =
+        requiredMinutes > 0 && validatedMinutes >= requiredMinutes;
     const now = new Date().toISOString();
-    const adminUserId = getUserId(user);
 
     let progressStatus = 'Not Started';
     let assignmentStatus = null;
 
-    if (shouldClear || ro.ro_status === 'Cleared') {
+    // Department validation makes the record eligible for OSFA clearance.
+    // It must never clear the obligation automatically; only OSFA/Admin may do that.
+    if (ro.ro_status === 'Cleared') {
         progressStatus = 'Cleared';
         assignmentStatus = 'Cleared';
     } else if (submittedMinutes <= 0) {
         progressStatus = 'Not Started';
-    } else if (requiredMinutes > 0 && submittedMinutes >= requiredMinutes) {
+    } else if (readyForOsfaClearance || (requiredMinutes > 0 && submittedMinutes >= requiredMinutes)) {
         progressStatus = 'For Validation';
         assignmentStatus = 'For Validation';
     } else {
@@ -538,14 +553,6 @@ async function syncRoTotals(roId, user = {}) {
 
     if (assignmentStatus) {
         updatePayload.assignment_status = assignmentStatus;
-    }
-
-    if (shouldClear) {
-        updatePayload.ro_status = 'Cleared';
-        updatePayload.assignment_status = 'Cleared';
-        updatePayload.progress_status = 'Cleared';
-        updatePayload.cleared_at = now;
-        updatePayload.cleared_by = adminUserId || null;
     }
 
     const { data, error } = await supabase
@@ -1647,110 +1654,11 @@ exports.batchAssignScholarsRO = async (payload = {}, user = {}) => {
     };
 };
 
-exports.validateTimeLog = async (logId, payload = {}, user = {}) => {
-    if (!logId) {
-        throw createHttpError(400, 'Time log ID is required.');
-    }
-
-    const validationStatus = cleanText(
-        payload.validationStatus || payload.validation_status
+exports.validateTimeLog = async () => {
+    throw createHttpError(
+        409,
+        'RO attendance evidence must be validated by the assigned department head. OSFA/Admin can only perform the final clearance after department validation.'
     );
-
-    if (!['Approved', 'Rejected'].includes(validationStatus)) {
-        throw createHttpError(
-            400,
-            'Validation status must be Approved or Rejected.'
-        );
-    }
-
-    const { data: existingLog, error: existingError } = await supabase
-        .from('ro_time_logs')
-        .select('*')
-        .eq('log_id', logId)
-        .maybeSingle();
-
-    if (existingError) {
-        throw createHttpError(500, existingError.message);
-    }
-
-    if (!existingLog) {
-        throw createHttpError(404, 'Time log not found.');
-    }
-
-    const { data: beforeRo, error: beforeRoError } = await supabase
-        .from('return_of_obligations')
-        .select('ro_id, ro_status')
-        .eq('ro_id', existingLog.ro_id)
-        .maybeSingle();
-
-    if (beforeRoError) {
-        throw createHttpError(500, beforeRoError.message);
-    }
-
-    const wasAlreadyCleared = beforeRo?.ro_status === 'Cleared';
-
-    const durationMinutes = toNumber(existingLog.duration_minutes);
-
-    const requestedValidatedMinutes = toNumber(
-        payload.validatedMinutes ?? payload.validated_minutes ?? durationMinutes
-    );
-
-    const validatedMinutes =
-        validationStatus === 'Approved'
-            ? Math.min(durationMinutes, Math.max(0, requestedValidatedMinutes))
-            : 0;
-
-    const now = new Date().toISOString();
-    const adminUserId = getUserId(user);
-
-    const { data: log, error: updateError } = await supabase
-        .from('ro_time_logs')
-        .update({
-            validation_status: validationStatus,
-            validated_minutes: validatedMinutes,
-            validation_remarks:
-                cleanText(
-                    payload.remarks ||
-                    payload.validationRemarks ||
-                    payload.validation_remarks
-                ) || null,
-            validated_by: adminUserId,
-            validated_at: now,
-            updated_at: now,
-        })
-        .eq('log_id', logId)
-        .select()
-        .single();
-
-    if (updateError) {
-        throw createHttpError(500, updateError.message);
-    }
-
-    const ro = await syncRoTotals(existingLog.ro_id, user);
-
-    const validationNotification = await sendRoTimeLogValidationNotification({
-        studentId: existingLog.student_id,
-        log,
-        validationStatus,
-        validatedMinutes,
-    });
-
-    let clearanceNotification = null;
-
-    if (!wasAlreadyCleared && ro?.ro_status === 'Cleared') {
-        clearanceNotification = await sendRoClearanceNotification({
-            studentId: existingLog.student_id,
-            ro,
-        });
-    }
-
-    return {
-        message: `Time log ${validationStatus.toLowerCase()}.`,
-        log,
-        ro,
-        notification: validationNotification,
-        clearanceNotification,
-    };
 };
 
 exports.reviewTimeLogProof = async (proofId, payload = {}, user = {}) => {
@@ -1899,6 +1807,51 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
     const application = await getApprovedApplicationForStudent(studentId, payload);
     const existingRO = await getROByApplication(studentId, application.application_id);
 
+    if (!existingRO?.ro_id) {
+        throw createHttpError(409, 'Assign and complete the required RO workflow before clearing this scholar.');
+    }
+
+    const { data: clearanceLogs, error: clearanceLogsError } = await supabase
+        .from('ro_time_logs')
+        .select('log_id, log_status, duration_minutes, validated_minutes, validation_status, department_validation_status')
+        .eq('ro_id', existingRO.ro_id);
+
+    if (clearanceLogsError) {
+        throw createHttpError(500, clearanceLogsError.message);
+    }
+
+    const completedLogs = (clearanceLogs || []).filter(
+        (log) => log.log_status === 'Timed Out'
+    );
+    const departmentApprovedLogs = completedLogs.filter(
+        (log) => log.department_validation_status === 'Approved'
+    );
+    const pendingDepartmentLogs = completedLogs.filter(
+        (log) => !log.department_validation_status || log.department_validation_status === 'Pending'
+    );
+    const departmentValidatedMinutes = departmentApprovedLogs.reduce(
+        (sum, log) => sum + toNumber(log.validated_minutes || log.duration_minutes),
+        0
+    );
+    const requiredMinutes = toNumber(existingRO.required_hours) * 60;
+
+    if (!completedLogs.length) {
+        throw createHttpError(409, 'The scholar has no completed RO attendance logs to clear.');
+    }
+
+    // Returned evidence is intentionally excluded. The scholar may submit a
+    // replacement log; the old returned record remains in the audit trail.
+    if (pendingDepartmentLogs.length > 0) {
+        throw createHttpError(409, 'The department head must decide all pending attendance evidence before OSFA can clear this scholar.');
+    }
+
+    if (requiredMinutes <= 0 || departmentValidatedMinutes < requiredMinutes) {
+        throw createHttpError(
+            409,
+            `Department-validated time is incomplete (${departmentValidatedMinutes} of ${requiredMinutes} required minutes).`
+        );
+    }
+
     const now = new Date().toISOString();
     const adminUserId = getUserId(user);
 
@@ -1959,3 +1912,4 @@ exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
         clearance: data,
     };
 };
+

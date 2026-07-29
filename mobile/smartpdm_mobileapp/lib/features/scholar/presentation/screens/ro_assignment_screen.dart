@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
 import 'package:smartpdm_mobileapp/app/theme/app_colors.dart';
 import 'package:smartpdm_mobileapp/core/networking/api_client.dart';
 import 'package:smartpdm_mobileapp/core/storage/session_service.dart';
@@ -43,6 +44,9 @@ class RoPickedPhoto {
     required this.mimeType,
     required this.capturedAtDevice,
     required this.source,
+    required this.latitude,
+    required this.longitude,
+    required this.accuracyMeters,
   });
 
   final XFile file;
@@ -51,6 +55,9 @@ class RoPickedPhoto {
   final String mimeType;
   final DateTime capturedAtDevice;
   final ImageSource source;
+  final double latitude;
+  final double longitude;
+  final double accuracyMeters;
 
   String get sourceLabel => source == ImageSource.camera ? 'camera' : 'gallery';
 }
@@ -80,6 +87,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   bool _shouldShowModule = false;
 
   Timer? _activeTimer;
+  String _captureArea = '';
+  String _captureAction = 'RO ATTENDANCE';
 
   @override
   void initState() {
@@ -223,25 +232,91 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   Future<RoPickedPhoto?> _pickRoProofPhoto(ImageSource source) async {
-    final pickedFile = await _imagePicker.pickImage(
-      source: source,
-      imageQuality: 78,
-      maxWidth: 1600,
-    );
+    if (source != ImageSource.camera) {
+      throw Exception('RO attendance requires a live camera photo.');
+    }
 
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Enable location services before taking the attendance photo.');
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      throw Exception('Location permission is required for RO attendance.');
+    }
+
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 12),
+      ),
+    );
+    final capturedAt = DateTime.now();
+    final pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 88,
+      maxWidth: 1800,
+      preferredCameraDevice: CameraDevice.rear,
+    );
     if (pickedFile == null) return null;
 
-    final bytes = await pickedFile.readAsBytes();
-    final mimeType = _guessImageMimeType(file: pickedFile, bytes: bytes);
-    final fileName = _safeRoPhotoFileName(file: pickedFile, mimeType: mimeType);
+    final originalBytes = await pickedFile.readAsBytes();
+    final decoded = img.decodeImage(originalBytes);
+    if (decoded == null) throw Exception('The captured image could not be processed.');
+
+    final localTime = capturedAt.toLocal();
+    final stampLines = <String>[
+      _captureAction,
+      'Date/Time: ${localTime.year.toString().padLeft(4, '0')}-${localTime.month.toString().padLeft(2, '0')}-${localTime.day.toString().padLeft(2, '0')} '
+          '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}:${localTime.second.toString().padLeft(2, '0')}',
+      'RO Area: ${_captureArea.isEmpty ? 'Assigned Department' : _captureArea}',
+      'Location: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',
+      'Accuracy: ±${position.accuracy.toStringAsFixed(1)} m',
+    ];
+
+    const padding = 18;
+    const lineHeight = 30;
+    final panelHeight = padding * 2 + lineHeight * stampLines.length;
+    final panelTop = decoded.height - panelHeight;
+    img.fillRect(
+      decoded,
+      x1: 0,
+      y1: panelTop < 0 ? 0 : panelTop,
+      x2: decoded.width - 1,
+      y2: decoded.height - 1,
+      color: img.ColorRgba8(0, 0, 0, 190),
+    );
+    var y = (panelTop < 0 ? 0 : panelTop) + padding;
+    for (final line in stampLines) {
+      img.drawString(
+        decoded,
+        line,
+        font: img.arial24,
+        x: padding,
+        y: y,
+        color: img.ColorRgb8(255, 255, 255),
+      );
+      y += lineHeight;
+    }
+
+    final bytes = Uint8List.fromList(img.encodeJpg(decoded, quality: 88));
+    final fileName = 'ro-${_captureAction.toLowerCase().replaceAll(' ', '-')}-${capturedAt.millisecondsSinceEpoch}.jpg';
 
     return RoPickedPhoto(
       file: pickedFile,
       bytes: bytes,
       fileName: fileName,
-      mimeType: mimeType,
-      capturedAtDevice: DateTime.now(),
-      source: source,
+      mimeType: 'image/jpeg',
+      capturedAtDevice: capturedAt,
+      source: ImageSource.camera,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracyMeters: position.accuracy,
     );
   }
 
@@ -459,7 +534,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Photo proof is optional for now',
+                                    'Live camera proof is required',
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w900,
@@ -469,7 +544,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                   const SizedBox(height: 4),
                                   Text(
                                     selectedPhoto == null
-                                        ? 'Continue without a photo, take one using the camera, or choose from gallery.'
+                                        ? 'Take a live camera photo. The date, time, RO area, and GPS coordinates will be burned into the image.'
                                         : 'Selected: ${selectedPhoto!.fileName}',
                                     style: const TextStyle(
                                       fontSize: 12,
@@ -632,33 +707,6 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: OutlinedButton.icon(
-                                          onPressed: _isSubmitting
-                                              ? null
-                                              : () => choosePhoto(
-                                                  ImageSource.gallery,
-                                                ),
-                                          icon: const Icon(
-                                            Icons.photo_library_rounded,
-                                            size: 18,
-                                          ),
-                                          label: const Text('Gallery'),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: const Color(
-                                              0xFF4A2400,
-                                            ),
-                                            side: const BorderSide(
-                                              color: Color(0xFFD8C7B3),
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                   if (selectedPhoto != null) ...[
@@ -708,6 +756,10 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
                                 onPressed: _isSubmitting
                                     ? null
                                     : () {
+                                        if (selectedPhoto == null) {
+                                          _showSnack('Take the required live camera photo first.');
+                                          return;
+                                        }
                                         Navigator.pop(
                                           dialogContext,
                                           RoActionInput(
@@ -769,6 +821,14 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         'studentNote': studentNote.trim(),
     };
 
+    if (photo != null) {
+      fields['latitude'] = photo.latitude.toString();
+      fields['longitude'] = photo.longitude.toString();
+      fields['accuracy_meters'] = photo.accuracyMeters.toString();
+      fields['location_permission_status'] = 'granted';
+      return fields;
+    }
+
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
@@ -816,7 +876,7 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
         return AlertDialog(
           title: const Text('Acknowledge RO notice?'),
           content: Text(
-            'You are acknowledging your Return of Obligation assignment at ${item.assignedArea}.',
+            'You are acknowledging the required Return of Obligation assignment at ${item.assignedArea}. Failure to complete it may be reported to OSFA for review.',
           ),
           actions: [
             TextButton(
@@ -862,8 +922,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
 
   Future<void> _reportConcern(RoAssignment item) async {
     final concern = await _showNoteSheet(
-      title: 'Report Concern',
-      hint: 'Explain your concern or conflict with this RO assignment',
+      title: 'Report Required-Assignment Conflict',
+      hint: 'Explain the legitimate schedule, location, medical, or academic conflict. This report is sent to OSFA for review and does not automatically cancel the assignment.',
       primaryLabel: 'Submit Concern',
       requiredInput: true,
     );
@@ -927,6 +987,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
       selectedPlacement = choice;
     }
 
+    _captureArea = selectedPlacement.areaName;
+    _captureAction = 'TIME IN';
     final input = await _showRoActionDialog(
       title: 'Time In',
       hint: 'Optional note before starting your RO session',
@@ -966,6 +1028,8 @@ class _ROAssignmentScreenState extends State<ROAssignmentScreen>
   }
 
   Future<void> _timeOut(RoAssignment item) async {
+    _captureArea = item.assignedArea;
+    _captureAction = 'TIME OUT';
     final input = await _showRoActionDialog(
       title: 'Time Out',
       hint: 'Optional note before ending your RO session',
@@ -1565,6 +1629,16 @@ class _AssignmentCard extends StatelessWidget {
             _NoticeHeader(item: item),
             const SizedBox(height: 16),
             _NoticeDetails(item: item, formatMinutes: formatMinutes),
+            if (!item.isCleared) ...[
+              const SizedBox(height: 12),
+              const _InfoBox(
+                icon: Icons.gavel_rounded,
+                title: 'Required Scholarship Obligation',
+                message:
+                    'This assignment is mandatory. You cannot reject it directly. A legitimate conflict may be reported to OSFA, but failure to acknowledge, attend, or complete the required hours may be flagged for review and may affect your scholarship standing.',
+                color: Color(0xFF8A4B08),
+              ),
+            ],
             if (item.placements.isNotEmpty) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -2220,3 +2294,4 @@ DateTime? _toDate(dynamic value) {
   if (value == null) return null;
   return DateTime.tryParse(value.toString());
 }
+

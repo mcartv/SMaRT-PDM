@@ -123,6 +123,9 @@ export default function ROCoordinatorQueue({
   const [decisionState, setDecisionState] = useState({ request: null, decision: '' });
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState('placements');
+  const [attendance, setAttendance] = useState([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceSavingId, setAttendanceSavingId] = useState('');
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ status });
@@ -149,12 +152,62 @@ export default function ROCoordinatorQueue({
     }
   }, [requestUrl, tokenStorageKey]);
 
+  const loadAttendance = useCallback(async () => {
+    try {
+      setAttendanceLoading(true);
+      const response = await fetch(buildApiUrl('/api/ro-coordinator/attendance?status=pending'), {
+        headers: authHeaders(tokenStorageKey),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Failed to load attendance evidence.');
+      setAttendance(Array.isArray(payload.items) ? payload.items : []);
+    } catch (attendanceError) {
+      toast.error('Attendance evidence was not loaded', { description: attendanceError.message });
+    } finally {
+      setAttendanceLoading(false);
+    }
+  }, [tokenStorageKey]);
+
+  const decideAttendance = async (log, decision) => {
+    const remarks = decision === 'return'
+      ? window.prompt('Reason for returning this attendance evidence:')
+      : window.prompt('Optional validation remarks:') || '';
+    if (decision === 'return' && !remarks?.trim()) return;
+    try {
+      setAttendanceSavingId(log.log_id);
+      const response = await fetch(buildApiUrl(`/api/ro-coordinator/attendance/${log.log_id}/decision`), {
+        method: 'PATCH',
+        headers: authHeaders(tokenStorageKey),
+        body: JSON.stringify({ decision, remarks: remarks?.trim() || '' }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Failed to validate attendance.');
+      toast.success(decision === 'approve' ? 'Attendance validated' : 'Attendance returned', {
+        description: payload.message,
+      });
+      await Promise.all([loadAttendance(), loadRequests({ soft: true })]);
+    } catch (attendanceError) {
+      toast.error('Attendance decision was not saved', { description: attendanceError.message });
+    } finally {
+      setAttendanceSavingId('');
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'attendance') {
+      loadAttendance();
+    }
+  }, [viewMode, loadAttendance]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => loadRequests(), 220);
     return () => window.clearTimeout(timer);
   }, [loadRequests]);
 
-  useSocketEvent('ro:updated', () => loadRequests({ soft: true }), [loadRequests]);
+  useSocketEvent('ro:updated', () => {
+    loadRequests({ soft: true });
+    if (viewMode === 'attendance') loadAttendance();
+  }, [loadRequests, loadAttendance, viewMode]);
 
   const submitDecision = async (remarks) => {
     const { request, decision } = decisionState;
@@ -200,8 +253,15 @@ export default function ROCoordinatorQueue({
           <h1 className="mt-1 text-2xl font-semibold text-stone-900">RO Requests</h1>
           <p className="mt-1 text-sm text-stone-500">{department || 'Your assigned area'} · Review requests before scholars begin RO work.</p>
         </div>
-        <Button variant="outline" onClick={() => loadRequests({ soft: true })} disabled={refreshing} className="border-stone-200">
-          {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+        <Button
+          variant="outline"
+          onClick={() => viewMode === 'attendance' ? loadAttendance() : loadRequests({ soft: true })}
+          disabled={viewMode === 'attendance' ? attendanceLoading : refreshing}
+          className="border-stone-200"
+        >
+          {(viewMode === 'attendance' ? attendanceLoading : refreshing)
+            ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            : <RefreshCw className="mr-2 h-4 w-4" />}
           Refresh
         </Button>
       </div>
@@ -209,6 +269,7 @@ export default function ROCoordinatorQueue({
       <div className="inline-flex rounded-xl border border-stone-200 bg-white p-1">
         {[
           { value: 'placements', label: 'Placement Approvals' },
+          { value: 'attendance', label: 'Attendance Validation' },
           { value: 'scholars', label: 'Scholar Requests' },
         ].map((tab) => (
           <button
@@ -348,12 +409,71 @@ export default function ROCoordinatorQueue({
         </div>
       )}
         </>
-      ) : (
+      ) : viewMode === 'scholars' ? (
         <ROCoordinatorScholarRequests
           tokenStorageKey={tokenStorageKey}
           portalKey={portalKey}
         />
+      ) : (
+        <section className="space-y-3 rounded-[24px] border border-stone-200 bg-white p-5">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: theme.base }}>Completion Validation</p>
+          <h2 className="mt-1 text-xl font-semibold text-stone-900">Attendance Evidence</h2>
+          <p className="mt-1 text-sm text-stone-500">Validate the scholar's time-in and time-out evidence before OSFA can mark the obligation cleared.</p>
+        </div>
+        {attendanceLoading ? (
+          <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        ) : attendance.length ? (
+          <div className="space-y-3">
+            {attendance.map((log) => {
+              const proofs = Array.isArray(log.proofs) ? log.proofs : [];
+              const hasValidProof = (type) => proofs.some((proof) =>
+                proof.proof_type === type &&
+                Boolean(proof.file_url || proof.file_path) &&
+                proof.latitude != null &&
+                proof.longitude != null
+              );
+              const evidenceComplete = hasValidProof('time_in') && hasValidProof('time_out');
+
+              return (
+              <Card key={log.log_id} className="rounded-2xl border-stone-200 shadow-none">
+                <CardContent className="space-y-4 p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="font-semibold text-stone-900">{log.first_name} {log.last_name}</p>
+                      <p className="text-xs text-stone-500">{log.pdm_id} · {log.course_code || 'Course not set'} · {log.assigned_area}</p>
+                    </div>
+                    <p className="text-xs text-stone-500">{Math.round(Number(log.duration_minutes || 0))} minutes · {formatDate(log.time_out_at)}</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {proofs.map((proof) => (
+                      <a key={proof.proof_id} href={proof.file_url || '#'} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border border-stone-200 bg-stone-50">
+                        {proof.file_url ? <img src={proof.file_url} alt={proof.proof_type || 'RO attendance proof'} className="h-56 w-full object-cover" /> : <div className="flex h-40 items-center justify-center text-xs text-stone-400">Image unavailable</div>}
+                        <div className="px-3 py-2 text-xs font-medium text-stone-600">{proof.proof_type === 'time_in' ? 'Time In' : 'Time Out'} · {proof.latitude || 'No GPS'}, {proof.longitude || 'No GPS'}</div>
+                      </a>
+                    ))}
+                  </div>
+                  {!evidenceComplete ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                      Validation is locked until both time-in and time-out photos contain GPS coordinates.
+                    </div>
+                  ) : null}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button variant="outline" disabled={attendanceSavingId === log.log_id} onClick={() => decideAttendance(log, 'return')} className="border-red-200 text-red-700"><RotateCcw className="mr-2 h-4 w-4" />Return Evidence</Button>
+                    <Button disabled={attendanceSavingId === log.log_id || !evidenceComplete} title={evidenceComplete ? 'Validate this attendance record.' : 'Both GPS-stamped time-in and time-out photos are required.'} onClick={() => decideAttendance(log, 'approve')} className="text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ background: theme.base }}>{attendanceSavingId === log.log_id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}Validate Attendance</Button>
+                  </div>
+                </CardContent>
+              </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-stone-200 px-5 py-10 text-center text-sm text-stone-500">No completed attendance evidence is waiting for validation.</div>
+        )}
+        </section>
       )}
     </div>
   );
 }
+
+

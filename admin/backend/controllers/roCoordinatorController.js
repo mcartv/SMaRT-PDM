@@ -69,8 +69,8 @@ async function notify(req, coordinator, request, decision, remarks) {
     const notification = await notificationService.createUserNotification({
       userId: studentUserId,
       type: 'Return of Obligation',
-      title: 'RO assignment approved',
-      message: `${officeName} approved your Return of Obligation request. You may now complete your assigned RO requirements.`,
+      title: 'Required RO assignment approved',
+      message: `${officeName} approved your mandatory Return of Obligation assignment. Open the scholar app, review the details, and acknowledge it. You may report a legitimate conflict, but the assignment cannot be directly rejected.`,
       referenceId: request.ro_id,
       referenceType: 'return_of_obligation',
     });
@@ -483,5 +483,262 @@ exports.decideRequest = async (req, res) => {
     return res.json({ message: `RO request ${nextStatus.toLowerCase()} successfully.`, request });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ message: error.message || 'Failed to save RO decision.' });
+  }
+};
+
+exports.getAttendanceQueue = async (req, res) => {
+  try {
+    const coordinator = await getCoordinator(req);
+    const status = String(req.query.status || 'pending').trim().toLowerCase();
+    const statusValue = status === 'all'
+      ? null
+      : status === 'approved'
+        ? 'Approved'
+        : status === 'returned'
+          ? 'Returned'
+          : 'Pending';
+
+    const result = await db.query(
+      `SELECT
+         rtl.log_id,
+         rtl.ro_id,
+         rtl.placement_id,
+         rtl.student_id,
+         rtl.time_in_at,
+         rtl.time_out_at,
+         rtl.duration_minutes,
+         rtl.validated_minutes,
+         rtl.student_note,
+         rtl.log_status,
+         rtl.department_validation_status,
+         rtl.department_validation_remarks,
+         rtl.department_validated_at,
+         rp.placement_status,
+         rd.department_name AS assigned_area,
+         ro.required_hours,
+         ro.ro_status,
+         s.pdm_id,
+         s.first_name,
+         s.last_name,
+         ac.course_code,
+         COALESCE(
+           json_agg(
+             json_build_object(
+               'proof_id', proof.proof_id,
+               'proof_type', proof.proof_type,
+               'file_url', proof.file_url,
+               'file_path', proof.file_path,
+               'captured_at_device', proof.captured_at_device,
+               'captured_at_server', proof.captured_at_server,
+               'latitude', proof.latitude,
+               'longitude', proof.longitude,
+               'accuracy_meters', proof.accuracy_meters,
+               'proof_status', proof.proof_status
+             ) ORDER BY proof.created_at
+           ) FILTER (WHERE proof.proof_id IS NOT NULL),
+           '[]'::json
+         ) AS proofs
+       FROM ro_time_logs rtl
+       JOIN ro_placements rp ON rp.placement_id = rtl.placement_id
+       JOIN ro_departments rd ON rd.department_id = rp.ro_area_id
+       JOIN return_of_obligations ro ON ro.ro_id = rtl.ro_id
+       JOIN students s ON s.student_id = rtl.student_id
+       LEFT JOIN academic_course ac ON ac.course_id = s.course_id
+       LEFT JOIN ro_time_log_proofs proof ON proof.log_id = rtl.log_id
+       WHERE rp.coordinator_assignment_id = ANY($1::uuid[])
+         AND rp.placement_status = 'Approved'
+         AND rtl.log_status = 'Timed Out'
+         AND ($2::text IS NULL OR rtl.department_validation_status = $2)
+       GROUP BY rtl.log_id, rp.placement_status, rd.department_name,
+                ro.required_hours, ro.ro_status, s.pdm_id, s.first_name,
+                s.last_name, ac.course_code
+       ORDER BY CASE rtl.department_validation_status WHEN 'Pending' THEN 0 WHEN 'Returned' THEN 1 ELSE 2 END,
+                rtl.time_out_at DESC NULLS LAST`,
+      [coordinator.assignmentIds, statusValue]
+    );
+
+    return res.json({ items: result.rows, department: coordinator.department });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to load RO attendance evidence.',
+    });
+  }
+};
+
+exports.validateAttendance = async (req, res) => {
+  try {
+    const coordinator = await getCoordinator(req);
+    const decision = String(req.body?.decision || '').trim().toLowerCase();
+    const remarks = String(req.body?.remarks || '').trim();
+
+    if (!['approve', 'return'].includes(decision)) {
+      return res.status(400).json({ message: 'Choose approve or return.' });
+    }
+    if (decision === 'return' && !remarks) {
+      return res.status(400).json({ message: 'Remarks are required when returning attendance evidence.' });
+    }
+
+    const nextDepartmentStatus = decision === 'approve' ? 'Approved' : 'Returned';
+    const nextValidationStatus = decision === 'approve' ? 'Approved' : 'Rejected';
+    const client = await db.connect();
+    let log;
+
+    try {
+      await client.query('BEGIN');
+
+      if (decision === 'approve') {
+        const proofCheck = await client.query(
+          `SELECT COUNT(DISTINCT proof.proof_type)::int AS valid_proof_types
+           FROM ro_time_logs rtl
+           JOIN ro_placements rp ON rp.placement_id = rtl.placement_id
+           LEFT JOIN ro_time_log_proofs proof
+             ON proof.log_id = rtl.log_id
+            AND proof.proof_type IN ('time_in', 'time_out')
+            AND COALESCE(
+              NULLIF(BTRIM(proof.file_url), ''),
+              NULLIF(BTRIM(proof.file_path), '')
+            ) IS NOT NULL
+            AND proof.latitude IS NOT NULL
+            AND proof.longitude IS NOT NULL
+            AND COALESCE(proof.proof_status, 'Pending Review') <> 'Rejected'
+           WHERE rtl.log_id = $1
+             AND rp.coordinator_assignment_id = ANY($2::uuid[])
+             AND rp.placement_status = 'Approved'`,
+          [req.params.logId, coordinator.assignmentIds]
+        );
+
+        if (Number(proofCheck.rows[0]?.valid_proof_types || 0) < 2) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({
+            message: 'Both time-in and time-out photos with GPS coordinates are required before attendance can be validated.',
+          });
+        }
+      }
+
+      const updateResult = await client.query(
+        `UPDATE ro_time_logs rtl
+         SET department_validation_status = $1,
+             department_validation_remarks = $2,
+             department_validated_by = $3,
+             department_validated_at = now(),
+             validation_status = $4,
+             validation_remarks = $2,
+             validated_by = $3,
+             validated_at = now(),
+             validated_minutes = CASE WHEN $1 = 'Approved' THEN duration_minutes ELSE 0 END,
+             updated_at = now()
+         FROM ro_placements rp
+         WHERE rtl.log_id = $5
+           AND rtl.placement_id = rp.placement_id
+           AND rp.coordinator_assignment_id = ANY($6::uuid[])
+           AND rp.placement_status = 'Approved'
+           AND rtl.log_status = 'Timed Out'
+         RETURNING rtl.*`,
+        [
+          nextDepartmentStatus,
+          remarks || null,
+          coordinator.userId,
+          nextValidationStatus,
+          req.params.logId,
+          coordinator.assignmentIds,
+        ]
+      );
+      log = updateResult.rows[0];
+      if (!log) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'This attendance log is unavailable for your department.' });
+      }
+
+      const totals = await client.query(
+        `SELECT
+           COALESCE(SUM(duration_minutes) FILTER (
+             WHERE log_status = 'Timed Out' AND department_validation_status <> 'Returned'
+           ), 0)::int AS submitted_minutes,
+           COALESCE(SUM(validated_minutes) FILTER (
+             WHERE department_validation_status = 'Approved'
+           ), 0)::int AS validated_minutes
+         FROM ro_time_logs
+         WHERE ro_id = $1`,
+        [log.ro_id]
+      );
+      const total = totals.rows[0] || {};
+
+      await client.query(
+        `UPDATE return_of_obligations
+         SET submitted_minutes = $1,
+             validated_minutes = $2,
+             progress_status = CASE
+               WHEN ro_status = 'Cleared' THEN 'Cleared'
+               WHEN $2 >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
+               WHEN $1 > 0 THEN 'In Progress'
+               ELSE 'Not Started'
+             END,
+             assignment_status = CASE
+               WHEN ro_status = 'Cleared' THEN 'Cleared'
+               WHEN $2 >= required_hours * 60 AND required_hours > 0 THEN 'For Validation'
+               WHEN $1 > 0 THEN 'In Progress'
+               ELSE assignment_status
+             END,
+             updated_at = now()
+         WHERE ro_id = $3`,
+        [Number(total.submitted_minutes || 0), Number(total.validated_minutes || 0), log.ro_id]
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    const io = req.app.get('io');
+    const studentResult = await db.query(
+      'SELECT user_id FROM students WHERE student_id = $1 LIMIT 1',
+      [log.student_id]
+    );
+    const studentUserId = studentResult.rows[0]?.user_id;
+    if (studentUserId) {
+      const studentNotification = await notificationService.createUserNotification({
+        userId: studentUserId,
+        type: 'Return of Obligation',
+        title: decision === 'approve'
+          ? 'RO attendance validated by department'
+          : 'RO attendance evidence returned',
+        message: decision === 'approve'
+          ? `${coordinator.department} validated your completed attendance evidence. OSFA will perform the final clearance review after all required hours are validated.`
+          : `${coordinator.department} returned your attendance evidence${remarks ? `: ${remarks}` : '. Submit corrected evidence or contact OSFA.'}`,
+        referenceId: log.ro_id,
+        referenceType: 'return_of_obligation',
+      });
+      socketEvents.notificationCreated(io, studentUserId, {
+        ...studentNotification,
+        target_user_id: studentUserId,
+      });
+    }
+
+    const adminNotifications = await notificationService.createStaffNotifications({
+      roles: ['admin'],
+      type: 'Return of Obligation',
+      title: decision === 'approve' ? 'RO attendance validated' : 'RO attendance returned',
+      message: `${coordinator.department} ${decision === 'approve' ? 'validated' : 'returned'} a scholar attendance record${remarks ? `: ${remarks}` : '.'}`,
+      referenceId: log.ro_id,
+      referenceType: 'return_of_obligation',
+    });
+    adminNotifications.forEach((notification) => {
+      const targetUserId = notification.target_user_id || notification.user_id;
+      if (targetUserId) socketEvents.notificationCreated(io, targetUserId, { ...notification, target_user_id: targetUserId });
+    });
+
+    emitUpdate(req, { action: `attendance-${decision}`, ro_id: log.ro_id, log_id: log.log_id });
+    return res.json({
+      message: decision === 'approve'
+        ? 'Attendance evidence validated. OSFA may clear the scholar after all required hours are validated.'
+        : 'Attendance evidence returned to the scholar for correction.',
+      log,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to validate RO attendance evidence.',
+    });
   }
 };

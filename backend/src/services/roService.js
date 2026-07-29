@@ -646,6 +646,10 @@ const RO_SELECT = `
   conflict_reason,
   assigned_by,
   assigned_at,
+  coordinator_status,
+  coordinator_remarks,
+  coordinator_user_id,
+  coordinator_decided_at,
   submitted_progress,
   ro_progress
 `;
@@ -663,6 +667,10 @@ const LOG_SELECT = `
   validated_minutes,
   validation_status,
   validation_remarks,
+  department_validation_status,
+  department_validation_remarks,
+  department_validated_by,
+  department_validated_at,
   validated_by,
   validated_at,
   auto_timed_out,
@@ -972,6 +980,22 @@ function mapLog(row = {}) {
 
     validationRemarks:
       row.validation_remarks?.toString() ||
+      '',
+
+    departmentValidationStatus:
+      row.department_validation_status?.toString() ||
+      'Pending',
+
+    departmentValidationRemarks:
+      row.department_validation_remarks?.toString() ||
+      '',
+
+    departmentValidatedBy:
+      row.department_validated_by?.toString() ||
+      '',
+
+    departmentValidatedAt:
+      row.department_validated_at?.toString() ||
       '',
 
     validatedBy:
@@ -1476,9 +1500,15 @@ async function getMyAssignments(userId) {
       )
     );
 
+  // Do not reveal a proposed RO assignment until a department head approves it.
+  const visibleRows = rows.filter((row) =>
+    row.coordinator_status === 'Approved' &&
+    !['Pending Coordinator Approval', 'Coordinator Rejected'].includes(row.assignment_status)
+  );
+
   const items =
     await Promise.all(
-      rows.map((row) =>
+      visibleRows.map((row) =>
         mapRO(
           row,
           student,
@@ -1519,6 +1549,20 @@ async function getOwnedRoOrThrow(
     throw createHttpError(
       404,
       'RO assignment not found.'
+    );
+  }
+
+  // Hiding the card in Flutter is not enough. Block direct API access until
+  // the department head has approved the proposed placement.
+  if (
+    ro.coordinator_status !== 'Approved' ||
+    ['Pending Coordinator Approval', 'Coordinator Rejected'].includes(
+      ro.assignment_status
+    )
+  ) {
+    throw createHttpError(
+      403,
+      'This RO assignment is not yet available. The department head must approve it first.'
     );
   }
 
@@ -1705,6 +1749,29 @@ async function reportMyRoConflict(
   };
 }
 
+function requireLiveCameraProof(body = {}, file = null, actionLabel = 'RO attendance') {
+  if (!file || !Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+    throw createHttpError(400, `A live camera photo is required for ${actionLabel}.`);
+  }
+
+  let deviceInfo = {};
+  try {
+    deviceInfo = typeof body.device_info === 'string'
+      ? JSON.parse(body.device_info)
+      : (body.device_info || {});
+  } catch (_) {
+    deviceInfo = {};
+  }
+
+  if (String(deviceInfo.capture_method || '').toLowerCase() !== 'camera') {
+    throw createHttpError(400, `Use the phone camera for ${actionLabel}; gallery uploads are not allowed.`);
+  }
+
+  if (!normalizeValue(body.latitude) || !normalizeValue(body.longitude)) {
+    throw createHttpError(400, `Location is required for ${actionLabel}.`);
+  }
+}
+
 async function timeInMyRo(
   userId,
   roId,
@@ -1737,6 +1804,22 @@ async function timeInMyRo(
       'This Return of Obligation is already cleared.'
     );
   }
+
+  if (ro.assignment_status === 'Assigned') {
+    throw createHttpError(
+      409,
+      'Acknowledge the required RO assignment before timing in.'
+    );
+  }
+
+  if (ro.assignment_status === 'Conflict Reported') {
+    throw createHttpError(
+      409,
+      'This RO assignment has a reported conflict and is waiting for OSFA review.'
+    );
+  }
+
+  requireLiveCameraProof(body, file, 'time-in');
 
   const activeLogForThisRo =
     await getActiveLogForRo(
@@ -2029,6 +2112,8 @@ async function timeOutMyRo(
       },
     };
   }
+
+  requireLiveCameraProof(body, file, 'time-out');
 
   const remainingMinutes =
     await getRemainingMinutesForRo(
@@ -2751,3 +2836,4 @@ module.exports = {
   startAutoTimeoutWorker,
   stopAutoTimeoutWorker,
 };
+

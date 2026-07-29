@@ -177,6 +177,37 @@ function getRoMetrics(scholar) {
     normalizeStatus(scholar.ro_status) === 'cleared' ||
     normalizeStatus(scholar.assignment_status) === 'cleared';
 
+  const completedLogs = (Array.isArray(scholar.logs) ? scholar.logs : []).filter(
+    (log) => normalizeStatus(log.logStatus || log.log_status) === 'timed out'
+  );
+  const approvedDepartmentLogs = completedLogs.filter(
+    (log) => normalizeStatus(log.departmentValidationStatus || log.department_validation_status) === 'approved'
+  );
+  const pendingDepartmentLogs = completedLogs.filter((log) => {
+    const status = normalizeStatus(
+      log.departmentValidationStatus || log.department_validation_status
+    );
+    return !status || status === 'pending';
+  });
+  const canMarkCleared =
+    !isCleared &&
+    requiredMinutes > 0 &&
+    validatedMinutes >= requiredMinutes &&
+    approvedDepartmentLogs.length > 0 &&
+    pendingDepartmentLogs.length === 0;
+  const clearanceBlockedReason = isCleared
+    ? 'This obligation is already cleared.'
+    : completedLogs.length === 0
+      ? 'No completed attendance logs yet.'
+      : pendingDepartmentLogs.length > 0
+        ? 'Waiting for the department head to decide all pending attendance evidence.'
+        : validatedMinutes < requiredMinutes
+          ? `Only ${formatMinutes(validatedMinutes)} of ${formatMinutes(requiredMinutes)} is department-validated.`
+          : approvedDepartmentLogs.length === 0
+            ? 'No attendance evidence has been approved by the department head.'
+            : '';
+
+
   const progressSummary = compactProgressText({
     requiredMinutes,
     submittedMinutes,
@@ -195,6 +226,8 @@ function getRoMetrics(scholar) {
     pendingLogCount,
     proofCount,
     isCleared,
+    canMarkCleared,
+    clearanceBlockedReason,
     progressSummary,
   };
 }
@@ -830,7 +863,7 @@ function BatchAssignModal({
   );
 }
 
-function LogsModal({ open, scholar, loading, error, onClose, onValidate, onBackToDetails }) {
+function LogsModal({ open, scholar, loading, error, onClose, onBackToDetails }) {
   if (!open || !scholar) return null;
 
   const logs = Array.isArray(scholar.logs) ? scholar.logs : [];
@@ -877,8 +910,16 @@ function LogsModal({ open, scholar, loading, error, onClose, onValidate, onBackT
             </div>
           ) : (
             logs.map((log) => {
-              const status = log.validationStatus || log.validation_status;
-              const pending = status === 'Pending Validation';
+              const status =
+                log.departmentValidationStatus ||
+                log.department_validation_status ||
+                'Pending';
+              const departmentRemarks =
+                log.departmentValidationRemarks ||
+                log.department_validation_remarks ||
+                log.validationRemarks ||
+                log.validation_remarks ||
+                '';
               const proofs = Array.isArray(log.proofs) ? log.proofs : [];
 
               return (
@@ -898,7 +939,7 @@ function LogsModal({ open, scholar, loading, error, onClose, onValidate, onBackT
                                 : 'amber'
                           }
                         >
-                          {status || 'Pending Validation'}
+                          {status}
                         </StatusChip>
 
                         <StatusChip tone="default">
@@ -999,76 +1040,39 @@ function LogsModal({ open, scholar, loading, error, onClose, onValidate, onBackT
                         )}
                       </div>
 
-                      {(log.validationRemarks || log.validation_remarks) ? (
-                        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
-                          {log.validationRemarks || log.validation_remarks}
+                      {departmentRemarks ? (
+                        <p className={`mt-4 rounded-lg px-3 py-2 text-xs ${status === 'Returned' ? 'bg-red-50 text-red-600' : 'bg-stone-50 text-stone-600'}`}>
+                          {departmentRemarks}
                         </p>
                       ) : null}
                     </div>
 
                     <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-                      <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                        Validated Minutes
-                      </label>
-
-                      <Input
-                        value={String(log.durationMinutes || log.duration_minutes || 0)}
-                        readOnly
-                        className="mb-3 rounded-xl border-stone-200 bg-white"
-                      />
-
-                      <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-stone-400">
-                        Remarks
-                      </label>
-
-                      <textarea
-                        readOnly
-                        value={
-                          (status === 'Approved'
-                            ? 'Approved by RO admin.'
-                            : status === 'Rejected'
-                              ? 'Rejected by RO admin.'
-                              : 'Optional validation remarks')
-                        }
-                        className="min-h-[90px] w-full resize-none rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-500 outline-none"
-                      />
-
-                      {pending ? (
-                        <div className="mt-4 flex gap-2">
-                          <Button
-                            size="sm"
-                            disabled={loading}
-                            onClick={() =>
-                              onValidate(log, {
-                                validationStatus: 'Approved',
-                                validatedMinutes:
-                                  log.durationMinutes || log.duration_minutes || 0,
-                                remarks: 'Approved by RO admin.',
-                              })
-                            }
-                            className="flex-1 rounded-lg border-none text-xs text-white"
-                            style={{ background: C.green }}
-                          >
-                            Approve
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            disabled={loading}
-                            onClick={() =>
-                              onValidate(log, {
-                                validationStatus: 'Rejected',
-                                validatedMinutes: 0,
-                                remarks: 'Rejected by RO admin.',
-                              })
-                            }
-                            className="flex-1 rounded-lg border-none text-xs text-white"
-                            style={{ background: C.red }}
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      ) : null}
+                      <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                        Department Validation
+                      </p>
+                      <div className="mt-3">
+                        <StatusChip
+                          tone={status === 'Approved' ? 'green' : status === 'Returned' ? 'red' : 'amber'}
+                        >
+                          {status}
+                        </StatusChip>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-stone-500">
+                        {status === 'Approved'
+                          ? 'The department head validated this attendance evidence. These minutes count toward final OSFA clearance.'
+                          : status === 'Returned'
+                            ? 'The department head returned this evidence. It does not count toward clearance.'
+                            : 'Waiting for the assigned department head to validate the time-in and time-out evidence.'}
+                      </p>
+                      <div className="mt-4 rounded-xl border border-stone-200 bg-white px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-wide text-stone-400">
+                          Department-validated Minutes
+                        </p>
+                        <p className="mt-1 text-sm font-black text-stone-900">
+                          {formatMinutes(log.validatedMinutes || log.validated_minutes)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1112,6 +1116,8 @@ function RoDetailsModal({
     pendingLogCount,
     proofCount,
     isCleared,
+    canMarkCleared,
+    clearanceBlockedReason,
     progressSummary,
   } = getRoMetrics(scholar);
 
@@ -1331,6 +1337,11 @@ function RoDetailsModal({
               </p>
             </div>
           ) : null}
+          {hasAssignment && !isCleared && !canMarkCleared ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800">
+              Mark Cleared is locked: {clearanceBlockedReason}
+            </div>
+          ) : null}
         </CardContent>
 
         <div className="flex flex-col gap-2 border-t border-stone-100 bg-stone-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
@@ -1362,8 +1373,9 @@ function RoDetailsModal({
             <Button
               type="button"
               onClick={onClear}
-              disabled={loading}
-              className="h-9 rounded-xl border-none text-xs text-white"
+              disabled={loading || !canMarkCleared}
+              title={clearanceBlockedReason || 'All required hours were validated by the department head.'}
+              className="h-9 rounded-xl border-none text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: C.green }}
             >
               <ShieldCheck className="mr-2 h-3.5 w-3.5" />
@@ -1855,38 +1867,6 @@ export default function ROAdmin() {
     }
   };
 
-  const handleValidateLog = async (log, payload) => {
-    const logId = log.logId || log.log_id;
-
-    if (!logId) return;
-
-    try {
-      setActionLoading(true);
-      setActionError('');
-
-      const res = await fetch(buildApiUrl(`/api/ro/time-logs/${logId}/validate`), {
-        method: 'PATCH',
-        headers: authHeaders,
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to validate time log');
-      }
-
-      setLogsModalOpen(false);
-      setSelectedScholar(null);
-      await refreshAll();
-    } catch (err) {
-      console.error('VALIDATE RO LOG ERROR:', err);
-      setActionError(err.message || 'Failed to validate time log');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleClear = async (scholar) => {
     if (!scholar?.student_id) return;
 
@@ -1998,7 +1978,6 @@ export default function ROAdmin() {
         loading={actionLoading}
         error={actionError}
         onClose={closeLogsModal}
-        onValidate={handleValidateLog}
         onBackToDetails={backToDetailsFromLogs}
       />
 
@@ -2354,3 +2333,4 @@ export default function ROAdmin() {
     </div>
   );
 }
+

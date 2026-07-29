@@ -126,7 +126,7 @@ export default function ROCoordinatorDashboard() {
             onClick={() => navigate('/ro-coordinator/queue')}
             className="border border-white/20 bg-white text-stone-900 hover:bg-white/90"
           >
-            Open My Queue
+            Open RO Requests
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

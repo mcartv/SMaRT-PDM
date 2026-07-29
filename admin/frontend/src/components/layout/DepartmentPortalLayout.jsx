@@ -62,6 +62,7 @@ export default function DepartmentPortalLayout({
   profileStorageKey,
   colors,
   queuePath = '',
+  queueLabel = 'My Queue',
   trackerPath = '',
   reportsPath = '',
   maintenancePath = '',
@@ -188,7 +189,7 @@ export default function DepartmentPortalLayout({
     .join(' ');
   const navItems = [
     { path: dashboardPath, label: 'Dashboard', icon: LayoutDashboard },
-    ...(queuePath ? [{ path: queuePath, label: 'My Queue', icon: FileText }] : []),
+    ...(queuePath ? [{ path: queuePath, label: queueLabel, icon: FileText }] : []),
     ...(trackerPath ? [{ path: trackerPath, label: 'All Applicants', icon: FileText }] : []),
     ...(reportsPath ? [{ path: reportsPath, label: 'Reports', icon: BarChart3 }] : []),
     ...(roQueuePath && hasRoCoordinatorAccess

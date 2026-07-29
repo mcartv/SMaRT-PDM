@@ -218,7 +218,6 @@ async function getProofsForLogIds(logIds = []) {
       proof_id,
       log_id,
       ro_id,
-      placement_id,
       student_id,
       proof_type,
       file_url,
@@ -282,6 +281,7 @@ async function getLogsForROIds(roIds) {
         .select(`
       log_id,
       ro_id,
+      placement_id,
       student_id,
       time_in_at,
       time_out_at,

@@ -1,5 +1,6 @@
 const roService = require('../services/roService');
 const auditLogService = require('../services/auditLogService');
+const notificationService = require('../services/notificationService');
 const socketEvents = require('../utils/socketEvents');
 
 function getRequestUserId(req) {
@@ -114,6 +115,65 @@ exports.getROScholars = async (req, res) => {
     return res.status(200).json({ scholars: data });
   } catch (err) {
     console.error('GET RO SCHOLARS ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
+exports.getScholarRequests = async (req, res) => {
+  try {
+    const data = await roService.getScholarRequests(req.query || {});
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('GET RO SCHOLAR REQUESTS ERROR:', err.message);
+    return res.status(getSafeStatusCode(err)).json({ error: err.message });
+  }
+};
+
+exports.updateScholarRequest = async (req, res) => {
+  try {
+    const data = await roService.updateScholarRequest(
+      req.params.requestId,
+      req.body || {},
+      req.user || {}
+    );
+    const request = data.request;
+
+    if (request?.requested_by_user_id) {
+      try {
+        const notification = await notificationService.createUserNotification({
+          userId: request.requested_by_user_id,
+          type: 'Return of Obligation',
+          title: `Scholar request ${request.request_status.toLowerCase()}`,
+          message: request.admin_remarks
+            ? `Admin marked your scholar request as ${request.request_status.toLowerCase()}: ${request.admin_remarks}`
+            : `Admin marked your scholar request as ${request.request_status.toLowerCase()}.`,
+          referenceId: request.request_id,
+          referenceType: 'ro_scholar_request',
+        });
+        const io = req.app?.get?.('io');
+        socketEvents.notificationCreated(io, request.requested_by_user_id, {
+          ...notification,
+          target_user_id: request.requested_by_user_id,
+        });
+      } catch (notificationError) {
+        console.error('RO SCHOLAR REQUEST STATUS NOTIFICATION ERROR:', notificationError.message);
+      }
+    }
+
+    emitRoUpdated(req, 'scholar-request-updated', {
+      request_id: request?.request_id || req.params.requestId,
+      request_status: request?.request_status || null,
+    });
+    writeAudit(
+      req,
+      'UPDATE_RO_SCHOLAR_REQUEST',
+      request?.request_id || req.params.requestId,
+      `Updated an RO scholar request to ${request?.request_status || 'a new status'}.`,
+      { remarks: request?.admin_remarks || null }
+    );
+    return res.status(200).json(data);
+  } catch (err) {
+    console.error('UPDATE RO SCHOLAR REQUEST ERROR:', err.message);
     return res.status(getSafeStatusCode(err)).json({ error: err.message });
   }
 };

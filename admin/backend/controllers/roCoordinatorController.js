@@ -157,6 +157,189 @@ exports.getRequests = async (req, res) => {
   }
 };
 
+exports.getScholarRequests = async (req, res) => {
+  try {
+    const coordinator = await getCoordinator(req);
+    const result = await db.query(
+      `SELECT
+         rsr.request_id,
+         rsr.ro_area_id,
+         rd.department_name AS assigned_area,
+         rsr.requested_scholar_count,
+         rsr.purpose,
+         rsr.preferred_date,
+         rsr.request_status,
+         rsr.admin_remarks,
+         rsr.handled_at,
+         rsr.created_at,
+         rsr.updated_at
+       FROM ro_scholar_requests rsr
+       JOIN ro_departments rd ON rd.department_id = rsr.ro_area_id
+       WHERE rsr.coordinator_assignment_id = ANY($1::uuid[])
+       ORDER BY
+         CASE rsr.request_status
+           WHEN 'Pending' THEN 0
+           WHEN 'Acknowledged' THEN 1
+           ELSE 2
+         END,
+         rsr.created_at DESC`,
+      [coordinator.assignmentIds]
+    );
+
+    return res.json({
+      areas: coordinator.assignments.map((assignment) => ({
+        ro_area_id: assignment.department_id,
+        department_name: assignment.department,
+      })),
+      items: result.rows,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to load scholar requests.',
+    });
+  }
+};
+
+exports.createScholarRequest = async (req, res) => {
+  try {
+    const coordinator = await getCoordinator(req);
+    const requestedAreaId = String(req.body?.roAreaId || req.body?.ro_area_id || '').trim();
+    const assignment = requestedAreaId
+      ? coordinator.assignments.find(
+          (item) => String(item.department_id) === requestedAreaId
+        )
+      : coordinator.assignments.length === 1
+        ? coordinator.assignments[0]
+        : null;
+    const requestedCount = Number.parseInt(
+      req.body?.requestedScholarCount || req.body?.requested_scholar_count || 1,
+      10
+    );
+    const purpose = String(req.body?.purpose || '').trim();
+    const preferredDate = String(
+      req.body?.preferredDate || req.body?.preferred_date || ''
+    ).trim();
+
+    if (!assignment) {
+      return res.status(400).json({ message: 'Select one of your assigned RO Areas.' });
+    }
+    if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 20) {
+      return res.status(400).json({ message: 'Requested scholar count must be from 1 to 20.' });
+    }
+    if (purpose.length < 3 || purpose.length > 1000) {
+      return res.status(400).json({ message: 'Describe why your area needs scholars.' });
+    }
+    if (preferredDate && !/^\d{4}-\d{2}-\d{2}$/.test(preferredDate)) {
+      return res.status(400).json({ message: 'Preferred date is invalid.' });
+    }
+
+    const result = await db.query(
+      `INSERT INTO ro_scholar_requests (
+         ro_area_id,
+         coordinator_assignment_id,
+         requested_by_user_id,
+         requested_scholar_count,
+         purpose,
+         preferred_date
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        assignment.department_id,
+        assignment.coordinator_assignment_id,
+        coordinator.userId,
+        requestedCount,
+        purpose,
+        preferredDate || null,
+      ]
+    );
+    const request = result.rows[0];
+
+    try {
+      const adminNotifications = await notificationService.createStaffNotifications({
+        roles: ['admin'],
+        type: 'Return of Obligation',
+        title: 'New RO scholar request',
+        message: `${assignment.department} requested ${requestedCount} scholar${requestedCount === 1 ? '' : 's'} for RO service.`,
+        referenceId: request.request_id,
+        referenceType: 'ro_scholar_request',
+      });
+      const io = req.app.get('io');
+      adminNotifications.forEach((notification) => {
+        const targetUserId = notification.target_user_id || notification.user_id;
+        if (targetUserId) {
+          socketEvents.notificationCreated(io, targetUserId, {
+            ...notification,
+            target_user_id: targetUserId,
+          });
+        }
+      });
+    } catch (notificationError) {
+      console.error('RO SCHOLAR REQUEST NOTIFICATION ERROR:', notificationError.message);
+    }
+
+    await auditLogService.logAudit({
+      req,
+      userId: coordinator.userId,
+      actionTaken: 'CREATE_RO_SCHOLAR_REQUEST',
+      module: 'RO Coordinator',
+      entityType: 'ro_scholar_request',
+      entityId: request.request_id,
+      description: `Requested ${requestedCount} scholar${requestedCount === 1 ? '' : 's'} for ${assignment.department}.`,
+      metadata: { ro_area_id: assignment.department_id, purpose, preferred_date: preferredDate || null },
+    }).catch(() => {});
+
+    emitUpdate(req, {
+      action: 'scholar-request-created',
+      request_id: request.request_id,
+      department: assignment.department,
+    });
+    return res.status(201).json({
+      message: 'Scholar request sent to Admin.',
+      request: {
+        ...request,
+        assigned_area: assignment.department,
+      },
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to send scholar request.',
+    });
+  }
+};
+
+exports.cancelScholarRequest = async (req, res) => {
+  try {
+    const coordinator = await getCoordinator(req);
+    const result = await db.query(
+      `UPDATE ro_scholar_requests
+       SET request_status = 'Cancelled', updated_at = now()
+       WHERE request_id = $1
+         AND coordinator_assignment_id = ANY($2::uuid[])
+         AND requested_by_user_id = $3
+         AND request_status = 'Pending'
+       RETURNING request_id`,
+      [req.params.requestId, coordinator.assignmentIds, coordinator.userId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        message: 'This pending scholar request is unavailable.',
+      });
+    }
+
+    emitUpdate(req, {
+      action: 'scholar-request-cancelled',
+      request_id: req.params.requestId,
+    });
+    return res.json({ message: 'Scholar request cancelled.' });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || 'Failed to cancel scholar request.',
+    });
+  }
+};
+
 exports.decideRequest = async (req, res) => {
   try {
     const coordinator = await getCoordinator(req);

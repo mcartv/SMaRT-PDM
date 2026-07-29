@@ -8,6 +8,9 @@ const router = express.Router();
 router.use(protect);
 router.get('/summary', controller.getSummary);
 router.get('/requests', controller.getRequests);
+router.get('/scholar-requests', controller.getScholarRequests);
+router.post('/scholar-requests', controller.createScholarRequest);
+router.patch('/scholar-requests/:requestId/cancel', controller.cancelScholarRequest);
 router.patch('/requests/:placementId/decision', controller.decideRequest);
 
 module.exports = router;

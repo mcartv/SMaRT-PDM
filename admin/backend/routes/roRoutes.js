@@ -9,6 +9,12 @@ const adminOnly = [protect, authorizeRoles('admin')];
 
 router.get('/summary', adminOnly, roController.getSummary);
 router.get('/scholars', adminOnly, roController.getROScholars);
+router.get('/scholar-requests', adminOnly, roController.getScholarRequests);
+router.patch(
+    '/scholar-requests/:requestId',
+    adminOnly,
+    roController.updateScholarRequest
+);
 
 router.post(
     '/scholars/batch-assign',

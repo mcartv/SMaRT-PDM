@@ -17,6 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import ROCoordinatorScholarRequests from './ROCoordinatorScholarRequests';
 
 const FILTERS = [
   { key: 'pending', label: 'Pending' },
@@ -121,6 +122,7 @@ export default function ROCoordinatorQueue({
   const [error, setError] = useState('');
   const [decisionState, setDecisionState] = useState({ request: null, decision: '' });
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState('placements');
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ status });
@@ -204,6 +206,29 @@ export default function ROCoordinatorQueue({
         </Button>
       </div>
 
+      <div className="inline-flex rounded-xl border border-stone-200 bg-white p-1">
+        {[
+          { value: 'placements', label: 'Placement Approvals' },
+          { value: 'scholars', label: 'Scholar Requests' },
+        ].map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => setViewMode(tab.value)}
+            className="rounded-lg px-4 py-2 text-xs font-semibold transition-colors"
+            style={
+              viewMode === tab.value
+                ? { background: theme.base, color: '#fff' }
+                : { color: '#57534e' }
+            }
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {viewMode === 'placements' ? (
+        <>
       <div className="rounded-2xl border border-stone-200 bg-white p-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
@@ -321,6 +346,13 @@ export default function ROCoordinatorQueue({
           <p className="mt-3 text-sm font-semibold text-stone-800">No {FILTERS.find((filter) => filter.key === status)?.label.toLowerCase()} found</p>
           <p className="mt-1 text-xs text-stone-500">{status === 'pending' ? 'You are caught up. New requests appear here automatically.' : 'Try another status or clear your search.'}</p>
         </div>
+      )}
+        </>
+      ) : (
+        <ROCoordinatorScholarRequests
+          tokenStorageKey={tokenStorageKey}
+          portalKey={portalKey}
+        />
       )}
     </div>
   );

@@ -1802,6 +1802,99 @@ exports.reviewTimeLogProof = async (proofId, payload = {}, user = {}) => {
     };
 };
 
+exports.getScholarRequests = async (query = {}) => {
+    const status = cleanText(query.status);
+    const search = cleanText(query.search);
+    const allowedStatuses = [
+        'Pending',
+        'Acknowledged',
+        'Fulfilled',
+        'Declined',
+        'Cancelled',
+    ];
+    const statusFilter = allowedStatuses.includes(status) ? status : null;
+
+    const result = await db.query(
+        `SELECT
+           rsr.request_id,
+           rsr.ro_area_id,
+           rd.department_name AS assigned_area,
+           rsr.requested_scholar_count,
+           rsr.purpose,
+           rsr.preferred_date,
+           rsr.request_status,
+           rsr.admin_remarks,
+           rsr.requested_by_user_id,
+           CONCAT_WS(' ', ap.first_name, ap.last_name) AS requested_by_name,
+           rsr.handled_by_user_id,
+           rsr.handled_at,
+           rsr.created_at,
+           rsr.updated_at
+         FROM ro_scholar_requests rsr
+         JOIN ro_departments rd ON rd.department_id = rsr.ro_area_id
+         LEFT JOIN admin_profiles ap ON ap.user_id = rsr.requested_by_user_id
+         WHERE ($1::text IS NULL OR rsr.request_status = $1)
+           AND (
+             $2::text = ''
+             OR CONCAT_WS(
+               ' ',
+               rd.department_name,
+               rsr.purpose,
+               ap.first_name,
+               ap.last_name
+             ) ILIKE '%' || $2 || '%'
+           )
+         ORDER BY
+           CASE rsr.request_status
+             WHEN 'Pending' THEN 0
+             WHEN 'Acknowledged' THEN 1
+             ELSE 2
+           END,
+           rsr.created_at DESC`,
+        [statusFilter, search]
+    );
+
+    return {
+        items: result.rows,
+        pending_count: result.rows.filter((item) => item.request_status === 'Pending').length,
+    };
+};
+
+exports.updateScholarRequest = async (requestId, payload = {}, user = {}) => {
+    const status = cleanText(payload.status || payload.requestStatus || payload.request_status);
+    const remarks = cleanText(payload.remarks || payload.adminRemarks || payload.admin_remarks);
+    const allowedStatuses = ['Acknowledged', 'Fulfilled', 'Declined'];
+
+    if (!allowedStatuses.includes(status)) {
+        throw createHttpError(400, 'Choose Acknowledged, Fulfilled, or Declined.');
+    }
+    if (status === 'Declined' && !remarks) {
+        throw createHttpError(400, 'Admin remarks are required when declining a request.');
+    }
+
+    const result = await db.query(
+        `UPDATE ro_scholar_requests
+         SET request_status = $1,
+             admin_remarks = $2,
+             handled_by_user_id = $3,
+             handled_at = now(),
+             updated_at = now()
+         WHERE request_id = $4
+           AND request_status IN ('Pending', 'Acknowledged')
+         RETURNING *`,
+        [status, remarks || null, getUserId(user), requestId]
+    );
+
+    if (!result.rows.length) {
+        throw createHttpError(404, 'This active scholar request is unavailable.');
+    }
+
+    return {
+        message: `Scholar request marked as ${status.toLowerCase()}.`,
+        request: result.rows[0],
+    };
+};
+
 exports.clearScholarRO = async (studentId, payload = {}, user = {}) => {
     const application = await getApprovedApplicationForStudent(studentId, payload);
     const existingRO = await getROByApplication(studentId, application.application_id);

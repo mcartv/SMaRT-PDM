@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { buildApiUrl } from '@/api';
+import ROScholarRequestsPanel from './ROScholarRequestsPanel';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ const TOP_TABS = [
   { value: 'assigned', label: 'Assigned' },
   { value: 'unassigned', label: 'Unassigned' },
   { value: 'cleared', label: 'Cleared' },
+  { value: 'requests', label: 'Area Requests' },
 ];
 
 function normalizeStatus(value) {
@@ -2017,6 +2019,7 @@ export default function ROAdmin() {
         style={{ borderColor: C.line }}
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          {topTab !== 'requests' ? (
           <div className="w-full lg:max-w-xl">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
@@ -2029,6 +2032,14 @@ export default function ROAdmin() {
               />
             </div>
           </div>
+          ) : (
+            <div>
+              <p className="text-sm font-semibold text-stone-900">RO Area Requests</p>
+              <p className="mt-1 text-xs text-stone-500">
+                Review offices requesting scholars for RO service.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <ToolbarSegment
@@ -2037,6 +2048,7 @@ export default function ROAdmin() {
               onChange={setTopTab}
             />
 
+            {topTab !== 'requests' ? (
             <Button
               type="button"
               variant="outline"
@@ -2052,6 +2064,7 @@ export default function ROAdmin() {
                 </span>
               ) : null}
             </Button>
+            ) : null}
 
             <Button
               onClick={() => refreshAll()}
@@ -2068,7 +2081,8 @@ export default function ROAdmin() {
               Refresh
             </Button>
 
-            {selectedIds.length > 0 && topTab !== 'cleared' ? (
+            {selectedIds.length > 0 &&
+            !['cleared', 'requests'].includes(topTab) ? (
               <Button
                 onClick={() => {
                   setBatchError('');
@@ -2094,7 +2108,7 @@ export default function ROAdmin() {
         </div>
       ) : null}
 
-      {activeRequiredHours <= 0 ? (
+      {activeRequiredHours <= 0 && topTab !== 'requests' ? (
         <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
@@ -2103,6 +2117,9 @@ export default function ROAdmin() {
         </div>
       ) : null}
 
+      {topTab === 'requests' ? (
+        <ROScholarRequestsPanel token={token} />
+      ) : (
       <section
         className="overflow-hidden rounded-2xl border bg-white"
         style={{ borderColor: C.line }}
@@ -2333,6 +2350,7 @@ export default function ROAdmin() {
           </div>
         </div>
       </section>
+      )}
     </div>
   );
 }

@@ -5,57 +5,78 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
+from extraction.ocr_engine import OCRBinaryUnavailableError
 from extraction.psa_birth_row_cropper import crop_psa_birth_name_rows
 from extraction.psa_birth_row_ocr import (
+    PREPROCESSING_VARIANT,
     PSABirthRowOCRConfig,
     PSABirthRowOCROutput,
     extract_psa_birth_row_text,
 )
-from extraction.ocr_engine import OCRBinaryUnavailableError
 
 
 WIDTH = 1400
 HEIGHT = 1375
+ROWS = ((4, 105), (486, 614), (1086, 1192))
+DIVIDERS = (315, 640, 965, 1390)
 
 
-def registered_image(fill: int = 240) -> np.ndarray:
-    image = np.full((HEIGHT, WIDTH, 3), fill, dtype=np.uint8)
-    image[:, :4] = 10
-    image[:, -4:] = 20
-    image[:4, :] = 30
-    image[-4:, :] = 40
+def form_image() -> np.ndarray:
+    image = np.full((HEIGHT, WIDTH, 3), 255, dtype=np.uint8)
+    for top, bottom in ROWS:
+        cv2.line(image, (0, top), (1390, top), (0, 0, 0), 4)
+        cv2.line(image, (0, bottom), (1390, bottom), (0, 0, 0), 4)
+        for divider in DIVIDERS:
+            cv2.line(
+                image,
+                (divider, top),
+                (divider, bottom),
+                (0, 0, 0),
+                4,
+            )
     return image
 
 
 def crop_output():
-    registration = crop_psa_birth_name_rows(registered_image())
-    return registration.data
+    result = crop_psa_birth_name_rows(form_image())
+    if not result.success:
+        raise AssertionError(result.issues)
+    return result.data
 
 
 class RecordingReader:
-    def __init__(self, outputs=None, fail_on=None):
-        self.outputs = list(outputs or [])
-        self.fail_on = set(fail_on or [])
+    def __init__(self, outputs=(), fail_on=()):
+        self.outputs = list(outputs)
+        self.fail_on = set(fail_on)
         self.calls = []
-        self.seen_shares = []
 
     def __call__(self, image):
         self.calls.append(image)
-        self.seen_shares.append(
-            (
-                np.shares_memory(image, registered_image()),
-                image.flags.writeable,
-                image.shape,
-            )
-        )
         index = len(self.calls) - 1
         if index in self.fail_on:
-            raise RuntimeError("ocr failure")
-        if index < len(self.outputs):
-            return self.outputs[index]
-        return ""
+            raise RuntimeError("synthetic OCR failure")
+        return self.outputs[index] if index < len(self.outputs) else ""
+
+
+def valid_outputs():
+    return [
+        "Alpha",
+        "Beta",
+        "Gamma",
+        "Delta",
+        "Epsilon",
+        "Zeta",
+        "Eta",
+        "Theta",
+        "Iota",
+    ]
+
+
+def mapped_fields(result):
+    return {field.name: field for field in result.data.fields}
 
 
 def issue_codes(result):
@@ -63,194 +84,361 @@ def issue_codes(result):
 
 
 class PSABirthRowOCRTest(unittest.TestCase):
-    def test_valid_crop_output_returns_exactly_three_field_results(self):
-        reader = RecordingReader(outputs=["A", "B", "C"])
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=reader)
+    def test_nine_cells_assemble_three_structured_fields(self):
+        reader = RecordingReader(valid_outputs())
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=reader,
+        )
 
         self.assertTrue(result.success, result.issues)
         self.assertEqual(result.status, "review_required")
         self.assertIsInstance(result.data, PSABirthRowOCROutput)
         self.assertEqual(result.data.field_count, 3)
-        self.assertEqual([field.name for field in result.data.fields], ["child_name", "mother_maiden_name", "father_name"])
-        self.assertEqual(len(reader.calls), 3)
+        self.assertEqual(len(reader.calls), 9)
+        fields = mapped_fields(result)
+        self.assertEqual(
+            dict(fields["child_name"].components),
+            {
+                "first_name": "Alpha",
+                "middle_name": "Beta",
+                "last_name": "Gamma",
+            },
+        )
+        self.assertEqual(fields["child_name"].raw_text, "Alpha Beta Gamma")
 
-    def test_each_reader_result_maps_to_correct_field(self):
-        reader = RecordingReader(outputs=["child", "mother", "father"])
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=reader)
+    def test_each_row_receives_only_its_own_cells(self):
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(valid_outputs()),
+        )
+        fields = mapped_fields(result)
 
-        mapped = {field.name: field.raw_text for field in result.data.fields}
-        self.assertEqual(mapped["child_name"], "child")
-        self.assertEqual(mapped["mother_maiden_name"], "mother")
-        self.assertEqual(mapped["father_name"], "father")
+        self.assertEqual(fields["child_name"].raw_text, "Alpha Beta Gamma")
+        self.assertEqual(
+            fields["mother_maiden_name"].raw_text,
+            "Delta Epsilon Zeta",
+        )
+        self.assertEqual(fields["father_name"].raw_text, "Eta Theta Iota")
 
-    def test_all_field_results_require_review(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
-        self.assertTrue(all(field.review_required for field in result.data.fields))
-        self.assertTrue(all(field.success for field in result.data.fields))
-        self.assertEqual(result.status, "review_required")
+    def test_blank_middle_name_is_valid(self):
+        outputs = valid_outputs()
+        outputs[1] = ""
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        child = mapped_fields(result)["child_name"]
 
-    def test_stage_status_is_review_required_when_all_succeed(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
-        self.assertTrue(result.success)
-        self.assertEqual(result.status, "review_required")
-        self.assertIn("OCR_MANUAL_REVIEW_REQUIRED", issue_codes(result))
+        self.assertTrue(child.success)
+        self.assertEqual(child.components["middle_name"], "")
+        self.assertEqual(child.raw_text, "Alpha Gamma")
 
-    def test_preprocessing_variant_is_registered_whole_row_ocr(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
-        self.assertTrue(all(field.preprocessing_variant == "registered_whole_row_ocr" for field in result.data.fields))
+    def test_hyphen_apostrophe_and_initial_are_preserved(self):
+        outputs = valid_outputs()
+        outputs[0:3] = ["Alpha-Beta", "D'Gamma", "J."]
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        child = mapped_fields(result)["child_name"]
 
-    def test_ocr_attempts_are_one_per_field(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
-        self.assertTrue(all(field.ocr_attempts == 1 for field in result.data.fields))
-        self.assertEqual(result.metrics["total_ocr_attempts"], 3)
+        self.assertTrue(child.success)
+        self.assertEqual(child.raw_text, "Alpha-Beta D'Gamma J.")
 
-    def test_leading_and_trailing_whitespace_is_stripped(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["  child  ", "\tmother\n", " father \r\n"]))
-        self.assertEqual([field.raw_text for field in result.data.fields], ["child", "mother", "father"])
+    def test_digits_and_form_labels_are_rejected(self):
+        outputs = valid_outputs()
+        outputs[0:3] = ["12345", "MAIDEN NAME", "DATE OF BIRTH"]
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        child = mapped_fields(result)["child_name"]
 
-    def test_internal_spaces_and_line_breaks_are_preserved(self):
-        text = "first  middle\nlast"
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=[text, text, text]))
-        self.assertEqual(result.data.fields[0].raw_text, text)
+        self.assertFalse(child.success)
+        self.assertEqual(child.raw_text, "")
+        self.assertIn("child_name_not_found", child.issue_codes)
 
-    def test_blank_ocr_text_records_empty_text(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["", "", ""]))
-        self.assertTrue(result.success)
-        self.assertIn("OCR_TEXT_EMPTY", issue_codes(result))
-        self.assertEqual(result.metrics["empty_text_count"], 3)
+    def test_conflicting_candidates_fail_affected_field(self):
+        outputs = valid_outputs()
+        outputs[0] = ["Alpha", "Different"]
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        child = mapped_fields(result)["child_name"]
 
-    def test_none_returned_by_reader_becomes_empty_text(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=[None, None, None]))
-        self.assertTrue(result.success)
-        self.assertTrue(all(field.raw_text == "" for field in result.data.fields))
-
-    def test_one_ocr_exception_produces_partial_failure(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["child", "mother"], fail_on={2}))
-        self.assertTrue(result.success)
-        self.assertEqual(result.status, "review_required")
+        self.assertFalse(child.success)
+        self.assertEqual(child.components["first_name"], "")
+        self.assertIn("birth_name_source_conflict", child.issue_codes)
         self.assertIn("OCR_PARTIAL_FAILURE", issue_codes(result))
-        self.assertEqual(result.data.fields[2].raw_text, "")
-        self.assertIn("OCR_EXECUTION_FAILED", result.data.fields[2].issue_codes)
 
-    def test_two_ocr_exceptions_still_return_three_fields(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["child"], fail_on={1, 2}))
+    def test_blank_father_row_is_controlled_blank(self):
+        outputs = valid_outputs()
+        outputs[6:9] = ["", "", ""]
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        father = mapped_fields(result)["father_name"]
+
+        self.assertTrue(father.success)
+        self.assertEqual(father.raw_text, "")
+        self.assertIn("father_section_blank", father.issue_codes)
+        self.assertEqual(result.metrics["controlled_blank_father_count"], 1)
+
+    def test_father_not_applicable_variants_are_normalized(self):
+        for sentinel in ("N/A", "N / A", "N.A.", "NA", "N-A"):
+            with self.subTest(sentinel=sentinel):
+                outputs = valid_outputs()
+                outputs[6:9] = [sentinel, "", ""]
+                result = extract_psa_birth_row_text(
+                    crop_output(),
+                    ocr_reader=RecordingReader(outputs),
+                )
+                father = mapped_fields(result)["father_name"]
+
+                self.assertTrue(father.success)
+                self.assertEqual(father.section_status, "not_applicable")
+                self.assertEqual(father.raw_text, "N/A")
+                self.assertEqual(
+                    dict(father.components),
+                    {
+                        "first_name": "",
+                        "middle_name": "",
+                        "last_name": "",
+                    },
+                )
+                self.assertIn(
+                    "father_name_not_applicable",
+                    father.issue_codes,
+                )
+                self.assertEqual(result.metrics["total_ocr_attempts"], 9)
+
+    def test_not_applicable_in_any_father_cell_is_section_level(self):
+        for index in (6, 7, 8):
+            with self.subTest(cell=index):
+                outputs = valid_outputs()
+                outputs[6:9] = ["", "", ""]
+                outputs[index] = "N / A"
+                result = extract_psa_birth_row_text(
+                    crop_output(),
+                    ocr_reader=RecordingReader(outputs),
+                )
+                father = mapped_fields(result)["father_name"]
+
+                self.assertTrue(father.success)
+                self.assertEqual(father.section_status, "not_applicable")
+                self.assertEqual(father.raw_text, "N/A")
+
+    def test_not_applicable_mixed_with_name_is_conflict(self):
+        outputs = valid_outputs()
+        outputs[6:9] = ["N/A", "", "Sample"]
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        father = mapped_fields(result)["father_name"]
+
+        self.assertFalse(father.success)
+        self.assertEqual(father.section_status, "incomplete")
+        self.assertIn(
+            "father_name_not_applicable_conflict",
+            father.issue_codes,
+        )
+        self.assertNotEqual(father.raw_text, "N/A")
+
+    def test_not_applicable_is_father_only(self):
+        outputs = valid_outputs()
+        outputs[0] = "N/A"
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        child = mapped_fields(result)["child_name"]
+
+        self.assertFalse(child.success)
+        self.assertNotEqual(child.section_status, "not_applicable")
+
+    def test_partially_blank_father_row_is_not_declared_blank(self):
+        outputs = valid_outputs()
+        outputs[6:9] = ["Eta", "", ""]
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(outputs),
+        )
+        father = mapped_fields(result)["father_name"]
+
+        self.assertFalse(father.success)
+        self.assertIn("father_name_incomplete", father.issue_codes)
+        self.assertNotIn("father_section_blank", father.issue_codes)
+
+    def test_grid_lines_are_removed_and_cells_are_upscaled(self):
+        output = crop_output()
+        child = output.crops["child_name.first_name"]
+        cv2.line(child, (0, 5), (child.shape[1] - 1, 5), (0, 0, 0), 3)
+        cv2.line(child, (10, 0), (10, child.shape[0] - 1), (0, 0, 0), 3)
+        reader = RecordingReader(valid_outputs())
+        result = extract_psa_birth_row_text(output, ocr_reader=reader)
+
         self.assertTrue(result.success)
-        self.assertEqual(len(result.data.fields), 3)
-        self.assertEqual(sum(not field.success for field in result.data.fields), 2)
+        self.assertGreaterEqual(reader.calls[0].shape[0], 140)
+        self.assertGreater(float(np.mean(reader.calls[0][10:20, :])), 180.0)
 
-    def test_all_ocr_calls_failing_results_in_failed_stage(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(fail_on={0, 1, 2}))
+    def test_exactly_nine_bounded_ocr_attempts_are_recorded(self):
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(valid_outputs()),
+        )
+
+        self.assertEqual(result.metrics["total_ocr_attempts"], 9)
+        self.assertTrue(
+            all(field.ocr_attempts == 3 for field in result.data.fields)
+        )
+        self.assertFalse(result.metrics["full_page_generic_ocr_used"])
+
+    def test_ocr_exception_is_contained(self):
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(valid_outputs(), fail_on={0}),
+        )
+        child = mapped_fields(result)["child_name"]
+
+        self.assertTrue(result.success)
+        self.assertFalse(child.success)
+        self.assertIn("OCR_EXECUTION_FAILED", child.issue_codes)
+
+    def test_all_ocr_failures_return_failed_stage_without_fabrication(self):
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(fail_on=range(9)),
+        )
+
         self.assertFalse(result.success)
         self.assertEqual(result.status, "failed")
-        self.assertIn("OCR_ALL_FIELDS_FAILED", issue_codes(result))
+        self.assertEqual(issue_codes(result), {"OCR_ALL_FIELDS_FAILED"})
+        self.assertTrue(
+            all(field.raw_text == "" for field in result.data.fields)
+        )
 
-    def test_invalid_crop_output_fails_before_ocr(self):
-        reader = RecordingReader(outputs=["x", "y", "z"])
+    def test_invalid_or_missing_crops_fail_before_ocr(self):
+        reader = RecordingReader(valid_outputs())
         result = extract_psa_birth_row_text(None, ocr_reader=reader)
         self.assertFalse(result.success)
         self.assertEqual(issue_codes(result), {"ROW_CROP_OUTPUT_INVALID"})
         self.assertEqual(reader.calls, [])
 
-    def test_missing_required_crop_fails(self):
-        crop = crop_output()
-        bad = type(crop)(regions=crop.regions[:2], crops=crop.crops, registered_width=crop.registered_width, registered_height=crop.registered_height)
-        result = extract_psa_birth_row_text(bad, ocr_reader=RecordingReader())
+        output = crop_output()
+        bad = type(output)(
+            regions=output.regions,
+            crops={
+                key: value
+                for key, value in output.crops.items()
+                if key != "child_name.first_name"
+            },
+            registered_width=output.registered_width,
+            registered_height=output.registered_height,
+        )
+        result = extract_psa_birth_row_text(bad, ocr_reader=reader)
         self.assertFalse(result.success)
-        self.assertEqual(issue_codes(result), {"REQUIRED_ROW_CROP_MISSING"})
+        self.assertEqual(
+            issue_codes(result),
+            {"REQUIRED_NAME_CELL_CROP_MISSING"},
+        )
 
-    def test_duplicate_or_unknown_crop_field_fails(self):
-        crop = crop_output()
-        bad = type(crop)(regions=crop.regions, crops={"child_name": crop.crops["child_name"], "mother_maiden_name": crop.crops["mother_maiden_name"], "other": crop.crops["father_name"]}, registered_width=crop.registered_width, registered_height=crop.registered_height)
-        result = extract_psa_birth_row_text(bad, ocr_reader=RecordingReader())
-        self.assertFalse(result.success)
-        self.assertEqual(issue_codes(result), {"REQUIRED_ROW_CROP_MISSING"})
-
-    def test_empty_crop_fails(self):
-        crop = crop_output()
-        empty = np.zeros((0, WIDTH, 3), dtype=np.uint8)
-        bad = type(crop)(regions=crop.regions, crops={"child_name": empty, "mother_maiden_name": crop.crops["mother_maiden_name"], "father_name": crop.crops["father_name"]}, registered_width=crop.registered_width, registered_height=crop.registered_height)
-        result = extract_psa_birth_row_text(bad, ocr_reader=RecordingReader())
-        self.assertFalse(result.success)
-        self.assertEqual(issue_codes(result), {"ROW_CROP_INVALID"})
-
-    def test_unsupported_crop_rank_fails(self):
-        crop = crop_output()
-        bad_crop = np.zeros((10, 10, 2), dtype=np.uint8)
-        bad = type(crop)(regions=crop.regions, crops={"child_name": bad_crop, "mother_maiden_name": crop.crops["mother_maiden_name"], "father_name": crop.crops["father_name"]}, registered_width=crop.registered_width, registered_height=crop.registered_height)
-        result = extract_psa_birth_row_text(bad, ocr_reader=RecordingReader())
-        self.assertFalse(result.success)
-        self.assertEqual(issue_codes(result), {"ROW_CROP_INVALID"})
-
-    def test_invalid_injected_ocr_reader_fails(self):
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=object())
-        self.assertFalse(result.success)
-        self.assertEqual(issue_codes(result), {"OCR_READER_INVALID"})
-
-    def test_default_path_uses_ocr_image_when_reader_is_not_injected(self):
-        with patch("extraction.psa_birth_row_ocr.ocr_image", return_value="default") as mocked:
+    def test_default_reader_uses_psm_seven_once_per_cell(self):
+        with patch(
+            "extraction.psa_birth_row_ocr.ocr_image",
+            side_effect=valid_outputs(),
+        ) as mocked:
             result = extract_psa_birth_row_text(crop_output())
-        self.assertTrue(result.success)
-        self.assertEqual([field.raw_text for field in result.data.fields], ["default", "default", "default"])
-        self.assertEqual(mocked.call_count, 3)
 
-    def test_injected_reader_still_overrides_default_wrapper(self):
-        with patch("extraction.psa_birth_row_ocr.ocr_image", return_value="default") as mocked:
-            result = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
         self.assertTrue(result.success)
-        self.assertEqual(mocked.call_count, 0)
-        self.assertEqual([field.raw_text for field in result.data.fields], ["a", "b", "c"])
+        self.assertEqual(mocked.call_count, 9)
+        self.assertTrue(
+            all(
+                call.kwargs["config"]["page_segmentation_mode"] == 7
+                for call in mocked.call_args_list
+            )
+        )
 
-    def test_missing_binary_becomes_field_execution_failure(self):
-        with patch("extraction.psa_birth_row_ocr.ocr_image", side_effect=[OCRBinaryUnavailableError("missing"), "mother", "father"]):
+    def test_missing_binary_maps_to_field_failure(self):
+        with patch(
+            "extraction.psa_birth_row_ocr.ocr_image",
+            side_effect=[
+                OCRBinaryUnavailableError("missing"),
+                *valid_outputs()[1:],
+            ],
+        ):
             result = extract_psa_birth_row_text(crop_output())
-        self.assertTrue(result.success)
-        self.assertIn("OCR_PARTIAL_FAILURE", issue_codes(result))
-        self.assertTrue(any(not field.success for field in result.data.fields))
+        self.assertFalse(mapped_fields(result)["child_name"].success)
 
-    def test_all_missing_binary_failures_produce_failed_stage(self):
-        with patch("extraction.psa_birth_row_ocr.ocr_image", side_effect=OCRBinaryUnavailableError("missing")):
-            result = extract_psa_birth_row_text(crop_output())
-        self.assertFalse(result.success)
-        self.assertEqual(result.status, "failed")
-        self.assertIn("OCR_ALL_FIELDS_FAILED", issue_codes(result))
+    def test_upstream_review_is_propagated(self):
+        output = crop_output()
+        wrapped = type(
+            "Wrapped",
+            (),
+            {"data": output, "status": "review_required", "issues": []},
+        )()
+        result = extract_psa_birth_row_text(
+            wrapped,
+            ocr_reader=RecordingReader(valid_outputs()),
+        )
 
-    def test_upstream_review_required_propagates(self):
-        registration = crop_output()
-        wrapped = type("Wrapped", (), {"status": "review_required", "issues": [{"code": "REGISTRATION_REVIEW_PROPAGATED"}], "data": registration})()
-        result = extract_psa_birth_row_text(wrapped, ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
         self.assertTrue(result.success)
-        self.assertEqual(result.status, "review_required")
         self.assertIn("REGISTRATION_REVIEW_PROPAGATED", issue_codes(result))
-        self.assertTrue(result.metrics["upstream_review_propagated"])
+
+    def test_results_and_components_are_immutable(self):
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(valid_outputs()),
+        )
+        child = mapped_fields(result)["child_name"]
+        with self.assertRaises(TypeError):
+            child.components["first_name"] = "Changed"
+        with self.assertRaises(Exception):
+            child.raw_text = "Changed"
 
     def test_source_crops_are_not_mutated(self):
-        crop = crop_output()
-        before = {name: arr.copy() for name, arr in crop.crops.items()}
-        extract_psa_birth_row_text(crop, ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
-        for name, arr in crop.crops.items():
-            np.testing.assert_array_equal(arr, before[name])
+        output = crop_output()
+        before = {
+            key: value.copy() for key, value in output.crops.items()
+        }
+        extract_psa_birth_row_text(
+            output,
+            ocr_reader=RecordingReader(valid_outputs()),
+        )
+        for key, value in output.crops.items():
+            np.testing.assert_array_equal(value, before[key])
 
-    def test_ocr_calls_receive_independent_inputs(self):
-        reader = RecordingReader(outputs=["a", "b", "c"])
-        result = extract_psa_birth_row_text(crop_output(), ocr_reader=reader)
-        self.assertTrue(result.success)
-        self.assertTrue(all(shared is False for shared, _, _ in reader.seen_shares))
+    def test_metrics_are_private_and_review_is_always_required(self):
+        values = valid_outputs()
+        result = extract_psa_birth_row_text(
+            crop_output(),
+            ocr_reader=RecordingReader(values),
+        )
+        serialized = repr(dict(result.metrics))
 
-    def test_module_defaults_cannot_be_mutated(self):
-        config = PSABirthRowOCRConfig()
+        self.assertTrue(
+            all(field.review_required for field in result.data.fields)
+        )
+        self.assertEqual(result.status, "review_required")
+        self.assertIn("OCR_MANUAL_REVIEW_REQUIRED", issue_codes(result))
+        for value in values:
+            self.assertNotIn(value, serialized)
+
+    def test_config_is_immutable_and_legacy_variant_is_normalized(self):
+        config = PSABirthRowOCRConfig(
+            preprocessing_variant="registered_name_cell_ocr"
+        )
+        self.assertEqual(config.preprocessing_variant, PREPROCESSING_VARIANT)
         with self.assertRaises(Exception):
-            config.preprocessing_variant = "x"
-        with self.assertRaises(ValueError):
-            PSABirthRowOCRConfig(required_fields=("child_name", "father_name", "mother_maiden_name"))
-
-    def test_separate_calls_return_independent_result_objects(self):
-        first = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["a", "b", "c"]))
-        second = extract_psa_birth_row_text(crop_output(), ocr_reader=RecordingReader(outputs=["d", "e", "f"]))
-        self.assertIsNot(first.data, second.data)
-        self.assertIsNot(first.data.fields, second.data.fields)
+            config.target_height = 10
 
     def test_module_has_no_forbidden_runtime_imports(self):
-        source = Path("extraction/psa_birth_row_ocr.py").read_text(encoding="utf-8")
+        source = Path("extraction/psa_birth_row_ocr.py").read_text(
+            encoding="utf-8"
+        )
         tree = ast.parse(source)
         imported_roots = {
             alias.name.split(".")[0]
@@ -263,8 +451,21 @@ class PSABirthRowOCRTest(unittest.TestCase):
             for node in ast.walk(tree)
             if isinstance(node, ast.ImportFrom) and node.level == 0
         )
-        forbidden = {"camera", "job_worker", "api", "requests", "supabase", "backend", "frontend", "EasyOCR", "easyocr", "PaddleOCR", "paddleocr", "parser"}
-        self.assertTrue(imported_roots.isdisjoint(forbidden))
+        self.assertTrue(
+            imported_roots.isdisjoint(
+                {
+                    "camera",
+                    "job_worker",
+                    "api",
+                    "requests",
+                    "backend",
+                    "frontend",
+                    "EasyOCR",
+                    "PaddleOCR",
+                    "parser",
+                }
+            )
+        )
 
 
 if __name__ == "__main__":

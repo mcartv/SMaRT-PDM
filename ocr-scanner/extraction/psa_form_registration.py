@@ -77,6 +77,20 @@ class PSAFormRegistrationConfig:
     ambiguity_corner_distance: float = 0.012
     minimum_contrast_standard_deviation: float = 12.0
     minimum_laplacian_variance: float = 18.0
+    continuation_search_limit: float = 1.25
+    continuation_minimum_offset: float = 0.04
+    continuation_improvement_margin: float = 0.012
+    continuation_mean_improvement_margin: float = 0.004
+    continuation_maximum_residual_improvement_margin: float = 0.004
+    continuation_terminal_regression_tolerance: float = 0.004
+    right_continuation_search_limit: float = 1.30
+    right_continuation_minimum_offset: float = 0.05
+    right_continuation_improvement_margin: float = 0.030
+    right_continuation_clearance_ratio: float = 0.012
+    target_last_name_divider_position: float = 0.843
+    target_last_name_divider_tolerance: float = 0.045
+    registered_line_minimum_coverage: float = 0.22
+    maximum_extended_corner_deviation: float = 0.10
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -115,6 +129,20 @@ class PSAFormRegistrationConfig:
             "ambiguity_corner_distance",
             "minimum_contrast_standard_deviation",
             "minimum_laplacian_variance",
+            "continuation_search_limit",
+            "continuation_minimum_offset",
+            "continuation_improvement_margin",
+            "continuation_mean_improvement_margin",
+            "continuation_maximum_residual_improvement_margin",
+            "continuation_terminal_regression_tolerance",
+            "right_continuation_search_limit",
+            "right_continuation_minimum_offset",
+            "right_continuation_improvement_margin",
+            "right_continuation_clearance_ratio",
+            "target_last_name_divider_position",
+            "target_last_name_divider_tolerance",
+            "registered_line_minimum_coverage",
+            "maximum_extended_corner_deviation",
         )
         for name in numeric_fields:
             value = getattr(self, name)
@@ -141,6 +169,51 @@ class PSAFormRegistrationConfig:
             raise ValueError("expected_area_ratio must be between 0.0 and 1.0")
         if not 0.0 < self.line_angle_tolerance_degrees < 45.0:
             raise ValueError("line_angle_tolerance_degrees must be below 45 degrees")
+        if not 1.0 < self.continuation_search_limit <= 1.5:
+            raise ValueError("continuation_search_limit must be above 1.0 and at most 1.5")
+        if not 0.0 < self.continuation_minimum_offset < 0.25:
+            raise ValueError("continuation_minimum_offset must be below 0.25")
+        if not 0.0 < self.continuation_improvement_margin < self.row_topology_tolerance:
+            raise ValueError("continuation_improvement_margin must be below row_topology_tolerance")
+        if not 0.0 < self.continuation_mean_improvement_margin < self.row_topology_tolerance:
+            raise ValueError(
+                "continuation_mean_improvement_margin must be below row_topology_tolerance"
+            )
+        if not (
+            0.0
+            < self.continuation_maximum_residual_improvement_margin
+            < self.row_topology_tolerance
+        ):
+            raise ValueError(
+                "continuation_maximum_residual_improvement_margin must be below "
+                "row_topology_tolerance"
+            )
+        if not 0.0 < self.continuation_terminal_regression_tolerance < self.row_topology_tolerance:
+            raise ValueError(
+                "continuation_terminal_regression_tolerance must be below row_topology_tolerance"
+            )
+        if not 1.0 < self.right_continuation_search_limit <= 1.5:
+            raise ValueError(
+                "right_continuation_search_limit must be above 1.0 and at most 1.5"
+            )
+        if not 0.0 < self.right_continuation_minimum_offset < 0.25:
+            raise ValueError("right_continuation_minimum_offset must be below 0.25")
+        if not 0.0 < self.right_continuation_improvement_margin < 0.25:
+            raise ValueError("right_continuation_improvement_margin must be below 0.25")
+        if not 0.0 < self.right_continuation_clearance_ratio < 0.10:
+            raise ValueError("right_continuation_clearance_ratio must be below 0.10")
+        if not 0.5 < self.target_last_name_divider_position < 0.95:
+            raise ValueError(
+                "target_last_name_divider_position must be between 0.5 and 0.95"
+            )
+        if not 0.0 < self.target_last_name_divider_tolerance < 0.15:
+            raise ValueError("target_last_name_divider_tolerance must be below 0.15")
+        if not 0.0 < self.registered_line_minimum_coverage < 1.0:
+            raise ValueError("registered_line_minimum_coverage must be between 0.0 and 1.0")
+        if not self.review_corner_deviation < self.maximum_extended_corner_deviation <= 0.15:
+            raise ValueError(
+                "maximum_extended_corner_deviation must exceed review_corner_deviation and be at most 0.15"
+            )
 
         copied_bands = tuple(tuple(item) for item in self.target_row_bands)
         names: set[str] = set()
@@ -217,6 +290,34 @@ class _Candidate:
     corner_deviation: float
     opposite_edge_ratio: float
     boundary_inferred: bool
+    target_bottom_extended: bool = False
+    continuation_line_count: int = 0
+    selected_bottom_continuation_position: float = 1.0
+    bottom_continuation_acceptance_mode: str = "none"
+    target_right_extended: bool = False
+    right_continuation_line_count: int = 0
+    target_last_name_divider_position: float = 1.0
+    selected_right_continuation_position: float = 1.0
+    remaining_right_continuation_count: int = 0
+
+
+@dataclass(frozen=True)
+class _RightCoverageEvidence:
+    divider_position: float
+    residual: float
+    score: float
+    covered: bool
+
+
+@dataclass(frozen=True)
+class _RowTopologyEvidence:
+    positions: tuple[float, ...]
+    assigned: tuple[float, ...]
+    residuals: tuple[float, ...]
+    score: float
+    covered: bool
+    mean_residual: float
+    terminal_residual: float
 
 
 def _issue(code: str) -> dict[str, str]:
@@ -304,6 +405,13 @@ def _variants(source: np.ndarray) -> tuple[np.ndarray, ...]:
     horizontal = cv2.morphologyEx(threshold, cv2.MORPH_OPEN, horizontal_kernel)
     vertical = cv2.morphologyEx(threshold, cv2.MORPH_OPEN, vertical_kernel)
     return gray, clahe, threshold, edges, horizontal, vertical
+
+
+def _normalized_hough_segments(segments: np.ndarray) -> np.ndarray:
+    array = np.asarray(segments)
+    if array.size == 0 or array.size % 4 != 0:
+        return np.empty((0, 4), dtype=np.float64)
+    return array.reshape(-1, 4)
 
 
 def _line_from_segment(segment: Sequence[int], width: int, height: int) -> Optional[_DetectedLine]:
@@ -457,7 +565,7 @@ def _detect_lines(
     minimum_y = max(0.0, float(expected[:, 1].min()) - config.boundary_search_distance)
     maximum_y = min(1.0, float(expected[:, 1].max()) + config.boundary_search_distance)
     supplement_horizontal = len(horizontal) < config.review_horizontal_lines
-    for segment in segments[:, 0]:
+    for segment in _normalized_hough_segments(segments):
         line = _line_from_segment(segment, width, height)
         if line is None:
             continue
@@ -598,49 +706,35 @@ def _candidate_geometry(
     return area / (width * height), average_width / average_height, corner_deviation, opposite_ratio
 
 
-def _row_coverage_score(
-    corners: np.ndarray,
-    horizontal_lines: Sequence[_DetectedLine],
-    config: PSAFormRegistrationConfig,
-) -> tuple[float, bool]:
-    target = np.asarray([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
-    homography = cv2.getPerspectiveTransform(corners.astype(np.float32), target)
-    observed: list[float] = []
-    for line in horizontal_lines:
-        a, b, c = line.coefficients
-        if abs(b) < 1e-8:
-            continue
-        points = np.asarray(
-            [[0.0, -c / b], [float(corners[:, 0].max()), -(a * corners[:, 0].max() + c) / b]],
-            dtype=np.float32,
-        ).reshape(-1, 1, 2)
-        transformed = cv2.perspectiveTransform(points, homography).reshape(-1, 2)
-        y = float(np.mean(transformed[:, 1]))
-        if -0.05 <= y <= 1.05:
-            observed.append(y)
-
-    observed.sort()
+def _cluster_positions(
+    values: Sequence[float], maximum_gap: float
+) -> tuple[float, ...]:
     clustered: list[float] = []
-    for value in observed:
-        if not clustered or value - clustered[-1] > config.line_cluster_distance:
+    for value in sorted(float(item) for item in values):
+        if not clustered or value - clustered[-1] > maximum_gap:
             clustered.append(value)
         else:
             clustered[-1] = (clustered[-1] + value) / 2.0
+    return tuple(clustered)
 
-    required = sorted({value for _, top, bottom in config.target_row_bands for value in (top, bottom)})
-    if len(clustered) < len(required):
-        return 0.0, False
+
+def _monotonic_assignment(
+    required: Sequence[float], observed: Sequence[float]
+) -> tuple[float, ...] | None:
+    if len(observed) < len(required):
+        return None
 
     expected_count = len(required)
-    observed_count = len(clustered)
+    observed_count = len(observed)
     costs = np.full((expected_count + 1, observed_count + 1), np.inf, dtype=np.float64)
     previous = np.full((expected_count + 1, observed_count + 1), -1, dtype=np.int8)
     costs[0, :] = 0.0
+
     for expected_index in range(1, expected_count + 1):
         for observed_index in range(1, observed_count + 1):
             skip_cost = costs[expected_index, observed_index - 1]
             match_cost = costs[expected_index - 1, observed_index - 1] + abs(
-                required[expected_index - 1] - clustered[observed_index - 1]
+                required[expected_index - 1] - observed[observed_index - 1]
             )
             if match_cost <= skip_cost:
                 costs[expected_index, observed_index] = match_cost
@@ -653,23 +747,488 @@ def _row_coverage_score(
     expected_index, observed_index = expected_count, observed_count
     while expected_index > 0 and observed_index > 0:
         if previous[expected_index, observed_index] == 1:
-            assigned[expected_index - 1] = clustered[observed_index - 1]
+            assigned[expected_index - 1] = observed[observed_index - 1]
             expected_index -= 1
             observed_index -= 1
         else:
             observed_index -= 1
-    if expected_index != 0:
-        return 0.0, False
 
-    residuals = np.abs(np.asarray(assigned) - np.asarray(required))
-    target_covered = bool(np.all(residuals <= config.row_topology_tolerance))
+    if expected_index != 0:
+        return None
+    return tuple(float(value) for value in assigned)
+
+
+def _row_topology_evidence(
+    positions: Sequence[float], config: PSAFormRegistrationConfig
+) -> _RowTopologyEvidence:
+    clustered = _cluster_positions(positions, config.line_cluster_distance)
+    required = tuple(
+        sorted({value for _, top, bottom in config.target_row_bands for value in (top, bottom)})
+    )
+    assigned = _monotonic_assignment(required, clustered)
+    if assigned is None:
+        return _RowTopologyEvidence(
+            positions=clustered,
+            assigned=(),
+            residuals=(),
+            score=0.0,
+            covered=False,
+            mean_residual=float("inf"),
+            terminal_residual=float("inf"),
+        )
+
+    residuals = tuple(abs(actual - expected) for actual, expected in zip(assigned, required))
+    mean_residual = float(np.mean(residuals))
+    terminal_residual = float(np.mean(residuals[-2:]))
     topology_consistent = bool(
         assigned[0] >= -config.row_topology_tolerance
         and assigned[-1] <= 1.0 + config.row_topology_tolerance
         and all(second - first >= 0.02 for first, second in zip(assigned, assigned[1:]))
     )
-    score = max(0.0, 1.0 - float(residuals.mean()) / config.row_topology_tolerance)
-    return score, target_covered and topology_consistent
+    covered = bool(
+        topology_consistent
+        and all(value <= config.row_topology_tolerance for value in residuals)
+    )
+    score = max(0.0, 1.0 - mean_residual / config.row_topology_tolerance)
+    return _RowTopologyEvidence(
+        positions=clustered,
+        assigned=assigned,
+        residuals=residuals,
+        score=score,
+        covered=covered,
+        mean_residual=mean_residual,
+        terminal_residual=terminal_residual,
+    )
+
+
+def _candidate_horizontal_positions(
+    corners: np.ndarray,
+    horizontal_lines: Sequence[_DetectedLine],
+    config: PSAFormRegistrationConfig,
+    *,
+    minimum: float = -0.05,
+    maximum: float = 1.05,
+) -> tuple[float, ...]:
+    target = np.asarray([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
+    homography = cv2.getPerspectiveTransform(corners.astype(np.float32), target)
+    source_x_min = float(corners[:, 0].min())
+    source_x_max = float(corners[:, 0].max())
+    observed: list[float] = []
+
+    for line in horizontal_lines:
+        a, b, c = line.coefficients
+        if abs(b) < 1e-8:
+            continue
+        points = np.asarray(
+            [
+                [source_x_min, -(a * source_x_min + c) / b],
+                [source_x_max, -(a * source_x_max + c) / b],
+            ],
+            dtype=np.float32,
+        ).reshape(-1, 1, 2)
+        transformed = cv2.perspectiveTransform(points, homography).reshape(-1, 2)
+        value = float(np.mean(transformed[:, 1]))
+        if minimum <= value <= maximum:
+            observed.append(value)
+
+    return _cluster_positions(observed, config.line_cluster_distance)
+
+
+def _row_coverage_score(
+    corners: np.ndarray,
+    horizontal_lines: Sequence[_DetectedLine],
+    config: PSAFormRegistrationConfig,
+) -> tuple[float, bool]:
+    positions = _candidate_horizontal_positions(
+        corners, horizontal_lines, config, minimum=-0.05, maximum=1.05
+    )
+    evidence = _row_topology_evidence(positions, config)
+    return evidence.score, evidence.covered
+
+
+def _extend_candidate_bottom(
+    candidate: _Candidate,
+    normalized_bottom: float,
+    expected: np.ndarray,
+    width: int,
+    height: int,
+) -> _Candidate | None:
+    unit = np.asarray([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
+    try:
+        source_to_unit = cv2.getPerspectiveTransform(
+            candidate.corners.astype(np.float32), unit
+        )
+        unit_to_source = np.linalg.inv(source_to_unit)
+        lower = np.asarray(
+            [[[1.0, normalized_bottom], [0.0, normalized_bottom]]],
+            dtype=np.float32,
+        )
+        projected = cv2.perspectiveTransform(lower, unit_to_source).reshape(2, 2)
+    except (cv2.error, np.linalg.LinAlgError):
+        return None
+    corners = np.asarray(
+        [candidate.corners[0], candidate.corners[1], projected[0], projected[1]],
+        dtype=np.float64,
+    )
+    geometry = _candidate_geometry(corners, expected, width, height)
+    if geometry is None:
+        return None
+    area_ratio, aspect_ratio, deviation, opposite_ratio = geometry
+    return replace(
+        candidate,
+        corners=corners,
+        area_ratio=area_ratio,
+        aspect_ratio=aspect_ratio,
+        corner_deviation=deviation,
+        opposite_edge_ratio=opposite_ratio,
+        target_bottom_extended=True,
+    )
+
+
+def _repair_premature_bottom_boundary(
+    candidate: _Candidate,
+    horizontal_lines: Sequence[_DetectedLine],
+    config: PSAFormRegistrationConfig,
+    width: int,
+    height: int,
+) -> _Candidate:
+    all_positions = _candidate_horizontal_positions(
+        candidate.corners,
+        horizontal_lines,
+        config,
+        minimum=-0.05,
+        maximum=config.continuation_search_limit,
+    )
+    continuation = tuple(
+        value
+        for value in all_positions
+        if value >= 1.0 + config.continuation_minimum_offset
+    )
+    candidate = replace(candidate, continuation_line_count=len(continuation))
+    if len(continuation) < 2:
+        return candidate
+
+    base_positions = tuple(value for value in all_positions if value <= 1.05)
+    base_evidence = _row_topology_evidence(base_positions, config)
+    base_maximum_residual = (
+        max(base_evidence.residuals) if base_evidence.residuals else float("inf")
+    )
+    expected = _expected_pixels(config, width, height)
+    best: tuple[float, _Candidate, _RowTopologyEvidence] | None = None
+
+    for normalized_bottom in continuation:
+        extended = _extend_candidate_bottom(
+            candidate, normalized_bottom, expected, width, height
+        )
+        if extended is None:
+            continue
+        if extended.corner_deviation > config.maximum_extended_corner_deviation:
+            continue
+        if extended.opposite_edge_ratio > config.review_opposite_edge_ratio:
+            continue
+
+        positions = _candidate_horizontal_positions(
+            extended.corners, horizontal_lines, config, minimum=-0.05, maximum=1.05
+        )
+        evidence = _row_topology_evidence(positions, config)
+        if not evidence.covered:
+            continue
+
+        maximum_residual = (
+            max(evidence.residuals) if evidence.residuals else float("inf")
+        )
+        terminal_improvement = base_evidence.terminal_residual - evidence.terminal_residual
+        mean_improvement = base_evidence.mean_residual - evidence.mean_residual
+        maximum_residual_improvement = base_maximum_residual - maximum_residual
+
+        terminal_supported = bool(
+            terminal_improvement >= config.continuation_improvement_margin
+            and mean_improvement > 0.0
+        )
+        aggregate_supported = bool(
+            mean_improvement >= config.continuation_mean_improvement_margin
+            and maximum_residual_improvement
+            >= config.continuation_maximum_residual_improvement_margin
+            and terminal_improvement
+            >= -config.continuation_terminal_regression_tolerance
+        )
+        if not terminal_supported and not aggregate_supported:
+            continue
+
+        acceptance_mode = "terminal" if terminal_supported else "aggregate"
+        extended = replace(
+            extended,
+            selected_bottom_continuation_position=normalized_bottom,
+            bottom_continuation_acceptance_mode=acceptance_mode,
+        )
+        objective = (
+            evidence.mean_residual
+            + evidence.terminal_residual
+            + 0.25 * maximum_residual
+        )
+        if best is None or objective < best[0]:
+            best = (objective, extended, evidence)
+
+    if best is None:
+        return candidate
+
+    _, extended, evidence = best
+    score_bonus = min(
+        0.05,
+        max(0.0, evidence.score - base_evidence.score) * 0.25,
+    )
+    return replace(
+        extended,
+        score=min(1.0, candidate.score + score_bonus),
+        continuation_line_count=len(continuation),
+    )
+
+
+def _candidate_vertical_positions(
+    corners: np.ndarray,
+    vertical_lines: Sequence[_DetectedLine],
+    config: PSAFormRegistrationConfig,
+    *,
+    minimum: float = -0.05,
+    maximum: float = 1.05,
+) -> tuple[float, ...]:
+    target = np.asarray([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
+    homography = cv2.getPerspectiveTransform(corners.astype(np.float32), target)
+    source_y_min = float(corners[:, 1].min())
+    source_y_max = float(corners[:, 1].max())
+    observed: list[float] = []
+
+    for line in vertical_lines:
+        a, b, c = line.coefficients
+        if abs(a) < 1e-8:
+            continue
+        points = np.asarray(
+            [
+                [-(b * source_y_min + c) / a, source_y_min],
+                [-(b * source_y_max + c) / a, source_y_max],
+            ],
+            dtype=np.float32,
+        ).reshape(-1, 1, 2)
+        transformed = cv2.perspectiveTransform(points, homography).reshape(-1, 2)
+        value = float(np.mean(transformed[:, 0]))
+        if minimum <= value <= maximum:
+            observed.append(value)
+
+    return _cluster_positions(observed, config.line_cluster_distance)
+
+
+def _right_coverage_evidence(
+    divider_position: float, config: PSAFormRegistrationConfig
+) -> _RightCoverageEvidence:
+    residual = abs(divider_position - config.target_last_name_divider_position)
+    score = max(
+        0.0,
+        1.0 - residual / config.target_last_name_divider_tolerance,
+    )
+    return _RightCoverageEvidence(
+        divider_position=divider_position,
+        residual=residual,
+        score=score,
+        covered=residual <= config.target_last_name_divider_tolerance,
+    )
+
+
+def _extend_candidate_right(
+    candidate: _Candidate,
+    normalized_right: float,
+    expected: np.ndarray,
+    width: int,
+    height: int,
+) -> _Candidate | None:
+    unit = np.asarray([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
+    try:
+        source_to_unit = cv2.getPerspectiveTransform(
+            candidate.corners.astype(np.float32), unit
+        )
+        unit_to_source = np.linalg.inv(source_to_unit)
+        extended_edge = np.asarray(
+            [[[normalized_right, 0.0], [normalized_right, 1.0]]],
+            dtype=np.float32,
+        )
+        projected = cv2.perspectiveTransform(
+            extended_edge, unit_to_source
+        ).reshape(2, 2)
+    except (cv2.error, np.linalg.LinAlgError):
+        return None
+
+    corners = np.asarray(
+        [candidate.corners[0], projected[0], projected[1], candidate.corners[3]],
+        dtype=np.float64,
+    )
+    geometry = _candidate_geometry(corners, expected, width, height)
+    if geometry is None:
+        return None
+
+    try:
+        extended_to_unit = cv2.getPerspectiveTransform(
+            corners.astype(np.float32), unit
+        )
+        original_right = np.asarray(
+            [[candidate.corners[1], candidate.corners[2]]],
+            dtype=np.float32,
+        )
+        relocated = cv2.perspectiveTransform(
+            original_right, extended_to_unit
+        ).reshape(2, 2)
+        divider_position = float(np.mean(relocated[:, 0]))
+    except cv2.error:
+        return None
+
+    area_ratio, aspect_ratio, deviation, opposite_ratio = geometry
+    return replace(
+        candidate,
+        corners=corners,
+        area_ratio=area_ratio,
+        aspect_ratio=aspect_ratio,
+        corner_deviation=deviation,
+        opposite_edge_ratio=opposite_ratio,
+        target_right_extended=True,
+        target_last_name_divider_position=divider_position,
+    )
+
+
+def _repair_premature_right_boundary(
+    candidate: _Candidate,
+    vertical_lines: Sequence[_DetectedLine],
+    config: PSAFormRegistrationConfig,
+    width: int,
+    height: int,
+) -> _Candidate:
+    all_positions = _candidate_vertical_positions(
+        candidate.corners,
+        vertical_lines,
+        config,
+        minimum=-0.05,
+        maximum=config.right_continuation_search_limit,
+    )
+    continuation = tuple(
+        value
+        for value in all_positions
+        if value >= 1.0 + config.right_continuation_minimum_offset
+    )
+    candidate = replace(
+        candidate,
+        right_continuation_line_count=len(continuation),
+    )
+    if len(continuation) < 2:
+        return candidate
+
+    base_evidence = _right_coverage_evidence(
+        candidate.target_last_name_divider_position,
+        config,
+    )
+    expected = _expected_pixels(config, width, height)
+    best: tuple[float, _Candidate, _RightCoverageEvidence] | None = None
+
+    for normalized_right in continuation:
+        extended = _extend_candidate_right(
+            candidate, normalized_right, expected, width, height
+        )
+        if extended is None:
+            continue
+        if extended.corner_deviation > config.maximum_extended_corner_deviation:
+            continue
+        if extended.opposite_edge_ratio > config.review_opposite_edge_ratio:
+            continue
+
+        remaining = tuple(
+            value
+            for value in continuation
+            if value
+            > normalized_right
+            * (1.0 + config.right_continuation_clearance_ratio)
+        )
+        if remaining:
+            continue
+
+        evidence = _right_coverage_evidence(
+            extended.target_last_name_divider_position,
+            config,
+        )
+        broad_tolerance = max(
+            0.070,
+            config.target_last_name_divider_tolerance * 1.5,
+        )
+        if evidence.residual > broad_tolerance:
+            continue
+
+        improvement = base_evidence.residual - evidence.residual
+        if improvement < config.right_continuation_improvement_margin:
+            continue
+
+        aspect_residual = abs(
+            extended.aspect_ratio - config.expected_aspect_ratio
+        )
+        area_residual = abs(
+            extended.area_ratio - config.expected_area_ratio
+        )
+        objective = (
+            0.50 * aspect_residual
+            + 0.25 * area_residual
+            + 0.10 * evidence.residual
+        )
+        extended = replace(
+            extended,
+            selected_right_continuation_position=normalized_right,
+            remaining_right_continuation_count=0,
+        )
+        if best is None or objective < best[0]:
+            best = (objective, extended, evidence)
+
+    if best is None:
+        return candidate
+
+    _, extended, evidence = best
+    score_bonus = min(
+        0.05,
+        max(0.0, evidence.score - base_evidence.score) * 0.05,
+    )
+    return replace(
+        extended,
+        score=min(1.0, candidate.score + score_bonus),
+        right_continuation_line_count=len(continuation),
+    )
+
+
+def _registered_horizontal_positions(
+    registered: np.ndarray, config: PSAFormRegistrationConfig
+) -> tuple[float, ...]:
+    gray = (
+        cv2.cvtColor(registered, cv2.COLOR_BGR2GRAY)
+        if registered.ndim == 3
+        else registered.copy()
+    )
+    binary = cv2.adaptiveThreshold(
+        gray,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        41,
+        15,
+    )
+    height, width = gray.shape
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT, (max(80, width // 4), 1)
+    )
+    horizontal = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+    central = horizontal[:, round(width * 0.08) : round(width * 0.96)]
+    coverage = np.count_nonzero(central, axis=1) / float(max(1, central.shape[1]))
+    rows = np.flatnonzero(coverage >= config.registered_line_minimum_coverage)
+    return _cluster_positions(
+        tuple(index / float(height - 1) for index in rows),
+        config.line_cluster_distance,
+    )
+
+
+def _registered_row_topology(
+    registered: np.ndarray, config: PSAFormRegistrationConfig
+) -> _RowTopologyEvidence:
+    return _row_topology_evidence(_registered_horizontal_positions(registered, config), config)
 
 
 def _deduplicate_candidates(
@@ -950,7 +1509,19 @@ def _find_candidates(
                             boundary_inferred=boundary_inferred,
                         )
                     )
-    return _deduplicate_candidates(candidates, config, width, height), len(missing), intersection_count
+    unique = _deduplicate_candidates(candidates, config, width, height)
+    repaired: list[_Candidate] = []
+    for candidate in unique:
+        bottom_repaired = _repair_premature_bottom_boundary(
+            candidate, horizontal, config, width, height
+        )
+        repaired.append(
+            _repair_premature_right_boundary(
+                bottom_repaired, vertical, config, width, height
+            )
+        )
+    repaired.sort(key=lambda item: item.score, reverse=True)
+    return repaired, len(missing), intersection_count
 
 
 def _orientation_deviation(
@@ -1028,7 +1599,12 @@ def register_psa_birth_form(
     selected = candidates[0]
     if selected.opposite_edge_ratio > resolved.review_opposite_edge_ratio:
         return _failure("FORM_PERSPECTIVE_EXCESSIVE", candidate_count=len(candidates))
-    if selected.corner_deviation > resolved.review_corner_deviation:
+    allowed_corner_deviation = (
+        resolved.maximum_extended_corner_deviation
+        if selected.target_bottom_extended or selected.target_right_extended
+        else resolved.review_corner_deviation
+    )
+    if selected.corner_deviation > allowed_corner_deviation:
         return _failure("FORM_POSITION_OUTSIDE_CALIBRATION", candidate_count=len(candidates))
     if (
         len(candidates) > 1
@@ -1041,6 +1617,57 @@ def register_psa_birth_form(
             candidate_count=len(candidates),
         )
 
+    if selected.continuation_line_count >= 1 and not selected.target_bottom_extended:
+        return _failure(
+            "TARGET_ROWS_OUTSIDE_FRAME",
+            horizontal_line_count=horizontal_count,
+            vertical_line_count=vertical_count,
+            candidate_count=len(candidates),
+            continuation_line_count=selected.continuation_line_count,
+            target_bottom_extended=False,
+        )
+    if (
+        selected.right_continuation_line_count >= 1
+        and not selected.target_right_extended
+    ):
+        return _failure(
+            "TARGET_COLUMNS_OUTSIDE_FRAME",
+            horizontal_line_count=horizontal_count,
+            vertical_line_count=vertical_count,
+            candidate_count=len(candidates),
+            right_continuation_line_count=selected.right_continuation_line_count,
+            target_right_extended=False,
+        )
+
+    prewarp_right_coverage = _right_coverage_evidence(
+        selected.target_last_name_divider_position,
+        resolved,
+    )
+    if (
+        selected.target_right_extended
+        and selected.remaining_right_continuation_count > 0
+    ):
+        return _failure(
+            "TARGET_COLUMNS_OUTSIDE_FRAME",
+            horizontal_line_count=horizontal_count,
+            vertical_line_count=vertical_count,
+            candidate_count=len(candidates),
+            target_right_extended=True,
+            right_continuation_line_count=selected.right_continuation_line_count,
+            selected_right_continuation_position=(
+                selected.selected_right_continuation_position
+            ),
+            remaining_right_continuation_count=(
+                selected.remaining_right_continuation_count
+            ),
+        )
+
+    prewarp_topology = _row_topology_evidence(
+        _candidate_horizontal_positions(
+            selected.corners, horizontal, resolved, minimum=-0.05, maximum=1.05
+        ),
+        resolved,
+    )
     _, rows_covered = _row_coverage_score(selected.corners, horizontal, resolved)
     if not rows_covered:
         return _failure(
@@ -1081,6 +1708,31 @@ def register_psa_birth_form(
         return _failure("REGISTERED_IMAGE_INVALID")
     registered = registered.copy()
 
+    postwarp_topology = _registered_row_topology(registered, resolved)
+    postwarp_maximum_residual = (
+        max(postwarp_topology.residuals) if postwarp_topology.residuals else None
+    )
+    postwarp_topology_elevated = not postwarp_topology.covered
+    if postwarp_topology_elevated and (
+        postwarp_maximum_residual is None
+        or postwarp_maximum_residual > resolved.row_topology_tolerance * 2.5
+    ):
+        return _failure(
+            "TARGET_ROWS_OUTSIDE_FRAME",
+            horizontal_line_count=horizontal_count,
+            vertical_line_count=vertical_count,
+            candidate_count=len(candidates),
+            target_bottom_extended=selected.target_bottom_extended,
+            continuation_line_count=selected.continuation_line_count,
+            postwarp_target_topology_score=postwarp_topology.score,
+            postwarp_target_maximum_residual=postwarp_maximum_residual,
+        )
+
+    postwarp_right_coverage = _right_coverage_evidence(
+        selected.target_last_name_divider_position,
+        resolved,
+    )
+
     canonical = _canonical_landmarks(registered, resolved)
     if canonical is None:
         return _failure(
@@ -1090,6 +1742,7 @@ def register_psa_birth_form(
             candidate_count=len(candidates),
         )
 
+    postcanonical_divider_position = selected.target_last_name_divider_position
     canonical_status = _canonical_edge_status(canonical[-1], resolved)
     if canonical_status == "failed":
         inferable_boundary = (
@@ -1125,6 +1778,18 @@ def register_psa_birth_form(
             ],
             dtype=np.float32,
         )
+        canonical_width = canonical[1] - canonical[0]
+        if canonical_width <= 0.0:
+            return _failure(
+                "CANONICAL_GRID_ALIGNMENT_FAILED",
+                horizontal_line_count=horizontal_count,
+                vertical_line_count=vertical_count,
+                candidate_count=len(candidates),
+            )
+        postcanonical_divider_position = (
+            selected.target_last_name_divider_position - canonical[0]
+        ) / canonical_width
+
         try:
             canonical_homography = cv2.getPerspectiveTransform(
                 source_quad, canonical_destination
@@ -1159,6 +1824,49 @@ def register_psa_birth_form(
                 vertical_line_count=vertical_count,
                 candidate_count=len(candidates),
             )
+
+    final_topology = _registered_row_topology(registered, resolved)
+    final_maximum_residual = (
+        max(final_topology.residuals) if final_topology.residuals else None
+    )
+    final_topology_elevated = not final_topology.covered
+    if final_topology_elevated and (
+        final_maximum_residual is None
+        or final_maximum_residual > resolved.row_topology_tolerance * 2.5
+    ):
+        return _failure(
+            "TARGET_ROWS_OUTSIDE_FRAME",
+            horizontal_line_count=horizontal_count,
+            vertical_line_count=vertical_count,
+            candidate_count=len(candidates),
+            target_bottom_extended=selected.target_bottom_extended,
+            continuation_line_count=selected.continuation_line_count,
+            postcanonical_target_topology_score=final_topology.score,
+            postcanonical_target_maximum_residual=final_maximum_residual,
+        )
+
+    final_right_coverage = _right_coverage_evidence(
+        postcanonical_divider_position,
+        resolved,
+    )
+    if (
+        selected.target_right_extended
+        and selected.remaining_right_continuation_count > 0
+    ):
+        return _failure(
+            "TARGET_COLUMNS_OUTSIDE_FRAME",
+            horizontal_line_count=horizontal_count,
+            vertical_line_count=vertical_count,
+            candidate_count=len(candidates),
+            target_right_extended=True,
+            right_continuation_line_count=selected.right_continuation_line_count,
+            selected_right_continuation_position=(
+                selected.selected_right_continuation_position
+            ),
+            remaining_right_continuation_count=(
+                selected.remaining_right_continuation_count
+            ),
+        )
 
     (
         canonical_left_boundary,
@@ -1199,6 +1907,12 @@ def register_psa_birth_form(
         issues.append(_issue("FORM_LINE_EVIDENCE_WEAK"))
     if selected.boundary_inferred:
         issues.append(_issue("FORM_BOUNDARY_INFERRED"))
+    if selected.target_bottom_extended:
+        issues.append(_issue("FORM_TARGET_BOTTOM_EXTENDED"))
+    if selected.target_right_extended:
+        issues.append(_issue("FORM_TARGET_RIGHT_EXTENDED"))
+    if postwarp_topology_elevated or final_topology_elevated:
+        issues.append(_issue("FORM_TARGET_TOPOLOGY_ELEVATED"))
     if selected.corner_deviation > resolved.success_corner_deviation or orientation_deviation > 2.0:
         issues.append(_issue("FORM_POSITION_DEVIATION_ELEVATED"))
     if selected.opposite_edge_ratio > resolved.success_opposite_edge_ratio:
@@ -1257,6 +1971,34 @@ def register_psa_birth_form(
             "opposite_edge_ratio": selected.opposite_edge_ratio,
             "maximum_canonical_edge_deviation": maximum_canonical_edge_deviation,
             "orientation_deviation_degrees": orientation_deviation,
+            "target_bottom_extended": selected.target_bottom_extended,
+            "continuation_line_count": selected.continuation_line_count,
+            "selected_bottom_continuation_position": (
+                selected.selected_bottom_continuation_position
+            ),
+            "bottom_continuation_acceptance_mode": (
+                selected.bottom_continuation_acceptance_mode
+            ),
+            "target_right_extended": selected.target_right_extended,
+            "right_continuation_line_count": (
+                selected.right_continuation_line_count
+            ),
+            "selected_right_continuation_position": (
+                selected.selected_right_continuation_position
+            ),
+            "remaining_right_continuation_count": (
+                selected.remaining_right_continuation_count
+            ),
+            "prewarp_right_coverage": prewarp_right_coverage.score,
+            "postwarp_right_coverage": postwarp_right_coverage.score,
+            "postcanonical_right_coverage": final_right_coverage.score,
+            "target_last_name_divider_position": (
+                final_right_coverage.divider_position
+            ),
+            "prewarp_target_topology_score": prewarp_topology.score,
+            "postwarp_target_topology_score": postwarp_topology.score,
+            "postcanonical_target_topology_score": final_topology.score,
+            "postcanonical_target_maximum_residual": final_maximum_residual,
         },
     )
 

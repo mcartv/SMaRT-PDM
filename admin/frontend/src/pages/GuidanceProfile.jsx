@@ -1,9 +1,3 @@
-import {
-  FileSearch,
-  Activity,
-  AlertTriangle,
-  Shield,
-} from 'lucide-react';
 import OfficeProfilePage from '@/components/profile/OfficeProfilePage';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
@@ -27,17 +21,10 @@ export default function GuidanceProfile() {
       accountConfig={guidanceMaintenanceConfig}
       palette={palette}
       tokenStorageKey="guidanceToken"
-      statCards={[
-        { label: 'Cases Reviewed', value: '96', icon: FileSearch, tone: 'green' },
-        { label: 'Counseling Holds', value: '14', icon: AlertTriangle, tone: 'amber' },
-        { label: 'Clearances', value: '72', icon: Shield, tone: 'stone' },
-        { label: 'Activity Logs', value: '28', icon: Activity, tone: 'green' },
-      ]}
-      activityLog={[
-        { action: 'Reviewed guidance endorsement queue', time: 'Recent' },
-        { action: 'Updated counseling hold decision', time: 'Today' },
-        { action: 'Saved guidance maintenance settings', time: 'This week' },
-        { action: 'Checked moral standing records', time: 'This week' },
+      responsibilities={[
+        'Review applicant moral-standing and counseling records.',
+        'Issue clearances, holds, or rejection decisions with remarks.',
+        'Track endorsement progress after SDO review.',
       ]}
     />
   );

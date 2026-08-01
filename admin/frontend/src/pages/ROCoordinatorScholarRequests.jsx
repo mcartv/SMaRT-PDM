@@ -13,6 +13,7 @@ import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 
 function headers(tokenStorageKey) {
   return {
@@ -289,9 +290,7 @@ export default function ROCoordinatorScholarRequests({
       ) : null}
 
       {loading ? (
-        <div className="flex min-h-64 items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin" style={{ color: theme.base }} />
-        </div>
+        <SectionLoadingSkeleton label="Loading scholar requests" rows={4} />
       ) : items.length ? (
         <div className="grid gap-3 lg:grid-cols-2">
           {items.map((item) => (

@@ -476,6 +476,40 @@ function configureRealtimeBridge({ io, supabase }) {
     )
     .on(
       'postgres_changes',
+      { event: '*', schema: 'public', table: 'renewals' },
+      (payload) => {
+        io.emit('renewal:updated', {
+          renewal_id: payload.new?.renewal_id || payload.old?.renewal_id || null,
+          action: String(payload.eventType || 'UPDATE').toLowerCase(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'renewal_documents' },
+      (payload) => {
+        io.emit('renewal:updated', {
+          renewal_id: payload.new?.renewal_id || payload.old?.renewal_id || null,
+          action: 'document_updated',
+          updated_at: new Date().toISOString(),
+        });
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'profile_photo_reviews' },
+      (payload) => {
+        const action = String(payload.eventType || 'UPDATE').toLowerCase();
+        io.emit(`profile-photo-review:${action === 'insert' ? 'created' : 'updated'}`, {
+          review_id: payload.new?.review_id || payload.old?.review_id || null,
+          status: payload.new?.status || payload.old?.status || null,
+          updated_at: new Date().toISOString(),
+        });
+      }
+    )
+    .on(
+      'postgres_changes',
       { event: '*', schema: 'public', table: 'messages' },
       async (payload) => {
         try {

@@ -1,9 +1,27 @@
 const reportService = require('../services/reportService');
 const auditLogService = require('../services/auditLogService');
 
-function isAdmin(req) {
+function canAccessReports(req) {
     const role = String(req.user?.role || '').toLowerCase();
     return ['admin', 'sdo', 'guidance', 'pd'].includes(role);
+}
+
+function getAllowedReportTypes(role) {
+    const normalizedRole = String(role || '').toLowerCase();
+
+    if (normalizedRole === 'admin') {
+        return [
+            'applications',
+            'scholars',
+            'scholars_by_benefactor',
+            'payouts',
+            'endorsements',
+        ];
+    }
+
+    return ['sdo', 'guidance', 'pd'].includes(normalizedRole)
+        ? [normalizedRole]
+        : [];
 }
 
 function isSilentRequest(req) {
@@ -18,11 +36,18 @@ function getActorUserId(req) {
 function getScopedServiceQuery(req) {
     const role = String(req.user?.role || '').toLowerCase();
     const reportType = String(req.query?.reportType || req.query?.type || 'applications').toLowerCase();
-    if (role === 'pd' && reportType !== 'pd') {
-        const error = new Error('Program Directors may only access their assigned-course PD report.');
-        error.statusCode = 403;
+    const allowedReportTypes = getAllowedReportTypes(role);
+
+    if (!allowedReportTypes.includes(reportType)) {
+        const error = new Error(
+            role === 'admin'
+                ? 'Invalid report type.'
+                : `${role.toUpperCase()} accounts may only access the ${role.toUpperCase()} report.`
+        );
+        error.statusCode = role === 'admin' ? 400 : 403;
         throw error;
     }
+
     return {
         ...(req.query || {}),
         pdUserId: role === 'pd' ? getActorUserId(req) : '',
@@ -69,11 +94,15 @@ async function writeReportAudit(req, actionTaken, description, metadata = {}) {
 
 async function getReportMetadata(req, res) {
     try {
-        if (!isAdmin(req)) {
+        if (!canAccessReports(req)) {
             return res.status(403).json({ error: 'Admin access required.' });
         }
 
         const result = await reportService.getReportMetadata();
+        const allowedReportTypes = getAllowedReportTypes(req.user?.role);
+        result.reportTypes = (result.reportTypes || []).filter((reportType) =>
+            allowedReportTypes.includes(reportType.id)
+        );
 
         await writeReportAudit(
             req,
@@ -95,7 +124,7 @@ async function getReportMetadata(req, res) {
 
 async function previewReport(req, res) {
     try {
-        if (!isAdmin(req)) {
+        if (!canAccessReports(req)) {
             return res.status(403).json({ error: 'Admin access required.' });
         }
 
@@ -123,7 +152,7 @@ async function previewReport(req, res) {
 
 async function exportReport(req, res) {
     try {
-        if (!isAdmin(req)) {
+        if (!canAccessReports(req)) {
             return res.status(403).json({ error: 'Admin access required.' });
         }
 

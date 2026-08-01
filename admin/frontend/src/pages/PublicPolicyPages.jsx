@@ -12,7 +12,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { buildApiUrl } from '@/api';
 import { DEFAULT_POLICY_CONTENT, mergePolicyContent } from '@/constants/policyContent';
 import pdmLogo from '../assets/pdm-logo.png';
-import pdmFacade from '../assets/PDM-Facade.png';
+import pdmFacade from '../assets/PDM-Facade-optimized.jpg';
 
 const policyIcons = {
   'shield-check': ShieldCheck,

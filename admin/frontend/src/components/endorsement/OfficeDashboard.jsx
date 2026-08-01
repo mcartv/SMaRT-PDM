@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 function buildHeaders(tokenStorageKey) {
   return {
@@ -366,12 +367,7 @@ export default function OfficeDashboard({ officeKey, tokenStorageKey = 'adminTok
   }, [officeKey, rows, sdoRecordsSummary.latest_record]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading office dashboard...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label={`Loading ${config.title}`} variant="dashboard" />;
   }
 
   return (

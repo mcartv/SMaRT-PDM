@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const tokenKey = 'roCoordinatorToken';
 
@@ -98,11 +99,7 @@ export default function ROCoordinatorDashboard() {
   useSocketEvent('ro:updated', () => loadDashboard({ soft: true }), [loadDashboard]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[420px] items-center justify-center">
-        <Loader2 className="h-7 w-7 animate-spin" style={{ color: theme.base }} />
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading RO Coordinator dashboard" variant="dashboard" />;
   }
 
   return (

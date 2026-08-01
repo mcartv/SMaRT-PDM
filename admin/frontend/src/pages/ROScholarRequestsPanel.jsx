@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildApiUrl } from '@/api';
+import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSocketEvent } from '@/hooks/useSocket';
@@ -236,9 +237,7 @@ export default function ROScholarRequestsPanel({ token }) {
       ) : null}
 
       {loading ? (
-        <div className="flex min-h-64 items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        </div>
+        <SectionLoadingSkeleton label="Loading RO scholar requests" rows={4} />
       ) : items.length ? (
         <div className="grid gap-3 xl:grid-cols-2">
           {items.map((request) => {

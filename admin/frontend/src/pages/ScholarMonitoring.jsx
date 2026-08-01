@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 // --- SHADCN UI COMPONENTS ---
 import { Input } from "@/components/ui/input";
@@ -1847,14 +1848,7 @@ export default function ScholarMonitoring() {
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">
-          Loading scholars...
-        </p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading scholar monitoring" showStats />;
   }
 
   if (error) {

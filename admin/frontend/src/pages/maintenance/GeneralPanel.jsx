@@ -1267,6 +1267,7 @@ export default function GeneralPanel() {
                                             {renderContentGroupActions('copy', 'requirements')}
                                         </LandingContentAccordion>
 
+                                        <div className="hidden" aria-hidden="true">
                                         <LandingContentAccordion
                                             title="Platform Features"
                                             description="Heading, introduction, and public feature descriptions."
@@ -1319,6 +1320,7 @@ export default function GeneralPanel() {
                                             </div>
                                             {renderContentGroupActions('copy', 'campus')}
                                         </LandingContentAccordion>
+                                        </div>
                                     </div>
                                 </GroupCard>
                             ) : null}

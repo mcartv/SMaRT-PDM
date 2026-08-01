@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Loader2, Eye, RefreshCw, FolderSync } from 'lucide-react';
 
 import { buildApiUrl } from '@/api';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 const API_BASE = buildApiUrl('/api');
 const C = {
   text: '#1c1917',
@@ -100,12 +101,7 @@ export default function RenewalReview() {
   );
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[420px] gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading renewals...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading renewal reviews" showStats />;
   }
 
   if (error) {

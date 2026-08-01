@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Camera,
   CheckCircle2,
   Eye,
-  RefreshCw,
   Search,
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '../config/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const STATUS_OPTIONS = ['pending', 'approved', 'rejected', 'superseded'];
 
@@ -169,8 +169,8 @@ export default function ProfilePhotoQueue() {
 
   const isDetail = Boolean(reviewId);
 
-  async function loadQueue(nextStatus = status) {
-    setLoading(true);
+  const loadQueue = useCallback(async (nextStatus = status, { quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
     setError('');
     try {
       const response = await fetch(
@@ -185,14 +185,14 @@ export default function ProfilePhotoQueue() {
     } catch (err) {
       setError(err.message || 'Failed to load profile photo reviews.');
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
-  }
+  }, [status]);
 
-  async function loadDetail() {
+  const loadDetail = useCallback(async ({ quiet = false } = {}) => {
     if (!reviewId) return;
 
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setError('');
     try {
       const response = await fetch(
@@ -208,9 +208,9 @@ export default function ProfilePhotoQueue() {
     } catch (err) {
       setError(err.message || 'Failed to load profile photo review.');
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
-  }
+  }, [reviewId]);
 
   useEffect(() => {
     if (isDetail) {
@@ -218,7 +218,23 @@ export default function ProfilePhotoQueue() {
     } else {
       loadQueue(status);
     }
-  }, [isDetail, reviewId, status]);
+  }, [isDetail, loadDetail, loadQueue, status]);
+
+  const handleRealtimeReviewChange = useCallback((event) => {
+    if (isDetail) {
+      if (!event?.review_id || String(event.review_id) === String(reviewId)) {
+        loadDetail({ quiet: true });
+      }
+      return;
+    }
+
+    loadQueue(status, { quiet: true });
+  }, [isDetail, loadDetail, loadQueue, reviewId, status]);
+
+  useSocketEvent('profile-photo-review:created', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
+  useSocketEvent('profile-photo-review:updated', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
+  useSocketEvent('profile-photo-review:approved', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
+  useSocketEvent('profile-photo-review:rejected', handleRealtimeReviewChange, [handleRealtimeReviewChange]);
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -328,14 +344,6 @@ export default function ProfilePhotoQueue() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {detail?.status && <StatusPill status={detail.status} />}
-              <button
-                type="button"
-                onClick={loadDetail}
-                className="inline-flex items-center gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </button>
             </div>
           </div>
 
@@ -488,14 +496,6 @@ export default function ProfilePhotoQueue() {
               Review submitted student profile pictures before they go live.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => loadQueue(status)}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
         </div>
 
         <div className="mb-4 flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-4 md:flex-row md:items-center md:justify-between">

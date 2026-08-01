@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 function buildHeaders(tokenStorageKey) {
   return {
@@ -246,12 +247,7 @@ export default function AllEndorsementsTracker({
   const officeConfig = getOfficeConfig(tokenStorageKey);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading endorsement tracker...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading endorsement tracker" showStats />;
   }
 
   return (

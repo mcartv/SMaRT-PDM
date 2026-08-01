@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   ArrowUp,
-  Bell,
   ChevronDown,
   Database,
   Phone,
@@ -14,10 +13,8 @@ import {
   Clock3,
   Globe2,
   HelpCircle,
-  LockKeyhole,
   Mail,
   Megaphone,
-  MessageSquare,
   ShieldCheck,
   Smartphone,
   UserRound,
@@ -31,11 +28,11 @@ import { DEFAULT_LANDING_CONTENT, mergeLandingContent } from '@/constants/landin
 import { DEFAULT_POLICY_CONTENT, mergePolicyContent } from '@/constants/policyContent';
 
 import pdmLogo from '../assets/pdm-logo.png';
-import pdmFacade from '../assets/PDM-Facade.png';
-import marilaoLogo from '../assets/MARILAO LOGO.png';
+import pdmFacade from '../assets/PDM-Facade-optimized.jpg';
+import marilaoLogo from '../assets/MARILAO-LOGO-optimized.png';
 import bcPackagingLogo from '../assets/BC PACKAGING.png';
 import foodCraftersLogo from '../assets/FOOD CRAFTERS.png';
-import kaizenFoundationLogo from '../assets/KAIZEN FOUNDATION.png';
+import kaizenFoundationLogo from '../assets/KAIZEN-FOUNDATION-optimized.png';
 import pusongMapagkalingaLogo from '../assets/PUSONG MAPAGKALINGA.jpg';
 
 const APP_DOWNLOAD_URL =
@@ -60,7 +57,6 @@ function normalizePublicFaqItems(items = []) {
     .filter((item) => item.question && item.answer);
 }
 
-const featureIcons = [FileCheck2, Bell, MessageSquare, LockKeyhole];
 const benefactorLogos = {
   'bc packaging': { src: bcPackagingLogo, scale: 1 },
   'food crafters': { src: foodCraftersLogo, scale: 0.9 },
@@ -168,23 +164,6 @@ function Button({
     <Link to={href} className={className} style={style}>
       {content}
     </Link>
-  );
-}
-
-function FeatureCard({ icon: Icon, title, description, theme }) {
-  return (
-    <div className="landing-interactive-card h-full rounded-2xl border border-stone-100 bg-white p-5 shadow-sm">
-      <div
-        className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl"
-        style={{ background: theme.soft, color: theme.base }}
-      >
-        {React.createElement(Icon, { size: 19 })}
-      </div>
-
-      <h3 className="text-sm font-bold text-stone-900">{title}</h3>
-
-      <p className="mt-2 text-sm leading-6 text-stone-500">{description}</p>
-    </div>
   );
 }
 
@@ -501,10 +480,9 @@ export default function SmartPDMLanding() {
   const navigationItems = [
     ['Home', '#home'],
     ...(benefactors.length ? [['Benefactors', '#benefactors']] : []),
-    ['Guide', '#guide'],
-    ['About', '#about'],
+    ['How to Apply', '#guide'],
     ['FAQ', '#faq'],
-    ['Contact', '#contact'],
+    ['Contact Us', '#contact'],
   ];
 
   useEffect(() => {
@@ -914,21 +892,23 @@ export default function SmartPDMLanding() {
         className="sticky top-0 z-50 border-b shadow-md"
         style={{ background: theme.dark, borderBottomColor: theme.accent, '--nav-accent': theme.accent }}
       >
-        <div className="flex w-full items-center overflow-x-auto px-5 md:px-8 lg:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {navigationItems.map(([label, href]) => (
-            <a
-              key={href}
-              href={href}
-              aria-current={activeSection === href.slice(1) ? 'location' : undefined}
-              className={`shrink-0 border-b-2 px-3 py-3 text-xs font-bold uppercase tracking-[0.08em] transition duration-300 hover:border-[var(--nav-accent)] hover:text-white md:px-4 ${
-                activeSection === href.slice(1)
-                  ? 'border-[var(--nav-accent)] bg-white/8 text-white'
-                  : 'border-transparent text-white/80'
-              }`}
-            >
-              {label}
-            </a>
-          ))}
+        <div className="flex w-full items-center px-5 md:px-8 lg:px-10">
+          <div className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {navigationItems.map(([label, href]) => (
+              <a
+                key={href}
+                href={href}
+                aria-current={activeSection === href.slice(1) ? 'location' : undefined}
+                className={`shrink-0 border-b-2 px-3 py-3 text-xs font-bold uppercase tracking-[0.08em] transition duration-300 hover:border-[var(--nav-accent)] hover:text-white md:px-4 ${
+                  activeSection === href.slice(1)
+                    ? 'border-[var(--nav-accent)] bg-white/8 text-white'
+                    : 'border-transparent text-white/80'
+                }`}
+              >
+                {label}
+              </a>
+            ))}
+          </div>
         </div>
       </nav>
 
@@ -987,26 +967,45 @@ export default function SmartPDMLanding() {
               {generalSettings.landing_content.hero_description}
             </p>
 
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <Button href={APP_DOWNLOAD_URL} icon={Download} theme={theme}>
-                Download APK
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Button href={APP_DOWNLOAD_URL} icon={Smartphone} theme={theme}>
+                Apply &amp; check status
               </Button>
+              <button
+                type="button"
+                onClick={() => setShowRequirements(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              >
+                <FileCheck2 size={16} aria-hidden="true" />
+                View requirements
+              </button>
+              <a
+                href="#guide"
+                className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white/75 transition hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              >
+                How it works
+                <ArrowRight size={16} aria-hidden="true" />
+              </a>
             </div>
 
-            <div className="mt-8 grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-3">
+            <p className="mt-3 max-w-xl text-xs leading-5 text-white/55">
+              Scholarship applications and status tracking are available through the SMaRT-PDM mobile app.
+            </p>
+
+            <div className="mt-7 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-                <p className="text-lg font-bold text-white">4</p>
-                <p className="mt-1 text-xs text-white/60">Staff portals</p>
+                <p className="text-sm font-bold text-white">01</p>
+                <p className="mt-1 text-xs text-white/60">Review requirements</p>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
-                <p className="text-lg font-bold text-white">Mobile</p>
-                <p className="mt-1 text-xs text-white/60">Scholar access</p>
+                <p className="text-sm font-bold text-white">02</p>
+                <p className="mt-1 text-xs text-white/60">Apply in the app</p>
               </div>
 
-              <div className="col-span-2 rounded-2xl border border-white/10 bg-white/8 p-4 sm:col-span-1">
-                <p className="text-lg font-bold text-white">Secure</p>
-                <p className="mt-1 text-xs text-white/60">Role-based login</p>
+              <div className="rounded-2xl border border-white/10 bg-white/8 p-4">
+                <p className="text-sm font-bold text-white">03</p>
+                <p className="mt-1 text-xs text-white/60">Track your status</p>
               </div>
             </div>
           </div>
@@ -1016,10 +1015,10 @@ export default function SmartPDMLanding() {
               <div className="flex items-center justify-between border-b border-stone-100 pb-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#92500f]">
-                    Quick Access
+                    Staff Access
                   </p>
                   <h2 className="mt-1 text-lg font-bold text-stone-900">
-                    Portal Directory
+                    Office Portal Directory
                   </h2>
                 </div>
 
@@ -1134,31 +1133,8 @@ export default function SmartPDMLanding() {
         </section>
       ) : null}
 
-      <section id="features" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 py-12 md:px-8">
-        <div className="mb-7 flex flex-col justify-between gap-3 md:flex-row md:items-end">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-              Platform Features
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-stone-900">
-              {generalSettings.landing_content.features_title}
-            </h2>
-          </div>
-
-          <p className="max-w-md text-sm leading-6 text-stone-500">
-            {generalSettings.landing_content.features_description}
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {generalSettings.landing_content.feature_items.map((feature, index) => (
-            <FeatureCard key={`${index}-${feature.title}`} {...feature} icon={featureIcons[index % featureIcons.length]} theme={theme} />
-          ))}
-        </div>
-      </section>
-
       {benefactors.length ? (
-        <section id="benefactors" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-12 md:px-8">
+        <section id="benefactors" className="landing-zone-discover mx-auto w-full max-w-[84rem] scroll-mt-16 px-5 pb-12 pt-10 md:px-8 md:pt-12">
           <div
             className="rounded-[2rem] border px-6 py-7 md:px-8 md:py-8"
             style={{ background: '#ffffff', borderColor: theme.border }}
@@ -1232,7 +1208,7 @@ export default function SmartPDMLanding() {
           <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.base }}>
-                Applicant Quick Guide
+                Applicant Journey
               </p>
               <h2 className="mt-2 text-2xl font-bold text-stone-900">
                 {generalSettings.landing_content.guide_title}
@@ -1244,6 +1220,37 @@ export default function SmartPDMLanding() {
             </p>
           </div>
 
+          <div
+            className="mb-7 flex flex-col gap-5 rounded-[1.5rem] border p-5 md:flex-row md:items-center md:justify-between md:p-6"
+            style={{ background: theme.soft, borderColor: theme.border }}
+          >
+            <div className="flex max-w-3xl items-start gap-4">
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white"
+                style={{ color: theme.base }}
+              >
+                <FileCheck2 size={20} aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: theme.base }}>
+                  Start with eligibility
+                </p>
+                <p className="mt-2 text-sm leading-7 text-stone-600">
+                  {generalSettings.eligibility_summary}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRequirements(true)}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              style={{ background: theme.accent, color: theme.dark }}
+            >
+              View requirements
+              <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {generalSettings.landing_content.guide_steps.map((item, index) => (
               <StepCard key={`${index}-${item.title}`} {...item} step={String(index + 1).padStart(2, '0')} theme={theme} />
@@ -1252,7 +1259,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="landing-zone-process mx-auto w-full max-w-[84rem] px-5 pb-14 md:px-8" aria-label="PDM campus">
+      <section className="hidden" aria-label="PDM campus">
         <div className="group relative min-h-[240px] overflow-hidden rounded-[2rem] md:min-h-[300px]">
           <img
             src={pdmFacade}
@@ -1281,7 +1288,7 @@ export default function SmartPDMLanding() {
         </div>
       </section>
 
-      <section className="landing-zone-bridge mx-auto w-full max-w-[84rem] px-5 pb-14 pt-14 md:px-8">
+      <section className="hidden">
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div
             className="landing-highlight-card relative overflow-hidden rounded-[1.75rem] border-2 bg-white p-6 shadow-md md:p-7"
@@ -1469,7 +1476,7 @@ export default function SmartPDMLanding() {
 
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.accent }}>
-                Office Contact
+                Contact Us
               </p>
               <div className="mt-4 grid gap-x-7 gap-y-4 text-sm text-white/75 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <div className="flex items-start gap-3">
@@ -1526,7 +1533,7 @@ export default function SmartPDMLanding() {
           </div>
 
           <div className="flex flex-col gap-2 py-4 text-center md:flex-row md:items-center md:justify-between md:text-left">
-            <p className="text-xs font-semibold text-white">
+            <p className="text-xs text-white/65">
               SMaRT-PDM · Office for Scholarship and Financial Assistance
             </p>
 

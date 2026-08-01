@@ -34,8 +34,11 @@ export default function ROCoordinatorProfile() {
       accountConfig={roCoordinatorAccountConfig}
       palette={palette}
       tokenStorageKey="roCoordinatorToken"
-      statCards={[]}
-      activityLog={[]}
+      responsibilities={[
+        'Review Return of Obligation requests for the assigned area.',
+        'Coordinate assignment availability and scholar placements.',
+        'Monitor acknowledgements, attendance, and completion submissions.',
+      ]}
     />
   );
 }

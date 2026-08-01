@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import API_BASE_URL from '@/api';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const API_BASE = API_BASE_URL;
 
@@ -2267,12 +2268,7 @@ export default function DocumentVerification() {
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading documents...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading application documents" variant="cards" />;
   }
 
   if (error) {

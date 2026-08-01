@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import {
   Select,
   SelectContent,
@@ -9,6 +10,15 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import {
   FileText,
   Download,
@@ -31,6 +41,12 @@ const C = {
 };
 
 const OFFICE_REPORT_FILTERS = {
+  endorsements: [
+    { value: 'all', label: 'All Endorsements' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'rejected', label: 'Rejected' },
+  ],
   sdo: [
     { value: 'all', label: 'All SDO Results' },
     { value: 'pending', label: 'Pending' },
@@ -197,14 +213,34 @@ export default function ReportGeneration({
   );
 
   const isOfficeEndorsementReport = useMemo(
-    () => ['sdo', 'guidance', 'pd'].includes(selected),
+    () => ['endorsements', 'sdo', 'guidance', 'pd'].includes(selected),
     [selected]
   );
+  const isScholarCountReport = useMemo(
+    () => selected === 'scholars_by_benefactor',
+    [selected]
+  );
+  const supportsPeriodFilters = selected !== 'support';
+  const supportsProgramFilter = selected !== 'support';
+  const supportsBenefactorFilter = !['payouts', 'support'].includes(selected);
 
   const previewColumns = useMemo(() => {
     if (!previewRows.length) return [];
     return Object.keys(previewRows[0] || {});
   }, [previewRows]);
+
+  const scholarCountXAxisKey = useMemo(() => {
+    if (!isScholarCountReport) return 'label';
+    return benefactorId === 'all' ? 'benefactor_name' : 'program_name';
+  }, [benefactorId, isScholarCountReport]);
+
+  const scholarCountChartData = useMemo(() => {
+    if (!isScholarCountReport || previewRows.length === 0) return [];
+    return previewRows.map((row) => ({
+      name: row[scholarCountXAxisKey] || 'Unknown',
+      count: Number(row.scholar_count || 0),
+    }));
+  }, [isScholarCountReport, previewRows, scholarCountXAxisKey]);
 
   const selectedLabels = useMemo(() => {
     const year =
@@ -278,7 +314,7 @@ export default function ReportGeneration({
     loadMetadata();
   }, [loadMetadata]);
 
-  function buildParams() {
+  const buildParams = useCallback(() => {
     return new URLSearchParams({
       reportType: selected,
       academicYearId,
@@ -289,7 +325,7 @@ export default function ReportGeneration({
       dateFrom,
       dateTo,
     });
-  }
+  }, [academicYearId, benefactorId, dateFrom, dateTo, programId, reviewResult, selected, semester]);
 
   function resetFilters() {
     setAcademicYearId('all');
@@ -339,15 +375,8 @@ export default function ReportGeneration({
       setPreviewLoading(false);
     }
   }, [
-    academicYearId,
-    benefactorId,
-    dateFrom,
-    dateTo,
-    programId,
-    reviewResult,
-    selected,
+    buildParams,
     selectedReport?.name,
-    semester,
     tokenStorageKey,
   ]);
 
@@ -520,7 +549,22 @@ export default function ReportGeneration({
   }
 
   const summaryEntries = useMemo(() => {
+    if (isScholarCountReport) {
+      return [
+        { label: 'Total Scholars', value: previewTotal },
+      ];
+    }
+
     if (!previewSummary || !isOfficeEndorsementReport) return [];
+
+    if (selected === 'endorsements') {
+      return [
+        { label: 'Total', value: previewSummary.total || 0 },
+        { label: 'Pending', value: previewSummary.pending || 0 },
+        { label: 'Completed', value: previewSummary.completed || 0 },
+        { label: 'Rejected', value: previewSummary.rejected || 0 },
+      ];
+    }
 
     if (selected === 'sdo') {
       return [
@@ -549,14 +593,10 @@ export default function ReportGeneration({
       { label: 'Rejected', value: previewSummary.rejected ?? 0 },
       { label: 'Completed', value: previewSummary.completed ?? 0 },
     ];
-  }, [isOfficeEndorsementReport, previewSummary, selected]);
+  }, [isOfficeEndorsementReport, isScholarCountReport, previewSummary, previewTotal, selected]);
 
   if (loading) {
-    return (
-      <div className="flex h-[300px] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading reports" variant="cards" />;
   }
 
   return (
@@ -643,7 +683,7 @@ export default function ReportGeneration({
 
           <CardContent className="space-y-6 p-5">
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <div className="space-y-2">
+              {supportsPeriodFilters ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Academic Year
                 </label>
@@ -662,9 +702,9 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
-              <div className="space-y-2">
+              {supportsBenefactorFilter ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Benefactor
                 </label>
@@ -683,9 +723,9 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
-              <div className="space-y-2">
+              {supportsProgramFilter ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Program
                 </label>
@@ -704,9 +744,9 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
-              <div className="space-y-2">
+              {supportsPeriodFilters ? <div className="space-y-2">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-stone-400">
                   Semester
                 </label>
@@ -722,7 +762,7 @@ export default function ReportGeneration({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div> : null}
 
               {isOfficeEndorsementReport ? (
                 <div className="space-y-2">
@@ -881,6 +921,31 @@ export default function ReportGeneration({
                     <p className="mt-1 text-lg font-semibold text-stone-900">{item.value}</p>
                   </div>
                 ))}
+              </div>
+            ) : null}
+            {isScholarCountReport && previewRows.length > 0 ? (
+              <div className="border-b border-stone-100 p-4">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-stone-900">Scholar Count Chart</p>
+                    <p className="text-xs text-stone-500">
+                      {benefactorId === 'all'
+                        ? 'Counting active scholars for each benefactor.'
+                        : 'Counting active scholars by program for the selected benefactor.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="h-[340px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={scholarCountChartData} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-30} textAnchor="end" height={60} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(value) => [value, 'Scholars']} />
+                      <Bar dataKey="count" fill="#7c4a2e" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             ) : null}
             {previewLoading ? (

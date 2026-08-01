@@ -5,6 +5,12 @@ import pdmLogo from '@/assets/pdm-logo.png';
 
 const CHECK_INTERVAL_MS = 15_000;
 const CHECK_TIMEOUT_MS = 5_000;
+const LANDING_REFRESH_LOADER_MIN_MS = 1_500;
+const LANDING_VISIT_LOADER_MIN_MS = 250;
+
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 function SkeletonBlock({ className = '', style }) {
   return (
@@ -151,8 +157,8 @@ function LandingLogoLoader({ status, isRetrying, onRetry }) {
         <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
           {checking ? (
             <>
-              <span className="absolute inset-0 animate-ping rounded-full bg-amber-900/10" aria-hidden="true" />
-              <span className="absolute inset-2 animate-pulse rounded-full border border-amber-900/15 bg-white shadow-sm" aria-hidden="true" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-amber-900/10 motion-reduce:animate-none" aria-hidden="true" />
+              <span className="absolute inset-2 animate-pulse rounded-full border border-amber-900/15 bg-white shadow-sm motion-reduce:animate-none" aria-hidden="true" />
             </>
           ) : (
             <span className="absolute inset-2 rounded-full border border-red-200 bg-red-50" aria-hidden="true" />
@@ -160,28 +166,27 @@ function LandingLogoLoader({ status, isRetrying, onRetry }) {
           <img
             src={pdmLogo}
             alt=""
-            className={`relative h-20 w-20 object-contain ${checking ? 'animate-pulse' : 'opacity-70'}`}
+            className={`relative h-20 w-20 object-contain ${checking ? 'animate-pulse motion-reduce:animate-none' : 'opacity-70'}`}
           />
         </div>
 
-        <p className="mt-5 text-sm font-bold tracking-wide text-stone-900">
-          {checking ? 'Loading SMaRT-PDM' : 'Connection interrupted'}
-        </p>
-        <p className="mt-1.5 text-xs leading-5 text-stone-500">
-          {checking
-            ? 'Connecting to scholarship services...'
-            : 'The landing page cannot reach the server right now.'}
-        </p>
-
         {!checking ? (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-stone-900 px-5 text-xs font-semibold text-white transition hover:bg-stone-800"
-          >
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-            Try again
-          </button>
+          <>
+            <p className="mt-5 text-sm font-bold tracking-wide text-stone-900">
+              Connection interrupted
+            </p>
+            <p className="mt-1.5 text-xs leading-5 text-stone-500">
+              The landing page cannot reach the server right now.
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#4b2a1a] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#5c3522] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-800/40 focus-visible:ring-offset-2"
+            >
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              Try again
+            </button>
+          </>
         ) : null}
 
         <span className="sr-only">
@@ -200,6 +205,7 @@ export default function NetworkGate({ children }) {
   const [isRetrying, setIsRetrying] = useState(false);
 
   const checkConnection = useCallback(async ({ manual = false } = {}) => {
+    const checkStartedAt = Date.now();
     if (manual) setIsRetrying(true);
 
     if (!navigator.onLine) {
@@ -226,6 +232,17 @@ export default function NetworkGate({ children }) {
       );
 
       const connected = response.ok;
+      const landingPath = ['/', '/landing'].includes(window.location.pathname);
+
+      if (connected && landingPath) {
+        const navigationEntry = performance.getEntriesByType('navigation')[0];
+        const minimumDuration = navigationEntry?.type === 'reload'
+          ? LANDING_REFRESH_LOADER_MIN_MS
+          : LANDING_VISIT_LOADER_MIN_MS;
+        const remainingDelay = minimumDuration - (Date.now() - checkStartedAt);
+        if (remainingDelay > 0) await wait(remainingDelay);
+      }
+
       setStatus(connected ? 'online' : 'offline');
       return connected;
     } catch {

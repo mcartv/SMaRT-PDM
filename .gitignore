@@ -46,5 +46,3 @@ supabase/**/storage-version
 supabase/**/postgres-version
 backend/.env
 
-# Specific private JSON files
-path/to/private-file.json

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, RefreshCw, WifiOff } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import pdmLogo from '@/assets/pdm-logo.png';
 
 const CHECK_INTERVAL_MS = 15_000;
 const CHECK_TIMEOUT_MS = 5_000;
@@ -136,6 +137,63 @@ function NetworkSkeleton({ status, isRetrying, onRetry }) {
   );
 }
 
+function LandingLogoLoader({ status, isRetrying, onRetry }) {
+  const checking = status === 'checking' || isRetrying;
+
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-[#faf7f2] px-6"
+      role="status"
+      aria-live="polite"
+      aria-busy={checking}
+    >
+      <div className="w-full max-w-sm text-center">
+        <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+          {checking ? (
+            <>
+              <span className="absolute inset-0 animate-ping rounded-full bg-amber-900/10" aria-hidden="true" />
+              <span className="absolute inset-2 animate-pulse rounded-full border border-amber-900/15 bg-white shadow-sm" aria-hidden="true" />
+            </>
+          ) : (
+            <span className="absolute inset-2 rounded-full border border-red-200 bg-red-50" aria-hidden="true" />
+          )}
+          <img
+            src={pdmLogo}
+            alt=""
+            className={`relative h-20 w-20 object-contain ${checking ? 'animate-pulse' : 'opacity-70'}`}
+          />
+        </div>
+
+        <p className="mt-5 text-sm font-bold tracking-wide text-stone-900">
+          {checking ? 'Loading SMaRT-PDM' : 'Connection interrupted'}
+        </p>
+        <p className="mt-1.5 text-xs leading-5 text-stone-500">
+          {checking
+            ? 'Connecting to scholarship services...'
+            : 'The landing page cannot reach the server right now.'}
+        </p>
+
+        {!checking ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-stone-900 px-5 text-xs font-semibold text-white transition hover:bg-stone-800"
+          >
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+            Try again
+          </button>
+        ) : null}
+
+        <span className="sr-only">
+          {checking
+            ? 'Loading the SMaRT-PDM landing page.'
+            : 'The SMaRT-PDM server is currently unreachable.'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function NetworkGate({ children }) {
   const contentRef = useRef(null);
   const [status, setStatus] = useState('checking');
@@ -201,6 +259,7 @@ export default function NetworkGate({ children }) {
   }, [checkConnection]);
 
   const blocked = status !== 'online';
+  const landingPath = ['/', '/landing'].includes(window.location.pathname);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -225,7 +284,15 @@ export default function NetworkGate({ children }) {
         {children}
       </div>
 
-      {blocked ? (
+      {blocked && landingPath ? (
+        <LandingLogoLoader
+          status={status}
+          isRetrying={isRetrying}
+          onRetry={() => checkConnection({ manual: true })}
+        />
+      ) : null}
+
+      {blocked && !landingPath ? (
         <NetworkSkeleton
           status={status}
           isRetrying={isRetrying}

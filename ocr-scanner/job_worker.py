@@ -146,16 +146,12 @@ def _is_grade_form_job(request: Dict) -> bool:
 
 
 def _empty_birth_extracted_fields() -> Dict[str, object]:
-    return {
-        "document_type": "birth_certificate",
-        "review_required": True,
-        "contract_status": "approved",
-        "source_regions": ["Item 1", "Item 6", "Item 13"],
-        "raw_text": "",
-        "ocr_attempts": 0,
-        "preprocessing_variant": "registered_whole_row_ocr",
-        "fields": {},
-    }
+    return build_birth_extracted_fields_from_ocr_result(
+        raw_text="",
+        field_texts={},
+        ocr_attempts=0,
+        preprocessing_variant="registered_whole_row_ocr",
+    )
 
 
 def _load_registered_image(path: str) -> Any:
@@ -307,13 +303,21 @@ def _run_birth_certificate_scan(
             }
 
         ocr_result = extract_psa_birth_row_text(crop_result.data)
+        ocr_fields = tuple(getattr(getattr(ocr_result, "data", None), "fields", ()))
         extracted_fields = build_birth_extracted_fields_from_ocr_result(
-            raw_text="\n".join(field.raw_text for field in getattr(ocr_result.data, "fields", ()) if field.raw_text),
-            field_texts={field.name: field.raw_text for field in getattr(ocr_result.data, "fields", ())},
-            ocr_attempts=int(ocr_result.metrics.get("total_ocr_attempts", len(getattr(ocr_result.data, "fields", ())))),
+            raw_text="\n".join(field.raw_text for field in ocr_fields if field.raw_text),
+            field_texts={
+                field.name: {
+                    "raw_text": field.raw_text,
+                    "success": field.success,
+                    "issue_codes": field.issue_codes,
+                }
+                for field in ocr_fields
+            },
+            ocr_attempts=int(ocr_result.metrics.get("total_ocr_attempts", len(ocr_fields))),
             preprocessing_variant=(
-                ocr_result.data.fields[0].preprocessing_variant
-                if getattr(ocr_result.data, "fields", ())
+                ocr_fields[0].preprocessing_variant
+                if ocr_fields
                 else preprocessing_variant
             ),
         )
@@ -352,7 +356,7 @@ def _run_birth_certificate_scan(
                 "worker_status": ocr_result.status,
                 "ocr_attempts": ocr_attempts,
                 "preprocessing_variant": preprocessing_variant,
-                "structured_field_keys": sorted(field.name for field in getattr(ocr_result.data, "fields", ())),
+                "structured_field_keys": sorted(extracted_fields["fields"]),
             },
             "error_message": error_message,
         }

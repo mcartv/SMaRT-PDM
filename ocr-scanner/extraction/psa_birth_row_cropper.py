@@ -6,6 +6,7 @@ from numbers import Real
 from types import MappingProxyType
 from typing import Any, Mapping
 
+import cv2
 import numpy as np
 
 from .geometry import NormalizedBounds
@@ -16,25 +17,25 @@ from .stage_result import StageResult
 STAGE_NAME = "psa_birth_row_cropper"
 REGISTERED_WIDTH = 1400
 REGISTERED_HEIGHT = 1375
-PREPROCESSING_VARIANT = "registered_name_cell"
+GEOMETRY_ARTIFACT_VERSION = 2
+GEOMETRY_MODE = "per_row_fixed_cells"
+PREPROCESSING_VARIANT = "registered_fixed_per_row_name_cell"
+FIELD_NAMES = ("child_name", "mother_maiden_name", "father_name")
+COMPONENT_NAMES = ("first_name", "middle_name", "last_name")
+DEFAULT_PERSISTENT_HORIZONTAL_GRID_COVERAGE = 0.72
+DEFAULT_PERSISTENT_VERTICAL_GRID_COVERAGE = 0.78
+DEFAULT_MINIMUM_PERSISTENT_GRID_THICKNESS_PIXELS = 2
 
 
-def _default_name_regions() -> tuple[tuple[str, float, float, float, float], ...]:
-    """Return calibrated value-cell bounds in the registered PSA grid.
-
-    These rectangles are calibrated from the registered 1400x1375 PSA grid.
-    They exclude the printed item number, NAME/MAIDEN NAME label, the
-    (First)/(Middle)/(Last) headings, row borders, and neighboring rows. Each
-    rectangle contains only the value band spanning all three name columns.
-    """
+def _default_row_geometries() -> tuple[
+    tuple[str, int, int, int, int, int, int], ...
+]:
+    """Return the accepted geometry-only calibration for the canonical form."""
 
     return (
-        # Item 1: value band below the printed (First)/(Middle)/(Last) labels.
-        ("child_name", 0.200, 0.030, 0.790, 0.036),
-        # Item 6: maiden-name value band only.
-        ("mother_maiden_name", 0.200, 0.447, 0.790, 0.042),
-        # Item 13: father-name value band only.
-        ("father_name", 0.200, 0.827, 0.790, 0.034),
+        ("child_name", 358, 652, 963, 1248, 50, 104),
+        ("mother_maiden_name", 321, 587, 923, 1211, 685, 732),
+        ("father_name", 278, 580, 921, 1268, 1238, 1290),
     )
 
 
@@ -42,87 +43,128 @@ def _default_name_regions() -> tuple[tuple[str, float, float, float, float], ...
 class PSABirthRowCropperConfig:
     registered_width: int = REGISTERED_WIDTH
     registered_height: int = REGISTERED_HEIGHT
-    name_regions: tuple[tuple[str, float, float, float, float], ...] = field(
-        default_factory=_default_name_regions
+    row_geometries: tuple[
+        tuple[str, int, int, int, int, int, int], ...
+    ] = field(default_factory=_default_row_geometries)
+    internal_padding_pixels: int = 4
+    vertical_inset_pixels: int = 1
+    minimum_cell_width_pixels: int = 100
+    minimum_cell_height_pixels: int = 26
+    persistent_horizontal_grid_coverage: float = (
+        DEFAULT_PERSISTENT_HORIZONTAL_GRID_COVERAGE
     )
-    row_bands: tuple[tuple[str, float, float], ...] | None = None
+    persistent_vertical_grid_coverage: float = (
+        DEFAULT_PERSISTENT_VERTICAL_GRID_COVERAGE
+    )
+    minimum_persistent_grid_thickness_pixels: int = (
+        DEFAULT_MINIMUM_PERSISTENT_GRID_THICKNESS_PIXELS
+    )
     review_on_registration_issue: bool = True
 
     def __post_init__(self) -> None:
-        if (
-            self.registered_width != REGISTERED_WIDTH
-            or self.registered_height != REGISTERED_HEIGHT
+        if (self.registered_width, self.registered_height) != (
+            REGISTERED_WIDTH,
+            REGISTERED_HEIGHT,
         ):
-            raise ValueError("registered dimensions must remain at 1400 by 1375")
-        if any(
-            isinstance(value, bool)
-            or not isinstance(value, int)
-            or value <= 0
-            for value in (self.registered_width, self.registered_height)
-        ):
-            raise ValueError("registered dimensions must be positive integers")
+            raise ValueError(
+                "registered dimensions must remain at 1400 by 1375"
+            )
 
-        copied_regions = tuple(tuple(item) for item in self.name_regions)
-        copied_row_bands = None
-        if self.row_bands is not None:
-            copied_row_bands = tuple(tuple(item) for item in self.row_bands)
-            if len(copied_row_bands) != 3:
-                raise ValueError("row_bands must contain exactly three entries")
-            converted_regions = []
-            for item in copied_row_bands:
-                if len(item) != 3:
-                    raise ValueError(
-                        "each row band must contain name, top, and bottom"
-                    )
-                name, top, bottom = item
-                if (
-                    not isinstance(name, str)
-                    or not name
-                    or isinstance(top, bool)
-                    or isinstance(bottom, bool)
-                    or not isinstance(top, Real)
-                    or not isinstance(bottom, Real)
-                    or not math.isfinite(top)
-                    or not math.isfinite(bottom)
-                    or not 0.0 <= top < bottom <= 1.0
-                ):
-                    raise ValueError("row band bounds are invalid")
-                converted_regions.append((name, 0.0, top, 1.0, bottom - top))
-            copied_regions = tuple(converted_regions)
+        rows = tuple(tuple(row) for row in self.row_geometries)
+        if len(rows) != 3 or tuple(row[0] for row in rows) != FIELD_NAMES:
+            raise ValueError(
+                "row_geometries must contain the three approved birth fields"
+            )
 
-        if len(copied_regions) != 3:
-            raise ValueError("name_regions must contain exactly three entries")
-
-        names: set[str] = set()
-        for item in copied_regions:
-            if len(item) != 5:
+        for row in rows:
+            if len(row) != 7:
                 raise ValueError(
-                    "each name region must contain name, x, y, width, and height"
+                    "each per-row geometry must contain seven values"
                 )
-            name, x, y, width, height = item
-            if not isinstance(name, str) or not name or name in names:
-                raise ValueError("name region names must be unique non-empty strings")
-            names.add(name)
+            (
+                _field_name,
+                label_right,
+                first_right,
+                middle_right,
+                last_right,
+                value_top,
+                value_bottom,
+            ) = row
+            values = (
+                label_right,
+                first_right,
+                middle_right,
+                last_right,
+                value_top,
+                value_bottom,
+            )
+            if not all(
+                isinstance(value, int) and not isinstance(value, bool)
+                for value in values
+            ):
+                raise ValueError(
+                    "per-row geometry coordinates must be integers"
+                )
+            if not (
+                0
+                < label_right
+                < first_right
+                < middle_right
+                < last_right
+                <= REGISTERED_WIDTH
+            ):
+                raise ValueError(
+                    "per-row column boundaries must be ordered and in range"
+                )
+            if not (
+                0 <= value_top < value_bottom <= REGISTERED_HEIGHT
+            ):
+                raise ValueError(
+                    "per-row value band must be ordered and in range"
+                )
 
-            for value in (x, y, width, height):
-                if (
-                    isinstance(value, bool)
-                    or not isinstance(value, Real)
-                    or not math.isfinite(value)
-                ):
-                    raise ValueError("name region bounds must be finite numbers")
+        for field_name in (
+            "internal_padding_pixels",
+            "vertical_inset_pixels",
+            "minimum_cell_width_pixels",
+            "minimum_cell_height_pixels",
+        ):
+            value = getattr(self, field_name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value < 0
+            ):
+                raise ValueError(
+                    f"{field_name} must be a non-negative integer"
+                )
 
-            if x < 0.0 or y < 0.0 or width <= 0.0 or height <= 0.0:
-                raise ValueError("name region bounds must be positive and in range")
-            if x + width > 1.0 or y + height > 1.0:
-                raise ValueError("name region bounds must remain inside the page")
+        thickness = self.minimum_persistent_grid_thickness_pixels
+        if (
+            isinstance(thickness, bool)
+            or not isinstance(thickness, int)
+            or thickness <= 0
+        ):
+            raise ValueError(
+                "minimum persistent grid thickness must be positive"
+            )
 
-        required_names = {"child_name", "mother_maiden_name", "father_name"}
-        if names != required_names:
-            raise ValueError("name_regions must contain the approved birth fields")
+        for field_name in (
+            "persistent_horizontal_grid_coverage",
+            "persistent_vertical_grid_coverage",
+        ):
+            value = getattr(self, field_name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, Real)
+                or not math.isfinite(value)
+                or not 0.0 < float(value) <= 1.0
+            ):
+                raise ValueError(
+                    f"{field_name} must be in the interval (0, 1]"
+                )
 
-        object.__setattr__(self, "name_regions", copied_regions)
-        object.__setattr__(self, "row_bands", copied_row_bands)
+        object.__setattr__(self, "row_geometries", rows)
 
 
 @dataclass(frozen=True)
@@ -140,17 +182,117 @@ class PSABirthRowCropperMetadata:
     transformation_metadata: Any = None
 
 
-def _issue(code: str) -> dict[str, str]:
-    return {"code": code, "stage": STAGE_NAME, "field": ""}
+@dataclass(frozen=True)
+class FixedNameRowGeometry:
+    field_name: str
+    label_right: int
+    first_right: int
+    middle_right: int
+    last_right: int
+    value_top: int
+    value_bottom: int
+
+    @property
+    def component_boundaries(
+        self,
+    ) -> tuple[tuple[str, int, int], ...]:
+        return (
+            ("first_name", self.label_right, self.first_right),
+            ("middle_name", self.first_right, self.middle_right),
+            ("last_name", self.middle_right, self.last_right),
+        )
+
+    @property
+    def columns(self) -> tuple[int, int, int, int]:
+        return (
+            self.label_right,
+            self.first_right,
+            self.middle_right,
+            self.last_right,
+        )
 
 
-def _failure(code: str, **metrics: Any) -> StageResult[PSABirthRowCropperOutput]:
+@dataclass(frozen=True)
+class _GridLineEvidence:
+    horizontal_coverage: float
+    vertical_coverage: float
+    maximum_horizontal_thickness: int
+    maximum_vertical_thickness: int
+
+
+@dataclass(frozen=True)
+class CellGridMetrics:
+    field_name: str
+    component_name: str
+    width: int
+    height: int
+    horizontal_coverage_before: float
+    horizontal_coverage_after: float
+    vertical_coverage_before: float
+    vertical_coverage_after: float
+    maximum_horizontal_thickness_before: int
+    maximum_horizontal_thickness_after: int
+    maximum_vertical_thickness_before: int
+    maximum_vertical_thickness_after: int
+    contaminated: bool
+
+    def as_metrics(self) -> dict[str, Any]:
+        return {
+            "field_name": self.field_name,
+            "component_name": self.component_name,
+            "width": self.width,
+            "height": self.height,
+            "horizontal_coverage_before": (
+                self.horizontal_coverage_before
+            ),
+            "horizontal_coverage_after": (
+                self.horizontal_coverage_after
+            ),
+            "vertical_coverage_before": self.vertical_coverage_before,
+            "vertical_coverage_after": self.vertical_coverage_after,
+            "maximum_horizontal_thickness_before": (
+                self.maximum_horizontal_thickness_before
+            ),
+            "maximum_horizontal_thickness_after": (
+                self.maximum_horizontal_thickness_after
+            ),
+            "maximum_vertical_thickness_before": (
+                self.maximum_vertical_thickness_before
+            ),
+            "maximum_vertical_thickness_after": (
+                self.maximum_vertical_thickness_after
+            ),
+            "contaminated": self.contaminated,
+        }
+
+
+def _issue(
+    code: str,
+    field_name: str = "",
+    component_name: str = "",
+) -> dict[str, str]:
+    issue = {
+        "code": code,
+        "stage": STAGE_NAME,
+        "field": field_name,
+    }
+    if component_name:
+        issue["component"] = component_name
+    return issue
+
+
+def _failure(
+    code: str,
+    field_name: str = "",
+    component_name: str = "",
+    **metrics: Any,
+) -> StageResult[PSABirthRowCropperOutput]:
     return StageResult(
         stage=STAGE_NAME,
         success=False,
         status="failed",
         data=None,
-        issues=[_issue(code)],
+        issues=[_issue(code, field_name, component_name)],
         metrics=dict(metrics),
     )
 
@@ -160,183 +302,373 @@ def _resolve_registration_metadata(
 ) -> PSABirthRowCropperMetadata | None:
     if registration_metadata is None:
         return None
-    if hasattr(registration_metadata, "transformation_metadata"):
+    if isinstance(registration_metadata, Mapping):
         return PSABirthRowCropperMetadata(
-            status=str(getattr(registration_metadata, "status", "")),
+            status=str(registration_metadata.get("status", "")),
             issues=tuple(
-                dict(issue) for issue in getattr(registration_metadata, "issues", [])
+                dict(issue)
+                for issue in registration_metadata.get("issues", ())
+                if isinstance(issue, Mapping)
             ),
-            transformation_metadata=getattr(
-                registration_metadata,
-                "transformation_metadata",
-                None,
+            transformation_metadata=registration_metadata.get(
+                "transformation_metadata"
             ),
         )
     if hasattr(registration_metadata, "status") and hasattr(
         registration_metadata,
         "issues",
     ):
+        data = getattr(registration_metadata, "data", None)
+        transformation = getattr(
+            registration_metadata,
+            "transformation_metadata",
+            getattr(data, "transformation_metadata", data),
+        )
         return PSABirthRowCropperMetadata(
             status=str(getattr(registration_metadata, "status", "")),
             issues=tuple(
-                dict(issue) for issue in getattr(registration_metadata, "issues", [])
-            ),
-            transformation_metadata=registration_metadata,
-        )
-    if isinstance(registration_metadata, Mapping):
-        return PSABirthRowCropperMetadata(
-            status=str(registration_metadata.get("status", "")),
-            issues=tuple(
                 dict(issue)
-                for issue in registration_metadata.get("issues", [])
+                for issue in getattr(registration_metadata, "issues", ())
+                if isinstance(issue, Mapping)
             ),
-            transformation_metadata=registration_metadata.get(
-                "transformation_metadata"
-            ),
+            transformation_metadata=transformation,
         )
     return None
 
 
-def _is_review_level_registration(
-    metadata: PSABirthRowCropperMetadata | None,
-) -> bool:
-    if metadata is None:
-        return False
-    if metadata.status == "review_required":
-        return True
-    issues = {issue.get("code") for issue in metadata.issues}
-    return bool(
-        {"REGISTRATION_REVIEW_PROPAGATED", "REGISTRATION_BOUNDARY_INFERRED"}
-        & issues
-    )
-
-
-def _registration_boundary_inferred(
-    metadata: PSABirthRowCropperMetadata | None,
-) -> bool:
-    if metadata is None:
-        return False
-    if metadata.status == "review_required":
-        return True
-    issues = {issue.get("code") for issue in metadata.issues}
-    return "REGISTRATION_BOUNDARY_INFERRED" in issues
-
-
-def _prepare_image(registered_image: Any) -> np.ndarray | None:
-    if (
-        not isinstance(registered_image, np.ndarray)
-        or registered_image.dtype != np.uint8
-    ):
+def _prepare_image(value: Any) -> np.ndarray | None:
+    if not isinstance(value, np.ndarray) or value.dtype != np.uint8:
         return None
-    if registered_image.ndim == 2:
-        return registered_image
-    if registered_image.ndim == 3 and registered_image.shape[2] in (3, 4):
-        return registered_image
+    if value.ndim == 2:
+        return value
+    if value.ndim == 3 and value.shape[2] in (3, 4):
+        return value
     return None
 
 
-def _validate_config(
+def _resolve_config(
     config: PSABirthRowCropperConfig | Mapping[str, Any] | None,
 ) -> PSABirthRowCropperConfig:
     if config is None:
         return PSABirthRowCropperConfig()
     if isinstance(config, PSABirthRowCropperConfig):
-        return PSABirthRowCropperConfig(
-            registered_width=config.registered_width,
-            registered_height=config.registered_height,
-            name_regions=tuple(tuple(item) for item in config.name_regions),
-            row_bands=(
-                tuple(tuple(item) for item in config.row_bands)
-                if config.row_bands is not None
-                else None
-            ),
-            review_on_registration_issue=config.review_on_registration_issue,
-        )
+        return PSABirthRowCropperConfig(**vars(config))
     if not isinstance(config, Mapping):
-        raise ValueError(
-            "config must be PSABirthRowCropperConfig, a mapping, or None"
-        )
-
-    allowed = {
-        "registered_width",
-        "registered_height",
-        "name_regions",
-        "row_bands",
-        "review_on_registration_issue",
-    }
+        raise ValueError("config must be a cropper config or mapping")
+    allowed = set(PSABirthRowCropperConfig.__dataclass_fields__)
     unknown = set(config) - allowed
     if unknown:
-        raise ValueError(f"unsupported configuration keys: {sorted(unknown)}")
-
+        raise ValueError(
+            f"unsupported configuration keys: {sorted(unknown)}"
+        )
     values = dict(config)
-    if "row_bands" in values and values["row_bands"] is not None:
-        bands = values["row_bands"]
-        if isinstance(bands, Mapping):
-            bands = tuple(
-                (name, bounds[0], bounds[1])
-                for name, bounds in bands.items()
-            )
-        values["row_bands"] = tuple(tuple(item) for item in bands)
-
-    if "name_regions" in values:
-        regions = values["name_regions"]
-        if isinstance(regions, Mapping):
-            converted = []
-            for name, bounds in regions.items():
-                if isinstance(bounds, Mapping):
-                    converted.append(
-                        (
-                            name,
-                            bounds["x"],
-                            bounds["y"],
-                            bounds["width"],
-                            bounds["height"],
-                        )
-                    )
-                else:
-                    converted.append((name, *tuple(bounds)))
-            regions = tuple(converted)
-        values["name_regions"] = tuple(tuple(item) for item in regions)
-
+    if "row_geometries" in values:
+        values["row_geometries"] = tuple(
+            tuple(row) for row in values["row_geometries"]
+        )
     return PSABirthRowCropperConfig(**values)
 
 
-def _region_to_pixels(
-    x: float,
-    y: float,
-    width: float,
-    height: float,
-    image_width: int,
-    image_height: int,
-) -> tuple[int, int, int, int]:
-    left = math.floor(x * image_width)
-    top = math.floor(y * image_height)
-    right = math.ceil((x + width) * image_width)
-    bottom = math.ceil((y + height) * image_height)
-
-    left = max(0, min(left, image_width))
-    right = max(0, min(right, image_width))
-    top = max(0, min(top, image_height))
-    bottom = max(0, min(bottom, image_height))
-    return left, top, right, bottom
+def _fixed_rows(
+    config: PSABirthRowCropperConfig,
+) -> tuple[FixedNameRowGeometry, ...]:
+    return tuple(
+        FixedNameRowGeometry(*row)
+        for row in config.row_geometries
+    )
 
 
-def _validated_region_bounds(
+def _gray(image: np.ndarray) -> np.ndarray:
+    if image.ndim == 2:
+        return image.copy()
+    conversion = (
+        cv2.COLOR_BGRA2GRAY
+        if image.shape[2] == 4
+        else cv2.COLOR_BGR2GRAY
+    )
+    return cv2.cvtColor(image, conversion)
+
+
+def _runs(indices: np.ndarray) -> list[tuple[int, int]]:
+    if indices.size == 0:
+        return []
+    runs: list[tuple[int, int]] = []
+    start = previous = int(indices[0])
+    for value in indices[1:]:
+        current = int(value)
+        if current != previous + 1:
+            runs.append((start, previous))
+            start = current
+        previous = current
+    runs.append((start, previous))
+    return runs
+
+
+def _normalized_bounds(
     left: int,
     top: int,
     right: int,
     bottom: int,
-    width: int,
-    height: int,
 ) -> NormalizedBounds | None:
-    if width <= 0 or height <= 0 or right <= left or bottom <= top:
+    if not 0 <= left < right <= REGISTERED_WIDTH:
+        return None
+    if not 0 <= top < bottom <= REGISTERED_HEIGHT:
         return None
     return NormalizedBounds(
-        x=left / float(width),
-        y=top / float(height),
-        width=(right - left) / float(width),
-        height=(bottom - top) / float(height),
+        x=left / REGISTERED_WIDTH,
+        y=top / REGISTERED_HEIGHT,
+        width=(right - left) / REGISTERED_WIDTH,
+        height=(bottom - top) / REGISTERED_HEIGHT,
     )
+
+
+def _crop_name_cell(
+    image: np.ndarray,
+    *,
+    left: int,
+    right: int,
+    top: int,
+    bottom: int,
+    horizontal_inset: int,
+    vertical_inset: int,
+    minimum_width: int,
+    minimum_height: int,
+) -> tuple[np.ndarray, tuple[int, int, int, int]] | None:
+    x1 = left + horizontal_inset
+    x2 = right - horizontal_inset
+    y1 = top + vertical_inset
+    y2 = bottom - vertical_inset
+    if x2 - x1 < minimum_width or y2 - y1 < minimum_height:
+        return None
+    if not 0 <= x1 < x2 <= image.shape[1]:
+        return None
+    if not 0 <= y1 < y2 <= image.shape[0]:
+        return None
+    return (
+        np.array(image[y1:y2, x1:x2], copy=True),
+        (x1, y1, x2, y2),
+    )
+
+
+def _grid_line_masks(
+    cell: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    gray = _gray(cell)
+    inverse = cv2.threshold(
+        gray,
+        0,
+        255,
+        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
+    )[1]
+    height, width = gray.shape
+    horizontal_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT,
+        (max(30, width // 3), 1),
+    )
+    vertical_kernel = cv2.getStructuringElement(
+        cv2.MORPH_RECT,
+        (1, max(15, round(height * 0.8))),
+    )
+    horizontal = cv2.morphologyEx(
+        inverse,
+        cv2.MORPH_OPEN,
+        horizontal_kernel,
+    )
+    vertical = cv2.morphologyEx(
+        inverse,
+        cv2.MORPH_OPEN,
+        vertical_kernel,
+    )
+    return horizontal, vertical
+
+
+def _maximum_projection_run(
+    projection: np.ndarray,
+    *,
+    denominator: int,
+    minimum_coverage: float,
+) -> int:
+    if denominator <= 0 or projection.size == 0:
+        return 0
+    qualifying = np.flatnonzero(
+        projection.astype(np.float64) / float(denominator)
+        >= minimum_coverage
+    )
+    return max(
+        (
+            stop - start + 1
+            for start, stop in _runs(qualifying)
+        ),
+        default=0,
+    )
+
+
+def _grid_line_evidence(
+    cell: np.ndarray,
+    *,
+    horizontal_threshold: float,
+    vertical_threshold: float,
+) -> _GridLineEvidence:
+    gray = _gray(cell)
+    horizontal, vertical = _grid_line_masks(gray)
+    height, width = gray.shape
+    horizontal_projection = np.count_nonzero(
+        horizontal,
+        axis=1,
+    )
+    vertical_projection = np.count_nonzero(
+        vertical,
+        axis=0,
+    )
+    horizontal_coverage = (
+        float(np.max(horizontal_projection)) / float(width)
+        if horizontal_projection.size and width
+        else 0.0
+    )
+    vertical_coverage = (
+        float(np.max(vertical_projection)) / float(height)
+        if vertical_projection.size and height
+        else 0.0
+    )
+    return _GridLineEvidence(
+        horizontal_coverage=horizontal_coverage,
+        vertical_coverage=vertical_coverage,
+        maximum_horizontal_thickness=_maximum_projection_run(
+            horizontal_projection,
+            denominator=width,
+            minimum_coverage=horizontal_threshold,
+        ),
+        maximum_vertical_thickness=_maximum_projection_run(
+            vertical_projection,
+            denominator=height,
+            minimum_coverage=vertical_threshold,
+        ),
+    )
+
+
+def _remove_grid_lines(cell: np.ndarray) -> np.ndarray:
+    gray = _gray(cell)
+    horizontal, vertical = _grid_line_masks(gray)
+    if not np.any(horizontal) and not np.any(vertical):
+        return gray
+    horizontal_cleanup_mask = cv2.dilate(
+        horizontal,
+        cv2.getStructuringElement(
+            cv2.MORPH_RECT,
+            (1, 3),
+        ),
+        iterations=1,
+    )
+    vertical_cleanup_mask = cv2.dilate(
+        vertical,
+        cv2.getStructuringElement(
+            cv2.MORPH_RECT,
+            (3, 1),
+        ),
+        iterations=1,
+    )
+    line_mask = cv2.bitwise_or(
+        horizontal_cleanup_mask,
+        vertical_cleanup_mask,
+    )
+    return cv2.inpaint(
+        gray,
+        line_mask,
+        2,
+        cv2.INPAINT_TELEA,
+    )
+
+
+def _measure_cell_grid_metrics(
+    raw_cell: np.ndarray,
+    cleaned_cell: np.ndarray,
+    *,
+    field_name: str,
+    component_name: str,
+    horizontal_threshold: float,
+    vertical_threshold: float,
+    minimum_thickness: int,
+) -> CellGridMetrics:
+    before = _grid_line_evidence(
+        raw_cell,
+        horizontal_threshold=horizontal_threshold,
+        vertical_threshold=vertical_threshold,
+    )
+    after = _grid_line_evidence(
+        cleaned_cell,
+        horizontal_threshold=horizontal_threshold,
+        vertical_threshold=vertical_threshold,
+    )
+    persistent_horizontal_grid = (
+        after.horizontal_coverage >= horizontal_threshold
+        and after.maximum_horizontal_thickness >= minimum_thickness
+    )
+    persistent_vertical_grid = (
+        after.vertical_coverage >= vertical_threshold
+        and after.maximum_vertical_thickness >= minimum_thickness
+    )
+    height, width = _gray(cleaned_cell).shape
+    return CellGridMetrics(
+        field_name=field_name,
+        component_name=component_name,
+        width=width,
+        height=height,
+        horizontal_coverage_before=before.horizontal_coverage,
+        horizontal_coverage_after=after.horizontal_coverage,
+        vertical_coverage_before=before.vertical_coverage,
+        vertical_coverage_after=after.vertical_coverage,
+        maximum_horizontal_thickness_before=(
+            before.maximum_horizontal_thickness
+        ),
+        maximum_horizontal_thickness_after=(
+            after.maximum_horizontal_thickness
+        ),
+        maximum_vertical_thickness_before=(
+            before.maximum_vertical_thickness
+        ),
+        maximum_vertical_thickness_after=(
+            after.maximum_vertical_thickness
+        ),
+        contaminated=bool(
+            persistent_horizontal_grid
+            or persistent_vertical_grid
+        ),
+    )
+
+
+def _validate_cell_geometry(
+    cell: np.ndarray,
+    *,
+    metrics: CellGridMetrics | None = None,
+) -> bool:
+    if metrics is not None:
+        return not metrics.contaminated
+    fallback_metrics = _measure_cell_grid_metrics(
+        cell,
+        cell,
+        field_name="",
+        component_name="",
+        horizontal_threshold=(
+            DEFAULT_PERSISTENT_HORIZONTAL_GRID_COVERAGE
+        ),
+        vertical_threshold=(
+            DEFAULT_PERSISTENT_VERTICAL_GRID_COVERAGE
+        ),
+        minimum_thickness=(
+            DEFAULT_MINIMUM_PERSISTENT_GRID_THICKNESS_PIXELS
+        ),
+    )
+    return not fallback_metrics.contaminated
+
+
+def _registration_requires_review(
+    metadata: PSABirthRowCropperMetadata | None,
+) -> bool:
+    if metadata is None:
+        return False
+    if metadata.status == "review_required":
+        return True
+    return bool(metadata.issues)
 
 
 def crop_psa_birth_name_rows(
@@ -345,113 +677,188 @@ def crop_psa_birth_name_rows(
     config: PSABirthRowCropperConfig | Mapping[str, Any] | None = None,
 ) -> StageResult[PSABirthRowCropperOutput]:
     try:
-        resolved = _validate_config(config)
-    except (KeyError, TypeError, ValueError):
+        resolved = _resolve_config(config)
+    except (TypeError, ValueError):
         return _failure("TARGET_NAME_CELL_CROP_INVALID")
 
     image = _prepare_image(registered_image)
     if image is None:
         return _failure("REGISTERED_IMAGE_INVALID")
 
-    image_height, image_width = image.shape[:2]
-    if (
-        image_width != resolved.registered_width
-        or image_height != resolved.registered_height
-    ):
+    height, width = image.shape[:2]
+    if (width, height) != (REGISTERED_WIDTH, REGISTERED_HEIGHT):
         return _failure(
             "REGISTERED_DIMENSIONS_MISMATCH",
-            registered_width=image_width,
-            registered_height=image_height,
+            registered_width=width,
+            registered_height=height,
         )
 
     metadata = _resolve_registration_metadata(registration_metadata)
     if registration_metadata is not None and metadata is None:
         return _failure("REGISTRATION_METADATA_INVALID")
 
-    review_propagated = (
-        resolved.review_on_registration_issue
-        and _is_review_level_registration(metadata)
-    )
-    boundary_inferred = (
-        resolved.review_on_registration_issue
-        and _registration_boundary_inferred(metadata)
-    )
-
     regions: list[RegionResult] = []
     crops: dict[str, np.ndarray] = {}
     issues: list[dict[str, str]] = []
+    cell_grid_metrics: dict[str, dict[str, Any]] = {}
+    row_metrics: dict[str, Any] = {}
 
-    for name, x, y, width, height in resolved.name_regions:
-        left, top, right, bottom = _region_to_pixels(
-            x,
-            y,
-            width,
-            height,
-            image_width,
-            image_height,
+    fixed_rows = _fixed_rows(resolved)
+
+    for row in fixed_rows:
+        row_metrics[f"{row.field_name}_geometry_source"] = (
+            "fixed_per_row_calibration"
         )
-        bounds = _validated_region_bounds(
-            left,
-            top,
-            right,
-            bottom,
-            image_width,
-            image_height,
-        )
-        if bounds is None:
-            return _failure("TARGET_NAME_CELL_CROP_INVALID")
+        row_metrics[f"{row.field_name}_value_top"] = row.value_top
+        row_metrics[f"{row.field_name}_value_bottom"] = row.value_bottom
+        row_metrics[f"{row.field_name}_column_boundaries"] = row.columns
 
-        crop = np.array(image[top:bottom, left:right], copy=True)
-        if crop.size == 0:
-            return _failure("TARGET_NAME_CELL_CROP_EMPTY")
-        if not np.isfinite(crop).all():
-            return _failure("TARGET_NAME_CELL_CROP_INVALID")
-
-        crops[name] = crop
-        regions.append(
-            RegionResult(
-                name=name,
-                bounds=bounds,
-                success=True,
-                confidence=1.0,
-                ocr_attempts=0,
-                preprocessing_variant=PREPROCESSING_VARIANT,
+        for component_name, raw_left, raw_right in (
+            row.component_boundaries
+        ):
+            crop_result = _crop_name_cell(
+                image,
+                left=raw_left,
+                right=raw_right,
+                top=row.value_top,
+                bottom=row.value_bottom,
+                horizontal_inset=resolved.internal_padding_pixels,
+                vertical_inset=resolved.vertical_inset_pixels,
+                minimum_width=resolved.minimum_cell_width_pixels,
+                minimum_height=resolved.minimum_cell_height_pixels,
             )
-        )
+            if crop_result is None:
+                item_number = {
+                    "child_name": "1",
+                    "mother_maiden_name": "6",
+                    "father_name": "13",
+                }[row.field_name]
+                return _failure(
+                    f"birth_item_{item_number}_value_band_invalid",
+                    row.field_name,
+                    component_name,
+                    **row_metrics,
+                )
 
-    if len(regions) != 3 or len(crops) != 3:
+            raw_crop, (left, top, right, bottom) = crop_result
+            cleaned_crop = _remove_grid_lines(raw_crop)
+            grid_metrics = _measure_cell_grid_metrics(
+                raw_crop,
+                cleaned_crop,
+                field_name=row.field_name,
+                component_name=component_name,
+                horizontal_threshold=(
+                    resolved.persistent_horizontal_grid_coverage
+                ),
+                vertical_threshold=(
+                    resolved.persistent_vertical_grid_coverage
+                ),
+                minimum_thickness=(
+                    resolved.minimum_persistent_grid_thickness_pixels
+                ),
+            )
+            key = f"{row.field_name}.{component_name}"
+            cell_grid_metrics[key] = grid_metrics.as_metrics()
+
+            if not _validate_cell_geometry(
+                cleaned_crop,
+                metrics=grid_metrics,
+            ):
+                return _failure(
+                    "birth_name_cell_grid_contaminated",
+                    row.field_name,
+                    component_name,
+                    failed_cell_grid_metrics=(
+                        grid_metrics.as_metrics()
+                    ),
+                    cell_grid_metrics=dict(cell_grid_metrics),
+                    per_row_column_boundaries={
+                        item.field_name: item.columns
+                        for item in fixed_rows
+                    },
+                    **row_metrics,
+                )
+
+            bounds = _normalized_bounds(
+                left,
+                top,
+                right,
+                bottom,
+            )
+            if bounds is None:
+                return _failure(
+                    "TARGET_NAME_CELL_CROP_INVALID",
+                    row.field_name,
+                    component_name,
+                    **row_metrics,
+                )
+
+            crops[key] = np.array(cleaned_crop, copy=True)
+            regions.append(
+                RegionResult(
+                    name=key,
+                    bounds=bounds,
+                    success=True,
+                    confidence=1.0,
+                    ocr_attempts=0,
+                    preprocessing_variant=PREPROCESSING_VARIANT,
+                )
+            )
+
+    if len(regions) != 9 or len(crops) != 9:
         return _failure("TARGET_NAME_CELL_CROP_INVALID")
 
-    if review_propagated:
+    registration_review = bool(
+        resolved.review_on_registration_issue
+        and _registration_requires_review(metadata)
+    )
+    if registration_review:
         issues.append(_issue("REGISTRATION_REVIEW_PROPAGATED"))
-    if boundary_inferred:
-        issues.append(_issue("REGISTRATION_BOUNDARY_INFERRED"))
 
     output = PSABirthRowCropperOutput(
         regions=tuple(regions),
         crops=MappingProxyType(
-            {name: crop.copy() for name, crop in crops.items()}
+            {
+                name: np.array(crop, copy=True)
+                for name, crop in crops.items()
+            }
         ),
-        registered_width=image_width,
-        registered_height=image_height,
+        registered_width=width,
+        registered_height=height,
     )
-    status = "review_required" if issues else "success"
 
-    metrics: dict[str, Any] = {
-        "registered_width": image_width,
-        "registered_height": image_height,
+    metrics = {
+        "registered_width": width,
+        "registered_height": height,
+        "geometry_artifact_version": GEOMETRY_ARTIFACT_VERSION,
+        "geometry_mode": GEOMETRY_MODE,
+        "geometry_source": "accepted_private_visual_calibration",
         "region_count": len(regions),
-        "registration_review_propagated": review_propagated,
+        "cell_crop_count": len(crops),
+        "per_row_column_boundaries": {
+            row.field_name: row.columns
+            for row in fixed_rows
+        },
+        "per_row_value_bands": {
+            row.field_name: (
+                row.value_top,
+                row.value_bottom,
+            )
+            for row in fixed_rows
+        },
+        "horizontal_inset_pixels": resolved.internal_padding_pixels,
+        "vertical_inset_pixels": resolved.vertical_inset_pixels,
+        "registration_review_propagated": registration_review,
         "full_row_crop_used": False,
+        "dynamic_geometry_repositioning_used": False,
+        "cell_grid_metrics": dict(cell_grid_metrics),
+        **row_metrics,
     }
-    for name, crop in crops.items():
-        metrics[f"{name}_crop_width"] = int(crop.shape[1])
-        metrics[f"{name}_crop_height"] = int(crop.shape[0])
 
     return StageResult(
         stage=STAGE_NAME,
         success=True,
-        status=status,
+        status="review_required" if issues else "success",
         data=output,
         issues=issues,
         metrics=metrics,

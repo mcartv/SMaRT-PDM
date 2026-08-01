@@ -1,9 +1,3 @@
-import {
-  FileSearch,
-  Activity,
-  AlertTriangle,
-  Shield,
-} from 'lucide-react';
 import OfficeProfilePage from '@/components/profile/OfficeProfilePage';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
@@ -27,17 +21,10 @@ export default function PDProfile() {
       accountConfig={pdMaintenanceConfig}
       palette={palette}
       tokenStorageKey="pdToken"
-      statCards={[
-        { label: 'Endorsements', value: '88', icon: FileSearch, tone: 'green' },
-        { label: 'Final Reviews', value: '36', icon: Shield, tone: 'stone' },
-        { label: 'Returned Cases', value: '7', icon: AlertTriangle, tone: 'amber' },
-        { label: 'Activity Logs', value: '24', icon: Activity, tone: 'green' },
-      ]}
-      activityLog={[
-        { action: 'Reviewed PD endorsement queue', time: 'Recent' },
-        { action: 'Finalized scholastic standing review', time: 'Today' },
-        { action: 'Saved PD maintenance settings', time: 'This week' },
-        { action: 'Checked endorsement completion records', time: 'This week' },
+      responsibilities={[
+        'Review applicants from courses assigned to this account.',
+        'Confirm academic standing and final endorsement decisions.',
+        'Complete endorsement records after SDO and Guidance review.',
       ]}
     />
   );

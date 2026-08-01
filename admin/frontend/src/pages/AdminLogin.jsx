@@ -13,6 +13,7 @@ import {
 import pdmLogo from '../assets/pdm-logo.png';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { authService } from '@/services/authService';
+import { getLoginErrorMessage } from '@/utils/loginErrors';
 import {
   getPortalNameFromRole,
   getStoredPortalSession,
@@ -33,7 +34,7 @@ export default function AdminLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [stayLoggedIn, setStayLoggedIn] = useState(true);
+  const [stayLoggedIn, setStayLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -70,9 +71,7 @@ export default function AdminLogin() {
 
       navigate(portal.redirectPath, { replace: true });
     } catch (err) {
-      setError(
-        err.message || 'Login failed. Please check your credentials.'
-      );
+      setError(getLoginErrorMessage(err, 'Admin'));
     } finally {
       setIsLoading(false);
     }
@@ -125,18 +124,20 @@ export default function AdminLogin() {
           </h2>
 
           <div className="space-y-3 max-w-xs">
-            {FEATURES.map(({ icon: Icon, label }) => (
+            {FEATURES.map((feature) => (
               <div
-                key={label}
+                key={feature.label}
                 className="flex items-center gap-3 rounded-xl px-4 py-3 bg-white/5 border border-white/10"
               >
                 <div
                   className="flex h-8 w-8 items-center justify-center rounded-lg"
                   style={{ background: `${theme.accent}30` }}
                 >
-                  <Icon className="h-4 w-4" style={{ color: theme.accent }} />
+                  <feature.icon className="h-4 w-4" style={{ color: theme.accent }} />
                 </div>
-                <p className="text-sm font-medium text-stone-200">{label}</p>
+                <p className="text-sm font-medium text-stone-200">
+                  {feature.label}
+                </p>
               </div>
             ))}
           </div>
@@ -176,9 +177,17 @@ export default function AdminLogin() {
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form
+            onSubmit={handleLogin}
+            className="space-y-5"
+            aria-busy={isLoading}
+          >
             {error && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium">
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-xs font-medium"
+              >
                 {error}
               </div>
             )}
@@ -190,11 +199,12 @@ export default function AdminLogin() {
               <input
                 type="email"
                 required
+                disabled={isLoading}
                 autoComplete="email"
                 placeholder="staff@pdm.edu.ph"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm transition-all focus:outline-none focus:ring-2"
+                className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm transition-all focus:outline-none focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                 style={{ '--tw-ring-color': `${theme.base}33` }}
               />
             </div>
@@ -218,16 +228,18 @@ export default function AdminLogin() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={isLoading}
                   autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 pr-12 text-sm transition-all focus:outline-none focus:ring-2"
+                  className="w-full h-11 rounded-xl border border-stone-200 bg-stone-50 px-4 pr-12 text-sm transition-all focus:outline-none focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                   style={{ '--tw-ring-color': `${theme.base}33` }}
                 />
 
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => setShowPassword((previous) => !previous)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 focus:outline-none"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
@@ -240,6 +252,7 @@ export default function AdminLogin() {
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3">
               <input
                 type="checkbox"
+                disabled={isLoading}
                 checked={stayLoggedIn}
                 onChange={(event) => setStayLoggedIn(event.target.checked)}
                 className="mt-0.5 h-4 w-4 rounded border-stone-300"
@@ -258,6 +271,7 @@ export default function AdminLogin() {
             <button
               type="submit"
               disabled={isLoading}
+              aria-live="polite"
               className="w-full h-12 rounded-xl text-white font-bold text-sm shadow-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-2"
               style={{
                 background: theme.base,
@@ -268,7 +282,10 @@ export default function AdminLogin() {
             >
               {isLoading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div
+                    className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                    aria-hidden="true"
+                  />
                   Authenticating...
                 </>
               ) : (

@@ -13,6 +13,15 @@ const ALLOWED_ADMIN_EMAIL = String(
     process.env.ALLOWED_ADMIN_EMAIL || 'smartpdm.system@gmail.com'
 ).trim().toLowerCase();
 
+function emitAdminSessionUpdated(req, action, session = null) {
+    socketEvents.emitEvent(req.app?.get?.('io'), 'admin-session:updated', {
+        action,
+        session_id: session?.session_id || req.user?.sid || req.user?.session_id || null,
+        user_id: req.user?.user_id || req.user?.userId || req.user?.sub || null,
+        updated_at: new Date().toISOString(),
+    });
+}
+
 const RESET_OTP_TTL_SECONDS = Number(process.env.RESET_OTP_TTL_SECONDS || 60);
 const RESET_RESEND_SECONDS = Number(process.env.RESET_RESEND_SECONDS || 60);
 const MAX_RESET_ATTEMPTS = Number(process.env.MAX_RESET_ATTEMPTS || 5);
@@ -47,11 +56,11 @@ function buildAdminUserQuery(photoEnabled = false) {
             a.last_name,
             a.department,
             a.position,
+            COALESCE(a.is_archived, false) AS is_archived,
             ${photoEnabled ? 'a.profile_photo_url' : 'NULL::text AS profile_photo_url'}
         FROM users u
         LEFT JOIN admin_profiles a ON u.user_id = a.user_id
         WHERE LOWER(u.email) = LOWER($1)
-          AND (a.user_id IS NULL OR a.is_archived = false)
         LIMIT 1
     `;
 }
@@ -167,7 +176,15 @@ async function loginWithRole(req, res, role) {
 
         if (!user) {
             return res.status(401).json({
-                message: 'Invalid credentials or account deactivated',
+                code: 'INVALID_CREDENTIALS',
+                message: 'The email or password is incorrect.',
+            });
+        }
+
+        if (user.is_archived) {
+            return res.status(403).json({
+                code: 'ACCOUNT_DEACTIVATED',
+                message: 'This account has been deactivated. Contact an administrator.',
             });
         }
 
@@ -175,7 +192,8 @@ async function loginWithRole(req, res, role) {
 
         if (!isMatch) {
             return res.status(401).json({
-                message: 'Invalid credentials',
+                code: 'INVALID_CREDENTIALS',
+                message: 'The email or password is incorrect.',
             });
         }
 
@@ -187,6 +205,7 @@ async function loginWithRole(req, res, role) {
                 !['admin', 'pd', 'guidance', 'sdo', 'ro_coordinator'].includes(resolvedRole)
             ) {
                 return res.status(403).json({
+                    code: 'WRONG_PORTAL',
                     message: 'This account is not authorized for the admin portal',
                 });
             }
@@ -201,6 +220,7 @@ async function loginWithRole(req, res, role) {
 
         if (departmentPortalLabels[role] && resolvedRole !== role) {
             return res.status(403).json({
+                code: 'WRONG_PORTAL',
                 message: `This account is not authorized for the ${departmentPortalLabels[role]} portal`,
             });
         }
@@ -209,6 +229,7 @@ async function loginWithRole(req, res, role) {
 
         if (!tokenRole) {
             return res.status(403).json({
+                code: 'WRONG_PORTAL',
                 message: 'This account is not authorized for this portal',
             });
         }
@@ -240,6 +261,15 @@ async function loginWithRole(req, res, role) {
 
         const portalTitle = departmentPortalLabels[role];
         const avatarUrl = await resolveAvatarUrl(user.profile_photo_url || null);
+
+        if (tokenRole === 'admin') {
+            socketEvents.emitEvent(req.app?.get?.('io'), 'admin-session:updated', {
+                action: 'login',
+                session_id: managedSession?.session_id || null,
+                user_id: user.user_id,
+                updated_at: new Date().toISOString(),
+            });
+        }
 
         return res.status(200).json({
             token,
@@ -279,7 +309,8 @@ async function loginWithRole(req, res, role) {
         }
 
         return res.status(500).json({
-            message: 'Internal server error',
+            code: 'SERVER_ERROR',
+            message: 'The server could not complete the sign-in request. Please try again.',
         });
     }
 }
@@ -299,6 +330,8 @@ exports.resumeAdminSession = async (req, res) => {
             deviceId: req.body?.deviceId,
             pageId: req.body?.pageId,
         });
+
+        emitAdminSessionUpdated(req, 'resumed', result.session);
 
         return res.status(200).json({
             valid: true,
@@ -363,6 +396,8 @@ exports.releaseAdminSessionPage = async (req, res) => {
             decoded: req.user,
             pageId: req.body?.pageId,
         });
+
+        emitAdminSessionUpdated(req, 'page_released');
 
         return res.status(200).json({
             released: true,
@@ -455,6 +490,8 @@ exports.logoutAdminSession = async (req, res) => {
         await adminSessionService.logoutAdminSession({
             decoded: req.user,
         });
+
+        emitAdminSessionUpdated(req, 'logout');
 
         return res.status(200).json({
             message: 'Logged out successfully.',

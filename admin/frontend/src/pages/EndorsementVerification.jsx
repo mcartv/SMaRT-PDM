@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { CheckCircle2, Loader2, ShieldAlert, XCircle } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 function formatDate(value) {
   if (!value) return 'N/A';
@@ -24,10 +25,9 @@ export default function EndorsementVerification() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const loadVerification = async () => {
+  const loadVerification = useCallback(async ({ quiet = false } = {}) => {
       try {
-        setLoading(true);
+        if (!quiet) setLoading(true);
         setError('');
 
         const response = await fetch(buildApiUrl(`/api/endorsement-slips/verify/${token}`));
@@ -41,12 +41,17 @@ export default function EndorsementVerification() {
       } catch (err) {
         setError(err.message || 'Failed to verify slip.');
       } finally {
-        setLoading(false);
+        if (!quiet) setLoading(false);
       }
-    };
-
-    loadVerification();
   }, [token]);
+
+  useEffect(() => {
+    loadVerification();
+  }, [loadVerification]);
+
+  useSocketEvent('endorsement:updated', () => {
+    loadVerification({ quiet: true });
+  }, [loadVerification]);
 
   if (loading) {
     return (

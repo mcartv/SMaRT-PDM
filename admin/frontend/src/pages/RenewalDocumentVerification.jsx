@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -12,11 +12,11 @@ import {
   ExternalLink,
   FileText,
   Loader2,
-  RefreshCw,
   ScanSearch,
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { useSocketEvent } from '@/hooks/useSocket';
 
 const API_BASE = buildApiUrl('/api');
 
@@ -110,11 +110,11 @@ export default function RenewalDocumentVerification() {
   const [docComments, setDocComments] = useState({});
   const [comment, setComment] = useState('');
   const [finalComment, setFinalComment] = useState('');
-  const [submittingAction, setSubmittingAction] = useState('');
+  const [, setSubmittingAction] = useState('');
 
-  const loadRenewal = async () => {
+  const loadRenewal = useCallback(async ({ quiet = false } = {}) => {
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       setError('');
 
       const response = await fetch(`${API_BASE}/renewals/${id}`, {
@@ -147,13 +147,25 @@ export default function RenewalDocumentVerification() {
     } catch (err) {
       setError(err.message || 'Failed to load renewal details');
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     loadRenewal();
-  }, [id]);
+  }, [loadRenewal]);
+
+  useSocketEvent('renewal:updated', (event) => {
+    if (!event?.renewal_id || String(event.renewal_id) === String(id)) {
+      loadRenewal({ quiet: true });
+    }
+  }, [id, loadRenewal]);
+
+  useSocketEvent('renewal:approved', (event) => {
+    if (!event?.renewal_id || String(event.renewal_id) === String(id)) {
+      loadRenewal({ quiet: true });
+    }
+  }, [id, loadRenewal]);
 
   const documents = useMemo(() => {
     const rawDocs = renewal?.documents || [];
@@ -165,10 +177,6 @@ export default function RenewalDocumentVerification() {
   }, [renewal, docStatuses, docComments]);
 
   const activeDoc = documents.find((doc) => doc.id === docKey) || documents[0] || null;
-  const uploadedCount = documents.filter((doc) => !!doc.url).length;
-  const verifiedCount = documents.filter((doc) => doc.status === 'verified').length;
-  const allUploaded = documents.every((doc) => !!doc.url);
-
   useEffect(() => {
     if (activeDoc) {
       setComment(docComments[activeDoc.id] || '');
@@ -264,15 +272,6 @@ export default function RenewalDocumentVerification() {
           </h1>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto border-stone-200"
-          onClick={loadRenewal}
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
       </div>
 
       {/* MAIN GRID */}

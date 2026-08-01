@@ -33,9 +33,32 @@ function normalizeReportType(value) {
         'sdo',
         'guidance',
         'pd',
+        'scholars_by_benefactor',
+        'endorsements',
     ];
 
-    return allowed.includes(type) ? type : 'applications';
+    if (!type) return 'applications';
+    if (!allowed.includes(type)) {
+        throw createHttpError(400, 'Invalid report type.');
+    }
+
+    return type;
+}
+
+function normalizeDate(value, fieldName) {
+    const normalized = safeText(value);
+    if (!normalized) return '';
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+        throw createHttpError(400, `${fieldName} must use YYYY-MM-DD format.`);
+    }
+
+    const parsed = new Date(`${normalized}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== normalized) {
+        throw createHttpError(400, `${fieldName} is not a valid date.`);
+    }
+
+    return normalized;
 }
 
 async function getReportMetadata() {
@@ -72,6 +95,11 @@ async function getReportMetadata() {
                 sub: 'Approved scholars with program, course, year level, and RO status',
             },
             {
+                id: 'scholars_by_benefactor',
+                name: 'Scholar Count by Benefactor',
+                sub: 'Active scholar totals grouped by benefactor or program for the selected benefactor',
+            },
+            {
                 id: 'payouts',
                 name: 'Payout Batch Report',
                 sub: 'Payout batches, release status, amount, and recipients',
@@ -80,6 +108,11 @@ async function getReportMetadata() {
                 id: 'support',
                 name: 'Support Ticket Report',
                 sub: 'Student concerns, ticket status, and handler records',
+            },
+            {
+                id: 'endorsements',
+                name: 'Endorsement Report',
+                sub: 'Consolidated SDO, Guidance, and Program Director endorsement results',
             },
             {
                 id: 'sdo',
@@ -245,6 +278,64 @@ async function getScholarsRows({
     LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
     WHERE ${where.join(' AND ')}
     ORDER BY st.last_name ASC, st.first_name ASC;
+  `;
+
+    const { rows } = await pool.query(query, params);
+    return rows;
+}
+
+async function getScholarCountRows({
+    academicYearId,
+    semester,
+    programId,
+    benefactorId,
+}) {
+    const params = [];
+    const where = [
+        `st.is_active_scholar = TRUE`,
+        `st.scholarship_status = 'Active'`,
+    ];
+
+    if (academicYearId && academicYearId !== 'all') {
+        params.push(academicYearId);
+        where.push(`st.active_academic_year_id = $${params.length}`);
+    }
+
+    if (semester && semester !== 'all') {
+        params.push(semester);
+        where.push(`ap.term = $${params.length}`);
+    }
+
+    if (programId && programId !== 'all') {
+        params.push(programId);
+        where.push(`st.current_program_id = $${params.length}`);
+    }
+
+    if (benefactorId && benefactorId !== 'all') {
+        params.push(benefactorId);
+        where.push(`b.benefactor_id = $${params.length}`);
+    }
+
+    const groupBy = benefactorId && benefactorId !== 'all'
+        ? ['sp.program_name', 'b.benefactor_name']
+        : ['b.benefactor_id', 'b.benefactor_name'];
+
+    const orderBy = benefactorId && benefactorId !== 'all'
+        ? 'ORDER BY scholar_count DESC, sp.program_name ASC'
+        : 'ORDER BY scholar_count DESC, b.benefactor_name ASC';
+
+    const query = `
+    SELECT
+      ${benefactorId && benefactorId !== 'all' ? 'sp.program_name,' : 'b.benefactor_id, b.benefactor_name,'}
+      COUNT(*)::int AS scholar_count
+    FROM students st
+    LEFT JOIN scholarship_program sp ON st.current_program_id = sp.program_id
+    LEFT JOIN benefactors b ON sp.benefactor_id = b.benefactor_id
+    LEFT JOIN academic_years ay ON st.active_academic_year_id = ay.academic_year_id
+    LEFT JOIN academic_period ap ON st.active_period_id = ap.period_id
+    WHERE ${where.join(' AND ')}
+    GROUP BY ${groupBy.join(', ')}
+    ${orderBy};
   `;
 
     const { rows } = await pool.query(query, params);
@@ -518,6 +609,7 @@ async function getPdRows({
     dateFrom,
     dateTo,
     pdUserId,
+    consolidated = false,
 }) {
     const params = [];
     const where = [`COALESCE(a.is_archived, FALSE) = FALSE`];
@@ -557,7 +649,12 @@ async function getPdRows({
     }
 
     if (normalizedReviewResult && normalizedReviewResult !== 'all') {
-        if (normalizedReviewResult === 'pending') {
+        if (consolidated && normalizedReviewResult === 'pending') {
+            where.push(`es.overall_status NOT IN ('completed', 'rejected')`);
+        } else if (consolidated) {
+            params.push(normalizedReviewResult);
+            where.push(`es.overall_status = $${params.length}`);
+        } else if (normalizedReviewResult === 'pending') {
             where.push(`es.pd_status IS NULL`);
         } else if (normalizedReviewResult === 'completed') {
             where.push(`es.overall_status = 'completed'`);
@@ -731,6 +828,15 @@ async function getRowsByReportType({
         return await getSupportRows();
     }
 
+    if (reportType === 'scholars_by_benefactor') {
+        return await getScholarCountRows({
+            academicYearId,
+            semester,
+            programId,
+            benefactorId,
+        });
+    }
+
     if (reportType === 'sdo') {
         return await getSdoRows({
             academicYearId,
@@ -768,28 +874,47 @@ async function getRowsByReportType({
         });
     }
 
+    if (reportType === 'endorsements') {
+        return await getPdRows({
+            academicYearId,
+            semester,
+            programId,
+            benefactorId,
+            reviewResult,
+            dateFrom,
+            dateTo,
+            consolidated: true,
+        });
+    }
+
     throw createHttpError(400, 'Invalid report type.');
 }
 
 function normalizeReportQuery(query = {}) {
-    return {
+    const normalized = {
         reportType: normalizeReportType(query.reportType || query.type),
         academicYearId: safeText(query.academicYearId || query.academic_year_id || 'all'),
         semester: safeText(query.semester || 'all'),
         programId: safeText(query.programId || query.program_id || 'all'),
         benefactorId: safeText(query.benefactorId || query.benefactor_id || 'all'),
         reviewResult: safeText(query.reviewResult || query.review_result || 'all'),
-        dateFrom: safeText(query.dateFrom || query.date_from || ''),
-        dateTo: safeText(query.dateTo || query.date_to || ''),
+        dateFrom: normalizeDate(query.dateFrom || query.date_from || '', 'dateFrom'),
+        dateTo: normalizeDate(query.dateTo || query.date_to || '', 'dateTo'),
         pdUserId: safeText(query.pdUserId || ''),
     };
+
+    if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
+        throw createHttpError(400, 'dateFrom cannot be later than dateTo.');
+    }
+
+    return normalized;
 }
 
 async function previewReport(query = {}) {
     const normalized = normalizeReportQuery(query);
     const rows = await getRowsByReportType(normalized);
 
-    return {
+    const previewResult = {
         reportType: normalized.reportType,
         total: rows.length,
         rows: rows.slice(0, 50),
@@ -797,6 +922,30 @@ async function previewReport(query = {}) {
             ? buildOfficeSummary(normalized.reportType, rows)
             : null,
     };
+
+    if (normalized.reportType === 'scholars_by_benefactor') {
+        previewResult.total = rows.reduce(
+            (sum, row) => sum + Number(row.scholar_count || 0),
+            0
+        );
+    }
+
+    if (normalized.reportType === 'endorsements') {
+        const completed = rows.filter(
+            (row) => safeText(row.overall_status).toLowerCase() === 'completed'
+        ).length;
+        const rejected = rows.filter(
+            (row) => safeText(row.overall_status).toLowerCase() === 'rejected'
+        ).length;
+        previewResult.summary = {
+            total: rows.length,
+            pending: rows.length - completed - rejected,
+            completed,
+            rejected,
+        };
+    }
+
+    return previewResult;
 }
 
 async function generateExcelReport(query = {}) {
@@ -849,6 +998,17 @@ async function generateExcelReport(query = {}) {
         ];
         rows = await getScholarsRows(normalized);
         filename = 'active_scholars_report.xlsx';
+    }
+
+    if (normalized.reportType === 'scholars_by_benefactor') {
+        sheet = workbook.addWorksheet('Scholar Counts');
+        sheet.columns = [
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Program', key: 'program_name' },
+            { header: 'Scholar Count', key: 'scholar_count' },
+        ];
+        rows = await getScholarCountRows(normalized);
+        filename = 'scholar_count_by_benefactor_report.xlsx';
     }
 
     if (normalized.reportType === 'payouts') {
@@ -974,6 +1134,35 @@ async function generateExcelReport(query = {}) {
         ];
         rows = await getPdRows(normalized);
         filename = 'pd_endorsement_report.xlsx';
+    }
+
+    if (normalized.reportType === 'endorsements') {
+        sheet = workbook.addWorksheet('Endorsements');
+        sheet.columns = [
+            { header: 'Slip ID', key: 'slip_id' },
+            { header: 'Student Number', key: 'pdm_id' },
+            { header: 'Student Name', key: 'student_name' },
+            { header: 'Course', key: 'course_code' },
+            { header: 'Year Level', key: 'year_level' },
+            { header: 'Program', key: 'program_name' },
+            { header: 'Benefactor', key: 'benefactor_name' },
+            { header: 'Opening', key: 'opening_title' },
+            { header: 'Academic Year', key: 'academic_year' },
+            { header: 'Semester', key: 'semester' },
+            { header: 'Current Stage', key: 'current_stage' },
+            { header: 'Overall Status', key: 'overall_status' },
+            { header: 'SDO Result', key: 'sdo_status' },
+            { header: 'Guidance Result', key: 'guidance_status' },
+            { header: 'PD Result', key: 'pd_status' },
+            { header: 'PD Remarks', key: 'pd_remarks' },
+            { header: 'PD Reviewed By', key: 'reviewed_by' },
+            { header: 'PD Reviewed At', key: 'pd_acted_at' },
+            { header: 'Completed At', key: 'completed_at' },
+            { header: 'Final PDF URL', key: 'final_pdf_url' },
+            { header: 'Submitted At', key: 'submission_date' },
+        ];
+        rows = await getPdRows({ ...normalized, consolidated: true });
+        filename = 'endorsement_report.xlsx';
     }
 
     if (!sheet) {

@@ -7,6 +7,7 @@ import { buildApiUrl } from '@/api';
 import { DepartmentAccountPanel } from '@/components/department/DepartmentMaintenancePage';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
+import { useSocketEvent } from '@/hooks/useSocket';
 import {
     Building2,
     Shield,
@@ -20,7 +21,8 @@ import {
     ChevronRight,
     Loader2,
     AlertCircle,
-    RefreshCw,
+    Mail,
+    Phone,
 } from 'lucide-react';
 
 
@@ -273,6 +275,14 @@ export default function AdminProfile() {
         loadRecentSessions();
     }, [loadRecentActivity, loadRecentSessions]);
 
+    useSocketEvent('audit:created', () => {
+        loadRecentActivity();
+    }, [loadRecentActivity]);
+
+    useSocketEvent('admin-session:updated', () => {
+        loadRecentSessions();
+    }, [loadRecentSessions]);
+
     const fullName = `${adminData.firstName} ${adminData.lastName}`.trim();
 
     const initials = useMemo(() => {
@@ -282,12 +292,21 @@ export default function AdminProfile() {
     }, [adminData.firstName, adminData.lastName]);
 
     return (
-        <div className="space-y-5 py-2">
-            <Card className="overflow-hidden rounded-3xl border-stone-200 bg-white shadow-none">
-                <CardContent className="p-5">
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                            <Avatar className="h-20 w-20 border-4 border-white shadow-sm">
+        <main className="space-y-6 py-2" aria-labelledby="admin-profile-title">
+            <header>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">Account center</p>
+                <h1 id="admin-profile-title" className="mt-1 text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">
+                    Administrator Profile
+                </h1>
+                <p className="mt-1 text-sm text-stone-500">Manage your identity and review protected account activity.</p>
+            </header>
+
+            <Card className="overflow-hidden rounded-[28px] border-stone-200 bg-white shadow-sm">
+                <CardContent className="relative overflow-hidden bg-gradient-to-br from-amber-50/80 via-stone-50 to-white p-6 sm:p-7">
+                    <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-amber-900/5" />
+                    <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                            <Avatar className="h-24 w-24 border-4 border-white shadow-lg sm:h-28 sm:w-28">
                                 <AvatarImage src={adminData.avatarUrl || undefined} alt={fullName} />
                                 <AvatarFallback className="bg-stone-800 text-xl font-bold text-white">
                                     {initials}
@@ -296,9 +315,9 @@ export default function AdminProfile() {
 
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+                                    <h2 className="text-2xl font-bold tracking-tight text-stone-950 sm:text-3xl">
                                         {fullName}
-                                    </h1>
+                                    </h2>
 
                                     <Badge className="border border-green-100 bg-green-50 text-green-700 hover:bg-green-50">
                                         <BadgeCheck className="mr-1.5 h-3.5 w-3.5" />
@@ -323,6 +342,21 @@ export default function AdminProfile() {
                                 <p className="mt-4 max-w-3xl text-sm leading-6 text-stone-600">
                                     {adminData.bio}
                                 </p>
+
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                    {adminData.email ? (
+                                        <a href={`mailto:${adminData.email}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
+                                            <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                                            {adminData.email}
+                                        </a>
+                                    ) : null}
+                                    {adminData.phone ? (
+                                        <a href={`tel:${adminData.phone}`} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
+                                            <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                                            {adminData.phone}
+                                        </a>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
 
@@ -352,22 +386,6 @@ export default function AdminProfile() {
                         title="Recent Activity"
                         subtitle="Latest actions recorded in the Audit Trail for this admin account."
                         icon={Activity}
-                        action={
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={loadRecentActivity}
-                                disabled={activityLoading}
-                                className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
-                            >
-                                {activityLoading ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="h-3.5 w-3.5" />
-                                )}
-                            </Button>
-                        }
                     >
                         {activityLoading ? (
                             <div className="flex items-center justify-center gap-2 py-8 text-sm text-stone-500">
@@ -429,22 +447,6 @@ export default function AdminProfile() {
                         title="Recent Sessions"
                         subtitle="Current and previous sign-ins recorded for this admin account."
                         icon={Clock3}
-                        action={
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={loadRecentSessions}
-                                disabled={sessionsLoading}
-                                className="h-8 rounded-lg border-stone-200 px-2.5 text-xs"
-                            >
-                                {sessionsLoading ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="h-3.5 w-3.5" />
-                                )}
-                            </Button>
-                        }
                     >
                         {sessionsLoading ? (
                             <div className="flex items-center justify-center gap-2 py-8 text-sm text-stone-500">
@@ -543,6 +545,6 @@ export default function AdminProfile() {
                     </SectionCard>
                 </div>
             </div>
-        </div>
+        </main>
     );
 }

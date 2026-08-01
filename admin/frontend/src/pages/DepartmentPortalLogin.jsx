@@ -4,6 +4,7 @@ import { ArrowLeft, Eye, EyeOff, FileCheck2, ShieldCheck, UserCheck } from 'luci
 import pdmLogo from '../assets/pdm-logo.png';
 import { buildApiUrl } from '@/api';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import { getLoginErrorMessage } from '@/utils/loginErrors';
 
 export default function DepartmentPortalLogin({
   portalKey,
@@ -41,17 +42,24 @@ export default function DepartmentPortalLogin({
           password,
         }),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        const loginError = new Error(data.message || 'Login failed');
+        loginError.code = data.code || (response.status >= 500 ? 'SERVER_ERROR' : 'LOGIN_FAILED');
+        loginError.status = response.status;
+        throw loginError;
       }
 
       sessionStorage.setItem(tokenStorageKey, data.token);
       sessionStorage.setItem(profileStorageKey, JSON.stringify(data.user));
       navigate(redirectPath);
     } catch (err) {
-      setError(err.message || `Unable to sign in to the ${portalLabel} panel.`);
+      const normalizedError =
+        err instanceof TypeError
+          ? { code: 'NETWORK_ERROR' }
+          : err;
+      setError(getLoginErrorMessage(normalizedError, portalLabel));
     } finally {
       setIsLoading(false);
     }
@@ -143,9 +151,13 @@ export default function DepartmentPortalLogin({
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-5" aria-busy={isLoading}>
             {error ? (
-              <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-xs font-medium text-red-600">
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="rounded-lg border border-red-100 bg-red-50 p-3 text-xs font-medium text-red-600"
+              >
                 {error}
               </div>
             ) : null}
@@ -155,11 +167,12 @@ export default function DepartmentPortalLogin({
               <input
                 type="email"
                 required
+                disabled={isLoading}
                 autoComplete="email"
                 placeholder={`${portalLabel.toLowerCase()}@pdm.edu.ph`}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm transition-all focus:outline-none focus:ring-2"
+                className="h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm transition-all focus:outline-none focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                 style={{ '--tw-ring-color': `${colors.base}33` }}
               />
             </div>
@@ -170,17 +183,20 @@ export default function DepartmentPortalLogin({
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={isLoading}
                   autoComplete="current-password"
                   placeholder="Password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 pr-12 text-sm transition-all focus:outline-none focus:ring-2"
+                  className="h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 pr-12 text-sm transition-all focus:outline-none focus:ring-2 disabled:cursor-wait disabled:opacity-60"
                   style={{ '--tw-ring-color': `${colors.base}33` }}
                 />
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => setShowPassword((current) => !current)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -190,6 +206,7 @@ export default function DepartmentPortalLogin({
             <button
               type="submit"
               disabled={isLoading}
+              aria-live="polite"
               className="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-white shadow-lg transition-all active:scale-95 disabled:opacity-70"
               style={{
                 background: colors.base,
@@ -198,7 +215,10 @@ export default function DepartmentPortalLogin({
             >
               {isLoading ? (
                 <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  <div
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                    aria-hidden="true"
+                  />
                   Authenticating...
                 </>
               ) : (

@@ -5,6 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   SlidersHorizontal,
   ClipboardList,
   Globe,
@@ -23,6 +29,8 @@ import {
   Palette,
   PenTool,
   FileSpreadsheet,
+  Trash2,
+  ZoomIn,
 } from 'lucide-react';
 import ThemePanel from '@/pages/maintenance/ThemePanel';
 import SDOStudentRegistryImport from '@/components/department/SDOStudentRegistryImport';
@@ -538,6 +546,7 @@ export function DepartmentAccountPanel({
   profileStorageKey,
   onProfileUpdated,
 }) {
+  const [photoPreviewOpen, setPhotoPreviewOpen] = useState(false);
   const {
     loadingProfile,
     savingAccount,
@@ -582,24 +591,36 @@ export function DepartmentAccountPanel({
             </p>
           </div>
 
-          <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
               {currentProfileImage ? (
-                <img
-                  src={currentProfileImage}
-                  alt={displayName}
-                  className="h-20 w-20 rounded-2xl border-4 border-white object-cover shadow-sm"
-                />
-              ) : (
-                <div
-                  className="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white text-xl font-bold text-white shadow-sm"
-                  style={{ background: palette.base }}
+                <button
+                  type="button"
+                  onClick={() => setPhotoPreviewOpen(true)}
+                  className="group relative h-24 w-24 shrink-0 rounded-[26px] border border-stone-200 bg-white p-2 shadow-sm outline-none ring-offset-2 transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-stone-500"
+                  aria-label={`Preview ${displayName} profile photo`}
                 >
-                  {initials}
+                  <img
+                    src={currentProfileImage}
+                    alt=""
+                    className="h-full w-full rounded-[18px] object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                  />
+                  <span className="absolute inset-2 flex items-center justify-center rounded-[18px] bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
+                    <ZoomIn className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                </button>
+              ) : (
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-[26px] border border-stone-200 bg-white p-2 shadow-sm">
+                  <div
+                    className="flex h-full w-full items-center justify-center rounded-[18px] text-xl font-bold text-white"
+                    style={{ background: palette.base }}
+                  >
+                    {initials}
+                  </div>
                 </div>
               )}
 
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-stone-800">Profile Photo</p>
                 <p className="mt-1 text-xs text-stone-500">
                   Upload a real photo for the portal header and profile page. Initials will remain as the fallback when no image is set.
@@ -607,7 +628,7 @@ export function DepartmentAccountPanel({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -638,15 +659,34 @@ export function DepartmentAccountPanel({
               <Button
                 type="button"
                 variant="outline"
-                className="h-9 rounded-lg border-stone-200 text-xs text-stone-700"
+                size="icon"
+                className="h-9 w-9 rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                 onClick={handleRemovePhoto}
                 disabled={!currentProfileImage || uploadingPhoto || removingPhoto}
+                aria-label="Remove profile photo"
+                title="Remove profile photo"
               >
-                {removingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2 h-4 w-4" />}
-                Remove Photo
+                {removingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               </Button>
             </div>
           </div>
+
+          <Dialog open={photoPreviewOpen} onOpenChange={setPhotoPreviewOpen}>
+            <DialogContent className="max-w-xl overflow-hidden rounded-3xl border-stone-200 p-0">
+              <DialogHeader className="border-b border-stone-100 px-5 py-4 text-left">
+                <DialogTitle>{displayName}&apos;s profile photo</DialogTitle>
+              </DialogHeader>
+              <div className="flex min-h-72 items-center justify-center bg-stone-950 p-5 sm:min-h-96">
+                {currentProfileImage ? (
+                  <img
+                    src={currentProfileImage}
+                    alt={`${displayName} profile photo preview`}
+                    className="max-h-[65vh] max-w-full rounded-2xl object-contain shadow-2xl"
+                  />
+                ) : null}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {accountFeedback ? (
             <div className={`rounded-xl border px-4 py-3 text-sm ${

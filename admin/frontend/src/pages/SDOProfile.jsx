@@ -1,9 +1,3 @@
-import {
-  FileSearch,
-  AlertTriangle,
-  Scale,
-  Shield,
-} from 'lucide-react';
 import OfficeProfilePage from '@/components/profile/OfficeProfilePage';
 import usePortalTheme from '@/hooks/usePortalTheme';
 import { buildMaintenancePalette, getPortalDefaultTheme } from '@/config/portalThemes';
@@ -27,17 +21,10 @@ export default function SDOProfile() {
       accountConfig={sdoMaintenanceConfig}
       palette={palette}
       tokenStorageKey="sdoToken"
-      statCards={[
-        { label: 'Cases Reviewed', value: '128', icon: FileSearch, tone: 'green' },
-        { label: 'Status Updates', value: '47', icon: Scale, tone: 'amber' },
-        { label: 'Flagged Cases', value: '9', icon: AlertTriangle, tone: 'red' },
-        { label: 'Years Active', value: '2', icon: Shield, tone: 'stone' },
-      ]}
-      activityLog={[
-        { action: 'Updated scholar probation status', time: 'Recent' },
-        { action: 'Reviewed disciplinary records', time: 'Today' },
-        { action: 'Saved SDO profile settings', time: 'This week' },
-        { action: 'Monitored flagged scholar cases', time: 'This week' },
+      responsibilities={[
+        'Review applicant disciplinary records and endorsement queues.',
+        'Record offense findings, case references, and office remarks.',
+        'Monitor scholar disciplinary standing and flagged cases.',
       ]}
     />
   );

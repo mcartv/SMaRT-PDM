@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSocketEvent } from '@/hooks/useSocket';
 import { AlertCircle, BarChart3, CheckCircle2, Loader2, Palette, Plus, RotateCcw, Save, X } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -247,6 +248,12 @@ export default function ThemePanel({
 
   useEffect(() => {
     loadSettings();
+  }, [loadSettings]);
+
+  useSocketEvent('maintenance:updated', (event) => {
+    if (event?.source === 'theme_settings') {
+      loadSettings();
+    }
   }, [loadSettings]);
 
   useEffect(() => {

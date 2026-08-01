@@ -26,6 +26,7 @@ import {
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
 import FinalSelectionPanel from '@/components/selection/FinalSelectionPanel';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const C = {
     green: '#16a34a',
@@ -1111,14 +1112,7 @@ export default function OpeningApplications() {
     const openingMetaLine = [opening?.semester, opening?.academic_year].filter(Boolean).join(' · ');
 
     if (loading) {
-        return (
-            <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
-                <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-                <p className="text-xs uppercase tracking-widest text-stone-400">
-                    Loading scholarship applicants...
-                </p>
-            </div>
-        );
+        return <PageLoadingSkeleton label="Loading scholarship applicants" showStats />;
     }
 
     if (error) {

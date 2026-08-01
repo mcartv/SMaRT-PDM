@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const API_BASE = buildApiUrl('/api');
 
@@ -229,12 +230,7 @@ export default function RenewalDocumentVerification() {
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">Loading renewal review...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading renewal documents" variant="cards" />;
   }
 
   if (error) {

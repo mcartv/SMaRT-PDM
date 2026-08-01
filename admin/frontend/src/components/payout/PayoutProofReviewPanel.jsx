@@ -14,6 +14,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
+import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 
 const API_BASE = buildApiUrl('/api');
 
@@ -197,9 +198,7 @@ export default function PayoutProofReviewPanel() {
 
       <CardContent className="p-4">
         {loading ? (
-          <div className="flex min-h-32 items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
-          </div>
+          <SectionLoadingSkeleton label="Loading payout proofs" rows={3} />
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-sm text-stone-400">
             No payout proofs match the selected filter.

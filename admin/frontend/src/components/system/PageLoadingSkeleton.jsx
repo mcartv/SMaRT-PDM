@@ -65,6 +65,17 @@ function CardsSkeleton() {
   );
 }
 
+export function SectionLoadingSkeleton({ label = 'Loading content', rows = 4 }) {
+  return (
+    <div className="space-y-3 py-3" role="status" aria-live="polite" aria-busy="true">
+      {Array.from({ length: rows }, (_, item) => (
+        <Skeleton key={item} className="h-14 w-full bg-stone-200" />
+      ))}
+      <span className="sr-only">{label}</span>
+    </div>
+  );
+}
+
 export default function PageLoadingSkeleton({
   label = 'Loading page',
   variant = 'table',

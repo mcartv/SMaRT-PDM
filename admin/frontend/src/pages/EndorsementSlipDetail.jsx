@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import EndorsementProgressTracker from '@/components/endorsement/EndorsementProgressTracker';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const STAGE_META = {
   completed: 'bg-green-50 text-green-700',
@@ -223,12 +224,7 @@ export default function EndorsementSlipDetail({ tokenStorageKey = 'adminToken' }
   }, [historyItems, slip]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading endorsement slip...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading endorsement slip" variant="cards" />;
   }
 
   if (error || !slip) {

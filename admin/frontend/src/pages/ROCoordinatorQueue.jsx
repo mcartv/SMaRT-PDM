@@ -17,6 +17,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useSocketEvent } from '@/hooks/useSocket';
 import usePortalTheme from '@/hooks/usePortalTheme';
+import { SectionLoadingSkeleton } from '@/components/system/PageLoadingSkeleton';
 import ROCoordinatorScholarRequests from './ROCoordinatorScholarRequests';
 
 const FILTERS = [
@@ -322,9 +323,7 @@ export default function ROCoordinatorQueue({
       ) : null}
 
       {loading ? (
-        <div className="flex min-h-[340px] items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin" style={{ color: theme.base }} />
-        </div>
+        <SectionLoadingSkeleton label="Loading coordinator queue" rows={5} />
       ) : items.length ? (
         <div className="space-y-3">
           {items.map((request) => {

@@ -5,6 +5,7 @@ import { buildApiUrl } from '@/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 function formatDate(value) {
   if (!value) return 'N/A';
@@ -55,10 +56,9 @@ export default function EndorsementVerification() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-stone-400" />
-          <p className="mt-3 text-sm text-stone-500">Verifying endorsement slip...</p>
+      <div className="min-h-screen bg-stone-50 px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-5xl">
+          <PageLoadingSkeleton label="Verifying endorsement slip" variant="cards" />
         </div>
       </div>
     );

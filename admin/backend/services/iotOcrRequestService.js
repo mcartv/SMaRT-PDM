@@ -17,6 +17,8 @@ function mapRequestRow(row) {
         student_name: row.student_name || null,
         document_key: row.document_key,
         document_type: row.document_type,
+        application_document_version_id: row.application_document_version_id || null,
+        source_content_sha256: row.source_content_sha256 || null,
         status: row.status || 'pending',
         requested_by: row.requested_by || null,
         claimed_by: row.claimed_by || null,
@@ -80,14 +82,22 @@ async function resolveRequestContext(client, { applicationId, documentKey }) {
         SELECT
             a.application_id::uuid AS application_id,
             a.student_id::uuid AS student_id,
-            TRIM(CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name)) AS student_name
+            TRIM(CONCAT_WS(' ', st.first_name, st.middle_name, st.last_name)) AS student_name,
+            adv.version_id AS application_document_version_id,
+            adv.content_sha256 AS source_content_sha256,
+            adv.legacy_unhashed
         FROM applications a
         LEFT JOIN students st
             ON st.student_id = a.student_id
+        LEFT JOIN application_documents ad
+            ON ad.application_id = a.application_id
+           AND ad.document_type = $2
+        LEFT JOIN application_document_versions adv
+            ON adv.version_id = ad.current_version_id
         WHERE a.application_id = $1::uuid
         LIMIT 1
         `,
-        [applicationId]
+        [applicationId, documentTypeName]
     );
 
     if (!applicationResult.rows.length) {
@@ -98,6 +108,12 @@ async function resolveRequestContext(client, { applicationId, documentKey }) {
     if (!row.student_id) {
         throw buildHttpError(409, 'Application is missing student_id');
     }
+    if (!row.application_document_version_id) {
+        throw buildHttpError(409, 'The document has no current immutable upload version');
+    }
+    if (row.legacy_unhashed || !row.source_content_sha256) {
+        throw buildHttpError(409, 'The document must be re-uploaded before OCR can run');
+    }
 
     return {
         application_id: row.application_id,
@@ -105,6 +121,8 @@ async function resolveRequestContext(client, { applicationId, documentKey }) {
         student_name: row.student_name || 'Unknown Student',
         document_key: normalizedDocumentKey,
         document_type: documentTypeName,
+        application_document_version_id: row.application_document_version_id,
+        source_content_sha256: row.source_content_sha256,
     };
 }
 
@@ -156,6 +174,12 @@ exports.createRequest = async (input = {}) => {
 
         const activeRow = activeResult.rows[0] || null;
         if (activeRow?.status === 'claimed') {
+            if (
+                activeRow.application_document_version_id !== context.application_document_version_id ||
+                activeRow.source_content_sha256 !== context.source_content_sha256
+            ) {
+                throw buildHttpError(409, 'The active OCR request belongs to a previous document upload');
+            }
             await client.query('COMMIT');
             const request = mapRequestRow(activeRow);
             return {
@@ -193,9 +217,11 @@ exports.createRequest = async (input = {}) => {
                     document_key,
                     document_type,
                     status,
-                    requested_by
+                    requested_by,
+                    application_document_version_id,
+                    source_content_sha256
                 )
-                VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'pending', $6::uuid)
+                VALUES ($1::uuid, $2::uuid, $3, $4, $5, 'pending', $6::uuid, $7::uuid, $8)
                 RETURNING *
                 `,
                 [
@@ -205,6 +231,8 @@ exports.createRequest = async (input = {}) => {
                     context.document_key,
                     context.document_type,
                     requestedByUuid,
+                    context.application_document_version_id,
+                    context.source_content_sha256,
                 ]
             );
         } catch (insertError) {
@@ -288,11 +316,20 @@ exports.claimNextRequest = async ({ claimedBy = null } = {}) => {
         const claimResult = await client.query(
             `
             WITH next_request AS (
-                SELECT request_id
-                FROM iot_ocr_requests
-                WHERE status = 'pending'
-                ORDER BY created_at DESC
-                FOR UPDATE SKIP LOCKED
+                SELECT request.request_id
+                FROM iot_ocr_requests request
+                JOIN application_document_versions version
+                  ON version.version_id = request.application_document_version_id
+                 AND version.content_sha256 = request.source_content_sha256
+                 AND version.legacy_unhashed = false
+                JOIN application_documents document
+                  ON document.application_id = request.application_id
+                 AND document.document_type = request.document_type
+                 AND document.current_version_id = request.application_document_version_id
+                WHERE request.status = 'pending'
+                  AND request.provenance_legacy_unbound = false
+                ORDER BY request.created_at DESC
+                FOR UPDATE OF request SKIP LOCKED
                 LIMIT 1
             )
             UPDATE iot_ocr_requests
@@ -385,6 +422,14 @@ exports.completeRequest = async (input = {}) => {
                 scannedViaIot: true,
                 iotDeviceId: claimedBy || requestRow.claimed_by || null,
                 scannedAt: new Date().toISOString(),
+                requestId: requestRow.request_id,
+                documentVersionId: requestRow.application_document_version_id,
+                sourceContentSha256: requestRow.source_content_sha256,
+                processingStatus:
+                    normalizedPayload.source_payload?.worker_status === 'review_required'
+                        ? 'partial'
+                        : 'completed',
+                dbClient: client,
             });
 
             const completedResult = await client.query(

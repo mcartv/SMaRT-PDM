@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const crypto = require('node:crypto');
 const { ensureStudentForUser } = require('./studentAccountService');
 const notificationService = require('./notificationService');
 
@@ -22,6 +23,16 @@ const REQUIRED_UPLOAD_DOCUMENT_TYPES = Object.freeze([
     'certificate of indigency',
     'letter of request',
 ]);
+
+function calculateFileSha256(fileBuffer) {
+    if (!Buffer.isBuffer(fileBuffer)) {
+        const error = new TypeError('A file Buffer is required to calculate SHA-256.');
+        error.code = 'INVALID_FILE_BUFFER';
+        throw error;
+    }
+
+    return crypto.createHash('sha256').update(fileBuffer).digest('hex');
+}
 
 const WORKFLOW_STAGE_LABELS = Object.freeze({
     application_submitted: 'Application Submitted',
@@ -2177,13 +2188,14 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
     const filePath = `applications/${application.application_id}/${normalizedType.replace(
         /[^a-zA-Z0-9]/g,
         '_'
-    )}_${Date.now()}_${safeFileName}`;
+    )}_${crypto.randomUUID()}_${safeFileName}`;
+    const contentSha256 = calculateFileSha256(file.buffer);
 
     const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, file.buffer, {
             contentType: file.mimetype || 'application/octet-stream',
-            upsert: true,
+            upsert: false,
         });
 
     if (uploadError) throw uploadError;
@@ -2194,33 +2206,25 @@ async function uploadMyDocument(userId, file, body = {}, params = {}) {
 
     const fileUrl = publicUrlData?.publicUrl || null;
 
-    const { data: previousDocument, error: previousDocumentError } = await supabase
-        .from('application_documents')
-        .select('file_path')
-        .eq('document_id', documentId)
-        .maybeSingle();
+    const { error: updateError } = await supabase.rpc(
+        'register_application_document_version',
+        {
+            p_document_id: documentId,
+            p_application_id: application.application_id,
+            p_document_type: targetDocument.document_type,
+            p_uploaded_by: student.student_id,
+            p_file_path: filePath,
+            p_file_url: fileUrl,
+            p_file_name: originalName,
+            p_content_sha256: contentSha256,
+            p_file_size_bytes: file.buffer.length,
+            p_created_by: userId,
+        }
+    );
 
-    if (previousDocumentError) throw previousDocumentError;
-
-    const { error: updateError } = await supabase
-        .from('application_documents')
-        .update({
-            uploaded_by: student.student_id,
-            is_submitted: true,
-            file_url: fileUrl,
-            file_name: originalName,
-            file_path: filePath,
-            source_type: 'upload',
-            review_status: 'pending',
-            submitted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        })
-        .eq('document_id', documentId);
-
-    if (updateError) throw updateError;
-
-    if (previousDocument?.file_path && previousDocument.file_path !== filePath) {
-        await supabase.storage.from('documents').remove([previousDocument.file_path]);
+    if (updateError) {
+        await supabase.storage.from('documents').remove([filePath]);
+        throw updateError;
     }
 
     const { data: submittedDocuments, error: submittedDocumentsError } = await supabase
@@ -2996,6 +3000,7 @@ async function submitMyApplicationForm(userId, payload = {}) {
 }
 
 module.exports = {
+    calculateFileSha256,
     getMyFormData,
     saveMyFormData,
     getMyDocuments,

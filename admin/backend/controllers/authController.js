@@ -199,16 +199,11 @@ async function loginWithRole(req, res, role) {
 
         const resolvedRole = resolveStaffRole(user);
 
-        if (role === 'admin') {
-            if (
-                !resolvedRole ||
-                !['admin', 'pd', 'guidance', 'sdo', 'ro_coordinator'].includes(resolvedRole)
-            ) {
-                return res.status(403).json({
-                    code: 'WRONG_PORTAL',
-                    message: 'This account is not authorized for the admin portal',
-                });
-            }
+        if (role === 'admin' && resolvedRole !== 'admin') {
+            return res.status(403).json({
+                code: 'WRONG_PORTAL',
+                message: 'This account is not authorized for the Admin portal.',
+            });
         }
 
         const departmentPortalLabels = {
@@ -225,7 +220,7 @@ async function loginWithRole(req, res, role) {
             });
         }
 
-        const tokenRole = departmentPortalLabels[role] ? role : resolvedRole;
+        const tokenRole = role;
 
         if (!tokenRole) {
             return res.status(403).json({

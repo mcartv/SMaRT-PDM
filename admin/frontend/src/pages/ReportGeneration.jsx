@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import {
   Select,
   SelectContent,
@@ -595,11 +596,7 @@ export default function ReportGeneration({
   }, [isOfficeEndorsementReport, isScholarCountReport, previewSummary, previewTotal, selected]);
 
   if (loading) {
-    return (
-      <div className="flex h-[300px] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-stone-400" />
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading reports" variant="cards" />;
   }
 
   return (

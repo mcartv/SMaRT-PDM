@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
 import { buildApiUrl } from '@/api';
 import ROScholarRequestsPanel from './ROScholarRequestsPanel';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -1912,14 +1913,7 @@ export default function ROAdmin() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-        <p className="text-xs uppercase tracking-widest text-stone-400">
-          Loading RO admin...
-        </p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading Return of Obligation administration" showStats />;
   }
 
   return (

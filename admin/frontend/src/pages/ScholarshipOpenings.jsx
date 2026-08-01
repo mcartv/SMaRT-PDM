@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -1748,14 +1749,7 @@ export default function ScholarshipOpenings() {
     };
 
     if (loading) {
-        return (
-            <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
-                <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-                <p className="text-xs uppercase tracking-widest text-stone-400">
-                    Loading scholarship openings.
-                </p>
-            </div>
-        );
+        return <PageLoadingSkeleton label="Loading scholarship openings" variant="cards" />;
     }
 
     return (

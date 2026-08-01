@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { buildApiUrl } from '@/api';
 import PayoutProofReviewPanel from '@/components/payout/PayoutProofReviewPanel';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 
 const API_BASE = buildApiUrl('/api');
 const PAGE_SIZE = 6;
@@ -1064,11 +1065,7 @@ export default function PayoutManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="flex h-[300px] items-center justify-center">
-        <Loader2 className="animate-spin text-stone-400" />
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading payout management" showStats />;
   }
 
   return (

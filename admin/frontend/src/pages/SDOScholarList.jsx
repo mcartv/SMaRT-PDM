@@ -32,6 +32,7 @@ import {
 
 import { buildApiUrl } from '@/api';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 const API_BASE = buildApiUrl('/api');const PAGE_SIZE = 10;
 
 // ─── Theme ───────────────────────────────────────────────────────
@@ -556,14 +557,7 @@ export default function SDOScholarList() {
   }, [stats]);
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-stone-300" />
-        <p className="text-xs text-stone-400 uppercase tracking-widest">
-          Loading scholars...
-        </p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading SDO scholars" showStats />;
   }
 
   if (error && !scholars.length) {

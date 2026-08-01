@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -1415,14 +1416,7 @@ export default function AnnouncementsManagement() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-        <p className="text-xs uppercase tracking-widest text-stone-400">
-          Loading announcements...
-        </p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading announcements" variant="cards" />;
   }
 
   return (

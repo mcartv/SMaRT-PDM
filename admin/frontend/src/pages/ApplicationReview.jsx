@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1308,12 +1309,7 @@ export default function ApplicationReview() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-stone-400" />
-        <p className="text-sm text-stone-500">Loading application review data...</p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading application review" showStats />;
   }
 
   if (error) {

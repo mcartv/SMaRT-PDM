@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSocketEvent } from '@/hooks/useSocket';
+import PageLoadingSkeleton from '@/components/system/PageLoadingSkeleton';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -347,14 +348,7 @@ export default function AdminDashboard() {
   }, [dashboard.summaryCards]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-3" style={{ background: C.bg }}>
-        <Loader2 className="h-7 w-7 animate-spin text-stone-300" />
-        <p className="text-xs uppercase tracking-widest text-stone-400">
-          Loading dashboard...
-        </p>
-      </div>
-    );
+    return <PageLoadingSkeleton label="Loading Admin dashboard" variant="dashboard" />;
   }
 
   if (error) {

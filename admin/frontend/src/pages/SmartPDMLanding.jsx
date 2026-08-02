@@ -898,6 +898,12 @@ export default function SmartPDMLanding() {
               <a
                 key={href}
                 href={href}
+                onClick={(event) => {
+                  if (href !== '#home') return;
+                  event.preventDefault();
+                  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#home`);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 aria-current={activeSection === href.slice(1) ? 'location' : undefined}
                 className={`shrink-0 border-b-2 px-3 py-3 text-xs font-bold uppercase tracking-[0.08em] transition duration-300 hover:border-[var(--nav-accent)] hover:text-white md:px-4 ${
                   activeSection === href.slice(1)

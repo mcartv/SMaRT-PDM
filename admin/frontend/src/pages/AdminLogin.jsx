@@ -39,7 +39,7 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const existingSession = getStoredPortalSession();
+    const existingSession = getStoredPortalSession('admin');
 
     if (existingSession?.token) {
       navigate(existingSession.redirectPath, { replace: true });

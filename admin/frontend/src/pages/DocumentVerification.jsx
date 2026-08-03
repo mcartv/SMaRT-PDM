@@ -230,6 +230,8 @@ function normalizeRequiredDocuments(rawDocs = []) {
       file_path: rawDoc.file_path || '',
       submitted_at: rawDoc.submitted_at || rawDoc.uploaded_at || null,
       reviewed_at: rawDoc.reviewed_at || null,
+      iot_ocr_request: rawDoc.iot_ocr_request || rawDoc.ocr_job || null,
+      ocr_job: rawDoc.ocr_job || rawDoc.iot_ocr_request || null,
       is_optional_ocr_document: false,
     });
   });
@@ -249,6 +251,8 @@ function normalizeRequiredDocuments(rawDocs = []) {
       file_path: '',
       submitted_at: null,
       reviewed_at: null,
+      iot_ocr_request: null,
+      ocr_job: null,
       is_optional_ocr_document: false,
     }
   );
@@ -274,16 +278,35 @@ function hasStructuredOcrFields(document) {
   return Object.keys(getStructuredOcrFields(document)).length > 0;
 }
 
-function hasDocumentOcrResult(document) {
-  if (!document) return false;
+// eslint-disable-next-line react-refresh/only-export-components
+export function getIotOcrRequestId(value = {}) {
+  const candidate =
+    value?.request_id ||
+    value?.id ||
+    value?.data?.request_id ||
+    value?.data?.id ||
+    null;
 
-  return !!(
-    document?.ocr?.raw_text ||
-    document?.ocr?.text ||
-    hasStructuredOcrFields(document) ||
-    document?.ocr_confidence !== null && document?.ocr_confidence !== undefined ||
-    document?.ocr?.confidence !== null && document?.ocr?.confidence !== undefined
-  );
+  return candidate === null || candidate === undefined
+    ? null
+    : String(candidate);
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function buildIotOcrSnapshotOverride(snapshot = {}) {
+  const ocr = snapshot?.ocr && typeof snapshot.ocr === 'object'
+    ? snapshot.ocr
+    : {};
+
+  return {
+    ocr,
+    ocr_confidence:
+      snapshot?.ocr_confidence ??
+      ocr?.confidence ??
+      '',
+    iot_ocr_request: snapshot?.iot_ocr_request || null,
+    ocr_job: snapshot?.iot_ocr_request || null,
+  };
 }
 
 function getFileType(document = {}) {
@@ -1805,12 +1828,15 @@ export default function DocumentVerification() {
   const [savingRawOcr, setSavingRawOcr] = useState(false);
 
   const pollingRef = useRef(null);
+  const activeIotRequestRef = useRef(null);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
-      clearInterval(pollingRef.current);
+      window.clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
+
+    activeIotRequestRef.current = null;
   }, []);
 
   const fetchApplicationDocuments = useCallback(
@@ -1957,17 +1983,34 @@ export default function DocumentVerification() {
   const docs = useMemo(() => {
     const rawDocs = application?.documents || [];
 
-    return rawDocs.map((d) => ({
-      ...d,
-      status: docStatuses[d.id] || d.status || 'pending',
-      admin_comment: docComments[d.id] || '',
-      ocr: iotOcrResults[d.id]?.ocr || d.ocr || {},
-      ocr_confidence:
-        iotOcrResults[d.id]?.ocr_confidence ??
-        iotOcrResults[d.id]?.ocr?.confidence ??
-        d.ocr_confidence ??
-        null,
-    }));
+    return rawDocs.map((d) => {
+      const hasIotOverride = Object.prototype.hasOwnProperty.call(
+        iotOcrResults,
+        d.id
+      );
+      const iotOverride = hasIotOverride ? iotOcrResults[d.id] : null;
+
+      return {
+        ...d,
+        status: docStatuses[d.id] || d.status || 'pending',
+        admin_comment: docComments[d.id] || '',
+        ocr: hasIotOverride ? iotOverride?.ocr || {} : d.ocr || {},
+        ocr_confidence: hasIotOverride
+          ? iotOverride?.ocr_confidence ?? iotOverride?.ocr?.confidence ?? ''
+          : d.ocr_confidence ?? null,
+        iot_ocr_request:
+          iotOverride?.iot_ocr_request ||
+          d.iot_ocr_request ||
+          d.ocr_job ||
+          null,
+        ocr_job:
+          iotOverride?.ocr_job ||
+          iotOverride?.iot_ocr_request ||
+          d.ocr_job ||
+          d.iot_ocr_request ||
+          null,
+      };
+    });
   }, [application, docStatuses, docComments, iotOcrResults]);
 
   const activeDoc = useMemo(
@@ -2028,18 +2071,11 @@ export default function DocumentVerification() {
     if (!activeDoc) return;
     setComment(docComments[activeDoc.id] || '');
     setIotOcrError('');
-    setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
-  }, [activeDoc, application, docComments]);
 
-  useEffect(() => {
-    if (!runningIotOcr || !activeDoc) return;
-
-    const latestDoc = (application?.documents || []).find((d) => d.id === activeDoc.id);
-    if (hasDocumentOcrResult(latestDoc)) {
-      stopPolling();
-      setRunningIotOcr(false);
+    if (!runningIotOcr) {
+      setRawOcrSnapshot(buildRawOcrSnapshot(activeDoc, application));
     }
-  }, [runningIotOcr, activeDoc, application, stopPolling]);
+  }, [activeDoc, application, docComments, runningIotOcr]);
 
   useEffect(() => {
     stopPolling();
@@ -2085,18 +2121,43 @@ export default function DocumentVerification() {
   const handleRunIotOcr = async () => {
     if (!activeDoc || activeDoc.id === 'application_form') return;
 
+    const targetDocumentId = activeDoc.id;
+    const clearIotOverride = () => {
+      setIotOcrResults((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, targetDocumentId)) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[targetDocumentId];
+        return next;
+      });
+    };
+
     try {
+      stopPolling();
       setRunningIotOcr(true);
       setIotOcrError('');
+      setIotOcrResults((prev) => ({
+        ...prev,
+        [targetDocumentId]: {
+          ocr: {},
+          ocr_confidence: '',
+          iot_ocr_request: null,
+          ocr_job: null,
+        },
+      }));
+      setRawOcrSnapshot('(Waiting for fresh OCR result...)');
 
       const res = await fetch(
-        `${API_BASE}/api/applications/${id}/documents/${activeDoc.id}/iot-ocr`,
+        `${API_BASE}/api/applications/${id}/documents/${targetDocumentId}/iot-ocr`,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
             'Content-Type': 'application/json',
           },
+          cache: 'no-store',
         }
       );
 
@@ -2106,26 +2167,116 @@ export default function DocumentVerification() {
         throw new Error(payload.error || 'Failed to run IoT OCR');
       }
 
-      // Start polling to wait for OCR result
-      stopPolling();
+      const request = payload?.data || payload;
+      const requestId = getIotOcrRequestId(request);
+
+      if (!requestId) {
+        throw new Error('The OCR backend did not return a request ID.');
+      }
+
+      activeIotRequestRef.current = {
+        documentId: targetDocumentId,
+        requestId,
+      };
 
       let attempts = 0;
-      const maxAttempts = 30;
+      const maxAttempts = 180;
 
-      pollingRef.current = setInterval(async () => {
-        attempts++;
+      const pollFreshSnapshot = async () => {
+        const activeRequest = activeIotRequestRef.current;
+
+        if (
+          !activeRequest ||
+          activeRequest.documentId !== targetDocumentId ||
+          activeRequest.requestId !== requestId
+        ) {
+          return;
+        }
+
+        attempts += 1;
 
         try {
-          await fetchApplicationDocuments({ soft: true });
-        } catch { }
+          const snapshotResponse = await fetch(
+            `${API_BASE}/api/applications/${id}/documents/${targetDocumentId}/ocr-snapshot?request_id=${encodeURIComponent(requestId)}&_=${Date.now()}`,
+            {
+              headers: {
+                Authorization: `Bearer ${sessionStorage.getItem('adminToken')}`,
+                'Content-Type': 'application/json',
+              },
+              cache: 'no-store',
+            }
+          );
+
+          const snapshotPayload = await snapshotResponse.json().catch(() => ({}));
+
+          if (!snapshotResponse.ok) {
+            throw new Error(
+              snapshotPayload.error || 'Failed to load the fresh OCR snapshot'
+            );
+          }
+
+          const snapshot = snapshotPayload?.data || {};
+          const latestRequest = snapshot?.iot_ocr_request || {};
+          const latestRequestId = getIotOcrRequestId(latestRequest);
+          const requestStatus = String(latestRequest?.status || '').toLowerCase();
+
+          if (latestRequestId === requestId) {
+            if (requestStatus === 'completed') {
+              const freshOverride = buildIotOcrSnapshotOverride(snapshot);
+              const freshDocument = {
+                id: targetDocumentId,
+                document_key: targetDocumentId,
+                ...freshOverride,
+              };
+
+              setIotOcrResults((prev) => ({
+                ...prev,
+                [targetDocumentId]: freshOverride,
+              }));
+              setRawOcrSnapshot(buildRawOcrSnapshot(freshDocument));
+              await fetchApplicationDocuments({ soft: true });
+              stopPolling();
+              setRunningIotOcr(false);
+              return;
+            }
+
+            if (requestStatus === 'failed' || requestStatus === 'cancelled') {
+              await fetchApplicationDocuments({ soft: true });
+              clearIotOverride();
+              stopPolling();
+              setRunningIotOcr(false);
+              setIotOcrError(
+                latestRequest?.error_message ||
+                `OCR request ${requestStatus}. Retry the capture.`
+              );
+              return;
+            }
+          }
+        } catch (pollError) {
+          if (attempts >= maxAttempts) {
+            console.error('POLL IOT OCR ERROR:', pollError);
+          }
+        }
 
         if (attempts >= maxAttempts) {
+          await fetchApplicationDocuments({ soft: true });
+          clearIotOverride();
           stopPolling();
           setRunningIotOcr(false);
+          setIotOcrError(
+            'The fresh OCR request did not finish within six minutes. Check the Pi worker logs and retry.'
+          );
+          return;
         }
-      }, 3000);
+
+        pollingRef.current = window.setTimeout(pollFreshSnapshot, 2000);
+      };
+
+      await pollFreshSnapshot();
     } catch (err) {
       console.error('RUN IOT OCR ERROR:', err);
+      clearIotOverride();
+      stopPolling();
       setIotOcrError(getOcrFailureMessage(err));
       setRunningIotOcr(false);
     }

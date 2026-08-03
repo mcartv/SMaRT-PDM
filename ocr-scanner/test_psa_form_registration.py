@@ -11,13 +11,17 @@ from extraction.psa_form_registration import (
     NormalizedPoint,
     PSAFormRegistrationConfig,
     _Candidate,
+    _DetectedLine,
     _canonical_edge_status,
     _canonical_landmark_sequence_is_valid,
     _canonical_landmarks,
     _deduplicate_candidates,
     _intersection,
     _line_from_segment,
+    _normalized_hough_segments,
     _order_corners,
+    _repair_premature_bottom_boundary,
+    _repair_premature_right_boundary,
     register_psa_birth_form,
 )
 
@@ -57,6 +61,80 @@ def issue_codes(result):
     return {issue["code"] for issue in result.issues}
 
 
+def extend_grid_bottom(corners, factor):
+    unit = np.asarray(
+        [[0, 0], [1, 0], [1, 1], [0, 1]],
+        dtype=np.float32,
+    )
+    transform = cv2.getPerspectiveTransform(
+        unit,
+        np.asarray(corners, dtype=np.float32),
+    )
+    extended = np.asarray(
+        [[[0, 0], [1, 0], [1, factor], [0, factor]]],
+        dtype=np.float32,
+    )
+    return cv2.perspectiveTransform(extended, transform).reshape(4, 2)
+
+
+def horizontal_lines_for_positions(corners, positions):
+    unit = np.asarray(
+        [[0, 0], [1, 0], [1, 1], [0, 1]],
+        dtype=np.float32,
+    )
+    transform = cv2.getPerspectiveTransform(
+        unit,
+        np.asarray(corners, dtype=np.float32),
+    )
+    lines = []
+
+    for position in positions:
+        unit_points = np.asarray(
+            [[[0.0, position], [1.0, position]]],
+            dtype=np.float32,
+        )
+        source_points = cv2.perspectiveTransform(
+            unit_points,
+            transform,
+        ).reshape(2, 2)
+        x1, y1 = source_points[0]
+        x2, y2 = source_points[1]
+        a = float(y1 - y2)
+        b = float(x2 - x1)
+        c = float(x1 * y2 - x2 * y1)
+        magnitude = float(np.hypot(a, b))
+        lines.append(
+            _DetectedLine(
+                coefficients=(
+                    a / magnitude,
+                    b / magnitude,
+                    c / magnitude,
+                ),
+                angle=0.0,
+                strength=1000.0,
+                position=position,
+            )
+        )
+
+    return tuple(lines)
+
+
+def extend_grid_right(corners, factor):
+    unit = np.asarray(
+        [[0, 0], [1, 0], [1, 1], [0, 1]],
+        dtype=np.float32,
+    )
+    transform = cv2.getPerspectiveTransform(
+        unit,
+        np.asarray(corners, dtype=np.float32),
+    )
+    extended = np.asarray(
+        [[[0, 0], [factor, 0], [factor, 1], [0, 1]]],
+        dtype=np.float32,
+    )
+    return cv2.perspectiveTransform(extended, transform).reshape(4, 2)
+
+
 def rotate_corners(corners, degrees):
     center = corners.mean(axis=0)
     radians = np.deg2rad(degrees)
@@ -68,6 +146,35 @@ def rotate_corners(corners, degrees):
 
 
 class PSAFormRegistrationTest(unittest.TestCase):
+
+    def test_hough_segments_accept_opencv_array_layouts(self):
+        expected = np.asarray(
+            [
+                [10, 20, 30, 40],
+                [50, 60, 70, 80],
+            ],
+            dtype=np.int32,
+        )
+
+        legacy_layout = expected.reshape(2, 1, 4)
+        windows_layout = expected.reshape(2, 4)
+
+        np.testing.assert_array_equal(
+            _normalized_hough_segments(legacy_layout),
+            expected,
+        )
+        np.testing.assert_array_equal(
+            _normalized_hough_segments(windows_layout),
+            expected,
+        )
+
+    def test_hough_segments_reject_malformed_arrays(self):
+        malformed = np.asarray([1, 2, 3], dtype=np.int32)
+
+        normalized = _normalized_hough_segments(malformed)
+
+        self.assertEqual(normalized.shape, (0, 4))
+
     def test_invalid_and_undersized_sources_fail_safely(self):
         invalid = register_psa_birth_form("not-an-image")
         small = register_psa_birth_form(np.zeros((100, 100), dtype=np.uint8))
@@ -275,6 +382,348 @@ class PSAFormRegistrationTest(unittest.TestCase):
 
         self.assertFalse(result.success)
         self.assertIn("TARGET_ROWS_OUTSIDE_FRAME", issue_codes(result))
+
+    def test_premature_bottom_boundary_is_extended_to_include_item_13(self):
+        extended_corners = extend_grid_bottom(DEFAULT_CORNERS, 1.156771)
+        horizontal = (
+            0.0,
+            0.0731,
+            0.1476,
+            0.2528,
+            0.3490,
+            0.4414,
+            0.5302,
+            0.6020,
+            0.7012,
+            0.7861,
+            0.8645,
+            0.9378,
+            1.0,
+        )
+
+        result = register_psa_birth_form(
+            synthetic_grid(extended_corners, horizontal=horizontal)
+        )
+
+        self.assertTrue(result.success, result.issues)
+        self.assertEqual(result.status, "review_required")
+        self.assertIn("FORM_TARGET_BOTTOM_EXTENDED", issue_codes(result))
+        self.assertNotIn("TARGET_ROWS_OUTSIDE_FRAME", issue_codes(result))
+        self.assertTrue(result.metrics["target_bottom_extended"])
+        self.assertEqual(result.metrics["continuation_line_count"], 2)
+        bottom_y = max(
+            point.y
+            for point in result.data.transformation_metadata.normalized_registration_corners
+        )
+        self.assertGreater(bottom_y, 0.68)
+
+    def test_bottom_repair_accepts_aggregate_topology_improvement(self):
+        positions = (
+            -0.047227,
+            0.0,
+            0.054902,
+            0.1438,
+            0.234036,
+            0.36137,
+            0.477513,
+            0.588436,
+            0.694988,
+            0.780883,
+            0.899283,
+            1.0,
+            1.093236,
+            1.18062,
+        )
+        candidate = _Candidate(
+            corners=DEFAULT_CORNERS.astype(np.float64),
+            score=0.818118,
+            area_ratio=0.160849,
+            aspect_ratio=1.271274,
+            corner_deviation=0.092183,
+            opposite_edge_ratio=1.014691,
+            boundary_inferred=False,
+        )
+
+        repaired = _repair_premature_bottom_boundary(
+            candidate,
+            horizontal_lines_for_positions(DEFAULT_CORNERS, positions),
+            PSAFormRegistrationConfig(),
+            WIDTH,
+            HEIGHT,
+        )
+
+        self.assertTrue(repaired.target_bottom_extended)
+        self.assertEqual(repaired.continuation_line_count, 2)
+        self.assertAlmostEqual(
+            repaired.selected_bottom_continuation_position,
+            1.18062,
+            places=5,
+        )
+        self.assertEqual(
+            repaired.bottom_continuation_acceptance_mode,
+            "aggregate",
+        )
+
+    def test_single_continuation_line_fails_instead_of_truncating_item_13(self):
+        extended_corners = extend_grid_bottom(DEFAULT_CORNERS, 1.084877)
+        horizontal = (
+            0.0,
+            0.0781,
+            0.1573,
+            0.2697,
+            0.3723,
+            0.4709,
+            0.5656,
+            0.6423,
+            0.7479,
+            0.8386,
+            0.9219,
+            1.0,
+        )
+
+        result = register_psa_birth_form(
+            synthetic_grid(extended_corners, horizontal=horizontal)
+        )
+
+        self.assertFalse(result.success)
+        self.assertIn("TARGET_ROWS_OUTSIDE_FRAME", issue_codes(result))
+        self.assertEqual(result.metrics["continuation_line_count"], 1)
+        self.assertFalse(result.metrics["target_bottom_extended"])
+
+
+    def test_premature_right_boundary_is_extended_for_last_name_cells(self):
+        factor = 1.187902
+        extended_corners = extend_grid_right(DEFAULT_CORNERS, factor)
+        selected_frame_positions = (
+            0.0,
+            0.32,
+            0.55,
+            0.843,
+            1.0,
+            1.115241,
+            factor,
+        )
+        vertical = tuple(
+            position / factor
+            for position in selected_frame_positions
+        )
+
+        result = register_psa_birth_form(
+            synthetic_grid(extended_corners, vertical=vertical)
+        )
+
+        self.assertTrue(result.success, result.issues)
+        self.assertEqual(result.status, "review_required")
+        self.assertIn("FORM_TARGET_RIGHT_EXTENDED", issue_codes(result))
+        self.assertNotIn("TARGET_COLUMNS_OUTSIDE_FRAME", issue_codes(result))
+        self.assertTrue(result.metrics["target_right_extended"])
+        self.assertEqual(result.metrics["right_continuation_line_count"], 2)
+        self.assertGreater(result.metrics["prewarp_right_coverage"], 0.90)
+        self.assertGreater(result.metrics["postcanonical_right_coverage"], 0.80)
+        self.assertAlmostEqual(
+            result.metrics["target_last_name_divider_position"],
+            0.843,
+            delta=0.045,
+        )
+        right_x = max(
+            point.x
+            for point in result.data.transformation_metadata.normalized_registration_corners
+        )
+        self.assertGreater(right_x, 0.70)
+
+    def test_right_repair_preserves_existing_bottom_extension(self):
+        normalized_corners = np.asarray(
+            [
+                [0.337066, 0.200807],
+                [0.652348, 0.189965],
+                [0.651655, 0.683011],
+                [0.346798, 0.686771],
+            ],
+            dtype=np.float64,
+        )
+        corners = normalized_corners * np.asarray(
+            [WIDTH - 1, HEIGHT - 1],
+            dtype=np.float64,
+        )
+        candidate = _Candidate(
+            corners=corners,
+            score=0.829198,
+            area_ratio=0.151677,
+            aspect_ratio=0.844699,
+            corner_deviation=0.075344,
+            opposite_edge_ratio=1.034496,
+            boundary_inferred=False,
+            target_bottom_extended=True,
+            continuation_line_count=2,
+        )
+        unit = np.asarray(
+            [[0, 0], [1, 0], [1, 1], [0, 1]],
+            dtype=np.float32,
+        )
+        source_to_unit = cv2.getPerspectiveTransform(
+            corners.astype(np.float32),
+            unit,
+        )
+        unit_to_source = np.linalg.inv(source_to_unit)
+        positions = (
+            -0.325509,
+            -0.0,
+            0.043003,
+            0.126040,
+            0.545988,
+            0.592165,
+            0.666424,
+            0.831311,
+            0.858252,
+            0.903161,
+            0.942454,
+            0.963611,
+            0.985413,
+            1.014578,
+            1.043701,
+            1.115241,
+            1.187902,
+            1.223274,
+            1.235353,
+            1.255108,
+        )
+        vertical_lines = []
+
+        for position in positions:
+            unit_points = np.asarray(
+                [[[position, 0.0], [position, 1.0]]],
+                dtype=np.float32,
+            )
+            source_points = cv2.perspectiveTransform(
+                unit_points,
+                unit_to_source,
+            ).reshape(2, 2)
+            x1, y1 = source_points[0]
+            x2, y2 = source_points[1]
+            a = float(y1 - y2)
+            b = float(x2 - x1)
+            c = float(x1 * y2 - x2 * y1)
+            magnitude = float(np.hypot(a, b))
+            vertical_lines.append(
+                _DetectedLine(
+                    coefficients=(
+                        a / magnitude,
+                        b / magnitude,
+                        c / magnitude,
+                    ),
+                    angle=90.0,
+                    strength=1000.0,
+                    position=position,
+                )
+            )
+
+        repaired = _repair_premature_right_boundary(
+            candidate,
+            vertical_lines,
+            PSAFormRegistrationConfig(),
+            WIDTH,
+            HEIGHT,
+        )
+
+        self.assertTrue(repaired.target_bottom_extended)
+        self.assertEqual(repaired.continuation_line_count, 2)
+        self.assertTrue(repaired.target_right_extended)
+        self.assertEqual(repaired.right_continuation_line_count, 5)
+        self.assertAlmostEqual(
+            repaired.target_last_name_divider_position,
+            0.796744,
+            places=5,
+        )
+        self.assertAlmostEqual(
+            repaired.selected_right_continuation_position,
+            1.255108,
+            places=6,
+        )
+        self.assertEqual(
+            repaired.remaining_right_continuation_count,
+            0,
+        )
+        normalized = repaired.corners / np.asarray(
+            [WIDTH - 1, HEIGHT - 1],
+            dtype=np.float64,
+        )
+        self.assertGreater(float(normalized[:, 0].max()), 0.70)
+
+    def test_right_repair_rejects_premature_intermediate_continuation(self):
+        factor = 1.255108
+        extended_corners = extend_grid_right(DEFAULT_CORNERS, factor)
+        selected_frame_positions = (
+            0.0,
+            0.32,
+            0.55,
+            0.843,
+            1.0,
+            1.115241,
+            1.187902,
+            1.223274,
+            1.235353,
+            factor,
+        )
+        vertical = tuple(
+            position / factor
+            for position in selected_frame_positions
+        )
+
+        result = register_psa_birth_form(
+            synthetic_grid(extended_corners, vertical=vertical)
+        )
+
+        self.assertTrue(result.success, result.issues)
+        self.assertIn(
+            "FORM_TARGET_RIGHT_EXTENDED",
+            issue_codes(result),
+        )
+        self.assertTrue(result.metrics["target_right_extended"])
+        self.assertEqual(
+            result.metrics["remaining_right_continuation_count"],
+            0,
+        )
+        self.assertGreater(
+            result.metrics["selected_right_continuation_position"],
+            1.20,
+        )
+        self.assertLessEqual(
+            result.metrics["maximum_canonical_edge_deviation"],
+            0.020,
+        )
+
+    def test_single_right_continuation_line_fails_instead_of_clipping(self):
+        factor = 1.115241
+        extended_corners = extend_grid_right(DEFAULT_CORNERS, factor)
+        selected_frame_positions = (
+            0.0,
+            0.32,
+            0.55,
+            0.843,
+            1.0,
+            factor,
+        )
+        vertical = tuple(
+            position / factor
+            for position in selected_frame_positions
+        )
+
+        result = register_psa_birth_form(
+            synthetic_grid(extended_corners, vertical=vertical)
+        )
+
+        self.assertFalse(result.success)
+        self.assertIn("TARGET_COLUMNS_OUTSIDE_FRAME", issue_codes(result))
+        self.assertEqual(result.metrics["right_continuation_line_count"], 1)
+        self.assertFalse(result.metrics["target_right_extended"])
+
+    def test_normal_grid_does_not_require_right_extension(self):
+        result = register_psa_birth_form(synthetic_grid())
+
+        self.assertTrue(result.success, result.issues)
+        self.assertFalse(result.metrics["target_right_extended"])
+        self.assertEqual(result.metrics["right_continuation_line_count"], 0)
+        self.assertNotIn("FORM_TARGET_RIGHT_EXTENDED", issue_codes(result))
 
     def test_canonical_edge_thresholds_cover_success_review_and_failure(self):
         config = PSAFormRegistrationConfig()

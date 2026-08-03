@@ -1,5 +1,6 @@
 const path = require('path');
 const https = require('https');
+const crypto = require('node:crypto');
 const supabase = require('../config/supabase');
 const pool = require('../config/db');
 const _ = require('lodash');
@@ -22,6 +23,16 @@ const BIRTH_STRUCTURED_FIELD_KEYS = Object.freeze([
     'mother_maiden_name',
     'father_name',
 ]);
+
+function calculateFileSha256(fileBuffer) {
+    if (!Buffer.isBuffer(fileBuffer)) {
+        const error = new TypeError('A file Buffer is required to calculate SHA-256.');
+        error.code = 'INVALID_FILE_BUFFER';
+        throw error;
+    }
+
+    return crypto.createHash('sha256').update(fileBuffer).digest('hex');
+}
 
 const APPROVED_SCHOLAR_NOTIFICATION = Object.freeze({
     type: 'Application',
@@ -1189,12 +1200,18 @@ async function buildApplicationDetails(applicationId) {
                 ocr_structured_fields,
                 ocr_review_required,
                 ocr_processing_metadata,
+                application_document_version_id,
+                source_content_sha256,
+                is_current,
                 scanned_at,
-                updated_at
+                updated_at,
+                created_at
             `)
             .eq('linked_record_id', applicationId)
             .eq('student_id', applicationRecord.student_id)
-            .eq('linked_record_type', 'application'),
+            .eq('linked_record_type', 'application')
+            .eq('is_current', true)
+            .order('created_at', { ascending: false }),
         supabase
             .from('iot_ocr_requests')
             .select(`
@@ -1204,6 +1221,8 @@ async function buildApplicationDetails(applicationId) {
                 student_name,
                 document_key,
                 document_type,
+                application_document_version_id,
+                source_content_sha256,
                 status,
                 requested_by,
                 claimed_by,
@@ -1273,23 +1292,44 @@ async function buildApplicationDetails(applicationId) {
     const reviewByKey = new Map(
         (reviewsResult.data || []).map((review) => [review.document_key, review])
     );
-    const ocrByKey = new Map(
-        (ocrResult.data || []).map((ocrRow) => {
-            const resolvedKey = normalizeDocumentType(
-                ocrRow.document_key || ocrRow.document_type || ''
-            );
-
-            return [resolvedKey, buildOcrProjection(ocrRow)];
-        })
+    const currentVersionByKey = new Map(
+        (documentsResult.data || []).map((document) => [
+            getDocumentKey(document),
+            document.current_version_id || null,
+        ])
     );
+    const ocrByKey = new Map();
+    (ocrResult.data || []).forEach((ocrRow) => {
+        const resolvedKey = normalizeDocumentType(
+            ocrRow.document_key || ocrRow.document_type || ''
+        );
+        const currentVersionId = currentVersionByKey.get(resolvedKey) || null;
+
+        if (
+            !resolvedKey ||
+            !currentVersionId ||
+            ocrRow.application_document_version_id !== currentVersionId ||
+            ocrByKey.has(resolvedKey)
+        ) {
+            return;
+        }
+
+        ocrByKey.set(resolvedKey, buildOcrProjection(ocrRow));
+    });
     const latestIotOcrRequestByKey = new Map();
 
     (iotOcrRequestsResult.data || []).forEach((requestRow) => {
         const resolvedKey = normalizeDocumentType(
             requestRow.document_key || requestRow.document_type || ''
         );
+        const currentVersionId = currentVersionByKey.get(resolvedKey) || null;
 
-        if (!resolvedKey || latestIotOcrRequestByKey.has(resolvedKey)) {
+        if (
+            !resolvedKey ||
+            !currentVersionId ||
+            requestRow.application_document_version_id !== currentVersionId ||
+            latestIotOcrRequestByKey.has(resolvedKey)
+        ) {
             return;
         }
 
@@ -1772,7 +1812,18 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
         .replace(/\s+/g, ' ')
         .trim();
 
-    const { data: ocrRows, error: ocrError } = await supabase
+    const { data: currentDocument, error: currentDocumentError } = await supabase
+        .from('application_documents')
+        .select('current_version_id')
+        .eq('application_id', applicationId)
+        .eq('document_type', documentTypeName)
+        .maybeSingle();
+
+    if (currentDocumentError) {
+        throw new Error(currentDocumentError.message);
+    }
+
+    let snapshotQuery = supabase
         .from('ocr_extracted_documents')
         .select(`
             document_id,
@@ -1786,13 +1837,33 @@ exports.fetchApplicationDocumentOcrSnapshot = async ({
             scanned_via_iot,
             iot_device_id,
             scanned_at,
-            updated_at
+            updated_at,
+            created_at,
+            processing_status,
+            is_current,
+            iot_ocr_request_id,
+            application_document_version_id,
+            source_content_sha256
         `)
         .eq('linked_record_id', applicationId)
         .eq('student_id', applicationRow.student_id)
         .eq('linked_record_type', 'application')
         .eq('document_key', normalizedDocumentKey)
+        .eq('document_type', documentTypeName)
+        .eq('is_current', true)
+        .order('created_at', { ascending: false })
         .limit(1);
+
+    if (currentDocument?.current_version_id) {
+        snapshotQuery = snapshotQuery.eq(
+            'application_document_version_id',
+            currentDocument.current_version_id
+        );
+    } else {
+        snapshotQuery = snapshotQuery.is('application_document_version_id', null);
+    }
+
+    const { data: ocrRows, error: ocrError } = await snapshotQuery;
 
     if (ocrError) {
         console.error('SUPABASE OCR SNAPSHOT FETCH DOCUMENT ERROR:', ocrError);
@@ -1833,6 +1904,11 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     scannedViaIot = null,
     iotDeviceId = null,
     scannedAt = null,
+    requestId = null,
+    documentVersionId = null,
+    sourceContentSha256 = null,
+    processingStatus = 'completed',
+    dbClient = null,
 }) => {
     if (!applicationId) {
         throw new Error('applicationId is required');
@@ -1911,7 +1987,7 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
             : Number(extractedGwaCandidate);
     const { data: sourceDocumentRow, error: sourceDocumentError } = await supabase
         .from('application_documents')
-        .select('file_path, file_url')
+        .select('document_id, current_version_id, file_path, file_url')
         .eq('application_id', applicationId)
         .eq('document_type', documentTypeName)
         .maybeSingle();
@@ -1924,6 +2000,28 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
     const sourceFileUrl = sourceDocumentRow?.file_path
         ? await getSignedFileUrl(sourceDocumentRow.file_path)
         : sourceDocumentRow?.file_url || null;
+    const resolvedVersionId = documentVersionId || sourceDocumentRow?.current_version_id || null;
+    if (!resolvedVersionId) {
+        throw new Error('The document has no current immutable upload version');
+    }
+
+    const { data: sourceVersionRow, error: sourceVersionError } = await supabase
+        .from('application_document_versions')
+        .select('version_id, content_sha256, legacy_unhashed')
+        .eq('version_id', resolvedVersionId)
+        .maybeSingle();
+
+    if (sourceVersionError) {
+        throw new Error(sourceVersionError.message);
+    }
+    if (!sourceVersionRow) {
+        throw new Error('The source document version was not found');
+    }
+
+    const resolvedSourceSha256 = sourceContentSha256 ?? sourceVersionRow.content_sha256 ?? null;
+    if (sourceContentSha256 && sourceVersionRow.content_sha256 !== sourceContentSha256) {
+        throw new Error('OCR source document provenance mismatch');
+    }
 
     const { data: existingOcrRows, error: existingOcrError } = await supabase
         .from('ocr_extracted_documents')
@@ -1944,6 +2042,10 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         .eq('student_id', applicationRow.student_id)
         .eq('linked_record_type', 'application')
         .eq('document_key', normalizedDocumentKey)
+        .eq('document_type', documentTypeName)
+        .eq('application_document_version_id', resolvedVersionId)
+        .eq('is_current', true)
+        .order('created_at', { ascending: false })
         .limit(1);
 
     if (existingOcrError) {
@@ -1994,34 +2096,70 @@ exports.saveApplicationDocumentOcrSnapshot = async ({
         updated_at: now,
     };
 
+    const rpcParams = {
+        p_student_id: payload.student_id,
+        p_application_id: applicationId,
+        p_document_key: normalizedDocumentKey,
+        p_document_type: documentTypeName,
+        p_iot_ocr_request_id: requestId,
+        p_application_document_version_id: resolvedVersionId,
+        p_source_content_sha256: resolvedSourceSha256,
+        p_file_url: payload.file_url,
+        p_scanned_via_iot: payload.scanned_via_iot,
+        p_iot_device_id: payload.iot_device_id,
+        p_ocr_extracted_name: payload.ocr_extracted_name,
+        p_ocr_extracted_gwa: payload.ocr_extracted_gwa,
+        p_ocr_confidence: payload.ocr_confidence,
+        p_ocr_raw_text: payload.ocr_raw_text,
+        p_ocr_structured_fields: payload.ocr_structured_fields,
+        p_ocr_review_required: payload.ocr_review_required,
+        p_ocr_processing_metadata: payload.ocr_processing_metadata,
+        p_processing_status: processingStatus,
+        p_scanned_at: payload.scanned_at,
+        p_make_current: true,
+    };
+
     let result;
-
-    if (existingRow?.document_id) {
-        const { data, error } = await supabase
-            .from('ocr_extracted_documents')
-            .update(payload)
-            .eq('document_id', existingRow.document_id)
-            .select()
-            .single();
-
-        if (error) {
-            console.error('SUPABASE OCR SNAPSHOT UPDATE ERROR:', error);
-            throw new Error(error.message);
-        }
-
-        result = data;
+    if (dbClient) {
+        const values = [
+            rpcParams.p_student_id,
+            rpcParams.p_application_id,
+            rpcParams.p_document_key,
+            rpcParams.p_document_type,
+            rpcParams.p_iot_ocr_request_id,
+            rpcParams.p_application_document_version_id,
+            rpcParams.p_source_content_sha256,
+            rpcParams.p_file_url,
+            rpcParams.p_scanned_via_iot,
+            rpcParams.p_iot_device_id,
+            rpcParams.p_ocr_extracted_name,
+            rpcParams.p_ocr_extracted_gwa,
+            rpcParams.p_ocr_confidence,
+            rpcParams.p_ocr_raw_text,
+            rpcParams.p_ocr_structured_fields,
+            rpcParams.p_ocr_review_required,
+            rpcParams.p_ocr_processing_metadata,
+            rpcParams.p_processing_status,
+            rpcParams.p_scanned_at,
+            rpcParams.p_make_current,
+        ];
+        const queryResult = await dbClient.query(
+            `SELECT (public.insert_immutable_ocr_snapshot(
+                $1::uuid, $2::uuid, $3::text, $4::text, $5::uuid,
+                $6::uuid, $7::text, $8::text, $9::boolean, $10::uuid,
+                $11::text, $12::numeric, $13::numeric, $14::text,
+                $15::jsonb, $16::boolean, $17::jsonb, $18::text,
+                $19::timestamptz, $20::boolean
+            )).*`,
+            values
+        );
+        result = queryResult.rows[0];
     } else {
-        const { data, error } = await supabase
-            .from('ocr_extracted_documents')
-            .insert(payload)
-            .select()
-            .single();
-
+        const { data, error } = await supabase.rpc('insert_immutable_ocr_snapshot', rpcParams);
         if (error) {
-            console.error('SUPABASE OCR SNAPSHOT INSERT ERROR:', error);
+            console.error('SUPABASE IMMUTABLE OCR SNAPSHOT INSERT ERROR:', error);
             throw new Error(error.message);
         }
-
         result = data;
     }
 
@@ -2105,15 +2243,16 @@ exports.uploadStudentApplicationDocument = async ({
     }
 
     const now = new Date().toISOString();
-    const storageFileName = `${Date.now()}_${normalizedDocumentType}${fileExt}`;
+    const storageFileName = `${crypto.randomUUID()}_${normalizedDocumentType}${fileExt}`;
     const storagePath = `applications/${applicationId}/${normalizedDocumentType}/${storageFileName}`;
     const resolvedContentType = resolveStorageContentType(fileExt, file.mimetype);
+    const contentSha256 = calculateFileSha256(file.buffer);
 
     const { error: uploadError } = await supabase.storage
         .from(STORAGE_BUCKET)
         .upload(storagePath, file.buffer, {
             contentType: resolvedContentType,
-            upsert: true,
+            upsert: false,
         });
 
     if (uploadError) {
@@ -2123,26 +2262,24 @@ exports.uploadStudentApplicationDocument = async ({
 
     const signedUrl = await getSignedFileUrl(storagePath);
 
-    const documentRow = {
-        application_id: applicationId,
-        document_type: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
-        file_name: file.originalname,
-        file_path: storagePath,
-        file_url: signedUrl,
-        is_submitted: true,
-        submitted_at: now,
-        notes: null,
-        uploaded_by: studentRecord.student_id,
-        updated_at: now,
-    };
-
-    const { error: documentUpsertError } = await supabase
-        .from('application_documents')
-        .upsert(documentRow, {
-            onConflict: 'application_id,document_type',
-        });
+    const { data: versionRow, error: documentUpsertError } = await supabase.rpc(
+        'register_application_document_version',
+        {
+            p_document_id: null,
+            p_application_id: applicationId,
+            p_document_type: DOCUMENT_TYPE_TO_NAME[normalizedDocumentType],
+            p_uploaded_by: studentRecord.student_id,
+            p_file_path: storagePath,
+            p_file_url: signedUrl,
+            p_file_name: file.originalname,
+            p_content_sha256: contentSha256,
+            p_file_size_bytes: file.buffer.length,
+            p_created_by: uploaderId,
+        }
+    );
 
     if (documentUpsertError) {
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
         console.error(
             'SUPABASE APPLICATION DOCUMENT UPSERT ERROR:',
             documentUpsertError
@@ -2195,6 +2332,8 @@ exports.uploadStudentApplicationDocument = async ({
         file_name: file.originalname,
         file_path: storagePath,
         file_url: signedUrl,
+        document_version_id: versionRow?.version_id || null,
+        document_version_number: versionRow?.version_number || null,
         document_status: nextDocumentStatus,
     };
 };
@@ -2698,6 +2837,7 @@ exports.approveApplicationWithSlotCheck = async (applicationId, actor = {}) => {
 };
 
 module.exports = {
+    calculateFileSha256,
     fetchApplications: exports.fetchApplications,
     fetchApplicationDetailsById: exports.fetchApplicationDetailsById,
     fetchApplicationDocumentsById: exports.fetchApplicationDocumentsById,

@@ -40,7 +40,7 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
         setStatus('allowed');
         return;
       }
-      const session = await authService.getCookieSession();
+      const session = await authService.getCookieSession(token);
       const sessionRole = String(session?.user?.role || '').toLowerCase();
       const expectedRoles = portalName === 'admin'
         ? ['admin', 'osfa_admin', 'osfa administrator']
@@ -56,7 +56,7 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
         return;
       }
 
-      clearPortalSession('admin');
+      clearPortalSession(portalName);
       setStatus('denied');
     }
   }, [portalName, storageKey]);

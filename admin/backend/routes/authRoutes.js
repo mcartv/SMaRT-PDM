@@ -30,9 +30,6 @@ router.post('/guidance/login', loginLimiter, authController.guidanceLogin);
 router.post('/sdo/login', loginLimiter, authController.sdoLogin);
 router.post('/ro-coordinator/login', loginLimiter, authController.roCoordinatorLogin);
 
-router.get('/session', protect, authController.getCookieSession);
-router.post('/logout', authController.logoutCookieSession);
-
 router.post('/session/resume', authController.resumeAdminSession);
 
 router.get(

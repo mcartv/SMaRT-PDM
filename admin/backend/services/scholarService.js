@@ -181,7 +181,6 @@ exports.fetchAllScholars = async () => {
   } catch (err) {
     const errorText = String(err?.message || '').toLowerCase();
     const isCurrentSchemaMismatch =
-      ['42P01', '42703'].includes(String(err?.code || '').toUpperCase()) ||
       errorText.includes('current_scholars') ||
       errorText.includes('cs.application_id') ||
       errorText.includes('cs.program_id') ||

@@ -7,12 +7,11 @@ const {
     updateScholarshipProgram,
 } = require('../controllers/scholarshipProgramController');
 
-const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 
 // IMPORTANT: path must match frontend EXACTLY
-router.use(protect, authorizeRoles('admin'));
-router.get('/', getScholarshipPrograms);
-router.post('/', createScholarshipProgram);
-router.patch('/:id', updateScholarshipProgram);
+router.get('/', protect, getScholarshipPrograms);
+router.post('/', protect, createScholarshipProgram);
+router.patch('/:id', protect, updateScholarshipProgram);
 
 module.exports = router;

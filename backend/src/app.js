@@ -39,21 +39,11 @@ const otpLimiter = rateLimit({
 function createApp() {
     const app = express();
 
-    const configuredOrigins = String(process.env.FRONTEND_ORIGINS || '')
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean);
-    const developmentOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
-    const allowedOrigins = new Set([...configuredOrigins, ...developmentOrigins]);
-
     app.set('trust proxy', 1);
 
     app.use(
         cors({
-            origin(origin, callback) {
-                if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-                return callback(new Error('Origin is not allowed by CORS.'));
-            },
+            origin: true,
             credentials: true,
         })
     );

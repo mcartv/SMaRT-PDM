@@ -61,13 +61,6 @@ function normalizeStatus(value = '') {
   return String(value).trim().toLowerCase();
 }
 
-function normalizeSdo(value = '') {
-  const normalized = normalizeStatus(value).replace(/[_-]+/g, ' ');
-  if (normalized.includes('major')) return 'major';
-  if (normalized.includes('minor')) return 'minor';
-  return normalized;
-}
-
 function formatDate(value) {
   if (!value) return 'No date';
   const d = new Date(value);
@@ -167,7 +160,7 @@ function getOpeningGroup(status = '') {
   return 'open';
 }
 
-function _getApplicationStatusMeta(row) {
+function getApplicationStatusMeta(row) {
   const group = getStatusGroup(row?.application_status || row?.status || '');
 
   if (group === 'qualified') {
@@ -189,7 +182,7 @@ function _getApplicationStatusMeta(row) {
   };
 }
 
-function _getDocumentStatusMeta(row) {
+function getDocumentStatusMeta(row) {
   const group = getDocumentGroup(row?.document_status || '');
 
   if (group === 'ready') {
@@ -302,7 +295,7 @@ function normalizeApplicantRow(app) {
   };
 }
 
-function _isApplicantAtRisk(app) {
+function isApplicantAtRisk(app) {
   const gwa = Number(app?.gwa);
   const rawStatus = (app?.application_status || '').toLowerCase();
   const docStatus = (app?.document_status || '').toLowerCase();
@@ -1226,7 +1219,7 @@ export default function ApplicationReview() {
 
   const filteredOpeningCards = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const _normalizedQ = q.replace(/[^a-z0-9]/g, '');
+    const normalizedQ = q.replace(/[^a-z0-9]/g, '');
 
     return openingCards.filter((opening) => {
       const openingGroup = getOpeningGroup(opening.posting_status);

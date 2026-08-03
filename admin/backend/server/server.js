@@ -365,19 +365,12 @@ function extractTokenFromSocket(socket) {
   const auth = socket.handshake?.auth || {};
   const query = socket.handshake?.query || {};
   const headers = socket.handshake?.headers || {};
-  const socketCookieName = process.env.AUTH_COOKIE_NAME || 'smartpdm_session';
-  const cookieToken = String(headers.cookie || '')
-    .split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${socketCookieName}=`))
-    ?.slice(socketCookieName.length + 1);
 
   return (
     auth.token ||
     query.token ||
     headers.authorization ||
     headers.Authorization ||
-    (cookieToken ? decodeURIComponent(cookieToken) : '') ||
     ''
   );
 }

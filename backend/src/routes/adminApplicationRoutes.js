@@ -1,21 +1,21 @@
 const express = require('express');
-const { protect, requireAdmin } = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 const adminApplicationController = require('../controllers/adminApplicationController');
 
 const router = express.Router();
 
-router.use(protect, requireAdmin);
-
-router.get('/', adminApplicationController.getApplications);
-router.get('/:applicationId', adminApplicationController.getApplicationById);
+router.get('/', protect, adminApplicationController.getApplications);
+router.get('/:applicationId', protect, adminApplicationController.getApplicationById);
 
 router.patch(
     '/:applicationId/approve',
+    protect,
     adminApplicationController.approveApplication
 );
 
 router.patch(
     '/:applicationId/reject',
+    protect,
     adminApplicationController.rejectApplication
 );
 

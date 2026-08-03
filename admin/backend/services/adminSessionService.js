@@ -93,15 +93,11 @@ function safeEqualHex(left, right) {
 function getBearerToken(req) {
     const header = String(req.headers?.authorization || '').trim();
 
-    if (header.toLowerCase().startsWith('bearer ')) {
-        return header.slice(7).trim();
+    if (!header.toLowerCase().startsWith('bearer ')) {
+        return '';
     }
-    const cookieName = process.env.AUTH_COOKIE_NAME || 'smartpdm_session';
-    const cookiePart = String(req.headers?.cookie || '')
-        .split(';')
-        .map((part) => part.trim())
-        .find((part) => part.startsWith(`${cookieName}=`));
-    return cookiePart ? decodeURIComponent(cookiePart.slice(cookieName.length + 1)) : '';
+
+    return header.slice(7).trim();
 }
 
 function getRequestIp(req) {

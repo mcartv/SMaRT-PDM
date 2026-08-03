@@ -1,32 +1,16 @@
 const jwt = require('jsonwebtoken');
 const adminSessionService = require('../services/adminSessionService');
-const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'smartpdm_session';
-
-function getCookieToken(req) {
-    const cookieHeader = String(req.headers.cookie || '');
-    for (const part of cookieHeader.split(';')) {
-        const separator = part.indexOf('=');
-        if (separator < 1) continue;
-        const name = decodeURIComponent(part.slice(0, separator).trim());
-        if (name === AUTH_COOKIE_NAME) {
-            return decodeURIComponent(part.slice(separator + 1).trim());
-        }
-    }
-    return null;
-}
 
 const protect = async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    const bearerToken = authHeader?.startsWith('Bearer ')
-        ? authHeader.slice(7).trim()
-        : null;
-    const token = bearerToken || getCookieToken(req);
 
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({
             message: 'No token, authorization denied',
         });
     }
+
+    const token = authHeader.split(' ')[1];
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -87,4 +71,4 @@ const authorizeRoles = (...roles) => (req, res, next) => {
     next();
 };
 
-module.exports = { protect, authorizeRoles, AUTH_COOKIE_NAME };
+module.exports = { protect, authorizeRoles };

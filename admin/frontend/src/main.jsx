@@ -7,9 +7,7 @@ import './index.css';
 import NetworkGate from './components/system/NetworkGate.jsx';
 import { installAdminSessionLifecycle } from './services/authService.js';
 import { hydrateRememberedSessions } from './utils/authStorage.js';
-import { installApiCredentials } from './config/api.js';
 
-installApiCredentials();
 hydrateRememberedSessions();
 installAdminSessionLifecycle();
 

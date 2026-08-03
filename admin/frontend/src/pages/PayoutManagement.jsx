@@ -679,14 +679,11 @@ export default function PayoutManagement() {
 
       const payload = {
         opening_id: form.opening_id,
-        program_id: selectedOpeningDetails?.program_id || '',
         semester: form.semester,
         academic_year_id: form.academic_year_id,
-        period_id: selectedOpeningDetails?.period_id || '',
         payout_title: form.payout_title,
         payout_date: form.payout_date,
         payment_mode: form.payment_mode,
-        amount_per_scholar: Number(form.amount_per_scholar || 0),
         remarks: form.remarks,
         scholar_ids: form.scholar_ids,
       };

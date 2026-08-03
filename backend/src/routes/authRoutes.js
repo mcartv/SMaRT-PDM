@@ -14,12 +14,6 @@ router.post('/check-student-id', authController.checkStudentId);
 router.post('/register', authController.register);
 router.post('/verify-otp', authController.verifyOtp);
 router.post('/login', authController.login);
-router.post('/pd/login', authController.loginForRole('pd'));
-router.post('/guidance/login', authController.loginForRole('guidance'));
-router.post('/sdo/login', authController.loginForRole('sdo'));
-router.post('/ro-coordinator/login', authController.loginForRole('ro_coordinator'));
-router.get('/session', protect, authController.session);
-router.post('/logout', authController.logout);
 router.post(
     '/upload-avatar',
     protect,

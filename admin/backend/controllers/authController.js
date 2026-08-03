@@ -7,19 +7,6 @@ const { sendAdminResetOtp } = require('../utils/mailer');
 const { resolveAvatarUrl } = require('../services/avatarService');
 const auditLogService = require('../services/auditLogService');
 const socketEvents = require('../utils/socketEvents');
-const { AUTH_COOKIE_NAME } = require('../middleware/authMiddleware');
-
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
-function authCookieOptions({ persistent = false } = {}) {
-    return {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        ...(persistent ? { maxAge: THIRTY_DAYS_MS } : {}),
-    };
-}
 const adminSessionService = require('../services/adminSessionService');
 
 const ALLOWED_ADMIN_EMAIL = String(
@@ -279,12 +266,6 @@ async function loginWithRole(req, res, role) {
             });
         }
 
-        res.cookie(
-            AUTH_COOKIE_NAME,
-            token,
-            authCookieOptions({ persistent: tokenRole === 'admin' && stayLoggedIn === true })
-        );
-
         return res.status(200).json({
             token,
             session: managedSession,
@@ -334,15 +315,6 @@ exports.pdLogin = async (req, res) => loginWithRole(req, res, 'pd');
 exports.guidanceLogin = async (req, res) => loginWithRole(req, res, 'guidance');
 exports.sdoLogin = async (req, res) => loginWithRole(req, res, 'sdo');
 exports.roCoordinatorLogin = async (req, res) => loginWithRole(req, res, 'ro_coordinator');
-
-exports.getCookieSession = async (req, res) => {
-    return res.status(200).json({ authenticated: true, user: req.user });
-};
-
-exports.logoutCookieSession = async (_req, res) => {
-    res.clearCookie(AUTH_COOKIE_NAME, authCookieOptions());
-    return res.status(200).json({ message: 'Signed out successfully.' });
-};
 
 exports.resumeAdminSession = async (req, res) => {
     try {

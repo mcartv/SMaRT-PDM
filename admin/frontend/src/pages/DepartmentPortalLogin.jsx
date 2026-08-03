@@ -36,7 +36,6 @@ export default function DepartmentPortalLogin({
     try {
       const response = await fetch(buildApiUrl(authPath), {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),

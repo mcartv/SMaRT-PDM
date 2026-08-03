@@ -1,5 +1,4 @@
 const DEVICE_ID_KEY = 'smartpdmAdminDeviceId';
-const REMEMBERED_PORTAL_KEY = 'smartpdmRememberedPortal';
 
 export const PORTAL_CONFIG = {
     admin: {
@@ -67,8 +66,13 @@ export function getStoredItem(key) {
 }
 
 export function hydrateRememberedSessions() {
-    // Authentication is restored by the server's HttpOnly cookie. Never copy
-    // bearer tokens from persistent browser storage.
+    AUTH_STORAGE_KEYS.forEach((key) => {
+        const rememberedValue = localStorage.getItem(key);
+
+        if (rememberedValue && !sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, rememberedValue);
+        }
+    });
 }
 
 export function clearAuthStorage() {
@@ -76,7 +80,6 @@ export function clearAuthStorage() {
         sessionStorage.removeItem(key);
         localStorage.removeItem(key);
     });
-    localStorage.removeItem(REMEMBERED_PORTAL_KEY);
 }
 
 export function clearPortalSession(portalName) {
@@ -87,9 +90,6 @@ export function clearPortalSession(portalName) {
         sessionStorage.removeItem(key);
         localStorage.removeItem(key);
     });
-    if (localStorage.getItem(REMEMBERED_PORTAL_KEY) === portalName) {
-        localStorage.removeItem(REMEMBERED_PORTAL_KEY);
-    }
 }
 
 export function savePortalSession({ portalName, token, user, stayLoggedIn }) {
@@ -106,8 +106,10 @@ export function savePortalSession({ portalName, token, user, stayLoggedIn }) {
     sessionStorage.setItem(portal.tokenKey, token);
     sessionStorage.setItem(portal.profileKey, profileJson);
 
-    if (stayLoggedIn) localStorage.setItem(REMEMBERED_PORTAL_KEY, portalName);
-    else localStorage.removeItem(REMEMBERED_PORTAL_KEY);
+    if (stayLoggedIn) {
+        localStorage.setItem(portal.tokenKey, token);
+        localStorage.setItem(portal.profileKey, profileJson);
+    }
 }
 
 export function getPortalNameFromRole(role) {
@@ -148,18 +150,7 @@ export function getStoredPortalSession(portalName = null) {
             ...portal,
             token,
             profile,
-            remembered: localStorage.getItem(REMEMBERED_PORTAL_KEY) === name,
-        };
-    }
-
-    const rememberedPortal = localStorage.getItem(REMEMBERED_PORTAL_KEY);
-    if (!portalName && PORTAL_CONFIG[rememberedPortal]) {
-        return {
-            portalName: rememberedPortal,
-            ...PORTAL_CONFIG[rememberedPortal],
-            token: '',
-            profile: null,
-            remembered: true,
+            remembered: Boolean(localStorage.getItem(portal.tokenKey)),
         };
     }
 

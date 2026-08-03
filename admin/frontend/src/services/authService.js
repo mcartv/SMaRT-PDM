@@ -89,10 +89,9 @@ export const authService = {
     });
   },
 
-  getCookieSession: async (token = '') => {
+  getCookieSession: async () => {
     return requestJson('/api/auth/session', {
       method: 'GET',
-      token,
       fallbackMessage: 'Unable to restore your session',
     });
   },

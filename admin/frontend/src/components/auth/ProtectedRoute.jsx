@@ -18,21 +18,34 @@ export default function ProtectedRoute({ children, storageKey, redirectTo }) {
     const token = getStoredItem(storageKey);
 
     if (!token) {
-      setStatus('denied');
-      return;
-    }
-
-    // Only the true Admin account uses the managed one-device session.
-    if (portalName !== 'admin') {
-      setStatus('allowed');
+      try {
+        const session = await authService.getCookieSession();
+        const sessionRole = String(session?.user?.role || '').toLowerCase();
+        const expectedRole = portalName === 'admin' ? ['admin', 'osfa_admin'] : [portalName];
+        if (!expectedRole.includes(sessionRole)) throw new Error('Role mismatch');
+        setStatus('allowed');
+      } catch {
+        clearPortalSession(portalName);
+        setStatus('denied');
+      }
       return;
     }
 
     setStatus('checking');
-    setMessage('Restoring your Admin session...');
+    setMessage('Restoring your secure session...');
 
     try {
-      await authService.resumeAdminSession(token);
+      if (portalName === 'admin') {
+        await authService.resumeAdminSession(token);
+        setStatus('allowed');
+        return;
+      }
+      const session = await authService.getCookieSession();
+      const sessionRole = String(session?.user?.role || '').toLowerCase();
+      const expectedRoles = portalName === 'admin'
+        ? ['admin', 'osfa_admin', 'osfa administrator']
+        : [portalName];
+      if (!expectedRoles.includes(sessionRole)) throw new Error('Role mismatch');
       setStatus('allowed');
     } catch (error) {
       if (

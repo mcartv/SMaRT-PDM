@@ -236,7 +236,7 @@ export const disconnectSocket = () => {
  * @param {function} callback - Function called when event fires.
  * @param {array} deps - Dependency array.
  */
-export const useSocketEvent = (event, callback, deps = []) => {
+export const useSocketEvent = (event, callback) => {
   const socketRef = useRef(null);
   const callbackRef = useRef(callback);
 
@@ -265,9 +265,7 @@ export const useSocketEvent = (event, callback, deps = []) => {
         socketRef.current.off(event, handler);
       }
     };
-  }, [event, ...deps]);
-
-  return socketRef.current;
+  }, [event]);
 };
 
 /**
@@ -329,7 +327,5 @@ export const useSocketListener = (events = {}) => {
         }
       });
     };
-  }, [events]);
-
-  return socketRef.current;
+  }, []);
 };

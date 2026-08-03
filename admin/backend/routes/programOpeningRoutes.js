@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 
 const programOpeningController = require('../controllers/programOpeningController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const adminOnly = [protect, authorizeRoles('admin')];
 
 router.get(
     '/admin/applications-summary',
-    protect,
+    adminOnly,
     programOpeningController.getOpeningsApplicationSummary
 );
 
@@ -17,37 +18,37 @@ router.get(
 
 router.get(
     '/',
-    protect,
+    adminOnly,
     programOpeningController.getAllProgramOpenings
 );
 
 router.get(
     '/:openingId',
-    protect,
+    adminOnly,
     programOpeningController.getProgramOpeningById
 );
 
 router.get(
     '/:openingId/applications',
-    protect,
+    adminOnly,
     programOpeningController.getApplicationsByOpeningId
 );
 
 router.post(
     '/',
-    protect,
+    adminOnly,
     programOpeningController.createProgramOpening
 );
 
 router.patch(
     '/:openingId',
-    protect,
+    adminOnly,
     programOpeningController.updateProgramOpening
 );
 
 router.patch(
     '/:openingId/close',
-    protect,
+    adminOnly,
     programOpeningController.closeProgramOpening
 );
 

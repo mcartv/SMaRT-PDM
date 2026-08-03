@@ -434,17 +434,20 @@ async function login(body = {}) {
         body.student_id || body.studentId || body.username || body.pdm_id || '';
 
     const studentId = normalizeStudentNumber(rawStudentId);
+    const email = safeText(body.email).toLowerCase();
     const password = String(body.password || '');
 
-    if (!studentId || !password) {
-        throw createHttpError(400, 'Student ID and password are required');
+    if ((!studentId && !email) || !password) {
+        throw createHttpError(400, 'Email or Student ID and password are required');
     }
 
-    const { data: user, error } = await supabase
+    let userLookup = supabase
         .from('users')
-        .select('*')
-        .eq('username', studentId)
-        .maybeSingle();
+        .select('*');
+    userLookup = email
+        ? userLookup.eq('email', email)
+        : userLookup.eq('username', studentId);
+    const { data: user, error } = await userLookup.maybeSingle();
 
     if (error) {
         console.error('LOGIN USER LOOKUP ERROR:', error);
@@ -452,20 +455,20 @@ async function login(body = {}) {
     }
 
     if (!user) {
-        console.error('LOGIN FAILED: USERNAME NOT FOUND:', studentId);
-        throw createHttpError(401, 'Invalid Student ID or password');
+        console.error('LOGIN FAILED: ACCOUNT NOT FOUND');
+        throw createHttpError(401, 'Invalid credentials');
     }
 
     if (!user.password_hash) {
         console.error('LOGIN FAILED: USER HAS NO PASSWORD HASH:', studentId);
-        throw createHttpError(401, 'Invalid Student ID or password');
+        throw createHttpError(401, 'Invalid credentials');
     }
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!isMatch) {
-        console.error('LOGIN FAILED: PASSWORD MISMATCH FOR:', studentId);
-        throw createHttpError(401, 'Invalid Student ID or password');
+        console.error('LOGIN FAILED: PASSWORD MISMATCH');
+        throw createHttpError(401, 'Invalid credentials');
     }
 
     if (!user.is_otp_verified) {

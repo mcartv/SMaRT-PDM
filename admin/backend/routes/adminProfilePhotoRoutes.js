@@ -1,21 +1,21 @@
 const express = require('express');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 const adminProfilePhotoController = require('../controllers/adminProfilePhotoController');
 
 const router = express.Router();
 
-router.get('/', protect, adminProfilePhotoController.getProfilePhotoReviews);
-router.get('/:reviewId', protect, adminProfilePhotoController.getProfilePhotoReviewById);
+router.use(protect, authorizeRoles('admin'));
+
+router.get('/', adminProfilePhotoController.getProfilePhotoReviews);
+router.get('/:reviewId', adminProfilePhotoController.getProfilePhotoReviewById);
 
 router.patch(
   '/:reviewId/approve',
-  protect,
   adminProfilePhotoController.approveProfilePhotoReview
 );
 
 router.patch(
   '/:reviewId/reject',
-  protect,
   adminProfilePhotoController.rejectProfilePhotoReview
 );
 

@@ -1,6 +1,19 @@
 const authService = require('../services/authService');
 const passwordResetService = require('../services/passwordResetService');
 const { getSafeStatusCode } = require('../utils/httpStatus');
+const { AUTH_COOKIE_NAME, normalizeRole } = require('../middleware/authMiddleware');
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+function authCookieOptions({ persistent = false } = {}) {
+    return {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+        ...(persistent ? { maxAge: THIRTY_DAYS_MS } : {}),
+    };
+}
 
 async function checkStudentId(req, res) {
     try {
@@ -41,6 +54,11 @@ async function verifyOtp(req, res) {
 async function login(req, res) {
     try {
         const result = await authService.login(req.body || {});
+        res.cookie(
+            AUTH_COOKIE_NAME,
+            result.token,
+            authCookieOptions({ persistent: Boolean(req.body?.stayLoggedIn) })
+        );
         return res.status(200).json(result);
     } catch (error) {
         console.error('LOGIN ROUTE ERROR:', error);
@@ -48,6 +66,33 @@ async function login(req, res) {
             error: error.message || 'Failed to login',
         });
     }
+}
+
+function loginForRole(expectedRole) {
+    return async (req, res) => {
+        try {
+            const result = await authService.login(req.body || {});
+            if (normalizeRole(result.user?.role) !== expectedRole) {
+                return res.status(403).json({ error: 'This account cannot access this portal.' });
+            }
+            res.cookie(AUTH_COOKIE_NAME, result.token, authCookieOptions());
+            return res.status(200).json(result);
+        } catch (error) {
+            console.error('STAFF LOGIN ERROR:', error.message);
+            return res.status(getSafeStatusCode(error)).json({
+                error: error.message || 'Failed to login',
+            });
+        }
+    };
+}
+
+async function logout(_req, res) {
+    res.clearCookie(AUTH_COOKIE_NAME, authCookieOptions());
+    return res.status(200).json({ message: 'Signed out successfully.' });
+}
+
+async function session(req, res) {
+    return res.status(200).json({ authenticated: true, user: req.user });
 }
 
 async function forgotPassword(req, res) {
@@ -91,6 +136,9 @@ module.exports = {
     register,
     verifyOtp,
     login,
+    logout,
+    session,
+    loginForRole,
     forgotPassword,
     verifyResetOtp,
     resetPassword,

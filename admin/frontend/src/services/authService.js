@@ -46,6 +46,7 @@ async function requestJson(
   try {
     const response = await fetch(buildApiUrl(path), {
       method,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -85,6 +86,13 @@ export const authService = {
         pageId: PAGE_INSTANCE_ID,
       },
       fallbackMessage: 'Invalid credentials',
+    });
+  },
+
+  getCookieSession: async () => {
+    return requestJson('/api/auth/session', {
+      method: 'GET',
+      fallbackMessage: 'Unable to restore your session',
     });
   },
 
@@ -187,7 +195,7 @@ export const authService = {
     const active = getStoredPortalSession();
 
     try {
-      if (active?.portalName === 'admin' && active.token) {
+      if (active?.portalName === 'admin') {
         await requestJson('/api/auth/session/logout', {
           token: active.token,
           body: {},
@@ -195,6 +203,11 @@ export const authService = {
           fallbackMessage: 'Unable to log out',
         });
       }
+      await requestJson('/api/auth/logout', {
+        body: {},
+        keepalive: true,
+        fallbackMessage: 'Unable to log out',
+      });
     } catch {
       // Local logout still proceeds even if the network request fails.
     } finally {
@@ -216,7 +229,7 @@ export function installAdminSessionLifecycle() {
 
     if (
       logoutInProgress ||
-      !active?.token ||
+      !active ||
       !navigator.onLine ||
       document.hidden
     ) {
@@ -245,7 +258,7 @@ export function installAdminSessionLifecycle() {
 
     if (
       logoutInProgress ||
-      !active?.token ||
+      !active ||
       !navigator.onLine ||
       document.hidden
     ) {

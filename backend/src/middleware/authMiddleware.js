@@ -1,8 +1,24 @@
 const jwt = require('jsonwebtoken');
-const supabase = require('../config/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'smart-pdm-dev-secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'smartpdm_session';
+
+const ROLE_ALIASES = new Map([
+    ['administrator', 'admin'],
+    ['osfa administrator', 'admin'],
+    ['osfa_admin', 'admin'],
+    ['program director', 'pd'],
+    ['program_director', 'pd'],
+    ['ro coordinator', 'ro_coordinator'],
+    ['ro-coordinator', 'ro_coordinator'],
+    ['student disciplinary office', 'sdo'],
+]);
+
+function normalizeRole(role = '') {
+    const normalized = String(role).trim().toLowerCase();
+    return ROLE_ALIASES.get(normalized) || normalized;
+}
 
 function normalizeDecodedUser(decoded = {}) {
     const normalizedUserId = decoded.user_id || decoded.userId || decoded.sub || null;
@@ -18,6 +34,29 @@ function normalizeDecodedUser(decoded = {}) {
 function extractToken(value = '') {
     if (!value || typeof value !== 'string') return null;
     return value.startsWith('Bearer ') ? value.slice(7).trim() : value.trim();
+}
+
+function parseCookies(header = '') {
+    return String(header)
+        .split(';')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .reduce((cookies, part) => {
+            const separator = part.indexOf('=');
+            if (separator < 1) return cookies;
+            const key = decodeURIComponent(part.slice(0, separator).trim());
+            const value = decodeURIComponent(part.slice(separator + 1).trim());
+            cookies[key] = value;
+            return cookies;
+        }, {});
+}
+
+function getRequestToken(req) {
+    return (
+        extractToken(req.headers.authorization) ||
+        parseCookies(req.headers.cookie)[AUTH_COOKIE_NAME] ||
+        null
+    );
 }
 
 function buildAuthToken(user) {
@@ -41,6 +80,7 @@ function verifyToken(token) {
 }
 
 async function validateTokenVersion(decoded = {}) {
+    const supabase = require('../config/supabase');
     const userId = decoded.user_id || decoded.userId || decoded.sub;
     if (!userId) {
         return false;
@@ -64,7 +104,7 @@ async function validateTokenVersion(decoded = {}) {
 
 async function protect(req, res, next) {
     try {
-        const token = extractToken(req.headers.authorization);
+        const token = getRequestToken(req);
 
         if (!token) {
             return res.status(401).json({ error: 'Authentication required.' });
@@ -89,7 +129,8 @@ async function authenticateSocket(socket, next) {
         const rawToken =
             socket.handshake?.auth?.token ||
             socket.handshake?.headers?.authorization ||
-            socket.handshake?.query?.token;
+            socket.handshake?.query?.token ||
+            parseCookies(socket.handshake?.headers?.cookie)[AUTH_COOKIE_NAME];
 
         const token = extractToken(rawToken);
 
@@ -111,8 +152,30 @@ async function authenticateSocket(socket, next) {
     }
 }
 
+function requireRole(...allowedRoles) {
+    const allowed = new Set(allowedRoles.flat().map(normalizeRole));
+
+    return (req, res, next) => {
+        const role = normalizeRole(req.user?.role);
+        if (!role || !allowed.has(role)) {
+            return res.status(403).json({
+                error: 'You do not have permission to perform this action.',
+            });
+        }
+        return next();
+    };
+}
+
+const requireAdmin = requireRole('admin');
+const requireStaff = requireRole('admin', 'pd', 'guidance', 'sdo', 'ro_coordinator');
+
 module.exports = {
     buildAuthToken,
     protect,
     authenticateSocket,
+    requireRole,
+    requireAdmin,
+    requireStaff,
+    normalizeRole,
+    AUTH_COOKIE_NAME,
 };

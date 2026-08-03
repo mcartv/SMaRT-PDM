@@ -8,11 +8,11 @@ const {
     updateBenefactor,
 } = require('../controllers/benefactorController');
 
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorizeRoles } = require('../middleware/authMiddleware');
 
 router.get('/public', getPublicBenefactors);
-router.get('/', protect, getBenefactors);
-router.post('/', protect, createBenefactor);
-router.patch('/:id', protect, updateBenefactor);
+router.get('/', protect, authorizeRoles('admin'), getBenefactors);
+router.post('/', protect, authorizeRoles('admin'), createBenefactor);
+router.patch('/:id', protect, authorizeRoles('admin'), updateBenefactor);
 
 module.exports = router;
